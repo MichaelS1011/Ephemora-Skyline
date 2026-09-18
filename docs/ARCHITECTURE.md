@@ -26,6 +26,7 @@ codecity-cyberdefense/
 ```
 
 **Turborepo Tasks:**
+
 - `dev`: Cache=false, persistent — startet beide Workspaces gleichzeitig
 - `build`: `^build` — baut Backend zuerst, dann Frontend
 - `lint`: `^lint` — Lint mit Dependency-Tracking
@@ -45,7 +46,7 @@ backend/src/
 ├── services/
 │   ├── github/
 │   │   ├── client.ts       # GitHub API Client (node-fetch)
-│   │   └── clone-manager.ts # Repository Cloning (isomorphic-git)
+│   │   └── clone-manager.ts # Repository Cloning (system git via execFile)
 │   ├── analyzer/
 │   │   └── orchestrator.ts # Analyse-Orchestrator (koordiniert Pipeline)
 │   └── security/
@@ -67,7 +68,7 @@ backend/src/
 ### Analyse-Pipeline
 
 ```
-1. CloneManager → Repository clonen (isomorphic-git, in-memory)
+1. CloneManager → Repository clonen (system git, shallow per Default; fullHistory-Option für History-Secret-Scan)
 2. File Parser → Jede Datei: Lines, Languages, Cyclomatic/Cognitive Complexity
 3. SecurityScanner → Pattern-Matching für Vulnerabilities (P0/P1/P2)
 4. Analyzer Orchestrator → Ergebnis aggregieren → AnalysisResult
@@ -104,8 +105,7 @@ frontend/src/
 │   └── SearchBar.tsx       # Repository-URL-Eingabe
 ├── renderer/               # 3D-Renderer-Komponenten
 ├── hooks/
-│   ├── useAnimatedBuilding.tsx  # GSAP-Animationen für Gebäude
-│   └── useCameraControls.tsx    # Kamera-Navigation (OrbitControls)
+│   └── useAnalysis.ts      # WebSocket-Analyse-Flow (Progress, Fallback-Polling)
 ├── stores/
 │   └── useStore.ts         # Zustand-Store (globaler State)
 ├── design/                 # Design-System: Farben, Cyberpunk-Theme
@@ -114,14 +114,14 @@ frontend/src/
 
 ### Tech-Stack-Entscheidungen
 
-| Technologie | Grund |
-|---|---|
-| **React Three Fiber** | Declarative Three.js — besser für React Integration |
-| **React Three Drei** | Helper-Komponenten (OrbitControls, Text, etc.) |
-| **Zustand** | Minimaler State-Manager — kein Boilerplate wie Redux |
-| **TailwindCSS** | Utility-First CSS — schnelles Styling ohne CSS-Dateien |
-| **Vite** | Blitzschnelles HMR — besser als Create React App |
-| **GSAP** | Professionelle Animationen für Building-Entry |
+| Technologie              | Grund                                                       |
+| ------------------------ | ----------------------------------------------------------- |
+| **React Three Fiber**    | Declarative Three.js — besser für React Integration         |
+| **React Three Drei**     | Helper-Komponenten (OrbitControls, Text, etc.)              |
+| **Zustand**              | Minimaler State-Manager — kein Boilerplate wie Redux        |
+| **TailwindCSS**          | Utility-First CSS — schnelles Styling ohne CSS-Dateien      |
+| **Vite**                 | Blitzschnelles HMR — besser als Create React App            |
+| **react-three-fiber v9** | Building-Entry-Kinematik via useFrame, CSS-Keyframes für UI |
 
 ### State-Flow
 
@@ -162,6 +162,7 @@ render.yaml → Zwei Services:
 ## Abhängigkeiten
 
 ### Root
+
 - **Turborepo** — Monorepo-Orchestrator
 - **TypeScript 5.8** — Typisierung
 - **ESLint 9 + @typescript-eslint v8** — Flat Config
@@ -169,16 +170,18 @@ render.yaml → Zwei Services:
 - **Husky + lint-staged** — Git Hooks (auto-lint on commit)
 
 ### Frontend
-- **React 18** — UI Framework
-- **Three.js + React Three Fiber** — 3D-Rendering
+
+- **React 19** — UI Framework (StrictMode-safe mit R3F v9)
+- **Three.js r186 + React Three Fiber 9** — 3D-Rendering
+- **@react-three/postprocessing 3** — Bloom
 - **Zustand 5** — State Management
-- **Vite 5** — Build Tool
+- **Vite 8** — Build Tool (Rolldown)
 - **TailwindCSS** — CSS Framework
-- **GSAP** — Animationen
 
 ### Backend
+
 - **Express** — Web Framework
-- **isomorphic-git** — Git-Operationen in Node.js
+- **system git** via execFile-Argument-Array (keine Shell, Token via askpass)
 - **Pino** — Logging
 - **Helmet + CORS + Rate Limit** — Security
 - **WebSocket (ws)** — Echtzeit-Kommunikation

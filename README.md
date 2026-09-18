@@ -18,14 +18,15 @@ buildings are files, glowing arcs are imports, and red beacons are security find
 
 ## 🏗️ Tech Stack
 
-| Layer | Technologie |
-|-------|-------------|
-| **Backend** | Express, TypeScript (ESM), pino Logging, WebSocket (ws) |
-| **Git** | isomorphic-git (Repos clonen & parsen) |
-| **Frontend** | Vite, React 18, Three.js (@react-three/fiber), Zustand, Tailwind CSS |
-| **Build** | Turborepo (Monorepo), TypeScript, ESLint, Prettier |
-| **Testing** | Vitest |
-| **Dev Tools** | Husky, lint-staged |
+| Layer         | Technologie                                                                      |
+| ------------- | -------------------------------------------------------------------------------- |
+| **Backend**   | Express, TypeScript (ESM), pino Logging, WebSocket (ws)                          |
+| **Git**       | system git via `execFile` (Argument-Array, keine Shell)                          |
+| **Security**  | Regex-Heuristics + gitleaks (Secrets) + semgrep (AST) + npm audit (Dependencies) |
+| **Frontend**  | Vite, React 19, Three.js r186 (@react-three/fiber 9), Zustand, Tailwind CSS      |
+| **Build**     | Turborepo (Monorepo), TypeScript, ESLint, Prettier                               |
+| **Testing**   | Vitest                                                                           |
+| **Dev Tools** | Husky, lint-staged                                                               |
 
 ## 🚀 Quick Start
 
@@ -116,38 +117,37 @@ docker compose -f docker/docker-compose.yml up --build
 
 ### Root (Monorepo)
 
-| Script | Beschreibung |
-|--------|-------------|
-| `npm run dev` | Backend + Frontend parallel starten (Turborepo) |
-| `npm run build` | Vollständiger Build (beide Packages) |
-| `npm run lint` | ESLint über alle Packages |
-| `npm run type-check` | TypeScript Check über alle Packages |
-| `npm run test` | Vitest Tests über alle Packages |
-| `npm run format` | Prettier Formatierung (alle Files) |
-| `npm run format:check` | Prettier Check |
-| `npm run clean` | Alle dist/, .turbo/, node_modules löschen |
+| Script               | Beschreibung                                    |
+| -------------------- | ----------------------------------------------- |
+| `npm run dev`        | Backend + Frontend parallel starten (Turborepo) |
+| `npm run build`      | Vollständiger Build (beide Packages)            |
+| `npm run lint`       | ESLint über alle Packages                       |
+| `npm run type-check` | TypeScript Check über alle Packages             |
+| `npm run test`       | Vitest Tests über alle Packages                 |
+| `npm run format`     | Prettier Formatierung (alle Files)              |
+| `npm run clean`      | Alle dist/, .turbo/, node_modules löschen       |
 
 ### Backend
 
-| Script | Beschreibung |
-|--------|-------------|
-| `npm run dev` | Hot-reload mit tsx watch |
-| `npm run build` | TypeScript Compilation (tsc -b) |
-| `npm start` | Production Start (node dist/server/index.js) |
-| `npm run test` | Unit Tests (vitest run) |
-| `npm run test:watch` | Test Watch Mode |
-| `npm run lint` | ESLint Check |
-| `npm run type-check` | TypeScript Check |
+| Script               | Beschreibung                                 |
+| -------------------- | -------------------------------------------- |
+| `npm run dev`        | Hot-reload mit tsx watch                     |
+| `npm run build`      | TypeScript Compilation (tsc -b)              |
+| `npm start`          | Production Start (node dist/server/index.js) |
+| `npm run test`       | Unit Tests (vitest run)                      |
+| `npm run test:watch` | Test Watch Mode                              |
+| `npm run lint`       | ESLint Check                                 |
+| `npm run type-check` | TypeScript Check                             |
 
 ### Frontend
 
-| Script | Beschreibung |
-|--------|-------------|
-| `npm run dev` | Vite Dev Server mit HMR |
-| `npm run build` | TypeScript + Vite Build |
-| `npm run test` | Vitest Tests |
-| `npm run lint` | ESLint Check |
-| `npm run type-check` | TypeScript Check |
+| Script               | Beschreibung            |
+| -------------------- | ----------------------- |
+| `npm run dev`        | Vite Dev Server mit HMR |
+| `npm run build`      | TypeScript + Vite Build |
+| `npm run test`       | Vitest Tests            |
+| `npm run lint`       | ESLint Check            |
+| `npm run type-check` | TypeScript Check        |
 
 ## 🔌 API Endpoints
 
@@ -158,6 +158,7 @@ GET /api/health
 ```
 
 **Response:**
+
 ```json
 { "status": "ok", "timestamp": "2025-01-01T00:00:00.000Z" }
 ```
@@ -175,6 +176,7 @@ Content-Type: application/json
 ```
 
 **Response (Streaming via WebSocket):**
+
 - Fortschritts-Updates per WS (`ws://localhost:4000/ws`)
 - Endergebnis im Analysis-Format
 
@@ -185,11 +187,12 @@ GET /api/result/:sessionId
 ```
 
 **Response:**
+
 ```json
 {
   "sessionId": "...",
   "status": "completed",
-  "data": { /* City-Daten */ }
+  "data": {/* City-Daten */}
 }
 ```
 
@@ -200,6 +203,7 @@ GET /api/status/:sessionId
 ```
 
 **Response:**
+
 ```json
 {
   "sessionId": "...",
@@ -229,16 +233,14 @@ codecity-cyberdefense/
 │       │       ├── analyze.ts# Repository Analysis
 │       │       └── demo.ts   # Demo Repository
 │       ├── services/         # Core Services
-│       │   ├── analyzer/     # Code Analyse
+│       │   ├── analyzer/     # Pipeline: clone → parse → scan → aggregate
 │       │   │   └── orchestrator.ts
-│       │   ├── github/       # GitHub Client
-│       │   ├── security/     # Security Scanner
+│       │   ├── github/       # clone-manager (execFile git) + API client
+│       │   ├── security/     # scanner.ts (Fassade)
+│       │   │   └── adapters/ # regex / gitleaks / semgrep / dependency
 │       │   └── streaming/    # WS Progress Streaming
 │       ├── models/           # Data Models & Types
-│       ├── parser/           # Git File Parser
-│       ├── scanner/          # File Scanner
-│       ├── ai/               # AI Components (optional)
-│       └── utils/            # Utilities
+│       └── utils/            # cityMapper (Stadt-Layout) + SARIF-Export
 ├── frontend/                 # React 3D Visualisierung
 │   └── src/
 │       ├── components/       # 3D & UI Components
@@ -268,7 +270,7 @@ codecity-cyberdefense/
 npm run format
 
 # Formatierung prüfen
-npm run format:check
+npm run format
 
 # ESLint Fix
 # Läuft automatisch via lint-staged vor Commits

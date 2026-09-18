@@ -32,10 +32,28 @@ echo 'GITHUB_TOKEN=ghp_...' >> .env
 ```
 
 Ein `GITHUB_TOKEN` (GitHub Personal Access Token) ermöglicht:
+
 - Höhere Rate Limits für GitHub API-Requests
 - Zugang zu privaten Repositories
 
 Ohne Token wird nur der Demo-Modus (`/api/demo`) funktionieren.
+
+### 3b. Security-Scanner (optional, aber empfohlen)
+
+CodeCity degradiert ohne externe Scanner still auf Regex-Heuristics — die
+Scan-Qualität ist dann deutlich geringer (`scanProvenance` im Ergebnis zeigt
+ehrlich, welche Scanner gelaufen sind):
+
+```bash
+brew install gitleaks semgrep   # macOS (Homebrew)
+```
+
+| Scanner             | Aufgabe                                          | Ohne Binary             |
+| ------------------- | ------------------------------------------------ | ----------------------- |
+| Regex (immer aktiv) | Heuristics: Injection, XSS, eval, …              | —                       |
+| **gitleaks**        | Secrets in Working-Tree & (optional) Git-History | Entropie-Regex-Fallback |
+| **semgrep**         | AST-Scan (p/security-audit), Binary oder Docker  | übersprungen            |
+| **npm audit**       | CVEs in Dependencies (nur mit package-lock.json) | übersprungen            |
 
 ### 4. Entwicklung starten
 
@@ -44,7 +62,8 @@ npm run dev
 ```
 
 Turborepo startet beide Workspaces gleichzeitig:
-- **Frontend** (Vite) → `http://localhost:3000`
+
+- **Frontend** (Vite) → `http://localhost:3010`
 - **Backend** (Express + tsx watch) → `http://localhost:4000`
 
 ### 5. Demo ausprobieren
@@ -57,7 +76,7 @@ curl http://localhost:4000/api/demo
 curl http://localhost:4000/api/health
 ```
 
-Im Browser: Öffne `http://localhost:3000` und klicke auf **Demo** oder gib eine GitHub-URL ein.
+Im Browser: Öffne `http://localhost:3010` und klicke auf **Demo** oder gib eine GitHub-URL ein.
 
 ## Development Workflow
 
@@ -124,7 +143,7 @@ cd frontend && npm run build
 ```bash
 docker compose up --build
 # Backend: http://localhost:4000
-# Frontend: http://localhost:3000
+# Frontend: http://localhost:3010
 ```
 
 ### Einzelne Container bauen
@@ -153,6 +172,7 @@ docker build -f docker/Dockerfile.frontend -t codecity-frontend .
 ### 3. Auto-Deploy
 
 `render.yaml` wird automatisch erkannt und erstellt:
+
 - `codecity-backend` (Node.js Web-Service)
 - `codecity-frontend` (Static Site mit API-Weiterleitung)
 
@@ -171,7 +191,7 @@ npm ci
 
 ```bash
 # Ports prüfen und killen
-lsof -i :3000   # Frontend
+lsof -i :3010   # Frontend
 lsof -i :4000   # Backend
 kill <PID>
 ```
@@ -188,6 +208,7 @@ npm run build
 ### Demo funktioniert nicht
 
 Stelle sicher, dass das Backend läuft:
+
 ```bash
 curl http://localhost:4000/api/demo
 # Sollte JSON zurückgeben
@@ -196,6 +217,7 @@ curl http://localhost:4000/api/demo
 ### Frontend kann Backend nicht erreichen
 
 In `frontend/vite.config.ts` die Backend-URL prüfen:
+
 ```ts
 // Server proxy für Dev
 server: {
