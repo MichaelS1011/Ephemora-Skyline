@@ -1,0 +1,29 @@
+{
+  "$schema": "https://turbo.build/schema.json",
+  "globalDependencies": ["**/.env.*local"],
+  "globalEnv": ["NODE_ENV", "GITHUB_TOKEN", "DATABASE_URL", "REDIS_URL"],
+  "tasks": {
+    "dev": {
+      "cache": false,
+      "persistent": true,
+      "dependsOn": []
+    },
+    "build": {
+      "dependsOn": ["^build"],
+      "inputs": ["src/**", "*.json", "*.ts", "*.js"],
+      "outputs": ["dist/**", ".next/**", "build/**"]
+    },
+    "lint": {
+      "cache": false
+    },
+    "type-check": {
+      "cache": false
+    },
+    "test": {
+      "cache": false
+    },
+    "clean": {
+      "cache": false
+    }
+  }
+}

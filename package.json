@@ -1,0 +1,55 @@
+{
+  "name": "codecity-cyberdefense",
+  "private": true,
+  "type": "module",
+  "version": "0.1.0",
+  "packageManager": "npm@10.0.0",
+  "description": "Eine interaktive 3D-City-Visualisierung von GitHub-Repositories als lebendige Cyberpunk-Stadt",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/username/codecity-cyberdefense.git"
+  },
+  "scripts": {
+    "dev": "turbo run dev",
+    "build": "turbo run build",
+    "lint": "turbo run lint",
+    "type-check": "turbo run type-check",
+    "test": "turbo run test",
+    "clean": "rm -rf */dist .turbo node_modules */node_modules",
+    "format": "prettier --write \"src/**/*.{ts,tsx,json}\"",
+    "prepare": "husky install"
+  },
+  "workspaces": [
+    "frontend",
+    "backend"
+  ],
+  "engines": {
+    "node": ">=20.0.0",
+    "npm": ">=10.0.0"
+  },
+  "devDependencies": {
+    "turbo": "^2.5.0",
+    "typescript": "^5.8.0",
+    "@typescript-eslint/eslint-plugin": "^8.34.0",
+    "@typescript-eslint/parser": "^8.34.0",
+    "eslint": "^9.28.0",
+    "eslint-config-prettier": "^10.1.5",
+    "eslint-plugin-prettier": "^5.4.1",
+    "prettier": "^3.5.3",
+    "husky": "^9.1.7",
+    "lint-staged": "^15.5.0"
+  },
+  "lint-staged": {
+    "*.{ts,tsx}": [
+      "eslint --fix",
+      "prettier --write"
+    ],
+    "*.{js,jsx}": [
+      "eslint --fix",
+      "prettier --write"
+    ],
+    "*.{json,css,md}": [
+      "prettier --write"
+    ]
+  }
+}

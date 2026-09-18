@@ -1,0 +1,61 @@
+# Dependencies
+node_modules/
+**/node_modules/
+.pnp
+.pnp.js
+
+# Build outputs
+dist/
+build/
+.next/
+out/
+*.tsbuildinfo
+
+# Environment
+.env
+.env.*
+!.env.example
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Testing
+coverage/
+.nyc_output/
+*.lcov
+
+# Turbo
+.turbo/
+
+# OS
+Thumbs.db
+
+# TypeScript
+*.tsbuildinfo
+
+# Stale tsc -b output that must never live next to sources again
+*.d.ts.map
+frontend/src/**/*.d.ts
+
+# Prettier cache
+.prettier-cache
+
+# Husky
+.husky/.husky-init.sh
+
+# Docker (local overrides)
+docker/*.local.yml

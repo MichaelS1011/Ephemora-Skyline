@@ -1,0 +1,29 @@
+FROM node:20-alpine AS builder
+
+WORKDIR /app
+
+# git is required by CloneManager (child_process.exec('git clone ...'))
+RUN apk add --no-cache git
+
+COPY package*.json ./
+RUN npm ci --ignore-scripts
+
+COPY tsconfig.json tsconfig.base.json ./
+COPY src/ src/
+RUN npm run build
+
+FROM node:20-alpine
+
+WORKDIR /app
+
+# git must be present in the final image for runtime cloning
+RUN apk add --no-cache git
+
+COPY package*.json ./
+RUN npm ci --ignore-scripts
+
+COPY --from=builder /app/dist ./dist
+
+EXPOSE 4000
+
+CMD ["node", "dist/server/index.js"]

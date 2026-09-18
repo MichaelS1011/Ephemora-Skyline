@@ -1,0 +1,18 @@
+services:
+  - type: web
+    name: codecity-backend
+    runtime: node
+    region: frankfurt
+    plan: free
+    buildCommand: cd backend && npm ci && npm run build
+    startCommand: cd backend && npm start
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000
+      - key: FRONTEND_ORIGIN
+        sync: false   # set in Render dashboard
+      - key: GITHUB_TOKEN
+        sync: false   # optional — set for higher API rate limits
