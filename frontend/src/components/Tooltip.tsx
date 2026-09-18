@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useStore } from '../stores/useStore';
 import { getDirLayout } from '../city/layout';
 import { languageColor, SEVERITY_COLOR, THREAT_COLOR } from '../city/palette';
@@ -9,25 +9,40 @@ import type { ThreatLevel } from '../city/types';
 const TOOLTIP_W = 230;
 const OFFSET = 16;
 
-export function Tooltip({ mousePosition }: { mousePosition: { x: number; y: number } }) {
+export function Tooltip() {
   const cityData = useStore((s) => s.cityData);
   const focusPath = useStore((s) => s.focusPath);
   const hoveredId = useStore((s) => s.hoveredId);
 
-  const [pos, setPos] = useState({ x: 0, y: 0 });
+  const elRef = useRef<HTMLDivElement | null>(null);
+  const lastMouse = useRef({ x: 0, y: 0 });
   const [visible, setVisible] = useState(false);
   const showTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const frameRef = useRef(0);
 
-  /* Smooth position tracking via rAF */
+  const applyPosition = (x: number, y: number): void => {
+    const el = elRef.current;
+    if (!el) return;
+    el.style.left = `${Math.min(x + OFFSET, window.innerWidth - TOOLTIP_W - 10)}px`;
+    el.style.top = `${Math.min(y + OFFSET, window.innerHeight - 120)}px`;
+  };
+
+  /**
+   * Position via direct DOM writes on mousemove — React state here would
+   * re-render the whole app ~60×/s for a purely cosmetic follow effect.
+   */
   useEffect(() => {
-    frameRef.current = requestAnimationFrame(() => {
-      const x = Math.min(mousePosition.x + OFFSET, window.innerWidth - TOOLTIP_W - 10);
-      const y = Math.min(mousePosition.y + OFFSET, window.innerHeight - 120);
-      setPos({ x, y });
-    });
-    return () => cancelAnimationFrame(frameRef.current);
-  }, [mousePosition]);
+    const onMove = (e: MouseEvent): void => {
+      lastMouse.current = { x: e.clientX, y: e.clientY };
+      applyPosition(e.clientX, e.clientY);
+    };
+    window.addEventListener('mousemove', onMove, { passive: true });
+    return () => window.removeEventListener('mousemove', onMove);
+  }, []);
+
+  /* Position from the last known mouse spot when the tooltip (re)mounts */
+  useLayoutEffect(() => {
+    if (hoveredId && elRef.current) applyPosition(lastMouse.current.x, lastMouse.current.y);
+  }, [hoveredId, focusPath]);
 
   /* Fade-in delay to avoid flicker on quick passes */
   useEffect(() => {
@@ -91,11 +106,12 @@ export function Tooltip({ mousePosition }: { mousePosition: { x: number; y: numb
 
   return (
     <div
+      ref={elRef}
       role="tooltip"
       style={{
         position: 'fixed',
-        left: pos.x,
-        top: pos.y,
+        left: -9999,
+        top: -9999,
         width: TOOLTIP_W,
         background: 'rgba(6, 9, 20, 0.95)',
         border: `1px solid ${accent}55`,

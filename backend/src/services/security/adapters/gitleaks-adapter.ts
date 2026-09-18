@@ -2,6 +2,7 @@ import { execFile } from 'child_process';
 import { promisify } from 'util';
 import { mkdtemp, writeFile, rm } from 'fs/promises';
 import { tmpdir } from 'os';
+import pino from 'pino';
 import path from 'path';
 import type { SecurityIssue } from '../../../models/index.js';
 import type { ScannerAdapter } from '../adapter.js';
@@ -37,10 +38,34 @@ const CANDIDATE_RE =
   /(?:password|passwd|pwd|secret|token|api[_-]?key|apikey|access[_-]?token|aws[_-]?secret|github[_-]?token|private[_-]?key)\s*[:=]\s*['"]([^'"]{8,})['"]/gi;
 const GENERIC_KEY_RE = /(?:AKIA[0-9A-Z]{16}|ghp_[A-Za-z0-9]{36}|gho_[A-Za-z0-9]{36}|sk-[A-Za-z0-9]{20,}|xox[bpas]-[0-9A-Za-z-]{10,})/g;
 
+// When the server process runs with a minimal PATH (sandboxed systemd-like
+// environments, launch agents), plain "gitleaks" is not resolvable — try the
+// usual install locations before falling back to the entropy heuristic.
+const GITLEAKS_BIN_FALLBACKS = ['/opt/homebrew/bin/gitleaks', '/usr/local/bin/gitleaks'];
+
 export class GitleaksAdapter implements ScannerAdapter {
   readonly id = 'gitleaks';
+  private logger = pino({ name: 'gitleaks-adapter' });
   private binaryAvailable: boolean | null = null;
+  private resolvedBinary: string | null = null;
   private batchMode = false;
+
+  /** Resolve the gitleaks binary once: PATH first, then common prefixes */
+  private async resolveBinary(): Promise<string | null> {
+    if (this.resolvedBinary) return this.resolvedBinary;
+    for (const candidate of ['gitleaks', ...GITLEAKS_BIN_FALLBACKS]) {
+      try {
+        await execFileAsync(candidate, ['version'], { timeout: 5000 });
+        this.resolvedBinary = candidate;
+        this.logger.info({ binary: candidate }, 'gitleaks binary found');
+        return candidate;
+      } catch {
+        // try next candidate
+      }
+    }
+    this.logger.warn({ PATH: process.env.PATH ?? '' }, 'gitleaks binary not found — entropy fallback only');
+    return null;
+  }
 
   /**
    * Batch mode: a whole clone directory is scanned once via scanRepository().
@@ -69,18 +94,15 @@ export class GitleaksAdapter implements ScannerAdapter {
   async scanRepository(clonePath: string): Promise<Map<string, SecurityIssue[]> | null> {
     if (this.binaryAvailable === false) return null;
     try {
-      if (this.binaryAvailable === null) {
-        try {
-          await execFileAsync('gitleaks', ['version'], { timeout: 3000 });
-          this.binaryAvailable = true;
-        } catch {
-          this.binaryAvailable = false;
-          return null;
-        }
+      const bin = await this.resolveBinary();
+      if (!bin) {
+        this.binaryAvailable = false;
+        return null;
       }
+      this.binaryAvailable = true;
       const { stdout } = await execFileAsync(
-        'gitleaks',
-        ['detect', '--source', clonePath, '--no-git', '--format', 'json', '--no-banner'],
+        bin,
+        ['detect', '--source', clonePath, '--no-git', '--report-format', 'json', '--report-path', '-', '--no-banner'],
         {
           timeout: parseInt(process.env.GITLEAKS_TIMEOUT || '120', 10) * 1000,
           maxBuffer: 50 * 1024 * 1024,
@@ -116,7 +138,8 @@ export class GitleaksAdapter implements ScannerAdapter {
         byFile.set(rel, list);
       }
       return byFile;
-    } catch {
+    } catch (e) {
+      this.logger.warn({ e }, 'gitleaks repository scan failed');
       return null;
     }
   }
@@ -125,20 +148,16 @@ export class GitleaksAdapter implements ScannerAdapter {
     if (this.binaryAvailable === false) return null;
     let tmpBase: string | null = null;
     try {
-      // quick probe once
-      if (this.binaryAvailable === null) {
-        try {
-          await execFileAsync('gitleaks', ['version'], { timeout: 3000 });
-          this.binaryAvailable = true;
-        } catch {
-          this.binaryAvailable = false;
-          return null;
-        }
+      const bin = await this.resolveBinary();
+      if (!bin) {
+        this.binaryAvailable = false;
+        return null;
       }
+      this.binaryAvailable = true;
       tmpBase = await mkdtemp(path.join(tmpdir(), 'codecity-gitleaks-'));
       const tmpFile = path.join(tmpBase, path.basename(filePath));
       await writeFile(tmpFile, content, 'utf-8');
-      const { stdout } = await execFileAsync('gitleaks', ['detect', '--source', tmpBase, '--no-git', '--format', 'json', '--no-banner'], {
+      const { stdout } = await execFileAsync(bin, ['detect', '--source', tmpBase, '--no-git', '--report-format', 'json', '--report-path', '-', '--no-banner'], {
         timeout: 7000,
         maxBuffer: 5 * 1024 * 1024,
       }).catch((e: unknown) => {

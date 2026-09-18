@@ -1,4 +1,5 @@
 import { execFile } from 'child_process';
+import pino from 'pino';
 import { promisify } from 'util';
 import { mkdtemp, writeFile, rm, readFile } from 'fs/promises';
 import { tmpdir } from 'os';
@@ -13,11 +14,33 @@ const execFileAsync = promisify(execFile);
 const SEMGREP_CONFIG = process.env.SEMGREP_CONFIG || 'p/security-audit';
 // Versioned image — a floating :latest tag is a supply-chain risk
 const SEMGREP_DOCKER_IMAGE = process.env.SEMGREP_DOCKER_IMAGE || 'semgrep/semgrep:1.162.0';
+// Same minimal-PATH reasoning as gitleaks: try known prefixes, too
+const SEMGREP_BIN_FALLBACKS = ['/opt/homebrew/bin/semgrep', '/usr/local/bin/semgrep'];
 
 export class SemgrepAdapter implements ScannerAdapter {
   readonly id = 'semgrep';
+  private logger = pino({ name: 'semgrep-adapter' });
   private binaryAvailable: boolean | null = null;
+  private resolvedBinary: string | null = null;
   private dockerAvailable: boolean | null = null;
+  /** Whether the last scanBatch() call actually executed semgrep (binary or docker) */
+  lastBatchExecuted = false;
+
+  /** Resolve the semgrep binary once: PATH first, then common prefixes */
+  private async resolveBinary(): Promise<string | null> {
+    if (this.resolvedBinary) return this.resolvedBinary;
+    for (const candidate of ['semgrep', ...SEMGREP_BIN_FALLBACKS]) {
+      try {
+        await execFileAsync(candidate, ['--version'], { timeout: 5000 });
+        this.resolvedBinary = candidate;
+        this.logger.info({ binary: candidate }, 'semgrep binary found');
+        return candidate;
+      } catch {
+        // try next candidate
+      }
+    }
+    return null;
+  }
 
   // Per-file fallback is no-op — semgrep is batch-oriented.
   async scanFile(_filePath: string, _content: string): Promise<SecurityIssue[]> {
@@ -25,23 +48,32 @@ export class SemgrepAdapter implements ScannerAdapter {
   }
 
   async scanBatch(clonePath: string, contentByPath?: Map<string, string>): Promise<SecurityIssue[]> {
+    this.lastBatchExecuted = false;
     const fromBinary = await this.tryBinary(clonePath, contentByPath);
-    if (fromBinary !== null) return fromBinary;
+    if (fromBinary !== null) {
+      this.lastBatchExecuted = true;
+      return fromBinary;
+    }
     const fromDocker = await this.tryDocker(clonePath, contentByPath);
-    if (fromDocker !== null) return fromDocker;
+    if (fromDocker !== null) {
+      this.lastBatchExecuted = true;
+      return fromDocker;
+    }
     return [];
   }
 
   private async tryBinary(clonePath: string, contentByPath?: Map<string, string>): Promise<SecurityIssue[] | null> {
     if (this.binaryAvailable === false) return null;
     try {
-      if (this.binaryAvailable === null) {
-        await execFileAsync('semgrep', ['--version'], { timeout: 3000 });
-        this.binaryAvailable = true;
+      const bin = await this.resolveBinary();
+      if (!bin) {
+        this.binaryAvailable = false;
+        return null;
       }
+      this.binaryAvailable = true;
       const tmpOut = path.join(tmpdir(), `codecity-semgrep-${Date.now()}.sarif`);
       try {
-        await execFileAsync('semgrep', ['--config', SEMGREP_CONFIG, '--metrics=off', '--sarif', '--quiet', '--sarif-output', tmpOut, clonePath], {
+        await execFileAsync(bin, ['--config', SEMGREP_CONFIG, '--metrics=off', '--sarif', '--quiet', '--sarif-output', tmpOut, clonePath], {
           timeout: parseInt(process.env.SEMGREP_TIMEOUT || '120', 10) * 1000,
           maxBuffer: 10 * 1024 * 1024,
         });
@@ -50,7 +82,7 @@ export class SemgrepAdapter implements ScannerAdapter {
         // semgrep exits 0 (no findings), 1 (findings), 2 (error) — 0/1 are ok
         if (err.code !== 0 && err.code !== 1) {
           // try without sarif-output: capture stdout
-          const { stdout } = await execFileAsync('semgrep', ['--config', SEMGREP_CONFIG, '--metrics=off', '--sarif', '--quiet', clonePath], {
+          const { stdout } = await execFileAsync(bin, ['--config', SEMGREP_CONFIG, '--metrics=off', '--sarif', '--quiet', clonePath], {
             timeout: parseInt(process.env.SEMGREP_TIMEOUT || '120', 10) * 1000,
             maxBuffer: 10 * 1024 * 1024,
           }).catch((ex) => {

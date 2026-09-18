@@ -275,9 +275,20 @@ function walkFiles(dir: CityDir, chain: string[], out: FileHit[]): void {
   for (const c of dir.children) walkFiles(c, [...chain, c.name], out);
 }
 
+/**
+ * Per-city memoization: allFiles() walks the whole tree, and it runs in
+ * per-keystroke (SearchBar) and per-render (InfoPanel, ContextCard,
+ * SecurityTour) code paths — cache the flat index per CityData instance
+ * (city data is immutable after load, so WeakMap is safe).
+ */
+const allFilesCache = new WeakMap<CityData, FileHit[]>();
+
 export function allFiles(city: CityData): FileHit[] {
+  const cached = allFilesCache.get(city);
+  if (cached) return cached;
   const out: FileHit[] = [];
   walkFiles(city.tree, [], out);
+  allFilesCache.set(city, out);
   return out;
 }
 
@@ -305,10 +316,16 @@ export function riskScore(file: CityFile): number {
 }
 
 /** Files with findings, most risky first — the Security Tour itinerary. */
+const tourStopsCache = new WeakMap<CityData, FileHit[]>();
+
 export function tourStops(city: CityData): FileHit[] {
-  return allFiles(city)
+  const cached = tourStopsCache.get(city);
+  if (cached) return cached;
+  const stops = allFiles(city)
     .filter(({ file }) => file.findings.length > 0)
     .sort((a, b) => riskScore(b.file) - riskScore(a.file) || threatRank(b.file.threatLevel) - threatRank(a.file.threatLevel));
+  tourStopsCache.set(city, stops);
+  return stops;
 }
 
 /** The single most risky file in the city — rendered as a landmark tower. */

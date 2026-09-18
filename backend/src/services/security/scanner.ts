@@ -257,7 +257,7 @@ export class SecurityScanner {
     return {
       mergedCount,
       gitleaksRan: secretsByFile !== null,
-      semgrepRan: semgrepByFile.size > 0,
+      semgrepRan: this.semgrepAdapter?.lastBatchExecuted ?? false,
     };
   }
 

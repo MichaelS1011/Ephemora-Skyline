@@ -15,6 +15,7 @@ interface FacadeTextures {
 }
 
 const facadeCache = new Map<string, FacadeTextures>();
+const FACADE_CACHE_MAX = 500;
 
 function mulberry32(seed: number): () => number {
   let a = seed >>> 0;
@@ -30,13 +31,22 @@ function mulberry32(seed: number): () => number {
 function getFacadeTextures(color: string, w: number, h: number, alarm: boolean, seed: number): FacadeTextures {
   const key = `${color}|${Math.round(w * 4)}|${Math.round(h * 4)}|${alarm ? 1 : 0}|${seed % 9}`;
   const hit = facadeCache.get(key);
-  if (hit) return hit;
-  if (facadeCache.size > 500) {
-    for (const t of facadeCache.values()) {
-      t.map.dispose();
-      t.emissive.dispose();
+  if (hit) {
+    // LRU refresh — eviction must target the least-recently-used entry,
+    // never dispose textures still referenced by active materials
+    facadeCache.delete(key);
+    facadeCache.set(key, hit);
+    return hit;
+  }
+  while (facadeCache.size >= FACADE_CACHE_MAX) {
+    const oldestKey = facadeCache.keys().next().value;
+    if (oldestKey === undefined) break;
+    const oldest = facadeCache.get(oldestKey);
+    if (oldest) {
+      oldest.map.dispose();
+      oldest.emissive.dispose();
     }
-    facadeCache.clear();
+    facadeCache.delete(oldestKey);
   }
 
   const W = 128;
@@ -164,9 +174,35 @@ export function Building({ file, x, z, w, d, h, isLandmark = false, dimmed = fal
   const beaconRef = useRef<THREE.Mesh>(null);
   const beamRef = useRef<THREE.Mesh>(null);
   const ringRef = useRef<THREE.Mesh>(null);
+  const groupRef = useRef<THREE.Group>(null);
+  // Construction cinematic finished — stop touching scale every frame
+  const buildDoneRef = useRef(false);
 
+  // Single frame callback per building (flicker + construction combined)
   useFrame(({ clock }) => {
     const t = clock.elapsedTime;
+
+    // Construction cinematic — the building rises out of the ground
+    const g = groupRef.current;
+    if (g && !buildDoneRef.current) {
+      if (!constructing || appearAt === undefined) {
+        if (g.scale.y !== 1) g.scale.y = 1;
+        g.visible = true;
+        buildDoneRef.current = true;
+      } else {
+        const now = Date.now();
+        if (now < appearAt) {
+          g.visible = false;
+        } else {
+          g.visible = true;
+          const k = Math.min(1, (now - appearAt) / 700);
+          const ease = 1 - Math.pow(1 - k, 3);
+          g.scale.y = Math.max(0.001, ease);
+          if (k >= 1) buildDoneRef.current = true;
+        }
+      }
+    }
+
     // Subtle window flicker — the city breathes
     const mat = materials[0] as THREE.MeshStandardMaterial;
     if (!dimmed) mat.emissiveIntensity = 0.82 + Math.sin(t * 0.7 + seed) * 0.07;
@@ -204,28 +240,6 @@ export function Building({ file, x, z, w, d, h, isLandmark = false, dimmed = fal
     : {};
 
   const alarmColor = file.threatLevel === 'critical' ? ENV.windowAlarm : '#ff9a3d';
-
-  const groupRef = useRef<THREE.Group>(null);
-
-  // Construction cinematic — the building rises out of the ground
-  useFrame(() => {
-    const g = groupRef.current;
-    if (!g) return;
-    if (!constructing || appearAt === undefined) {
-      if (g.scale.y !== 1) g.scale.y = 1;
-      g.visible = true;
-      return;
-    }
-    const now = Date.now();
-    if (now < appearAt) {
-      g.visible = false;
-      return;
-    }
-    g.visible = true;
-    const k = Math.min(1, (now - appearAt) / 700);
-    const ease = 1 - Math.pow(1 - k, 3);
-    g.scale.y = Math.max(0.001, ease);
-  });
 
   return (
     <group ref={groupRef} position={[x, 0, z]}>

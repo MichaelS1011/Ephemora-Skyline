@@ -78,6 +78,9 @@ async function runAnalysis(
   };
 
   try {
+    // Tell the client which job id to poll if the WS connection drops
+    wsSend(ws, { type: 'analysis_started', payload: { id: analysisId }, timestamp: new Date().toISOString() });
+
     const result = await orchestrator.analyzeRepo(repo, onEvent, analysisId);
     analysisStore.set(result.id, result);
     jobProgress.delete(result.id);

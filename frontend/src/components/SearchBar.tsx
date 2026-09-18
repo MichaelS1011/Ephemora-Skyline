@@ -3,7 +3,7 @@
 import { useRef, useState, useEffect, useCallback } from 'react';
 import { useStore } from '../stores/useStore';
 import { searchFiles } from '../city/layout';
-import { languageColor, SEVERITY_COLOR, THREAT_COLOR } from '../city/palette';
+import { languageColor, THREAT_COLOR } from '../city/palette';
 import type { ThreatLevel } from '../city/types';
 
 export function SearchBar() {

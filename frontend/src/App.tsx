@@ -31,12 +31,14 @@ export default function App() {
   const selectedUnit = useStore((s) => s.selectedUnit);
   const setSelectedUnit = useStore((s) => s.setSelectedUnit);
   const navigateToFile = useStore((s) => s.navigateToFile);
+  const drillOut = useStore((s) => s.drillOut);
 
   const [apiStatus, setApiStatus] = useState<'connecting' | 'live' | 'demo'>('connecting');
   const [showKeyboardHints, setShowKeyboardHints] = useState(false);
-  const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
+  const [permalinkError, setPermalinkError] = useState('');
 
   const canvasWrapperRef = useRef<HTMLDivElement | null>(null);
+  const lastEscRef = useRef(0);
 
   // ── City loading: only ?city=<id> permalinks auto-load. A fresh visit
   // lands on the empty world (the Landing hero), never a prebuilt city. ────
@@ -61,8 +63,14 @@ export default function App() {
           setApiStatus('live');
         }
       } catch {
-        // Permalink expired (in-memory store) — land on the empty world
-        if (!cancelled) setApiStatus('demo');
+        // Permalink expired (in-memory store) — land on the empty world,
+        // but tell the user why instead of showing a silent empty city
+        if (!cancelled) {
+          setApiStatus('demo');
+          setPermalinkError(
+            'This city link has expired — analysis results are kept in memory and disappear when the backend restarts. Analyze the repository again to rebuild it.',
+          );
+        }
       } finally {
         if (!cancelled) setIsLoading(false);
       }
@@ -76,15 +84,6 @@ export default function App() {
   useEffect(() => {
     if (cityData) resetFocus();
   }, [cityData, resetFocus]);
-
-  // ── Mouse position for the tooltip ───────────────────────────────────────
-  useEffect(() => {
-    const handleMouseMove = (e: MouseEvent): void => {
-      setMousePosition({ x: e.clientX, y: e.clientY });
-    };
-    window.addEventListener('mousemove', handleMouseMove);
-    return () => window.removeEventListener('mousemove', handleMouseMove);
-  }, []);
 
   // ── Keyboard navigation ──────────────────────────────────────────────────
   const handleKeyDown = useCallback(
@@ -105,6 +104,17 @@ export default function App() {
           canvasWrapperRef.current?.focus();
           return;
         }
+        // Up one level (Breadcrumbs hint) — and double-Esc at the root
+        // re-frames the overview camera (ActionBar hint)
+        const focusPath = useStore.getState().focusPath;
+        if (focusPath.length > 0) {
+          drillOut();
+          canvasWrapperRef.current?.focus();
+          return;
+        }
+        const now = Date.now();
+        if (now - lastEscRef.current < 500) resetFocus();
+        lastEscRef.current = now;
         return;
       }
 
@@ -135,7 +145,7 @@ export default function App() {
         if (next) navigateToFile(next.file.id);
       }
     },
-    [showKeyboardHints, selectedUnit, setSelectedUnit, cityData, navigateToFile],
+    [showKeyboardHints, selectedUnit, setSelectedUnit, drillOut, resetFocus, cityData, navigateToFile],
   );
 
   useEffect(() => {
@@ -171,7 +181,36 @@ export default function App() {
       </div>
 
       {/* Landing hero — only on the empty world */}
-      {!inCity && <Landing />}
+      {!inCity && (
+        <>
+          {permalinkError && (
+            <div
+              role="alert"
+              className="absolute top-16 left-1/2 -translate-x-1/2 z-30 flex items-center gap-3
+                         font-jetbrains text-[11px] px-4 py-2.5 rounded"
+              style={{
+                background: 'rgba(30, 12, 18, 0.92)',
+                border: '1px solid rgba(255, 107, 107, 0.45)',
+                color: '#ffb4b4',
+                boxShadow: '0 4px 24px rgba(0,0,0,0.5)',
+                backdropFilter: 'blur(10px)',
+                maxWidth: 560,
+              }}
+            >
+              <span>{permalinkError}</span>
+              <button
+                onClick={() => setPermalinkError('')}
+                aria-label="Dismiss message"
+                className="cursor-pointer shrink-0 hover:brightness-125"
+                style={{ color: '#ff8f9a' }}
+              >
+                ✕
+              </button>
+            </div>
+          )}
+          <Landing />
+        </>
+      )}
 
       {/* ── In-city UI ──────────────────────────────────────────────────── */}
       {inCity && (
@@ -217,7 +256,7 @@ export default function App() {
         <KeyboardHints isOpen={showKeyboardHints} onClose={() => setShowKeyboardHints(false)} />
       </div>
 
-      <Tooltip mousePosition={mousePosition} />
+      <Tooltip />
     </div>
   );
 }

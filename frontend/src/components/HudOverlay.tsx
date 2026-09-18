@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo } from 'react';
+
 import { useStore } from '../stores/useStore';
 import { topLanguages, languageColor, SEVERITY_COLOR } from '../city/palette';
 
@@ -11,6 +11,8 @@ interface HudOverlayProps {
 export function HudOverlay({ apiStatus }: HudOverlayProps) {
   const cityData = useStore((s) => s.cityData);
   const resetFocus = useStore((s) => s.resetFocus);
+  const threatFilter = useStore((s) => s.threatFilter);
+  const setThreatFilter = useStore((s) => s.setThreatFilter);
 
   const dotColor =
     apiStatus === 'live' ? 'var(--color-neon, #00ff9f)'
@@ -159,18 +161,42 @@ export function HudOverlay({ apiStatus }: HudOverlayProps) {
               ))}
             </div>
 
-            {/* Findings chips */}
+            {/* Findings chips — click to dim every file without that severity */}
             {totalFindings > 0 ? (
               <div className="flex items-center gap-1">
                 {(['P0', 'P1', 'P2'] as const).map((sev) =>
                   findings[sev] > 0 ? (
-                    <span
+                    <button
                       key={sev}
-                      className={`chip-${sev.toLowerCase()} font-jetbrains text-[9px] px-1.5 py-px rounded-sm`}
+                      onClick={() => setThreatFilter(threatFilter === sev ? 'all' : sev)}
+                      title={
+                        threatFilter === sev
+                          ? `Filter active: only ${sev} findings stay lit — click to clear`
+                          : `Dim all files without ${sev} findings`
+                      }
+                      aria-pressed={threatFilter === sev}
+                      className={`chip-${sev.toLowerCase()} font-jetbrains text-[9px] px-1.5 py-px rounded-sm cursor-pointer transition-all hover:brightness-125`}
+                      style={
+                        threatFilter === sev
+                          ? { outline: `1px solid ${SEVERITY_COLOR[sev]}`, outlineOffset: '1px' }
+                          : threatFilter !== 'all'
+                            ? { opacity: 0.55 }
+                            : undefined
+                      }
                     >
                       {sev} · {findings[sev]}
-                    </span>
+                    </button>
                   ) : null,
+                )}
+                {threatFilter !== 'all' && (
+                  <button
+                    onClick={() => setThreatFilter('all')}
+                    title="Clear severity filter"
+                    className="font-jetbrains text-[9px] px-1 rounded-sm cursor-pointer"
+                    style={{ color: '#4d6488' }}
+                  >
+                    ✕
+                  </button>
                 )}
               </div>
             ) : (
