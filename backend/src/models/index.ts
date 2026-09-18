@@ -11,6 +11,8 @@ export interface GitHubRepo {
   branch: string;
   cloneUrl: string;
   analyzedAt: string;
+  /** Full clone (no --depth) so gitleaks can scan the entire git history */
+  fullHistory?: boolean;
 }
 
 export interface FileAnalysis {
@@ -33,7 +35,7 @@ export interface FileAnalysis {
     line: number;
   }>;
   exports: Array<{
-    type: 'named' | 'default' | 'reexport';
+    type: "named" | "default" | "reexport";
     name: string;
     line: number;
   }>;
@@ -43,7 +45,7 @@ export interface FileAnalysis {
 
 export interface SecurityIssue {
   type: string;
-  severity: 'P0' | 'P1' | 'P2';
+  severity: "P0" | "P1" | "P2";
   score: number;
   line: number;
   code: string;
@@ -60,7 +62,7 @@ export interface AnalysisResult {
   directories: DirectorySummary[];
   summary: ProjectSummary;
   createdAt: string;
-  status: 'pending' | 'analyzing' | 'complete' | 'failed';
+  status: "pending" | "analyzing" | "complete" | "failed";
   error?: string;
 }
 
@@ -84,19 +86,19 @@ export interface ProjectSummary {
   vulnerabilitiesBySeverity: { P0: number; P1: number; P2: number };
   languagesByLines: Record<string, number>;
   /** Which scanners actually contributed to this result ("complete" can be regex-only) */
-  scanProvenance?: { regex: boolean; gitleaks: boolean; semgrep: boolean };
+  scanProvenance?: { regex: boolean; gitleaks: boolean; semgrep: boolean; dependencies?: boolean };
 }
 
 export type WebSocketEventType =
-  | 'repo_cloned'
-  | 'file_parsing_started'
-  | 'file_parsed'
-  | 'building_generated'
-  | 'analysis_progress'
-  | 'analysis_complete'
-  | 'vulnerability_found'
-  | 'connected'
-  | 'error';
+  | "repo_cloned"
+  | "file_parsing_started"
+  | "file_parsed"
+  | "building_generated"
+  | "analysis_progress"
+  | "analysis_complete"
+  | "vulnerability_found"
+  | "connected"
+  | "error";
 
 export interface WebSocketEvent {
   type: WebSocketEventType;

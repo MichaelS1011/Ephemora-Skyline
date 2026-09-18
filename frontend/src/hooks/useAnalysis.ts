@@ -1,12 +1,13 @@
-'use client';
+"use client";
 
-import { useState, useEffect, useRef, useCallback } from 'react';
-import { useStore } from '../stores/useStore';
-import type { CityData } from '../city/types';
+import { useState, useEffect, useRef, useCallback } from "react";
+import { useStore } from "../stores/useStore";
+import type { CityData } from "../city/types";
 
 interface AnalyzePayload {
   url: string;
   branch?: string;
+  fullHistory?: boolean;
 }
 
 interface WsProgressPayload {
@@ -34,7 +35,7 @@ interface WsMessage {
   timestamp?: string;
 }
 
-export type AnalysisState = 'idle' | 'connecting' | 'analyzing' | 'success' | 'error';
+export type AnalysisState = "idle" | "connecting" | "analyzing" | "success" | "error";
 
 const POLL_INTERVAL_MS = 3000;
 const POLL_TIMEOUT_MS = 15 * 60 * 1000;
@@ -50,19 +51,20 @@ const WS_SILENCE_TIMEOUT_MS = 120 * 1000;
  * the backend) so the progress UI never hangs forever.
  */
 export function useAnalysis() {
-  const [url, setUrl] = useState('');
-  const [branch, setBranch] = useState('');
-  const [state, setState] = useState<AnalysisState>('idle');
-  const [errorMessage, setErrorMessage] = useState('');
+  const [url, setUrl] = useState("");
+  const [branch, setBranch] = useState("");
+  const [fullHistory, setFullHistory] = useState(false);
+  const [state, setState] = useState<AnalysisState>("idle");
+  const [errorMessage, setErrorMessage] = useState("");
 
   const wsRef = useRef<WebSocket | null>(null);
-  const jobIdRef = useRef('');
+  const jobIdRef = useRef("");
   const pollTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const watchdogRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const lastActivityRef = useRef(Date.now());
   const intentionalCloseRef = useRef(false);
   const erroredRef = useRef(false);
-  const stateRef = useRef<AnalysisState>('idle');
+  const stateRef = useRef<AnalysisState>("idle");
   stateRef.current = state;
 
   const setCityData = useStore((s) => s.setCityData);
@@ -109,15 +111,17 @@ export function useAnalysis() {
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data = (await res.json()) as CityData;
         if (data.totalFiles === 0) {
-          throw new Error('No analyzable files found — is the repository public and the branch correct?');
+          throw new Error(
+            "No analyzable files found — is the repository public and the branch correct?",
+          );
         }
         setCityData(data);
         setAnalysisId(id);
-        window.history.replaceState(null, '', `?city=${encodeURIComponent(id)}`);
-        setState('success');
+        window.history.replaceState(null, "", `?city=${encodeURIComponent(id)}`);
+        setState("success");
       } catch (err) {
-        setErrorMessage(err instanceof Error ? err.message : 'Failed to load city data');
-        setState('error');
+        setErrorMessage(err instanceof Error ? err.message : "Failed to load city data");
+        setState("error");
       }
     },
     [setCityData, setAnalysisId],
@@ -130,30 +134,31 @@ export function useAnalysis() {
   const startPollingFallback = useCallback(() => {
     if (pollTimerRef.current || !jobIdRef.current) return;
     const startedAt = Date.now();
-    setAnalysisStage('Connection lost — polling status…');
+    setAnalysisStage("Connection lost — polling status…");
     pollTimerRef.current = setInterval(() => {
       void (async () => {
         const id = jobIdRef.current;
         if (!id) return;
         if (Date.now() - startedAt > POLL_TIMEOUT_MS) {
           stopPolling();
-          setErrorMessage('Analysis timed out. Is the backend still running?');
-          setState('error');
+          setErrorMessage("Analysis timed out. Is the backend still running?");
+          setState("error");
           return;
         }
         try {
           const res = await fetch(`/api/status/${encodeURIComponent(id)}`);
           if (!res.ok) return; // transient — retry on next tick
           const data = (await res.json()) as { status?: string; progress?: number; stage?: string };
-          if (typeof data.progress === 'number') setAnalysisProgress(Math.min(100, Math.max(0, data.progress)));
-          if (typeof data.stage === 'string' && data.stage) setAnalysisStage(data.stage);
-          if (data.status === 'complete') {
+          if (typeof data.progress === "number")
+            setAnalysisProgress(Math.min(100, Math.max(0, data.progress)));
+          if (typeof data.stage === "string" && data.stage) setAnalysisStage(data.stage);
+          if (data.status === "complete") {
             stopPolling();
             void fetchCityData(id);
-          } else if (data.status === 'failed') {
+          } else if (data.status === "failed") {
             stopPolling();
-            setErrorMessage('Analysis failed on the server — check the backend logs.');
-            setState('error');
+            setErrorMessage("Analysis failed on the server — check the backend logs.");
+            setState("error");
           }
         } catch {
           // network hiccup — retry on next tick
@@ -164,27 +169,28 @@ export function useAnalysis() {
 
   const startAnalysis = useCallback(() => {
     if (!url.trim()) {
-      setErrorMessage('Please enter a GitHub URL');
-      setState('error');
+      setErrorMessage("Please enter a GitHub URL");
+      setState("error");
       return;
     }
-    if (!url.startsWith('https://github.com/')) {
-      setErrorMessage('URL must start with https://github.com/');
-      setState('error');
+    if (!url.startsWith("https://github.com/")) {
+      setErrorMessage("URL must start with https://github.com/");
+      setState("error");
       return;
     }
 
     stopPolling();
-    jobIdRef.current = '';
+    jobIdRef.current = "";
     intentionalCloseRef.current = false;
     erroredRef.current = false;
-    setErrorMessage('');
+    setErrorMessage("");
     setAnalysisProgress(0);
-    setAnalysisStage('Connecting...');
-    setState('connecting');
+    setAnalysisStage("Connecting...");
+    setState("connecting");
     disconnectWs();
 
-    const wsUrl = (import.meta.env['VITE_WS_URL'] as string | undefined) ?? 'ws://localhost:4000/ws';
+    const wsUrl =
+      (import.meta.env["VITE_WS_URL"] as string | undefined) ?? "ws://localhost:4000/ws";
     const ws = new WebSocket(wsUrl);
     wsRef.current = ws;
 
@@ -204,11 +210,12 @@ export function useAnalysis() {
 
     ws.onopen = () => {
       lastActivityRef.current = Date.now();
-      setState('analyzing');
-      setAnalysisStage('Sending request...');
+      setState("analyzing");
+      setAnalysisStage("Sending request...");
       const payload: AnalyzePayload = { url: url.trim() };
       if (branch.trim()) payload.branch = branch.trim();
-      ws.send(JSON.stringify({ type: 'start_analysis', payload }));
+      if (fullHistory) payload.fullHistory = true;
+      ws.send(JSON.stringify({ type: "start_analysis", payload }));
     };
 
     ws.onmessage = (event: MessageEvent) => {
@@ -219,32 +226,35 @@ export function useAnalysis() {
       } catch {
         return;
       }
-      if (msg.type === 'analysis_started') {
+      if (msg.type === "analysis_started") {
         const p = msg.payload as WsStartedPayload;
-        if (typeof p.id === 'string') jobIdRef.current = p.id;
-      } else if (msg.type === 'analysis_progress') {
+        if (typeof p.id === "string") jobIdRef.current = p.id;
+      } else if (msg.type === "analysis_progress") {
         const p = msg.payload as WsProgressPayload;
-        if (typeof p.progress === 'number') setAnalysisProgress(Math.min(100, Math.max(0, p.progress)));
-        if (typeof p.stage === 'string') setAnalysisStage(p.stage);
-      } else if (msg.type === 'analysis_complete') {
+        if (typeof p.progress === "number")
+          setAnalysisProgress(Math.min(100, Math.max(0, p.progress)));
+        if (typeof p.stage === "string") setAnalysisStage(p.stage);
+      } else if (msg.type === "analysis_complete") {
         const p = msg.payload as WsCompletePayload;
         setAnalysisProgress(100);
-        setAnalysisStage('Complete!');
+        setAnalysisStage("Complete!");
         disconnectWs();
-        if (typeof p.id === 'string' && p.id) void fetchCityData(p.id);
-      } else if (msg.type === 'error') {
+        if (typeof p.id === "string" && p.id) void fetchCityData(p.id);
+      } else if (msg.type === "error") {
         const p = msg.payload as WsErrorPayload;
         erroredRef.current = true;
-        setErrorMessage(p.message ?? 'Analysis failed — is the repository public and the branch correct?');
-        setState('error');
+        setErrorMessage(
+          p.message ?? "Analysis failed — is the repository public and the branch correct?",
+        );
+        setState("error");
         disconnectWs();
       }
     };
 
     ws.onerror = () => {
       erroredRef.current = true;
-      setErrorMessage('Could not reach the analysis backend. Is it running?');
-      setState('error');
+      setErrorMessage("Could not reach the analysis backend. Is it running?");
+      setState("error");
       disconnectWs();
     };
 
@@ -254,27 +264,37 @@ export function useAnalysis() {
         watchdogRef.current = null;
       }
       // Intentional closes and already-reported errors must not trigger the fallback
-      if (intentionalCloseRef.current || erroredRef.current || stateRef.current !== 'analyzing') {
+      if (intentionalCloseRef.current || erroredRef.current || stateRef.current !== "analyzing") {
         intentionalCloseRef.current = false;
         return;
       }
       // Unexpected drop mid-analysis: the backend job is still running — poll it
       startPollingFallback();
     };
-  }, [url, branch, disconnectWs, fetchCityData, setAnalysisProgress, setAnalysisStage, startPollingFallback, stopPolling]);
+  }, [
+    url,
+    branch,
+    fullHistory,
+    disconnectWs,
+    fetchCityData,
+    setAnalysisProgress,
+    setAnalysisStage,
+    startPollingFallback,
+    stopPolling,
+  ]);
 
   const cancel = useCallback(() => {
     stopPolling();
-    jobIdRef.current = '';
+    jobIdRef.current = "";
     disconnectWs();
-    setState('idle');
+    setState("idle");
     setAnalysisProgress(0);
-    setAnalysisStage('');
+    setAnalysisStage("");
   }, [disconnectWs, setAnalysisProgress, setAnalysisStage, stopPolling]);
 
   const reset = useCallback(() => {
-    setErrorMessage('');
-    setState('idle');
+    setErrorMessage("");
+    setState("idle");
   }, []);
 
   return {
@@ -282,6 +302,8 @@ export function useAnalysis() {
     setUrl,
     branch,
     setBranch,
+    fullHistory,
+    setFullHistory,
     state,
     errorMessage,
     analysisProgress,
@@ -289,6 +311,6 @@ export function useAnalysis() {
     startAnalysis,
     cancel,
     reset,
-    isAnalyzing: state === 'analyzing' || state === 'connecting',
+    isAnalyzing: state === "analyzing" || state === "connecting",
   };
 }

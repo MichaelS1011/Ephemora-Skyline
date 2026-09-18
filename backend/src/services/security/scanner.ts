@@ -5,14 +5,15 @@
  * Ohne Binary/Docker: Graceful Fallback auf Regex/Gitleaks-Fallback, kein Crash.
  */
 
-import { promises as fs } from 'fs';
-import path from 'path';
-import pino from 'pino';
-import type { SecurityIssue, FileAnalysis } from '../../models/index.js';
-import type { ScannerAdapter } from './adapter.js';
-import { RegexAdapter } from './adapters/regex-adapter.js';
-import { GitleaksAdapter } from './adapters/gitleaks-adapter.js';
-import { SemgrepAdapter } from './adapters/semgrep-adapter.js';
+import { promises as fs } from "fs";
+import path from "path";
+import pino from "pino";
+import type { SecurityIssue, FileAnalysis } from "../../models/index.js";
+import type { ScannerAdapter } from "./adapter.js";
+import { RegexAdapter } from "./adapters/regex-adapter.js";
+import { GitleaksAdapter } from "./adapters/gitleaks-adapter.js";
+import { SemgrepAdapter } from "./adapters/semgrep-adapter.js";
+import { DependencyAdapter } from "./adapters/dependency-adapter.js";
 
 const SEVERITY_ORDER = { P0: 0, P1: 1, P2: 2 } as const;
 
@@ -20,10 +21,11 @@ export class SecurityScanner {
   private logger: pino.Logger;
   private adapters: ScannerAdapter[];
   private gitleaksAdapter: GitleaksAdapter | null = null;
+  private dependencyAdapter: DependencyAdapter = new DependencyAdapter();
   semgrepAdapter: SemgrepAdapter | null = null;
 
   constructor(adapters?: ScannerAdapter[]) {
-    this.logger = pino({ name: 'security-scanner' });
+    this.logger = pino({ name: "security-scanner" });
     if (adapters) {
       this.adapters = adapters;
     } else {
@@ -32,6 +34,32 @@ export class SecurityScanner {
       this.gitleaksAdapter = new GitleaksAdapter();
       this.adapters = [new RegexAdapter(), this.gitleaksAdapter, semgrep];
     }
+  }
+
+  /**
+   * Dependency scan — one `npm audit` run on the clone (supply-chain layer).
+   * Findings attach to the lockfile building; executed=false for non-npm repos.
+   */
+  async scanDependencies(
+    clonePath: string,
+    fileAnalyses: FileAnalysis[],
+  ): Promise<{ executed: boolean; added: number }> {
+    const { issuesByFile, executed } = await this.dependencyAdapter.scanRepository(clonePath);
+    if (!executed || issuesByFile.size === 0) return { executed, added: 0 };
+    let added = 0;
+    for (const [rel, issues] of issuesByFile) {
+      // Prefer the lockfile building; fall back to package.json when the
+      // lockfile was skipped (e.g. over MAX_FILE_SIZE)
+      let target = fileAnalyses.find((f) => f.path === rel);
+      if (!target) target = fileAnalyses.find((f) => f.path === "package.json");
+      if (!target) continue;
+      const merged = this.dedupIssues([...target.vulnerabilities, ...issues]);
+      added += merged.length - target.vulnerabilities.length;
+      target.vulnerabilities = merged.sort(
+        (a, b) => SEVERITY_ORDER[a.severity] - SEVERITY_ORDER[b.severity] || a.line - b.line,
+      );
+    }
+    return { executed, added };
   }
 
   /**
@@ -58,11 +86,14 @@ export class SecurityScanner {
 
   // Sync-Kompat für alte Tests ohne Secrets-Adapter — delegiert nur an RegexAdapter
   scanSync(files: FileAnalysis[]): FileAnalysis[] {
-    const regex = this.adapters.find((a) => a.id === 'regex') as unknown as { scanFile: (p: string, c: string) => SecurityIssue[] } | undefined;
+    const regex = this.adapters.find((a) => a.id === "regex") as unknown as
+      { scanFile: (p: string, c: string) => SecurityIssue[] } | undefined;
     if (!regex) return files.map((f) => ({ ...f, vulnerabilities: [] }));
     return files.map((file) => ({
       ...file,
-      vulnerabilities: file.content ? (regex.scanFile(file.path, file.content) as SecurityIssue[]) : [],
+      vulnerabilities: file.content
+        ? (regex.scanFile(file.path, file.content) as SecurityIssue[])
+        : [],
     }));
   }
 
@@ -75,21 +106,29 @@ export class SecurityScanner {
     }
     const deduped = this.dedupIssues(all);
     // Sort by severity order P0>P1>P2 then line
-    deduped.sort((a, b) => (SEVERITY_ORDER[a.severity] - SEVERITY_ORDER[b.severity]) || a.line - b.line);
-    if (deduped.length > 0) this.logger.info({ filePath, issues: deduped.length }, 'Security scan completed');
+    deduped.sort(
+      (a, b) => SEVERITY_ORDER[a.severity] - SEVERITY_ORDER[b.severity] || a.line - b.line,
+    );
+    if (deduped.length > 0)
+      this.logger.info({ filePath, issues: deduped.length }, "Security scan completed");
     return deduped;
   }
 
   // Sync-Variante für bestehende sync Tests (ohne Gitleaks)
   scanFileSync(filePath: string, content: string): SecurityIssue[] {
-    const regex = this.adapters.find((a) => a.id === 'regex');
+    const regex = this.adapters.find((a) => a.id === "regex");
     if (!regex) return [];
-    const res = (regex as unknown as { scanFile: (p: string, c: string) => SecurityIssue[] }).scanFile(filePath, content);
+    const res = (
+      regex as unknown as { scanFile: (p: string, c: string) => SecurityIssue[] }
+    ).scanFile(filePath, content);
     return res as SecurityIssue[];
   }
 
   /** Parse ESM + CJS + dynamic imports and exports from source */
-  scanFileStructure(filePath: string, content: string): {
+  scanFileStructure(
+    filePath: string,
+    content: string,
+  ): {
     imports: Array<{ source: string; named: string[]; isExternal: boolean }>;
     exports: Array<{ type: string; name: string }>;
   } {
@@ -103,7 +142,7 @@ export class SecurityScanner {
       imports.push({
         source,
         named,
-        isExternal: !source.startsWith('.') && !source.startsWith('/'),
+        isExternal: !source.startsWith(".") && !source.startsWith("/"),
       });
     };
 
@@ -115,10 +154,10 @@ export class SecurityScanner {
     while ((match = esmRegex.exec(content)) !== null) {
       const named =
         match[1]
-          ?.split(',')
-          .map((s: string) => s.trim().split(' as ')[0]!.trim())
+          ?.split(",")
+          .map((s: string) => s.trim().split(" as ")[0]!.trim())
           .filter(Boolean) ?? [];
-      const def = match[2] ?? match[3] ?? '';
+      const def = match[2] ?? match[3] ?? "";
       push(match[4]!, def ? [...named, def] : named);
     }
 
@@ -133,14 +172,18 @@ export class SecurityScanner {
       /(?:const|let|var)\s+\{([^}]+)\}\s*=\s*require\s*\(\s*['"]([^'"]+)['"]\s*\)/g;
     while ((match = cjsDestructured.exec(content)) !== null) {
       const named = match[1]!
-        .split(',')
-        .map((s: string) => s.trim().split(/\s+as\s+/)[0]!.trim())
+        .split(",")
+        .map((s: string) =>
+          s
+            .trim()
+            .split(/\s+as\s+/)[0]!
+            .trim(),
+        )
         .filter(Boolean);
       push(match[2]!, named);
     }
 
-    const cjsSimple =
-      /(?:const|let|var)\s+([\w$]+)\s*=\s*require\s*\(\s*['"]([^'"]+)['"]\s*\)/g;
+    const cjsSimple = /(?:const|let|var)\s+([\w$]+)\s*=\s*require\s*\(\s*['"]([^'"]+)['"]\s*\)/g;
     while ((match = cjsSimple.exec(content)) !== null) {
       push(match[2]!, [match[1]!]);
     }
@@ -161,20 +204,20 @@ export class SecurityScanner {
     const exportRegex =
       /export\s+(?:default\s+)?(?:function|class|const|let|var|async\s+function)\s+([\w$]+)/g;
     while ((match = exportRegex.exec(content)) !== null) {
-      exports.push({ type: 'named', name: match[1]! });
+      exports.push({ type: "named", name: match[1]! });
     }
     const defaultExportRegex = /export\s+default\s+(?:function|class)\s+([\w$]+)/g;
     while ((match = defaultExportRegex.exec(content)) !== null) {
-      exports.push({ type: 'default', name: match[1]! });
+      exports.push({ type: "default", name: match[1]! });
     }
 
     // ── CJS exports: module.exports / exports.x ────────────────────────────
     const cjsExportNamed = /exports\s*\.\s*([\w$]+)\s*=/g;
     while ((match = cjsExportNamed.exec(content)) !== null) {
-      exports.push({ type: 'named', name: match[1]! });
+      exports.push({ type: "named", name: match[1]! });
     }
     if (/module\.exports\s*=/.test(content)) {
-      exports.push({ type: 'default', name: 'default' });
+      exports.push({ type: "default", name: "default" });
     }
 
     return { imports, exports };
@@ -184,12 +227,34 @@ export class SecurityScanner {
   getPatternTypes(): string[] {
     const all: string[] = [];
     for (const a of this.adapters) {
-      if (a.id === 'regex') {
-        all.push('CMD_INJECTION','SQL_INJECTION','EVAL_USAGE','DYNAMIC_FUNCTION','PATH_TRAVERSAL','XSS','PROTOTYPE_POLLUTION','UNSAFE_DESERIALIZATION','SETTIMEOUT_STRING','CONSOLE_USAGE','LOOSE_EQUALITY','LOCALSTORAGE_USAGE','INSECURE_HTTP','HARDCODED_SECRET');
-      } else if (a.id === 'gitleaks') {
-        all.push('HARDCODED_SECRET');
-      } else if (a.id === 'semgrep') {
-        all.push('XSS','SQL_INJECTION','CMD_INJECTION','PATH_TRAVERSAL','EVAL_USAGE','HARDCODED_SECRET');
+      if (a.id === "regex") {
+        all.push(
+          "CMD_INJECTION",
+          "SQL_INJECTION",
+          "EVAL_USAGE",
+          "DYNAMIC_FUNCTION",
+          "PATH_TRAVERSAL",
+          "XSS",
+          "PROTOTYPE_POLLUTION",
+          "UNSAFE_DESERIALIZATION",
+          "SETTIMEOUT_STRING",
+          "CONSOLE_USAGE",
+          "LOOSE_EQUALITY",
+          "LOCALSTORAGE_USAGE",
+          "INSECURE_HTTP",
+          "HARDCODED_SECRET",
+        );
+      } else if (a.id === "gitleaks") {
+        all.push("HARDCODED_SECRET");
+      } else if (a.id === "semgrep") {
+        all.push(
+          "XSS",
+          "SQL_INJECTION",
+          "CMD_INJECTION",
+          "PATH_TRAVERSAL",
+          "EVAL_USAGE",
+          "HARDCODED_SECRET",
+        );
       }
     }
     return [...new Set(all)];
@@ -203,14 +268,17 @@ export class SecurityScanner {
   async scanRepositoryBatch(
     clonePath: string,
     fileAnalyses: FileAnalysis[],
+    opts?: { gitHistory?: boolean },
   ): Promise<{ mergedCount: number; gitleaksRan: boolean; semgrepRan: boolean }> {
     // gitleaks: one process for the whole clone
     let secretsByFile: Map<string, SecurityIssue[]> | null = null;
     if (this.gitleaksAdapter) {
       try {
-        secretsByFile = await this.gitleaksAdapter.scanRepository(clonePath);
+        secretsByFile = await this.gitleaksAdapter.scanRepository(clonePath, {
+          gitHistory: opts?.gitHistory,
+        });
       } catch (e) {
-        this.logger.warn({ e }, 'Gitleaks batch scan failed — secrets only via fallback');
+        this.logger.warn({ e }, "Gitleaks batch scan failed — secrets only via fallback");
       }
     }
 
@@ -222,14 +290,14 @@ export class SecurityScanner {
         for (const fa of fileAnalyses) {
           const abs = path.join(clonePath, fa.path);
           try {
-            contentByPath.set(fa.path, await fs.readFile(abs, 'utf-8'));
+            contentByPath.set(fa.path, await fs.readFile(abs, "utf-8"));
           } catch {
             // ignore unreadable
           }
         }
         semgrepByFile = await this.scanBatch(clonePath, contentByPath);
       } catch (e) {
-        this.logger.warn({ e }, 'Semgrep batch scan failed — continuing with regex results');
+        this.logger.warn({ e }, "Semgrep batch scan failed — continuing with regex results");
       }
     }
 
@@ -243,14 +311,16 @@ export class SecurityScanner {
 
       // Fill the code line for gitleaks batch findings (adapter has no content)
       for (const iss of extras) {
-        if (!iss.code && iss.provenance === 'gitleaks') {
-          iss.code = fa.content?.split('\n')[iss.line - 1]?.trim().slice(0, 120) ?? '';
+        if (!iss.code && iss.provenance === "gitleaks") {
+          iss.code = fa.content?.split("\n")[iss.line - 1]?.trim().slice(0, 120) ?? "";
         }
       }
 
       const merged = this.dedupIssues([...fa.vulnerabilities, ...extras]);
       mergedCount += merged.length - fa.vulnerabilities.length;
-      merged.sort((a, b) => (SEVERITY_ORDER[a.severity] - SEVERITY_ORDER[b.severity]) || a.line - b.line);
+      merged.sort(
+        (a, b) => SEVERITY_ORDER[a.severity] - SEVERITY_ORDER[b.severity] || a.line - b.line,
+      );
       fa.vulnerabilities = merged;
     }
 
@@ -273,24 +343,26 @@ export class SecurityScanner {
     const seenLineType = new Set<string>();
     const gitleaksLines = new Set<string>();
     for (const i of issues) {
-      if ((i as unknown as { provenance?: string }).provenance === 'gitleaks') {
+      if ((i as unknown as { provenance?: string }).provenance === "gitleaks") {
         gitleaksLines.add(`${i.line}`);
       }
     }
     // first pass: highest severity first so P0 provenance wins dedup
     const sorted = [...issues].sort(
-      (a, b) => (SEVERITY_ORDER[a.severity] - SEVERITY_ORDER[b.severity]) || a.line - b.line,
+      (a, b) => SEVERITY_ORDER[a.severity] - SEVERITY_ORDER[b.severity] || a.line - b.line,
     );
     const result: SecurityIssue[] = [];
     for (const i of sorted) {
-      const ruleId = (i as unknown as { ruleId?: string }).ruleId ?? '';
+      const ruleId = (i as unknown as { ruleId?: string }).ruleId ?? "";
       const k = `${i.line}:${i.type}:${ruleId}`;
       if (seen.has(k)) continue;
       const fallbackSecret =
-        i.type === 'HARDCODED_SECRET' && (ruleId === 'gitleaks:generic-api-key' || (i as unknown as { provenance?: string }).provenance === 'gitleaks-fallback');
+        i.type === "HARDCODED_SECRET" &&
+        (ruleId === "gitleaks:generic-api-key" ||
+          (i as unknown as { provenance?: string }).provenance === "gitleaks-fallback");
       if (fallbackSecret && gitleaksLines.has(`${i.line}`)) continue;
       const lt = `${i.line}:${i.type}`;
-      if (seenLineType.has(lt) && ruleId !== 'HARDCODED_SECRET') {
+      if (seenLineType.has(lt) && ruleId !== "HARDCODED_SECRET") {
         // same line+type from another scanner — keep the first (better) one
         continue;
       }
@@ -302,7 +374,10 @@ export class SecurityScanner {
   }
 
   /** Batch SARIF-aware scan — invoked by orchestrator on clonePath (optional, not per-file) */
-  async scanBatch(clonePath: string, contentByPath: Map<string, string>): Promise<Map<string, SecurityIssue[]>> {
+  async scanBatch(
+    clonePath: string,
+    contentByPath: Map<string, string>,
+  ): Promise<Map<string, SecurityIssue[]>> {
     if (!this.semgrepAdapter) return new Map();
     const batchIssues = await this.semgrepAdapter.scanBatch(clonePath, contentByPath);
     const byFile = new Map<string, SecurityIssue[]>();
@@ -310,7 +385,7 @@ export class SecurityScanner {
       const fp = (issue as unknown as Record<string, unknown>)._filePath as string | undefined;
       if (!fp) continue;
       // normalize to repo-relative path
-      const rel = fp.startsWith(clonePath + '/') ? fp.slice(clonePath.length + 1) : fp;
+      const rel = fp.startsWith(clonePath + "/") ? fp.slice(clonePath.length + 1) : fp;
       const list = byFile.get(rel) ?? byFile.get(fp) ?? [];
       list.push(issue);
       byFile.set(rel, list);
@@ -322,9 +397,9 @@ export class SecurityScanner {
   /** Count issues by severity bucket */
   countBySeverity(issues: SecurityIssue[]): { P0: number; P1: number; P2: number } {
     return {
-      P0: issues.filter((i) => i.severity === 'P0').length,
-      P1: issues.filter((i) => i.severity === 'P1').length,
-      P2: issues.filter((i) => i.severity === 'P2').length,
+      P0: issues.filter((i) => i.severity === "P0").length,
+      P1: issues.filter((i) => i.severity === "P1").length,
+      P2: issues.filter((i) => i.severity === "P2").length,
     };
   }
 }

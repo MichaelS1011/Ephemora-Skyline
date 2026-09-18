@@ -6,33 +6,33 @@
  * HTTP endpoints use normal request/response.
  */
 
-import type { Request, Response, NextFunction } from 'express';
+import type { Request, Response, NextFunction } from "express";
 
-import express from 'express';
-import cors from 'cors';
-import helmet from 'helmet';
-import rateLimit from 'express-rate-limit';
-import dotenv from 'dotenv';
-import http from 'http';
-import type { WebSocket } from 'ws';
-import { WebSocketServer } from 'ws';
-import pino from 'pino';
+import express from "express";
+import cors from "cors";
+import helmet from "helmet";
+import rateLimit from "express-rate-limit";
+import dotenv from "dotenv";
+import http from "http";
+import type { WebSocket } from "ws";
+import { WebSocketServer } from "ws";
+import pino from "pino";
 
-import type { AnalysisResult } from '../models/index.js';
-import { AnalysisOrchestrator } from '../services/analyzer/orchestrator.js';
-import { GitHubClient } from '../services/github/client.js';
-import { CloneManager } from '../services/github/clone-manager.js';
-import { SecurityScanner } from '../services/security/scanner.js';
-import { getHealth } from './routes/health.js';
-import { getDemoResult } from './routes/demo.js';
-import { handleAnalyze, getJobProgress } from './routes/analyze.js';
-import { WebSocketServerManager } from '../services/streaming/websocket-server.js';
-import { mapResultToCityData } from '../utils/cityMapper.js';
-import { resultToSarif } from '../utils/sarif.js';
+import type { AnalysisResult } from "../models/index.js";
+import { AnalysisOrchestrator } from "../services/analyzer/orchestrator.js";
+import { GitHubClient } from "../services/github/client.js";
+import { CloneManager } from "../services/github/clone-manager.js";
+import { SecurityScanner } from "../services/security/scanner.js";
+import { getHealth } from "./routes/health.js";
+import { getDemoResult } from "./routes/demo.js";
+import { handleAnalyze, getJobProgress } from "./routes/analyze.js";
+import { WebSocketServerManager } from "../services/streaming/websocket-server.js";
+import { mapResultToCityData } from "../utils/cityMapper.js";
+import { resultToSarif } from "../utils/sarif.js";
 
 dotenv.config();
 
-const logger = pino({ name: 'codecity' });
+const logger = pino({ name: "codecity" });
 
 const app = express();
 const server = http.createServer(app);
@@ -49,7 +49,7 @@ class AnalysisStore {
   private readonly ttlMs: number;
 
   constructor() {
-    this.maxEntries = parseInt(process.env.ANALYSIS_MAX_ENTRIES || '20', 10);
+    this.maxEntries = parseInt(process.env.ANALYSIS_MAX_ENTRIES || "20", 10);
     this.ttlMs = parseInt(process.env.ANALYSIS_TTL_MS || String(24 * 60 * 60 * 1000), 10);
   }
 
@@ -107,10 +107,10 @@ const readLimiter = rateLimit({
 
 const analyzeLimiter = rateLimit({
   windowMs: 60 * 60 * 1000, // 1 hour
-  max: 10,                   // max 10 analyses per IP per hour
+  max: 10, // max 10 analyses per IP per hour
   standardHeaders: true,
   legacyHeaders: false,
-  message: { error: 'Analysis rate limit reached — maximum 10 analyses per hour per IP.' },
+  message: { error: "Analysis rate limit reached — maximum 10 analyses per hour per IP." },
 });
 
 // ── WS analyze budget ─────────────────────────────────────────────────────
@@ -136,66 +136,66 @@ function allowWsAnalyze(ip: string): boolean {
 app.use(helmet());
 app.use(
   cors({
-    origin: process.env.FRONTEND_ORIGIN || 'http://localhost:3010',
+    origin: process.env.FRONTEND_ORIGIN || "http://localhost:3010",
     credentials: true,
   }),
 );
-app.use(express.json({ limit: '10mb' }));
+app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true }));
-app.use('/api', readLimiter);
+app.use("/api", readLimiter);
 
 // ── Routes ─────────────────────────────────────────────────────────────────
 
 // GET /api/health
-app.get('/api/health', async (_req: Request, res: Response): Promise<void> => {
+app.get("/api/health", async (_req: Request, res: Response): Promise<void> => {
   const health = await getHealth();
   res.json(health);
 });
 
 // GET /api/demo — hardcoded demo dataset
-app.get('/api/demo', (_req: Request, res: Response): void => {
+app.get("/api/demo", (_req: Request, res: Response): void => {
   try {
     res.json(getDemoResult());
   } catch {
-    res.status(500).json({ error: 'Internal server error' });
+    res.status(500).json({ error: "Internal server error" });
   }
 });
 
 // GET /api/cities/default — city-mapped demo data consumed by the frontend
-app.get('/api/cities/default', (_req: Request, res: Response): void => {
+app.get("/api/cities/default", (_req: Request, res: Response): void => {
   try {
     const demo = getDemoResult();
     res.json(mapResultToCityData(demo));
   } catch {
-    res.status(500).json({ error: 'Internal server error' });
+    res.status(500).json({ error: "Internal server error" });
   }
 });
 
 // POST /api/analyze — kick off a repository analysis
 // Returns 202 immediately with { id, status, statusUrl } — the analysis runs
 // in the background; progress via WS events or GET /api/status/:id
-app.post('/api/analyze', analyzeLimiter, async (req: Request, res: Response): Promise<void> => {
+app.post("/api/analyze", analyzeLimiter, async (req: Request, res: Response): Promise<void> => {
   // handleAnalyze registers a skeleton result in the store and starts the
   // analysis in the background — no long-blocking request
   await handleAnalyze(req, res, orchestrator, analysisStore);
 });
 
 // GET /api/result/:id — retrieve a completed analysis
-app.get('/api/result/:id', (req: Request, res: Response): void => {
-  const id = req.params['id'];
+app.get("/api/result/:id", (req: Request, res: Response): void => {
+  const id = req.params["id"];
   if (!id || Array.isArray(id)) {
-    res.status(400).json({ error: 'Missing analysis ID' });
+    res.status(400).json({ error: "Missing analysis ID" });
     return;
   }
 
   const result = analysisStore.get(id);
   if (!result) {
-    res.status(404).json({ error: 'Analysis not found' });
+    res.status(404).json({ error: "Analysis not found" });
     return;
   }
 
-  if (result.status === 'analyzing') {
-    res.json({ status: 'pending', progress: 0 });
+  if (result.status === "analyzing") {
+    res.json({ status: "pending", progress: 0 });
     return;
   }
 
@@ -203,47 +203,47 @@ app.get('/api/result/:id', (req: Request, res: Response): void => {
 });
 
 // GET /api/result/:id/city — retrieve analysis mapped to city data
-app.get('/api/result/:id/city', (req: Request, res: Response): void => {
-  const id = req.params['id'];
-  const result = analysisStore.get(typeof id === 'string' ? id : '');
+app.get("/api/result/:id/city", (req: Request, res: Response): void => {
+  const id = req.params["id"];
+  const result = analysisStore.get(typeof id === "string" ? id : "");
   if (!result) {
-    res.status(404).json({ error: 'Analysis not found' });
+    res.status(404).json({ error: "Analysis not found" });
     return;
   }
   res.json(mapResultToCityData(result));
 });
 
 // GET /api/result/:id/sarif — SARIF export for InfoPanel + CI
-app.get('/api/result/:id/sarif', (req: Request, res: Response): void => {
-  const id = req.params['id'];
-  const result = analysisStore.get(typeof id === 'string' ? id : '');
+app.get("/api/result/:id/sarif", (req: Request, res: Response): void => {
+  const id = req.params["id"];
+  const result = analysisStore.get(typeof id === "string" ? id : "");
   if (!result) {
-    res.status(404).json({ error: 'Analysis not found' });
+    res.status(404).json({ error: "Analysis not found" });
     return;
   }
-  res.setHeader('Content-Type', 'application/sarif+json');
+  res.setHeader("Content-Type", "application/sarif+json");
   res.json(resultToSarif(result));
 });
 
 // GET /api/status/:id — poll analysis progress
-app.get('/api/status/:id', (req: Request, res: Response): void => {
-  const id = req.params['id'];
+app.get("/api/status/:id", (req: Request, res: Response): void => {
+  const id = req.params["id"];
   if (!id || Array.isArray(id)) {
-    res.status(400).json({ error: 'Missing analysis ID' });
+    res.status(400).json({ error: "Missing analysis ID" });
     return;
   }
 
   const result = analysisStore.get(id);
   if (!result) {
-    res.status(404).json({ error: 'Analysis not found' });
+    res.status(404).json({ error: "Analysis not found" });
     return;
   }
 
   const live = getJobProgress(id);
   res.json({
     status: result.status,
-    progress: result.status === 'complete' ? 100 : (live?.progress ?? 0),
-    stage: result.status === 'complete' ? 'Complete' : live?.stage,
+    progress: result.status === "complete" ? 100 : (live?.progress ?? 0),
+    stage: result.status === "complete" ? "Complete" : live?.stage,
     filesParsed: result.files.length,
     totalFiles: result.summary.totalFiles,
   });
@@ -251,33 +251,33 @@ app.get('/api/status/:id', (req: Request, res: Response): void => {
 
 // ── Error handling ─────────────────────────────────────────────────────────
 app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
-  logger.error({ err }, 'Unhandled error');
-  res.status(500).json({ error: 'Internal server error' });
+  logger.error({ err }, "Unhandled error");
+  res.status(500).json({ error: "Internal server error" });
 });
 
 // ── WebSocket server ───────────────────────────────────────────────────────
-const wss = new WebSocketServer({ server, path: '/ws' });
+const wss = new WebSocketServer({ server, path: "/ws" });
 const wsManager = new WebSocketServerManager(logger);
 
 wsManager.startHeartbeat();
 wsManager.startCleanup();
 
-wss.on('connection', (wsClient: WebSocket, request: http.IncomingMessage) => {
+wss.on("connection", (wsClient: WebSocket, request: http.IncomingMessage) => {
   const clientId = crypto.randomUUID();
-  logger.info({ clientId }, 'WebSocket client connected');
+  logger.info({ clientId }, "WebSocket client connected");
 
   // Register with manager for heartbeat + cleanup tracking
-  wsManager.handleConnection(wsClient, request.url ?? '/ws');
+  wsManager.handleConnection(wsClient, request.url ?? "/ws");
 
   // Allow 5s for client to send start_analysis before defaulting to demo
   const startAnalysisTimeout = setTimeout(() => {
     if (wsClient.readyState === wsClient.OPEN) {
-      logger.info({ clientId }, 'No start_analysis received — sending demo data');
+      logger.info({ clientId }, "No start_analysis received — sending demo data");
       try {
         wsClient.send(
           JSON.stringify({
-            type: 'analysis_progress',
-            payload: { progress: 0, stage: 'Loading demo data...', connected: true },
+            type: "analysis_progress",
+            payload: { progress: 0, stage: "Loading demo data...", connected: true },
             timestamp: new Date().toISOString(),
           }),
         );
@@ -286,7 +286,7 @@ wss.on('connection', (wsClient: WebSocket, request: http.IncomingMessage) => {
         analysisStore.set(demo.id, demo);
         wsClient.send(
           JSON.stringify({
-            type: 'analysis_complete',
+            type: "analysis_complete",
             payload: { id: demo.id, totalFiles: demo.summary.totalFiles },
             timestamp: new Date().toISOString(),
           }),
@@ -297,22 +297,25 @@ wss.on('connection', (wsClient: WebSocket, request: http.IncomingMessage) => {
     }
   }, 5000);
 
-  wsClient.on('message', (data: Buffer) => {
+  wsClient.on("message", (data: Buffer) => {
     clearTimeout(startAnalysisTimeout);
     const raw = data.toString();
 
     try {
-      const parsed = JSON.parse(raw) as { type?: string; payload?: { url?: string; branch?: string } };
+      const parsed = JSON.parse(raw) as {
+        type?: string;
+        payload?: { url?: string; branch?: string; fullHistory?: boolean };
+      };
 
-      if (parsed.type === 'start_analysis' && parsed.payload?.url) {
-        const ip = request.socket.remoteAddress ?? 'unknown';
+      if (parsed.type === "start_analysis" && parsed.payload?.url) {
+        const ip = request.socket.remoteAddress ?? "unknown";
         if (!allowWsAnalyze(ip)) {
-          logger.warn({ clientId, ip }, 'WS: analysis rate limit reached');
+          logger.warn({ clientId, ip }, "WS: analysis rate limit reached");
           try {
             wsClient.send(
               JSON.stringify({
-                type: 'error',
-                payload: { message: 'Analysis rate limit reached — maximum 10 analyses per hour.' },
+                type: "error",
+                payload: { message: "Analysis rate limit reached — maximum 10 analyses per hour." },
                 timestamp: new Date().toISOString(),
               }),
             );
@@ -323,7 +326,7 @@ wss.on('connection', (wsClient: WebSocket, request: http.IncomingMessage) => {
         }
 
         const { url, branch } = parsed.payload;
-        logger.info({ clientId, url }, 'WS: triggering analysis');
+        logger.info({ clientId, url }, "WS: triggering analysis");
 
         handleAnalyze(
           { body: { url, branch }, params: {} } as Request,
@@ -332,39 +335,39 @@ wss.on('connection', (wsClient: WebSocket, request: http.IncomingMessage) => {
           analysisStore,
           wsClient,
         ).catch((err: unknown) => {
-          logger.error({ clientId, err }, 'WS analysis failed');
+          logger.error({ clientId, err }, "WS analysis failed");
         });
       }
     } catch {
-      logger.warn({ clientId, raw }, 'WS: received non-JSON message');
+      logger.warn({ clientId, raw }, "WS: received non-JSON message");
     }
   });
 
-  wsClient.on('close', () => {
+  wsClient.on("close", () => {
     clearTimeout(startAnalysisTimeout);
-    logger.info({ clientId }, 'WebSocket client disconnected');
+    logger.info({ clientId }, "WebSocket client disconnected");
   });
 });
 
 // ── Graceful shutdown ──────────────────────────────────────────────────────
 const shutdown = (signal: string) => {
-  logger.info({ signal }, 'Shutdown signal received');
+  logger.info({ signal }, "Shutdown signal received");
   wsManager.closeAll();
   server.close(() => {
-    logger.info('HTTP server closed');
+    logger.info("HTTP server closed");
     wss.close(() => {
-      logger.info('WebSocket server closed');
+      logger.info("WebSocket server closed");
       process.exit(0);
     });
   });
 };
 
-process.on('SIGTERM', () => shutdown('SIGTERM'));
-process.on('SIGINT', () => shutdown('SIGINT'));
+process.on("SIGTERM", () => shutdown("SIGTERM"));
+process.on("SIGINT", () => shutdown("SIGINT"));
 
-const PORT = parseInt(process.env.PORT ?? '4000', 10);
+const PORT = parseInt(process.env.PORT ?? "4000", 10);
 server.listen(PORT, () => {
-  logger.info({ port: PORT }, 'CodeCity backend listening');
+  logger.info({ port: PORT }, "CodeCity backend listening");
 });
 
 export { app, server };

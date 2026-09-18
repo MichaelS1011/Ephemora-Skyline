@@ -8,18 +8,18 @@
  * - Track clone state for concurrency control
  */
 
-import { execFile } from 'child_process';
-import { promises as fs } from 'fs';
-import os from 'os';
-import path from 'path';
-import type pino from 'pino';
-import type { GitHubRepo } from '../../models/index.js';
+import { execFile } from "child_process";
+import { promises as fs } from "fs";
+import os from "os";
+import path from "path";
+import type pino from "pino";
+import type { GitHubRepo } from "../../models/index.js";
 
 interface CloneState {
   repo: GitHubRepo;
   clonePath: string;
   startTime: number;
-  status: 'pending' | 'cloning' | 'complete' | 'failed' | 'expired';
+  status: "pending" | "cloning" | "complete" | "failed" | "expired";
 }
 
 export class CloneManager {
@@ -28,8 +28,8 @@ export class CloneManager {
   private activeClones: Map<string, CloneState> = new Map();
 
   constructor(logger: pino.Logger) {
-    this.logger = logger.child({ service: 'clone-manager' });
-    this.tempBase = path.join(os.tmpdir(), 'codecity-clones');
+    this.logger = logger.child({ service: "clone-manager" });
+    this.tempBase = path.join(os.tmpdir(), "codecity-clones");
   }
 
   /** Ensure temp base directory exists */
@@ -42,8 +42,8 @@ export class CloneManager {
    * branch are user input and end up as git arguments below.
    */
   private sanitizeSegment(value: string): string {
-    const safe = value.replace(/[^a-zA-Z0-9._-]/g, '');
-    if (safe.length === 0 || safe.startsWith('-')) {
+    const safe = value.replace(/[^a-zA-Z0-9._-]/g, "");
+    if (safe.length === 0 || safe.startsWith("-")) {
       throw new Error(`Invalid repository identifier: ${JSON.stringify(value)}`);
     }
     return safe;
@@ -57,7 +57,7 @@ export class CloneManager {
   private async withTokenEnv(): Promise<{ env: NodeJS.ProcessEnv; cleanup: () => Promise<void> }> {
     const token = process.env.GITHUB_TOKEN;
     if (!token) {
-      return { env: { GIT_TERMINAL_PROMPT: '0' }, cleanup: async () => {} };
+      return { env: { GIT_TERMINAL_PROMPT: "0" }, cleanup: async () => {} };
     }
     // Tiny askpass helper: git calls it for username and password prompts,
     // GitHub accepts the token in both positions.
@@ -65,7 +65,7 @@ export class CloneManager {
     await fs.writeFile(scriptPath, '#!/bin/sh\necho "$CODECITY_GITHUB_TOKEN"\n', { mode: 0o700 });
     return {
       env: {
-        GIT_TERMINAL_PROMPT: '0',
+        GIT_TERMINAL_PROMPT: "0",
         GIT_ASKPASS: scriptPath,
         CODECITY_GITHUB_TOKEN: token,
       },
@@ -81,7 +81,7 @@ export class CloneManager {
 
     // Check if already cloning
     const existing = this.activeClones.get(key);
-    if (existing && existing.status === 'cloning') {
+    if (existing && existing.status === "cloning") {
       throw new Error(`Clone already in progress for ${key}`);
     }
 
@@ -100,7 +100,7 @@ export class CloneManager {
       repo,
       clonePath,
       startTime: Date.now(),
-      status: 'pending',
+      status: "pending",
     };
 
     this.activeClones.set(key, state);
@@ -108,8 +108,8 @@ export class CloneManager {
     const { env: gitEnv, cleanup: cleanupTokenEnv } = await this.withTokenEnv();
 
     try {
-      state.status = 'cloning';
-      this.logger.info({ clonePath, repo: key }, 'Starting clone');
+      state.status = "cloning";
+      this.logger.info({ clonePath, repo: key }, "Starting clone");
 
       // Clean existing if present (stale partial clone)
       try {
@@ -118,18 +118,18 @@ export class CloneManager {
         // Ignore if directory doesn't exist
       }
 
-      const depth = parseInt(process.env.GIT_CLONE_DEPTH || '1', 10);
+      const depth = repo.fullHistory ? 0 : parseInt(process.env.GIT_CLONE_DEPTH || "1", 10);
 
-      const args = ['clone', '--single-branch', '--branch', safeBranch];
+      const args = ["clone", "--single-branch", "--branch", safeBranch];
       if (depth > 0) args.push(`--depth=${depth}`);
       args.push(`https://github.com/${safeOwner}/${safeName}.git`, clonePath);
 
       await this.runGit(args, gitEnv);
 
-      state.status = 'complete';
+      state.status = "complete";
       state.startTime = Date.now();
 
-      this.logger.info({ clonePath, repo: key }, 'Clone completed successfully');
+      this.logger.info({ clonePath, repo: key }, "Clone completed successfully");
       return clonePath;
     } finally {
       this.activeClones.delete(key);
@@ -149,22 +149,22 @@ export class CloneManager {
   /** Run git with an argument array — no shell involved — with timeout */
   private runGit(args: string[], extraEnv: NodeJS.ProcessEnv): Promise<void> {
     return new Promise((resolve, reject) => {
-      const timeout = parseInt(process.env.GIT_TIMEOUT || '120', 10) * 1000;
-      const proc = execFile('git', args, {
+      const timeout = parseInt(process.env.GIT_TIMEOUT || "120", 10) * 1000;
+      const proc = execFile("git", args, {
         timeout,
         env: { ...process.env, ...extraEnv },
         maxBuffer: 10 * 1024 * 1024,
       });
 
-      proc.stdout?.on('data', (data) => {
-        this.logger.debug({ output: data.toString().trim() }, 'Git output');
+      proc.stdout?.on("data", (data) => {
+        this.logger.debug({ output: data.toString().trim() }, "Git output");
       });
-      proc.stderr?.on('data', (data) => {
-        this.logger.debug({ output: data.toString().trim() }, 'Git stderr');
+      proc.stderr?.on("data", (data) => {
+        this.logger.debug({ output: data.toString().trim() }, "Git stderr");
       });
 
-      proc.on('error', reject);
-      proc.on('exit', (code) => {
+      proc.on("error", reject);
+      proc.on("exit", (code) => {
         if (code === 0) resolve();
         else reject(new Error(`git ${args[0]} failed with exit code ${code}`));
       });
