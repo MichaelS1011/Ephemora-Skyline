@@ -4,6 +4,36 @@ import type { AnalysisResult, GitHubRepo, WebSocketEvent } from '../../models/in
 import type { WebSocket as WsWebSocket } from 'ws';
 
 /**
+ * Strict GitHub URL parsing — only https://github.com/<owner>/<name>[.git]
+ * (plus the git@github.com:owner/name.git SSH form). A loose
+ * `url.includes('github.com')` would also accept https://evil.com/?x=github.com.
+ */
+export function parseGitHubUrl(raw: string): { owner: string; name: string } | null {
+  try {
+    const u = new URL(raw);
+    if (u.protocol !== 'https:' || u.hostname !== 'github.com') return null;
+    const segs = u.pathname.split('/').filter(Boolean);
+    if (segs.length < 2) return null;
+    const owner = segs[0]!;
+    const name = segs[1]!.replace(/\.git$/, '');
+    if (!/^[\w.-]+$/.test(owner) || !/^[\w.-]+$/.test(name)) return null;
+    return { owner, name };
+  } catch {
+    const m = raw.match(/^git@github\.com:([\w.-]+)\/([\w.-]+?)(?:\.git)?$/);
+    if (m) return { owner: m[1]!, name: m[2]! };
+    return null;
+  }
+}
+
+/** Keep internal messages out of client responses (paths, credentials) */
+function sanitizeMessage(message: string): string {
+  const token = process.env.GITHUB_TOKEN;
+  let out = token ? message.replaceAll(token, '[redacted]') : message;
+  out = out.replaceAll(/\/tmp\/[\w./-]+/g, '[path]');
+  return out.slice(0, 300);
+}
+
+/**
  * Send a message to a WebSocket client, silently ignoring closed sockets.
  */
 function wsSend(ws: WsWebSocket | null | undefined, payload: unknown): void {
@@ -15,35 +45,87 @@ function wsSend(ws: WsWebSocket | null | undefined, payload: unknown): void {
   }
 }
 
+/** Live progress per running analysis id — read by GET /api/status/:id */
+const jobProgress = new Map<string, { progress: number; stage: string }>();
+
+export function getJobProgress(id: string): { progress: number; stage: string } | undefined {
+  return jobProgress.get(id);
+}
+
+/** Background runner — never awaited by the HTTP/WS entry points */
+async function runAnalysis(
+  analysisId: string,
+  repo: GitHubRepo,
+  orchestrator: AnalysisOrchestrator,
+  analysisStore: { set(id: string, result: AnalysisResult): void; get(id: string): AnalysisResult | undefined },
+  ws?: WsWebSocket | null,
+): Promise<void> {
+  let completeSent = false;
+  const onEvent = (event: WebSocketEvent): void => {
+    if (event.type === 'analysis_progress' && typeof event.payload.progress === 'number') {
+      jobProgress.set(analysisId, { progress: event.payload.progress, stage: String(event.payload.stage ?? '') });
+      if (ws) {
+        wsSend(ws, {
+          type: 'analysis_progress',
+          payload: { progress: event.payload.progress, stage: event.payload.stage },
+          timestamp: event.timestamp,
+        });
+      }
+    } else if (event.type === 'analysis_complete' && !completeSent) {
+      completeSent = true;
+      wsSend(ws, { type: 'analysis_complete', payload: event.payload, timestamp: event.timestamp });
+    }
+  };
+
+  try {
+    const result = await orchestrator.analyzeRepo(repo, onEvent, analysisId);
+    analysisStore.set(result.id, result);
+    jobProgress.delete(result.id);
+
+    if (ws && !completeSent) {
+      // Belt and braces: some orchestrator paths return without emitting
+      // analysis_complete — the client must always learn the result id.
+      completeSent = true;
+      wsSend(ws, {
+        type: 'analysis_complete',
+        payload: { id: result.id, totalFiles: result.summary.totalFiles },
+        timestamp: new Date().toISOString(),
+      });
+    }
+  } catch (error) {
+    const message = sanitizeMessage(error instanceof Error ? error.message : 'Analysis failed');
+    // Surface the failure to polling clients
+    const skeleton = analysisStore.get(analysisId);
+    if (skeleton) {
+      skeleton.status = 'failed';
+      skeleton.error = message;
+      analysisStore.set(analysisId, skeleton);
+    }
+    jobProgress.delete(analysisId);
+    if (ws) wsSend(ws, { type: 'error', payload: { message }, timestamp: new Date().toISOString() });
+  }
+}
+
 export async function handleAnalyze(
   req: Request,
   res: Response,
   orchestrator: AnalysisOrchestrator,
-  analysisStore: { set(id: string, result: AnalysisResult): void },
+  analysisStore: { set(id: string, result: AnalysisResult): void; get(id: string): AnalysisResult | undefined },
   ws?: WsWebSocket | null,
 ): Promise<void> {
   try {
     const body = req.body as { url?: string; branch?: string } | undefined;
     const { url, branch } = body ?? {};
 
-    if (!url || !url.includes('github.com')) {
+    const parsedUrl = url ? parseGitHubUrl(url) : null;
+    if (!url || !parsedUrl) {
       const error = { error: 'Invalid GitHub URL. Expected: https://github.com/owner/name' };
       if (ws) wsSend(ws, { type: 'error', payload: { message: error.error }, timestamp: new Date().toISOString() });
       res.status(400).json(error);
       return;
     }
 
-    const match = url.match(/github\.com\/([^/]+)\/([^/]+)/);
-    if (!match) {
-      const error = { error: 'Could not extract owner/name from URL' };
-      if (ws) wsSend(ws, { type: 'error', payload: { message: error.error }, timestamp: new Date().toISOString() });
-      res.status(400).json(error);
-      return;
-    }
-
-    const owner = match[1]!;
-    // Strip .git suffix if present
-    const name = match[2]!.replace(/\.git$/, '');
+    const { owner, name } = parsedUrl;
     let repoBranch = branch || 'main';
 
     // Auto-detect the repository's default branch when none was given —
@@ -52,9 +134,9 @@ export async function handleAnalyze(
       try {
         const headers: Record<string, string> = { 'User-Agent': 'codecity-cyberdefense' };
         if (process.env.GITHUB_TOKEN) headers.Authorization = `Bearer ${process.env.GITHUB_TOKEN}`;
-        const res = await fetch(`https://api.github.com/repos/${owner}/${name}`, { headers });
-        if (res.ok) {
-          const meta = (await res.json()) as { default_branch?: unknown };
+        const apiRes = await fetch(`https://api.github.com/repos/${encodeURIComponent(owner)}/${encodeURIComponent(name)}`, { headers });
+        if (apiRes.ok) {
+          const meta = (await apiRes.json()) as { default_branch?: unknown };
           if (typeof meta.default_branch === 'string' && meta.default_branch) {
             repoBranch = meta.default_branch;
           }
@@ -72,47 +154,33 @@ export async function handleAnalyze(
       analyzedAt: new Date().toISOString(),
     };
 
-    // Forward orchestrator events to the WS client: progress for the
-    // progress bar, analysis_complete so the frontend loads the new city.
-    let completeSent = false;
-    const onEvent = (event: WebSocketEvent): void => {
-      if (!ws) return;
-      if (event.type === 'analysis_progress' && typeof event.payload.progress === 'number') {
-        wsSend(ws, {
-          type: 'analysis_progress',
-          payload: { progress: event.payload.progress, stage: event.payload.stage },
-          timestamp: event.timestamp,
-        });
-      } else if (event.type === 'analysis_complete' && !completeSent) {
-        completeSent = true;
-        wsSend(ws, { type: 'analysis_complete', payload: event.payload, timestamp: event.timestamp });
-      }
-    };
+    // Register a skeleton result so polling endpoints can observe the job
+    const analysisId = crypto.randomUUID();
+    analysisStore.set(analysisId, {
+      id: analysisId,
+      repo,
+      files: [],
+      directories: [],
+      summary: {
+        totalFiles: 0, totalDirectories: 0, totalLines: 0, avgCyclomatic: 0, maxCyclomatic: 0,
+        languages: {}, totalVulnerabilities: 0, vulnerabilitiesBySeverity: { P0: 0, P1: 0, P2: 0 },
+        languagesByLines: {},
+      },
+      createdAt: new Date().toISOString(),
+      status: 'analyzing',
+    });
 
-    const result = await orchestrator.analyzeRepo(repo, onEvent);
-    analysisStore.set(result.id, result);
+    // Respond immediately — clients follow progress via WS events and/or
+    // GET /api/status/:id instead of holding the request open for minutes.
+    res.status(202).json({
+      id: analysisId,
+      status: 'analyzing',
+      statusUrl: `/api/status/${analysisId}`,
+    });
 
-    if (ws && !completeSent) {
-      // Belt and braces: some orchestrator paths return without emitting
-      // analysis_complete — the client must always learn the result id.
-      completeSent = true;
-      wsSend(ws, {
-        type: 'analysis_complete',
-        payload: { id: result.id, totalFiles: result.summary.totalFiles },
-        timestamp: new Date().toISOString(),
-      });
-    }
-
-    // Only send HTTP response when res is a real Response object (not a no-op stub from WS path)
-    if (typeof res.json === 'function') {
-      res.json({
-        id: result.id,
-        status: result.status,
-        url: `/api/result/${result.id}`,
-      });
-    }
+    void runAnalysis(analysisId, repo, orchestrator, analysisStore, ws).catch(() => {});
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'Internal server error';
+    const message = sanitizeMessage(error instanceof Error ? error.message : 'Internal server error');
     if (ws) wsSend(ws, { type: 'error', payload: { message }, timestamp: new Date().toISOString() });
     if (typeof res.status === 'function') {
       res.status(500).json({ error: message });

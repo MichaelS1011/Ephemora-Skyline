@@ -180,6 +180,34 @@ export class RegexAdapter implements ScannerAdapter {
         if (match[0].length === 0) pattern.regex.lastIndex++;
       }
     }
-    return issues;
+    return this.aggregateNoise(issues);
+  }
+
+  /**
+   * Noise damping: CONSOLE_USAGE / LOOSE_EQUALITY hit hundreds of times in
+   * real repos and drown out real findings — aggregate to one finding per
+   * file per type (the count travels in the message, line = first hit).
+   */
+  private aggregateNoise(issues: SecurityIssue[]): SecurityIssue[] {
+    const NOISY_TYPES = new Set(['CONSOLE_USAGE', 'LOOSE_EQUALITY']);
+    const kept: SecurityIssue[] = [];
+    const aggregated = new Map<string, { first: SecurityIssue; total: number }>();
+    for (const issue of issues) {
+      if (!NOISY_TYPES.has(issue.type)) {
+        kept.push(issue);
+        continue;
+      }
+      const agg = aggregated.get(issue.type);
+      if (agg) {
+        agg.total++;
+        continue;
+      }
+      aggregated.set(issue.type, { first: issue, total: 1 });
+    }
+    for (const { first, total } of aggregated.values()) {
+      if (total > 1) first.message = `${first.message} (×${total} in this file)`;
+      kept.push(first);
+    }
+    return kept;
   }
 }

@@ -9,6 +9,11 @@ import { sarifToIssues } from '../sarif-mapper.js';
 
 const execFileAsync = promisify(execFile);
 
+// Registry config can be overridden (e.g. to a local rules dir for offline runs)
+const SEMGREP_CONFIG = process.env.SEMGREP_CONFIG || 'p/security-audit';
+// Versioned image — a floating :latest tag is a supply-chain risk
+const SEMGREP_DOCKER_IMAGE = process.env.SEMGREP_DOCKER_IMAGE || 'semgrep/semgrep:1.162.0';
+
 export class SemgrepAdapter implements ScannerAdapter {
   readonly id = 'semgrep';
   private binaryAvailable: boolean | null = null;
@@ -36,8 +41,8 @@ export class SemgrepAdapter implements ScannerAdapter {
       }
       const tmpOut = path.join(tmpdir(), `codecity-semgrep-${Date.now()}.sarif`);
       try {
-        await execFileAsync('semgrep', ['--config', 'p/security-audit', '--sarif', '--quiet', '--sarif-output', tmpOut, clonePath], {
-          timeout: 60000,
+        await execFileAsync('semgrep', ['--config', SEMGREP_CONFIG, '--metrics=off', '--sarif', '--quiet', '--sarif-output', tmpOut, clonePath], {
+          timeout: parseInt(process.env.SEMGREP_TIMEOUT || '120', 10) * 1000,
           maxBuffer: 10 * 1024 * 1024,
         });
       } catch (e) {
@@ -45,8 +50,8 @@ export class SemgrepAdapter implements ScannerAdapter {
         // semgrep exits 0 (no findings), 1 (findings), 2 (error) — 0/1 are ok
         if (err.code !== 0 && err.code !== 1) {
           // try without sarif-output: capture stdout
-          const { stdout } = await execFileAsync('semgrep', ['--config', 'p/security-audit', '--sarif', '--quiet', clonePath], {
-            timeout: 60000,
+          const { stdout } = await execFileAsync('semgrep', ['--config', SEMGREP_CONFIG, '--metrics=off', '--sarif', '--quiet', clonePath], {
+            timeout: parseInt(process.env.SEMGREP_TIMEOUT || '120', 10) * 1000,
             maxBuffer: 10 * 1024 * 1024,
           }).catch((ex) => {
             const x = ex as { stdout?: string; code?: number };
@@ -83,7 +88,7 @@ export class SemgrepAdapter implements ScannerAdapter {
       }
       const tmpOut = path.join(tmpdir(), `codecity-semgrep-docker-${Date.now()}.sarif`);
       // mount clonePath as /src
-      await execFileAsync('docker', ['run', '--rm', '-v', `${clonePath}:/src:ro`, '-v', `${path.dirname(tmpOut)}:/out`, 'returntocorp/semgrep', 'semgrep', '--config', 'p/security-audit', '--sarif', '--quiet', '--sarif-output', `/out/${path.basename(tmpOut)}`, '/src'], {
+      await execFileAsync('docker', ['run', '--rm', '-v', `${clonePath}:/src:ro`, '-v', `${path.dirname(tmpOut)}:/out`, SEMGREP_DOCKER_IMAGE, 'semgrep', '--config', SEMGREP_CONFIG, '--metrics=off', '--sarif', '--quiet', '--sarif-output', `/out/${path.basename(tmpOut)}`, '/src'], {
         timeout: 90000,
         maxBuffer: 10 * 1024 * 1024,
       }).catch((e) => {

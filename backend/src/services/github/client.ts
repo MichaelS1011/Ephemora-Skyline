@@ -54,7 +54,7 @@ export class GitHubClient {
 
   /** Get metadata for a public repository via GitHub API */
   async getRepoMetadata(repo: GitHubRepo): Promise<GitHubRepoMetadata> {
-    const apiUrl = `https://api.github.com/repos/${repo.owner}/${repo.name}`;
+    const apiUrl = `https://api.github.com/repos/${encodeURIComponent(repo.owner)}/${encodeURIComponent(repo.name)}`;
     this.logger.info({ apiUrl }, 'Fetching repo metadata');
 
     try {
@@ -106,7 +106,7 @@ export class GitHubClient {
 
   /** List all files in a repository (non-recursive, root level) */
   async listRootFiles(repo: GitHubRepo): Promise<string[]> {
-    const apiUrl = `https://api.github.com/repos/${repo.owner}/${repo.name}/git/trees/${repo.branch}?recursive=1`;
+    const apiUrl = `https://api.github.com/repos/${encodeURIComponent(repo.owner)}/${encodeURIComponent(repo.name)}/git/trees/${encodeURIComponent(repo.branch)}?recursive=1`;
     this.logger.info({ apiUrl }, 'Fetching file tree');
 
     try {
@@ -136,7 +136,7 @@ export class GitHubClient {
 
   /** Get file content from GitHub API (for remote analysis without cloning) */
   async getFileContent(repo: GitHubRepo, filePath: string): Promise<string> {
-    const apiUrl = `https://api.github.com/repos/${repo.owner}/${repo.name}/contents/${filePath}?ref=${repo.branch}`;
+    const apiUrl = `https://api.github.com/repos/${encodeURIComponent(repo.owner)}/${encodeURIComponent(repo.name)}/contents/${filePath.split('/').map(encodeURIComponent).join('/')}?ref=${encodeURIComponent(repo.branch)}`;
 
     try {
       const headers: Record<string, string> = {

@@ -25,7 +25,7 @@ import { CloneManager } from '../services/github/clone-manager.js';
 import { SecurityScanner } from '../services/security/scanner.js';
 import { getHealth } from './routes/health.js';
 import { getDemoResult } from './routes/demo.js';
-import { handleAnalyze } from './routes/analyze.js';
+import { handleAnalyze, getJobProgress } from './routes/analyze.js';
 import { WebSocketServerManager } from '../services/streaming/websocket-server.js';
 import { mapResultToCityData } from '../utils/cityMapper.js';
 import { resultToSarif } from '../utils/sarif.js';
@@ -172,10 +172,11 @@ app.get('/api/cities/default', (_req: Request, res: Response): void => {
 });
 
 // POST /api/analyze — kick off a repository analysis
-// Returns immediately with { id, status, url } — client can poll /api/result/:id
+// Returns 202 immediately with { id, status, statusUrl } — the analysis runs
+// in the background; progress via WS events or GET /api/status/:id
 app.post('/api/analyze', analyzeLimiter, async (req: Request, res: Response): Promise<void> => {
-  // handleAnalyze writes the result into the store using result.id as key
-  // and sends the HTTP response directly — no race condition
+  // handleAnalyze registers a skeleton result in the store and starts the
+  // analysis in the background — no long-blocking request
   await handleAnalyze(req, res, orchestrator, analysisStore);
 });
 
@@ -238,9 +239,11 @@ app.get('/api/status/:id', (req: Request, res: Response): void => {
     return;
   }
 
+  const live = getJobProgress(id);
   res.json({
     status: result.status,
-    progress: result.status === 'complete' ? 100 : 0,
+    progress: result.status === 'complete' ? 100 : (live?.progress ?? 0),
+    stage: result.status === 'complete' ? 'Complete' : live?.stage,
     filesParsed: result.files.length,
     totalFiles: result.summary.totalFiles,
   });

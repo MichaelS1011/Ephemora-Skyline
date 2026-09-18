@@ -40,13 +40,85 @@ const GENERIC_KEY_RE = /(?:AKIA[0-9A-Z]{16}|ghp_[A-Za-z0-9]{36}|gho_[A-Za-z0-9]{
 export class GitleaksAdapter implements ScannerAdapter {
   readonly id = 'gitleaks';
   private binaryAvailable: boolean | null = null;
+  private batchMode = false;
+
+  /**
+   * Batch mode: a whole clone directory is scanned once via scanRepository().
+   * Per-file binary spawns would duplicate that work (1 process per file),
+   * so scanFile only contributes the cheap regex fallback.
+   */
+  enableBatchMode(): void {
+    this.batchMode = true;
+  }
 
   async scanFile(filePath: string, content: string): Promise<SecurityIssue[]> {
+    if (this.batchMode && this.binaryAvailable === true) return []; // covered by batch scan
+    if (this.batchMode && this.binaryAvailable === false) return this.fallbackScan(content);
     // Try real gitleaks binary first (if installed or via docker)
     const fromBinary = await this.tryBinary(filePath, content);
     if (fromBinary !== null) return fromBinary;
     // Fallback: entropy-based regex (90% FP reduction vs old regex)
     return this.fallbackScan(content);
+  }
+
+  /**
+   * Scan an entire clone directory with a SINGLE gitleaks process — the
+   * intended usage pattern (startup + rule loading once, not per file).
+   * Returns per-file issues, or null when the binary is unavailable.
+   */
+  async scanRepository(clonePath: string): Promise<Map<string, SecurityIssue[]> | null> {
+    if (this.binaryAvailable === false) return null;
+    try {
+      if (this.binaryAvailable === null) {
+        try {
+          await execFileAsync('gitleaks', ['version'], { timeout: 3000 });
+          this.binaryAvailable = true;
+        } catch {
+          this.binaryAvailable = false;
+          return null;
+        }
+      }
+      const { stdout } = await execFileAsync(
+        'gitleaks',
+        ['detect', '--source', clonePath, '--no-git', '--format', 'json', '--no-banner'],
+        {
+          timeout: parseInt(process.env.GITLEAKS_TIMEOUT || '120', 10) * 1000,
+          maxBuffer: 50 * 1024 * 1024,
+        },
+      ).catch((e: unknown) => {
+        const err = e as { stdout?: string };
+        // gitleaks exits 1 when leaks found, stdout still contains JSON
+        if (err.stdout) return { stdout: err.stdout } as { stdout: string };
+        throw e;
+      });
+      const byFile = new Map<string, SecurityIssue[]>();
+      if (!stdout?.trim()) return byFile;
+      const leaks = JSON.parse(stdout) as Array<{
+        RuleID: string;
+        StartLine: number;
+        File: string;
+      }>;
+      for (const l of leaks) {
+        const rel = (l.File ?? '').replaceAll('\\', '/');
+        if (!rel) continue;
+        const list = byFile.get(rel) ?? [];
+        list.push({
+          type: 'HARDCODED_SECRET',
+          severity: 'P0',
+          score: 10,
+          line: l.StartLine ?? 1,
+          code: '', // filled by the facade merge where file content is available
+          message: `Hardcoded secret detected (${l.RuleID}) — gitleaks`,
+          fix: 'Move to environment variable or secrets manager (Vault, AWS Secrets Manager)',
+          provenance: 'gitleaks',
+          ruleId: l.RuleID,
+        } as SecurityIssue);
+        byFile.set(rel, list);
+      }
+      return byFile;
+    } catch {
+      return null;
+    }
   }
 
   private async tryBinary(filePath: string, content: string): Promise<SecurityIssue[] | null> {

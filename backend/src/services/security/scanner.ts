@@ -5,6 +5,8 @@
  * Ohne Binary/Docker: Graceful Fallback auf Regex/Gitleaks-Fallback, kein Crash.
  */
 
+import { promises as fs } from 'fs';
+import path from 'path';
 import pino from 'pino';
 import type { SecurityIssue, FileAnalysis } from '../../models/index.js';
 import type { ScannerAdapter } from './adapter.js';
@@ -12,9 +14,12 @@ import { RegexAdapter } from './adapters/regex-adapter.js';
 import { GitleaksAdapter } from './adapters/gitleaks-adapter.js';
 import { SemgrepAdapter } from './adapters/semgrep-adapter.js';
 
+const SEVERITY_ORDER = { P0: 0, P1: 1, P2: 2 } as const;
+
 export class SecurityScanner {
   private logger: pino.Logger;
   private adapters: ScannerAdapter[];
+  private gitleaksAdapter: GitleaksAdapter | null = null;
   semgrepAdapter: SemgrepAdapter | null = null;
 
   constructor(adapters?: ScannerAdapter[]) {
@@ -24,8 +29,18 @@ export class SecurityScanner {
     } else {
       const semgrep = new SemgrepAdapter();
       this.semgrepAdapter = semgrep;
-      this.adapters = [new RegexAdapter(), new GitleaksAdapter(), semgrep];
+      this.gitleaksAdapter = new GitleaksAdapter();
+      this.adapters = [new RegexAdapter(), this.gitleaksAdapter, semgrep];
     }
+  }
+
+  /**
+   * Switch adapters to whole-clone batch mode. Call BEFORE the per-file loop
+   * when a clone directory is available: gitleaks then contributes its findings
+   * via scanRepositoryBatch() instead of one process spawn per file.
+   */
+  enableBatchScans(): void {
+    this.gitleaksAdapter?.enableBatchMode();
   }
 
   /**
@@ -58,17 +73,9 @@ export class SecurityScanner {
       const res = await adapter.scanFile(filePath, content);
       all.push(...res);
     }
-    // Dedup: gleiche line+type+ruleId nur einmal
-    const seen = new Set<string>();
-    const deduped = all.filter((i) => {
-      const k = `${i.line}:${i.type}:${(i as unknown as { ruleId?: string }).ruleId ?? ''}`;
-      if (seen.has(k)) return false;
-      seen.add(k);
-      return true;
-    });
+    const deduped = this.dedupIssues(all);
     // Sort by severity order P0>P1>P2 then line
-    const order = { P0: 0, P1: 1, P2: 2 } as const;
-    deduped.sort((a, b) => (order[a.severity] - order[b.severity]) || a.line - b.line);
+    deduped.sort((a, b) => (SEVERITY_ORDER[a.severity] - SEVERITY_ORDER[b.severity]) || a.line - b.line);
     if (deduped.length > 0) this.logger.info({ filePath, issues: deduped.length }, 'Security scan completed');
     return deduped;
   }
@@ -186,6 +193,112 @@ export class SecurityScanner {
       }
     }
     return [...new Set(all)];
+  }
+
+  /**
+   * Whole-clone batch scan — gitleaks (one process for the entire repo) plus
+   * semgrep (one run), merged per file and deduped against per-file findings
+   * already attached to the FileAnalysis objects.
+   */
+  async scanRepositoryBatch(
+    clonePath: string,
+    fileAnalyses: FileAnalysis[],
+  ): Promise<{ mergedCount: number; gitleaksRan: boolean; semgrepRan: boolean }> {
+    // gitleaks: one process for the whole clone
+    let secretsByFile: Map<string, SecurityIssue[]> | null = null;
+    if (this.gitleaksAdapter) {
+      try {
+        secretsByFile = await this.gitleaksAdapter.scanRepository(clonePath);
+      } catch (e) {
+        this.logger.warn({ e }, 'Gitleaks batch scan failed — secrets only via fallback');
+      }
+    }
+
+    // semgrep: existing batch over contentByPath
+    let semgrepByFile = new Map<string, SecurityIssue[]>();
+    if (this.semgrepAdapter) {
+      try {
+        const contentByPath = new Map<string, string>();
+        for (const fa of fileAnalyses) {
+          const abs = path.join(clonePath, fa.path);
+          try {
+            contentByPath.set(fa.path, await fs.readFile(abs, 'utf-8'));
+          } catch {
+            // ignore unreadable
+          }
+        }
+        semgrepByFile = await this.scanBatch(clonePath, contentByPath);
+      } catch (e) {
+        this.logger.warn({ e }, 'Semgrep batch scan failed — continuing with regex results');
+      }
+    }
+
+    let mergedCount = 0;
+    for (const fa of fileAnalyses) {
+      const extras: SecurityIssue[] = [
+        ...(secretsByFile?.get(fa.path) ?? []),
+        ...(semgrepByFile.get(fa.path) ?? []),
+      ];
+      if (extras.length === 0) continue;
+
+      // Fill the code line for gitleaks batch findings (adapter has no content)
+      for (const iss of extras) {
+        if (!iss.code && iss.provenance === 'gitleaks') {
+          iss.code = fa.content?.split('\n')[iss.line - 1]?.trim().slice(0, 120) ?? '';
+        }
+      }
+
+      const merged = this.dedupIssues([...fa.vulnerabilities, ...extras]);
+      mergedCount += merged.length - fa.vulnerabilities.length;
+      merged.sort((a, b) => (SEVERITY_ORDER[a.severity] - SEVERITY_ORDER[b.severity]) || a.line - b.line);
+      fa.vulnerabilities = merged;
+    }
+
+    return {
+      mergedCount,
+      gitleaksRan: secretsByFile !== null,
+      semgrepRan: semgrepByFile.size > 0,
+    };
+  }
+
+  /**
+   * Dedup across provenances: identical findings (same line+type+ruleId) are
+   * dropped, as are duplicate detections of the same line+type by different
+   * scanners (e.g. regex XSS + semgrep XSS on the same line) — the first
+   * (higher-priority) finding wins. Fallback secrets on a line that real
+   * gitleaks already flagged are also dropped.
+   */
+  private dedupIssues(issues: SecurityIssue[]): SecurityIssue[] {
+    const seen = new Set<string>();
+    const seenLineType = new Set<string>();
+    const gitleaksLines = new Set<string>();
+    for (const i of issues) {
+      if ((i as unknown as { provenance?: string }).provenance === 'gitleaks') {
+        gitleaksLines.add(`${i.line}`);
+      }
+    }
+    // first pass: highest severity first so P0 provenance wins dedup
+    const sorted = [...issues].sort(
+      (a, b) => (SEVERITY_ORDER[a.severity] - SEVERITY_ORDER[b.severity]) || a.line - b.line,
+    );
+    const result: SecurityIssue[] = [];
+    for (const i of sorted) {
+      const ruleId = (i as unknown as { ruleId?: string }).ruleId ?? '';
+      const k = `${i.line}:${i.type}:${ruleId}`;
+      if (seen.has(k)) continue;
+      const fallbackSecret =
+        i.type === 'HARDCODED_SECRET' && (ruleId === 'gitleaks:generic-api-key' || (i as unknown as { provenance?: string }).provenance === 'gitleaks-fallback');
+      if (fallbackSecret && gitleaksLines.has(`${i.line}`)) continue;
+      const lt = `${i.line}:${i.type}`;
+      if (seenLineType.has(lt) && ruleId !== 'HARDCODED_SECRET') {
+        // same line+type from another scanner — keep the first (better) one
+        continue;
+      }
+      seen.add(k);
+      seenLineType.add(lt);
+      result.push(i);
+    }
+    return result;
   }
 
   /** Batch SARIF-aware scan — invoked by orchestrator on clonePath (optional, not per-file) */

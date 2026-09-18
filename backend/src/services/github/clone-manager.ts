@@ -2,9 +2,9 @@
  * CloneManager — Manages temporary directory creation and git cloning operations.
  *
  * Responsibilities:
- * - Create isolated temp directories per repo
- * - Execute git clone with depth optimization
- * - Clean up old clones to prevent disk exhaustion
+ * - Create an isolated temp directory per repo (removed again by cleanup()
+ *   once the orchestrator is done — clones are never reused or cached)
+ * - Execute git clone with depth optimization via argument array (no shell)
  * - Track clone state for concurrency control
  */
 
@@ -25,16 +25,11 @@ interface CloneState {
 export class CloneManager {
   private logger: pino.Logger;
   private tempBase: string;
-  private maxAge: number; // ms, default 24 hours
-  private maxDiskMB: number; // max total disk usage, default 2GB
   private activeClones: Map<string, CloneState> = new Map();
-  private cleanupInterval: NodeJS.Timeout | null = null;
 
   constructor(logger: pino.Logger) {
     this.logger = logger.child({ service: 'clone-manager' });
     this.tempBase = path.join(os.tmpdir(), 'codecity-clones');
-    this.maxAge = parseInt(process.env.CLONE_MAX_AGE || '86400000', 10);
-    this.maxDiskMB = parseInt(process.env.CLONE_MAX_DISK_MB || '2048', 10);
   }
 
   /** Ensure temp base directory exists */
@@ -136,145 +131,18 @@ export class CloneManager {
 
       this.logger.info({ clonePath, repo: key }, 'Clone completed successfully');
       return clonePath;
-    } catch (error) {
-      this.activeClones.delete(key);
-      this.logger.error({ error, repo: key }, 'Clone failed');
-      throw error;
     } finally {
+      this.activeClones.delete(key);
       await cleanupTokenEnv();
     }
   }
 
-  /** Clone a repository into a temp directory (public API for orchestrator) */
-  async cloneToTemp(repo: GitHubRepo): Promise<string> {
-    return this.cloneRepo(repo);
-  }
-
-  /** Remove a clone directory by path (public API for orchestrator cleanup) */
+  /** Remove a clone directory by path (called by the orchestrator after analysis) */
   async cleanup(dirPath: string): Promise<void> {
     try {
       await fs.rm(dirPath, { recursive: true, force: true });
     } catch {
       // Ignore if directory doesn't exist
-    }
-  }
-
-  /** Get the clone path for a repo if it exists and is valid */
-  async getCachedClone(repo: GitHubRepo): Promise<string | null> {
-    const key = `${repo.owner}/${repo.name}@${repo.branch}`;
-    const existing = this.activeClones.get(key);
-
-    if (existing && existing.status === 'complete') {
-      // Check age
-      const age = Date.now() - existing.startTime;
-      if (age > this.maxAge) {
-        existing.status = 'expired';
-        await this.removeClone(key, existing);
-        return null;
-      }
-      return existing.clonePath;
-    }
-
-    // Check disk space
-    const totalSize = await this.getTotalDiskUsage();
-    if (totalSize > this.maxDiskMB * 1024 * 1024) {
-      this.logger.warn({ totalSize, maxDiskMB: this.maxDiskMB }, 'Disk usage exceeded, cleaning up');
-      await this.cleanupOldest();
-    }
-
-    return null;
-  }
-
-  /** Remove a clone directory */
-  private async removeClone(key: string, state: CloneState): Promise<void> {
-    try {
-      await fs.rm(state.clonePath, { recursive: true, force: true });
-      this.logger.info({ clonePath: state.clonePath }, 'Clone removed');
-    } catch {
-      this.logger.warn({ clonePath: state.clonePath }, 'Failed to remove clone (already deleted?)');
-    }
-    this.activeClones.delete(key);
-  }
-
-  /** Get total disk usage of all clones */
-  private async getTotalDiskUsage(): Promise<number> {
-    let total = 0;
-    try {
-      const entries = await fs.readdir(this.tempBase);
-      for (const entry of entries) {
-        const dirPath = path.join(this.tempBase, entry);
-        const stats = await fs.stat(dirPath);
-        if (stats.isDirectory()) {
-          total += await this.getDirSize(dirPath);
-        }
-      }
-    } catch {
-      // Ignore errors during disk check
-    }
-    return total;
-  }
-
-  /** Recursively get directory size */
-  private async getDirSize(dirPath: string): Promise<number> {
-    let total = 0;
-    try {
-      const entries = await fs.readdir(dirPath, { withFileTypes: true });
-      for (const entry of entries) {
-        const fullPath = path.join(dirPath, entry.name);
-        if (entry.isDirectory()) {
-          total += await this.getDirSize(fullPath);
-        } else {
-          const fileStats = await fs.stat(fullPath);
-          total += fileStats.size;
-        }
-      }
-    } catch {
-      // Ignore errors for individual dirs
-    }
-    return total;
-  }
-
-  /** Clean up the oldest clones to free space */
-  private async cleanupOldest(): Promise<void> {
-    const candidates = Array.from(this.activeClones.values())
-      .filter(s => s.status === 'complete')
-      .sort((a, b) => a.startTime - b.startTime);
-
-    let freed = 0;
-    const target = this.maxDiskMB * 1024 * 1024 * 0.5; // free 50% of max
-
-    for (const state of candidates) {
-      if (freed >= target) break;
-      const size = await this.getDirSize(state.clonePath);
-      await this.removeClone(`${state.repo.owner}/${state.repo.name}@${state.repo.branch}`, state);
-      freed += size;
-      this.logger.info({ freed }, 'Cleanup freed space');
-    }
-  }
-
-  /** Clean up expired clones periodically */
-  startCleanup(intervalMs: number = 300000): void { // every 5 min
-    if (this.cleanupInterval) {
-      clearInterval(this.cleanupInterval);
-    }
-    this.cleanupInterval = setInterval(async () => {
-      for (const [key, state] of this.activeClones) {
-        if (state.status === 'complete') {
-          const age = Date.now() - state.startTime;
-          if (age > this.maxAge) {
-            this.logger.info({ key, age }, 'Cleaning up expired clone');
-            await this.removeClone(key, state);
-          }
-        }
-      }
-    }, intervalMs);
-  }
-
-  /** Stop periodic cleanup */
-  stopCleanup(): void {
-    if (this.cleanupInterval) {
-      clearInterval(this.cleanupInterval);
-      this.cleanupInterval = null;
     }
   }
 
