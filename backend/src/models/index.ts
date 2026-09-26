@@ -43,6 +43,13 @@ export interface FileAnalysis {
   vulnerabilities: SecurityIssue[];
 }
 
+export interface CodeSnippet {
+  before: string[];
+  line: string;
+  after: string[];
+  number: number;
+}
+
 export interface SecurityIssue {
   type: string;
   severity: "P0" | "P1" | "P2";
@@ -53,6 +60,14 @@ export interface SecurityIssue {
   fix?: string;
   provenance?: string;
   ruleId?: string;
+  /** Plain-language explanation of the finding class (curated knowledge) */
+  explanation?: string;
+  /** Standard taxonomy reference, e.g. "CWE-89" */
+  cwe?: string;
+  /** Authoritative documentation link (OWASP/CWE/semgrep/advisory) */
+  refUrl?: string;
+  /** Code frame around the flagged line — shows WHERE the problem lives */
+  snippet?: CodeSnippet;
 }
 
 export interface AnalysisResult {

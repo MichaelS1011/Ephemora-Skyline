@@ -1,6 +1,6 @@
-import { create } from 'zustand';
-import type { CityData, SelectedUnit, Severity } from '../city/types';
-import { findFileById, getDirLayout, tourStops } from '../city/layout';
+import { create } from "zustand";
+import type { CityData, SelectedUnit, Severity } from "../city/types";
+import { findFileById, getDirLayout, tourStops } from "../city/layout";
 
 export interface FlyRequest {
   x: number;
@@ -30,13 +30,13 @@ interface AppState {
    * - 'constructing' → streets first, then districts and buildings rise
    * - 'built'        → construction finished, city is fully interactive
    */
-  buildPhase: 'empty' | 'constructing' | 'built';
+  buildPhase: "empty" | "constructing" | "built";
   buildStartedAt: number; // epoch ms when construction began
   buildDuration: number; // total ms of the construction sequence
   constructionTotal: number; // units to raise in the current level
   constructionDone: number;
   setCityData: (data: CityData | null) => void;
-  setBuildPhase: (phase: 'empty' | 'constructing' | 'built') => void;
+  setBuildPhase: (phase: "empty" | "constructing" | "built") => void;
   setConstructionProgress: (done: number, total: number) => void;
 
   // ── Semantic zoom navigation ───────────────────────────────────────────
@@ -66,10 +66,14 @@ interface AppState {
   // ── Search & filters ───────────────────────────────────────────────────
   searchQuery: string;
   setSearchQuery: (q: string) => void;
-  threatFilter: Severity | 'all';
-  setThreatFilter: (f: Severity | 'all') => void;
+  threatFilter: Severity | "all";
+  setThreatFilter: (f: Severity | "all") => void;
 
   // ── Security Tour ──────────────────────────────────────────────────────
+  // ── Findings list panel ───────────────────────────────────────────────
+  showFindings: boolean;
+  setShowFindings: (v: boolean) => void;
+
   tourActive: boolean;
   tourIndex: number;
   startTour: () => void;
@@ -89,7 +93,11 @@ interface AppState {
 }
 
 /** Fly the camera to a pleasant overview of the directory at focusPath. */
-function flyToDirOverview(set: (partial: Partial<AppState>) => void, city: CityData, focusPath: string[]): void {
+function flyToDirOverview(
+  set: (partial: Partial<AppState>) => void,
+  city: CityData,
+  focusPath: string[],
+): void {
   const layout = getDirLayout(city, focusPath);
   // Frame the whole level: its footprint AND its tallest towers must fit.
   const tallest = Math.max(
@@ -102,11 +110,11 @@ function flyToDirOverview(set: (partial: Partial<AppState>) => void, city: CityD
 }
 
 export const useStore = create<AppState>((set, get) => ({
-  theme: 'dark',
+  theme: "dark",
   setTheme: (theme) => set({ theme }),
 
   cityData: null,
-  buildPhase: 'empty',
+  buildPhase: "empty",
   buildStartedAt: 0,
   buildDuration: 0,
   constructionTotal: 0,
@@ -116,13 +124,14 @@ export const useStore = create<AppState>((set, get) => ({
       cityData: data,
       focusPath: [],
       selectedUnit: null,
-      buildPhase: data ? 'constructing' : 'empty',
+      buildPhase: data ? "constructing" : "empty",
       buildStartedAt: data ? Date.now() : 0,
       constructionDone: 0,
       constructionTotal: 0,
     }),
   setBuildPhase: (phase) => set({ buildPhase: phase }),
-  setConstructionProgress: (done, total) => set({ constructionDone: done, constructionTotal: total }),
+  setConstructionProgress: (done, total) =>
+    set({ constructionDone: done, constructionTotal: total }),
 
   focusPath: [],
   selectedUnit: null,
@@ -162,7 +171,7 @@ export const useStore = create<AppState>((set, get) => ({
     if (!cityData) return;
     const hit = findFileById(cityData, fileId);
     if (!hit) return;
-    set({ focusPath: hit.chain, selectedUnit: { kind: 'file', id: fileId } });
+    set({ focusPath: hit.chain, selectedUnit: { kind: "file", id: fileId } });
     const layout = getDirLayout(cityData, hit.chain);
     const placement = layout.buildings.find((b) => b.file.id === fileId);
     if (placement) {
@@ -176,10 +185,13 @@ export const useStore = create<AppState>((set, get) => ({
   cameraInfo: { x: 0, z: 60, angle: 0 },
   setCameraInfo: (info) => set({ cameraInfo: info }),
 
-  searchQuery: '',
+  searchQuery: "",
   setSearchQuery: (q) => set({ searchQuery: q }),
-  threatFilter: 'all',
+  threatFilter: "all",
   setThreatFilter: (f) => set({ threatFilter: f }),
+
+  showFindings: false,
+  setShowFindings: (v) => set({ showFindings: v }),
 
   tourActive: false,
   tourIndex: 0,
@@ -214,13 +226,13 @@ export const useStore = create<AppState>((set, get) => ({
   setIsLoading: (loading) => set({ isLoading: loading }),
   analysisProgress: 0,
   setAnalysisProgress: (p) => set({ analysisProgress: p }),
-  analysisStage: '',
+  analysisStage: "",
   setAnalysisStage: (s) => set({ analysisStage: s }),
   analysisId: null,
   setAnalysisId: (id) => set({ analysisId: id }),
 }));
 
 // Debug/testing hook: lets automated E2E checks drive navigation directly.
-if (typeof window !== 'undefined') {
+if (typeof window !== "undefined") {
   (window as unknown as Record<string, unknown>).__cityStore = useStore;
 }

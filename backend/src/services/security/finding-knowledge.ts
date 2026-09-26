@@ -1,0 +1,165 @@
+import type { SecurityIssue } from "../../models/index.js";
+
+export interface FindingKnowledge {
+  /** Plain-language: what does this finding mean for the code owner? */
+  explain: string;
+  /** Standard taxonomy reference (CWE id) */
+  cwe?: string;
+  /** Authoritative documentation link (OWASP, CWE, semgrep, advisory) */
+  refUrl?: string;
+}
+
+/**
+ * Curated explanations per finding type — the "why is this flagged and why
+ * should I care" layer that turns a scanner hit into something a developer
+ * can act on. Sources: OWASP cheat sheets, CWE, semgrep rule docs.
+ */
+export const FINDING_KNOWLEDGE: Record<string, FindingKnowledge> = {
+  CMD_INJECTION: {
+    explain:
+      "User-controlled input reaches a shell command. An attacker can append their own commands (e.g. `; rm -rf /`) and run anything with your process's permissions.",
+    cwe: "CWE-78",
+    refUrl: "https://owasp.org/www-community/attacks/Command_Injection",
+  },
+  SQL_INJECTION: {
+    explain:
+      "A database query is built by string concatenation, so attacker-supplied text can change its meaning — read, modify or delete any data the query can touch.",
+    cwe: "CWE-89",
+    refUrl: "https://owasp.org/www-community/attacks/SQL_Injection",
+  },
+  EVAL_USAGE: {
+    explain:
+      "eval() executes a string as code. If any part of that string is attacker-influenced, it is arbitrary code execution. There is almost always a safe alternative.",
+    cwe: "CWE-95",
+    refUrl:
+      "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/eval#never_use_eval!",
+  },
+  DYNAMIC_FUNCTION: {
+    explain:
+      "new Function() compiles a string into executable code — same risk profile as eval(). Attackers who control the string control your process.",
+    cwe: "CWE-95",
+    refUrl:
+      "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Function/Function",
+  },
+  PATH_TRAVERSAL: {
+    explain:
+      "User input flows into a filesystem path together with `../`. An attacker can escape the intended directory and read or overwrite any file the process can reach.",
+    cwe: "CWE-22",
+    refUrl: "https://owasp.org/www-community/attacks/Path_Traversal",
+  },
+  XSS: {
+    explain:
+      "Untrusted data is rendered as HTML (innerHTML / dangerouslySetInnerHTML). Injected `<script>` runs in your users' browsers — session hijacking, keylogging, defacement.",
+    cwe: "CWE-79",
+    refUrl: "https://owasp.org/www-community/attacks/xss/",
+  },
+  PROTOTYPE_POLLUTION: {
+    explain:
+      "Manipulating object prototypes (__proto__, __defineGetter__ …) can poison every object of that type in the app — a common step towards remote code execution.",
+    cwe: "CWE-1321",
+    refUrl: "https://github.com/nicknisi/prototype-pollution",
+  },
+  UNSAFE_DESERIALIZATION: {
+    explain:
+      "Deserializing untrusted data (yaml.load, unserialize …) can instantiate arbitrary objects or trigger gadget chains — often remote code execution.",
+    cwe: "CWE-502",
+    refUrl: "https://owasp.org/www-community/vulnerabilities/Deserialization_of_untrusted_data",
+  },
+  SETTIMEOUT_STRING: {
+    explain:
+      'setTimeout("…code…") evaluates the string like eval(). Pass a function reference instead: setTimeout(() => doWork(), 100).',
+    cwe: "CWE-95",
+    refUrl: "https://developer.mozilla.org/en-US/docs/Web/API/setTimeout#syntax",
+  },
+  HARDCODED_SECRET: {
+    explain:
+      "A credential is committed in plain text. Anyone with repo access (or the git history) owns it. Rotate the credential, move it to an environment variable or a secrets manager.",
+    cwe: "CWE-798",
+    refUrl: "https://owasp.org/www-community/vulnerabilities/Use_of_hard-coded_password",
+  },
+  VULNERABLE_DEPENDENCY: {
+    explain:
+      "One of your dependencies has a known vulnerability (CVE). You are vulnerable just by importing it — update to the fixed version.",
+    cwe: "CWE-1104",
+    refUrl: "https://osv.dev/",
+  },
+  CONSOLE_USAGE: {
+    explain:
+      "console output can leak internal data in production and adds noise. Use a structured logger with levels and strip debug logs from shipped code.",
+    cwe: "CWE-532",
+    refUrl: "https://cwe.mitre.org/data/definitions/532.html",
+  },
+  LOOSE_EQUALITY: {
+    explain:
+      "== coerces types before comparing ('0' == false is true). These surprising rules cause subtle logic bugs — prefer === / !==.",
+    refUrl: "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Operators/Equality",
+  },
+  LOCALSTORAGE_USAGE: {
+    explain:
+      "localStorage is readable by any script on the page — never store tokens or personal data there; XSS turns directly into account takeover.",
+    cwe: "CWE-922",
+    refUrl: "https://developer.mozilla.org/en-US/docs/Web/API/Web_Storage_API",
+  },
+  INSECURE_HTTP: {
+    explain:
+      "A request goes over plain http:// — anyone on the network can read and modify it. Use https:// everywhere.",
+    cwe: "CWE-319",
+    refUrl: "https://owasp.org/www-project-top-ten/2021/A02_2021-Cryptographic_Failures",
+  },
+};
+
+export function knowledgeFor(type: string): FindingKnowledge {
+  return (
+    FINDING_KNOWLEDGE[type] ?? {
+      explain: "Scanner flagged this construct as a potential security or quality issue.",
+    }
+  );
+}
+
+export interface CodeSnippet {
+  /** Up to 2 lines before the finding */
+  before: string[];
+  /** The flagged line */
+  line: string;
+  /** Up to 2 lines after the finding */
+  after: string[];
+  number: number;
+}
+
+const CONTEXT_LINES = 2;
+const MAX_SNIPPET_LINE = 160;
+
+/**
+ * Build a small code frame around the flagged line (semgrep/ESLint codeframe
+ * style) so every finding can show WHERE in the file the problem lives.
+ */
+export function buildSnippet(content: string | undefined, line: number): CodeSnippet | undefined {
+  if (!content) return undefined;
+  const lines = content.split("\n");
+  const idx = Math.min(Math.max(line - 1, 0), lines.length - 1);
+  const trim = (s: string): string =>
+    s.length > MAX_SNIPPET_LINE ? `${s.slice(0, MAX_SNIPPET_LINE)}…` : s;
+  const before = lines.slice(Math.max(0, idx - CONTEXT_LINES), idx).map(trim);
+  const flagged = trim(lines[idx] ?? "");
+  const after = lines.slice(idx + 1, idx + 1 + CONTEXT_LINES).map(trim);
+  if (flagged === undefined) return undefined;
+  return { before, line: flagged, after, number: idx + 1 };
+}
+
+/**
+ * Attach knowledge + code frame to issues, in place. Cheap and idempotent —
+ * called by every adapter/facade merge that has the file content at hand.
+ */
+export function enrichIssues(issues: SecurityIssue[], content: string | undefined): void {
+  for (const issue of issues) {
+    if (!issue.explanation) {
+      const knowledge = knowledgeFor(issue.type);
+      issue.explanation = knowledge.explain;
+      if (knowledge.cwe) issue.cwe = knowledge.cwe;
+      if (knowledge.refUrl) issue.refUrl = knowledge.refUrl;
+    }
+    if (!issue.snippet) {
+      issue.snippet = buildSnippet(content, issue.line);
+    }
+  }
+}

@@ -2,8 +2,15 @@
  * City domain types — mirror of backend `cityMapper.ts` output.
  */
 
-export type Severity = 'P0' | 'P1' | 'P2';
-export type ThreatLevel = 'critical' | 'high' | 'medium' | 'low' | 'safe';
+export type Severity = "P0" | "P1" | "P2";
+export type ThreatLevel = "critical" | "high" | "medium" | "low" | "safe";
+
+export interface CitySnippet {
+  before: string[];
+  line: string;
+  after: string[];
+  number: number;
+}
 
 export interface CityFinding {
   type: string;
@@ -13,6 +20,14 @@ export interface CityFinding {
   fix?: string;
   provenance?: string;
   ruleId?: string;
+  /** Plain-language explanation of the finding class */
+  explanation?: string;
+  /** Standard taxonomy reference, e.g. "CWE-89" */
+  cwe?: string;
+  /** Authoritative documentation link (OWASP/CWE/semgrep/advisory) */
+  refUrl?: string;
+  /** Code frame around the flagged line — where exactly the problem lives */
+  snippet?: CitySnippet;
 }
 
 export interface CityFile {
@@ -67,7 +82,4 @@ export interface CityData {
 }
 
 /** Which unit is currently selected (a rendered file building or a block). */
-export type SelectedUnit =
-  | { kind: 'file'; id: string }
-  | { kind: 'block'; path: string }
-  | null;
+export type SelectedUnit = { kind: "file"; id: string } | { kind: "block"; path: string } | null;

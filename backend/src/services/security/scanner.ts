@@ -14,6 +14,7 @@ import { RegexAdapter } from "./adapters/regex-adapter.js";
 import { GitleaksAdapter } from "./adapters/gitleaks-adapter.js";
 import { SemgrepAdapter } from "./adapters/semgrep-adapter.js";
 import { DependencyAdapter } from "./adapters/dependency-adapter.js";
+import { enrichIssues } from "./finding-knowledge.js";
 
 const SEVERITY_ORDER = { P0: 0, P1: 1, P2: 2 } as const;
 
@@ -270,36 +271,41 @@ export class SecurityScanner {
     fileAnalyses: FileAnalysis[],
     opts?: { gitHistory?: boolean },
   ): Promise<{ mergedCount: number; gitleaksRan: boolean; semgrepRan: boolean }> {
-    // gitleaks: one process for the whole clone
-    let secretsByFile: Map<string, SecurityIssue[]> | null = null;
-    if (this.gitleaksAdapter) {
+    // Read contents once, then run gitleaks + semgrep IN PARALLEL — both are
+    // independent processes and each can take a while on big repos
+    const contentByPath = new Map<string, string>();
+    for (const fa of fileAnalyses) {
+      const abs = path.join(clonePath, fa.path);
       try {
-        secretsByFile = await this.gitleaksAdapter.scanRepository(clonePath, {
+        contentByPath.set(fa.path, await fs.readFile(abs, "utf-8"));
+      } catch {
+        // ignore unreadable
+      }
+    }
+
+    const gitleaksTask = (async (): Promise<Map<string, SecurityIssue[]> | null> => {
+      if (!this.gitleaksAdapter) return null;
+      try {
+        return await this.gitleaksAdapter.scanRepository(clonePath, {
           gitHistory: opts?.gitHistory,
         });
       } catch (e) {
         this.logger.warn({ e }, "Gitleaks batch scan failed — secrets only via fallback");
+        return null;
       }
-    }
+    })();
 
-    // semgrep: existing batch over contentByPath
-    let semgrepByFile = new Map<string, SecurityIssue[]>();
-    if (this.semgrepAdapter) {
+    const semgrepTask = (async (): Promise<Map<string, SecurityIssue[]>> => {
+      if (!this.semgrepAdapter) return new Map();
       try {
-        const contentByPath = new Map<string, string>();
-        for (const fa of fileAnalyses) {
-          const abs = path.join(clonePath, fa.path);
-          try {
-            contentByPath.set(fa.path, await fs.readFile(abs, "utf-8"));
-          } catch {
-            // ignore unreadable
-          }
-        }
-        semgrepByFile = await this.scanBatch(clonePath, contentByPath);
+        return await this.scanBatch(clonePath, contentByPath);
       } catch (e) {
         this.logger.warn({ e }, "Semgrep batch scan failed — continuing with regex results");
+        return new Map();
       }
-    }
+    })();
+
+    const [secretsByFile, semgrepByFile] = await Promise.all([gitleaksTask, semgrepTask]);
 
     let mergedCount = 0;
     for (const fa of fileAnalyses) {
@@ -309,9 +315,10 @@ export class SecurityScanner {
       ];
       if (extras.length === 0) continue;
 
-      // Fill the code line for gitleaks batch findings (adapter has no content)
+      // Batch findings arrive without content — enrich with knowledge + code frame
+      enrichIssues(extras, fa.content);
       for (const iss of extras) {
-        if (!iss.code && iss.provenance === "gitleaks") {
+        if (!iss.code && iss.provenance?.startsWith("gitleaks")) {
           iss.code = fa.content?.split("\n")[iss.line - 1]?.trim().slice(0, 120) ?? "";
         }
       }

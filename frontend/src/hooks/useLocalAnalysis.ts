@@ -162,6 +162,11 @@ export function useLocalAnalysis() {
         });
         if (!res.ok) {
           const data = (await res.json().catch(() => ({}))) as { error?: string };
+          if (res.status === 413) {
+            throw new Error(
+              "Folder too large for one upload — exclude generated files (bundles, fixtures) and retry",
+            );
+          }
           throw new Error(data.error ?? `Upload failed (HTTP ${res.status})`);
         }
         const { id } = (await res.json()) as { id: string };

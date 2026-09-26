@@ -1,27 +1,28 @@
-'use client';
+"use client";
 
-import { useState, useEffect, useRef, useCallback } from 'react';
-import { Canvas } from '@react-three/fiber';
-import { EffectComposer, Bloom } from '@react-three/postprocessing';
-import { CityScene } from './components/CityScene';
-import { Landing } from './components/Landing';
-import { InfoPanel } from './components/InfoPanel';
-import { SearchBar } from './components/SearchBar';
-import { AnalyzePanel } from './components/AnalyzePanel';
-import { KeyboardHints } from './components/KeyboardHints';
-import { LoadingScreen } from './components/LoadingScreen';
-import { Tooltip } from './components/Tooltip';
-import { ScanSummary } from './components/ScanSummary';
-import { Minimap } from './components/Minimap';
-import { HudOverlay } from './components/HudOverlay';
-import { Breadcrumbs } from './components/Breadcrumbs';
-import { SecurityTour } from './components/SecurityTour';
-import { CoachMarks } from './components/CoachMarks';
-import { ActionBar } from './components/ActionBar';
-import { ContextCard } from './components/ContextCard';
-import { useStore } from './stores';
-import { getDirLayout } from './city/layout';
-import type { CityData } from './city/types';
+import { useState, useEffect, useRef, useCallback } from "react";
+import { Canvas } from "@react-three/fiber";
+import { EffectComposer, Bloom } from "@react-three/postprocessing";
+import { CityScene } from "./components/CityScene";
+import { Landing } from "./components/Landing";
+import { InfoPanel } from "./components/InfoPanel";
+import { SearchBar } from "./components/SearchBar";
+import { AnalyzePanel } from "./components/AnalyzePanel";
+import { KeyboardHints } from "./components/KeyboardHints";
+import { LoadingScreen } from "./components/LoadingScreen";
+import { Tooltip } from "./components/Tooltip";
+import { ScanSummary } from "./components/ScanSummary";
+import { Minimap } from "./components/Minimap";
+import { HudOverlay } from "./components/HudOverlay";
+import { Breadcrumbs } from "./components/Breadcrumbs";
+import { SecurityTour } from "./components/SecurityTour";
+import { CoachMarks } from "./components/CoachMarks";
+import { ActionBar } from "./components/ActionBar";
+import { ContextCard } from "./components/ContextCard";
+import { FindingsPanel } from "./components/FindingsPanel";
+import { useStore } from "./stores";
+import { getDirLayout } from "./city/layout";
+import type { CityData } from "./city/types";
 
 export default function App() {
   const cityData = useStore((s) => s.cityData);
@@ -33,9 +34,9 @@ export default function App() {
   const navigateToFile = useStore((s) => s.navigateToFile);
   const drillOut = useStore((s) => s.drillOut);
 
-  const [apiStatus, setApiStatus] = useState<'connecting' | 'live' | 'demo'>('connecting');
+  const [apiStatus, setApiStatus] = useState<"connecting" | "live" | "demo">("connecting");
   const [showKeyboardHints, setShowKeyboardHints] = useState(false);
-  const [permalinkError, setPermalinkError] = useState('');
+  const [permalinkError, setPermalinkError] = useState("");
 
   const canvasWrapperRef = useRef<HTMLDivElement | null>(null);
   const lastEscRef = useRef(0);
@@ -44,9 +45,9 @@ export default function App() {
   // lands on the empty world (the Landing hero), never a prebuilt city. ────
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    const cityId = params.get('city');
+    const cityId = params.get("city");
     if (!cityId) {
-      setApiStatus('demo');
+      setApiStatus("demo");
       return;
     }
     let cancelled = false;
@@ -54,21 +55,21 @@ export default function App() {
     (async (): Promise<void> => {
       try {
         const res = await fetch(`/api/result/${encodeURIComponent(cityId)}/city`, {
-          headers: { Accept: 'application/json' },
+          headers: { Accept: "application/json" },
         });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data = (await res.json()) as CityData;
         if (!cancelled) {
           setCityData(data);
-          setApiStatus('live');
+          setApiStatus("live");
         }
       } catch {
         // Permalink expired (in-memory store) — land on the empty world,
         // but tell the user why instead of showing a silent empty city
         if (!cancelled) {
-          setApiStatus('demo');
+          setApiStatus("demo");
           setPermalinkError(
-            'This city link has expired — analysis results are kept in memory and disappear when the backend restarts. Analyze the repository again to rebuild it.',
+            "This city link has expired — analysis results are kept in memory and disappear when the backend restarts. Analyze the repository again to rebuild it.",
           );
         }
       } finally {
@@ -90,11 +91,9 @@ export default function App() {
     (e: KeyboardEvent) => {
       const target = e.target as HTMLElement;
       const isInput =
-        target.tagName === 'INPUT' ||
-        target.tagName === 'TEXTAREA' ||
-        target.isContentEditable;
+        target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable;
 
-      if (e.key === 'Escape') {
+      if (e.key === "Escape") {
         if (showKeyboardHints) {
           setShowKeyboardHints(false);
           return;
@@ -118,39 +117,55 @@ export default function App() {
         return;
       }
 
-      if (e.key === '?' && !isInput) {
+      if (e.key === "?" && !isInput) {
         e.preventDefault();
         setShowKeyboardHints((v) => !v);
         return;
       }
 
-      if (e.key === '/' && !isInput && cityData) {
+      if (e.key === "/" && !isInput && cityData) {
         e.preventDefault();
-        const searchInput = document.querySelector<HTMLInputElement>('input[aria-label="Search buildings"]');
+        const searchInput = document.querySelector<HTMLInputElement>(
+          'input[aria-label="Search buildings"]',
+        );
         searchInput?.focus();
         return;
       }
 
       // Tab / Shift+Tab — walk the buildings of the current level
-      if (e.key === 'Tab' && !isInput && cityData) {
+      if (e.key === "Tab" && !isInput && cityData) {
         e.preventDefault();
         const layout = getDirLayout(cityData, useStore.getState().focusPath);
         if (layout.buildings.length === 0) return;
-        const currentId = selectedUnit?.kind === 'file' ? selectedUnit.id : null;
-        const currentIndex = currentId ? layout.buildings.findIndex((b) => b.file.id === currentId) : -1;
+        const currentId = selectedUnit?.kind === "file" ? selectedUnit.id : null;
+        const currentIndex = currentId
+          ? layout.buildings.findIndex((b) => b.file.id === currentId)
+          : -1;
         const nextIndex = e.shiftKey
-          ? (currentIndex <= 0 ? layout.buildings.length - 1 : currentIndex - 1)
-          : (currentIndex >= layout.buildings.length - 1 ? 0 : currentIndex + 1);
+          ? currentIndex <= 0
+            ? layout.buildings.length - 1
+            : currentIndex - 1
+          : currentIndex >= layout.buildings.length - 1
+            ? 0
+            : currentIndex + 1;
         const next = layout.buildings[nextIndex];
         if (next) navigateToFile(next.file.id);
       }
     },
-    [showKeyboardHints, selectedUnit, setSelectedUnit, drillOut, resetFocus, cityData, navigateToFile],
+    [
+      showKeyboardHints,
+      selectedUnit,
+      setSelectedUnit,
+      drillOut,
+      resetFocus,
+      cityData,
+      navigateToFile,
+    ],
   );
 
   useEffect(() => {
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
   }, [handleKeyDown]);
 
   const inCity = cityData !== null;
@@ -166,7 +181,7 @@ export default function App() {
         aria-label="3D city visualization"
         role="application"
         className="w-full h-full outline-none"
-        style={{ outline: 'none' }}
+        style={{ outline: "none" }}
       >
         <Canvas
           camera={{ position: [0, 100, 150], fov: 52, near: 0.5, far: 1600 }}
@@ -189,20 +204,20 @@ export default function App() {
               className="absolute top-16 left-1/2 -translate-x-1/2 z-30 flex items-center gap-3
                          font-jetbrains text-[11px] px-4 py-2.5 rounded"
               style={{
-                background: 'rgba(30, 12, 18, 0.92)',
-                border: '1px solid rgba(255, 107, 107, 0.45)',
-                color: '#ffb4b4',
-                boxShadow: '0 4px 24px rgba(0,0,0,0.5)',
-                backdropFilter: 'blur(10px)',
+                background: "rgba(30, 12, 18, 0.92)",
+                border: "1px solid rgba(255, 107, 107, 0.45)",
+                color: "#ffb4b4",
+                boxShadow: "0 4px 24px rgba(0,0,0,0.5)",
+                backdropFilter: "blur(10px)",
                 maxWidth: 560,
               }}
             >
               <span>{permalinkError}</span>
               <button
-                onClick={() => setPermalinkError('')}
+                onClick={() => setPermalinkError("")}
                 aria-label="Dismiss message"
                 className="cursor-pointer shrink-0 hover:brightness-125"
-                style={{ color: '#ff8f9a' }}
+                style={{ color: "#ff8f9a" }}
               >
                 ✕
               </button>
@@ -227,6 +242,7 @@ export default function App() {
             </div>
 
             <InfoPanel />
+            <FindingsPanel />
             <ScanSummary />
             <SecurityTour />
             <ActionBar />

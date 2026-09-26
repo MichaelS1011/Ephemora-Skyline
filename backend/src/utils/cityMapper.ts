@@ -13,12 +13,19 @@
  *   `@/` alias) and aggregated per top-level directory for the overview.
  */
 
-import path from 'path';
-import type { AnalysisResult, FileAnalysis } from '../models/index.js';
+import path from "path";
+import type { AnalysisResult, FileAnalysis } from "../models/index.js";
 
-export type Severity = 'P0' | 'P1' | 'P2';
+export type Severity = "P0" | "P1" | "P2";
 
-export type ThreatLevel = 'critical' | 'high' | 'medium' | 'low' | 'safe';
+export type ThreatLevel = "critical" | "high" | "medium" | "low" | "safe";
+
+export interface CitySnippet {
+  before: string[];
+  line: string;
+  after: string[];
+  number: number;
+}
 
 export interface CityFinding {
   type: string;
@@ -28,6 +35,14 @@ export interface CityFinding {
   fix?: string;
   provenance?: string;
   ruleId?: string;
+  /** Plain-language explanation of the finding class */
+  explanation?: string;
+  /** Standard taxonomy reference, e.g. "CWE-89" */
+  cwe?: string;
+  /** Authoritative documentation link (OWASP/CWE/semgrep/advisory) */
+  refUrl?: string;
+  /** Code frame around the flagged line — where exactly the problem lives */
+  snippet?: CitySnippet;
 }
 
 export interface CityFile {
@@ -97,7 +112,7 @@ const FILE_CONNECTIONS_MAX = 400;
 const DIR_CONNECTIONS_MAX = 200;
 
 const SEVERITY_SCORE: Record<Severity, number> = { P0: 10, P1: 7, P2: 3 };
-const SEVERITY_ORDER: Severity[] = ['P0', 'P1', 'P2'];
+const SEVERITY_ORDER: Severity[] = ["P0", "P1", "P2"];
 
 /** Representative towers per district skyline (rendered while zoomed out). */
 const DISTRICT_FILES_MAX = 6;
@@ -112,24 +127,36 @@ function emptySeverityCount(): Record<Severity, number> {
   return { P0: 0, P1: 0, P2: 0 };
 }
 
-function toCityFinding(v: FileAnalysis['vulnerabilities'][number]): CityFinding {
+function toCityFinding(v: FileAnalysis["vulnerabilities"][number]): CityFinding {
+  const enriched = v as unknown as {
+    provenance?: string;
+    ruleId?: string;
+    explanation?: string;
+    cwe?: string;
+    refUrl?: string;
+    snippet?: CityFinding["snippet"];
+  };
   return {
     type: v.type,
     severity: v.severity,
     line: v.line,
     message: v.message,
     fix: v.fix,
-    provenance: (v as unknown as { provenance?: string }).provenance,
-    ruleId: (v as unknown as { ruleId?: string }).ruleId,
+    provenance: enriched.provenance,
+    ruleId: enriched.ruleId,
+    explanation: enriched.explanation,
+    cwe: enriched.cwe,
+    refUrl: enriched.refUrl,
+    snippet: enriched.snippet,
   };
 }
 
-function threatLevelOf(findings: FileAnalysis['vulnerabilities']): ThreatLevel {
-  if (findings.some((v) => v.severity === 'P0')) return 'critical';
-  if (findings.some((v) => v.severity === 'P1')) return 'high';
-  if (findings.some((v) => v.severity === 'P2')) return 'medium';
-  if (findings.length > 0) return 'low';
-  return 'safe';
+function threatLevelOf(findings: FileAnalysis["vulnerabilities"]): ThreatLevel {
+  if (findings.some((v) => v.severity === "P0")) return "critical";
+  if (findings.some((v) => v.severity === "P1")) return "high";
+  if (findings.some((v) => v.severity === "P2")) return "medium";
+  if (findings.length > 0) return "low";
+  return "safe";
 }
 
 function fileSortKey(f: FileAnalysis): number {
@@ -137,7 +164,7 @@ function fileSortKey(f: FileAnalysis): number {
   return worst * 1000 + Math.min(f.lines.code, 1000);
 }
 
-function findingsSortKey(findings: FileAnalysis['vulnerabilities']): number {
+function findingsSortKey(findings: FileAnalysis["vulnerabilities"]): number {
   return findings.reduce((max, v) => Math.max(max, SEVERITY_SCORE[v.severity] ?? 0), 0);
 }
 
@@ -151,13 +178,13 @@ interface TrieNode {
 }
 
 function buildTrie(files: FileAnalysis[]): TrieNode {
-  const root: TrieNode = { name: '', path: '', children: new Map(), files: [] };
+  const root: TrieNode = { name: "", path: "", children: new Map(), files: [] };
   for (const file of files) {
     const dir = path.posix.dirname(file.path);
-    const parts = dir === '.' ? [] : dir.split('/');
+    const parts = dir === "." ? [] : dir.split("/");
     let node = root;
     for (const part of parts) {
-      const childPath = node.path === '' ? part : `${node.path}/${part}`;
+      const childPath = node.path === "" ? part : `${node.path}/${part}`;
       let child = node.children.get(part);
       if (!child) {
         child = { name: part, path: childPath, children: new Map(), files: [] };
@@ -173,8 +200,16 @@ function buildTrie(files: FileAnalysis[]): TrieNode {
 // ── Import resolution ──────────────────────────────────────────────────────
 
 const EXT_CANDIDATES = [
-  '', '.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs',
-  '/index.ts', '/index.tsx', '/index.js',
+  "",
+  ".ts",
+  ".tsx",
+  ".js",
+  ".jsx",
+  ".mjs",
+  ".cjs",
+  "/index.ts",
+  "/index.tsx",
+  "/index.js",
 ];
 
 /**
@@ -184,21 +219,21 @@ const EXT_CANDIDATES = [
  */
 function resolveImportPath(fromPath: string, source: string, pathSet: Set<string>): string | null {
   let src = source.trim();
-  if (src.startsWith('@/')) src = src.slice(2);
-  if (src.startsWith('~/')) src = src.slice(2);
+  if (src.startsWith("@/")) src = src.slice(2);
+  if (src.startsWith("~/")) src = src.slice(2);
 
   let base: string;
-  if (src.startsWith('./') || src.startsWith('../')) {
+  if (src.startsWith("./") || src.startsWith("../")) {
     base = path.posix.normalize(path.posix.join(path.posix.dirname(fromPath), src));
-  } else if (src.startsWith('/') || src.startsWith('.')) {
+  } else if (src.startsWith("/") || src.startsWith(".")) {
     return null; // unusual — skip
   } else {
     base = src; // root-anchored path (e.g. tsconfig baseUrl) — try as-is
   }
 
   const candidates = [base, ...EXT_CANDIDATES.map((ext) => base + ext)];
-  if (base.endsWith('.js')) {
-    candidates.push(base.slice(0, -3) + '.ts', base.slice(0, -3) + '.tsx');
+  if (base.endsWith(".js")) {
+    candidates.push(base.slice(0, -3) + ".ts", base.slice(0, -3) + ".tsx");
   }
   for (const c of candidates) {
     if (pathSet.has(c)) return c;
@@ -207,8 +242,8 @@ function resolveImportPath(fromPath: string, source: string, pathSet: Set<string
 }
 
 function topLevelDirOf(filePath: string): string {
-  const i = filePath.indexOf('/');
-  return i === -1 ? '' : filePath.slice(0, i);
+  const i = filePath.indexOf("/");
+  return i === -1 ? "" : filePath.slice(0, i);
 }
 
 // ── Main mapping ───────────────────────────────────────────────────────────
@@ -231,7 +266,10 @@ export function mapResultToCityData(result: AnalysisResult): CityData {
     node.children.forEach(countDirs);
   };
   countDirs(trie);
-  const perDirCap = Math.max(4, Math.min(DETAIL_FILES_PER_DIR, Math.floor(DETAIL_FILES_TOTAL / Math.max(1, dirsWithFiles))));
+  const perDirCap = Math.max(
+    4,
+    Math.min(DETAIL_FILES_PER_DIR, Math.floor(DETAIL_FILES_TOTAL / Math.max(1, dirsWithFiles))),
+  );
 
   let renderedFiles = 0;
 

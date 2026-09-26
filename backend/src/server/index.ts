@@ -146,6 +146,9 @@ app.use(
     credentials: true,
   }),
 );
+// Large-body parser must run BEFORE the global one: the global 10mb parser
+// would otherwise reject big local-folder uploads with 413 first
+app.use("/api/analyze-local", express.json({ limit: "80mb" }));
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true }));
 app.use("/api", readLimiter);
@@ -182,7 +185,6 @@ app.get("/api/cities/default", (_req: Request, res: Response): void => {
 app.post(
   "/api/analyze-local",
   analyzeLimiter,
-  express.json({ limit: "60mb" }),
   async (req: Request, res: Response): Promise<void> => {
     await handleLocalAnalyze(req, res, orchestrator, analysisStore);
   },
