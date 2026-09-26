@@ -76,7 +76,7 @@ curl http://localhost:4000/api/demo
 curl http://localhost:4000/api/health
 ```
 
-Im Browser: Öffne `http://localhost:3010` und klicke auf **Demo** oder gib eine GitHub-URL ein.
+Im Browser: Öffne `http://localhost:3010`, klicke auf **📂 PICK PROJECT FOLDER** und wähle einen deiner Projektordner — CodeCity scanned ihn direkt (Codequalität, Secrets, CVEs) und baut die Stadt. Deine Dateien verlassen den Rechner nicht. Alternativ: **Demo-Stadt** ansehen.
 
 ## Development Workflow
 

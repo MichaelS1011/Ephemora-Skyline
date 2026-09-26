@@ -1,31 +1,23 @@
 "use client";
 
-import { useRef } from "react";
 import { useStore } from "../stores/useStore";
-import { useAnalysis } from "../hooks/useAnalysis";
+import { useLocalAnalysis } from "../hooks/useLocalAnalysis";
 import { SEVERITY_COLOR } from "../city/palette";
 
 export function Landing() {
   const cityData = useStore((s) => s.cityData);
   const isLoading = useStore((s) => s.isLoading);
   const setCityData = useStore((s) => s.setCityData);
-  const inputRef = useRef<HTMLInputElement>(null);
   const {
-    url,
-    setUrl,
-    branch,
-    setBranch,
-    fullHistory,
-    setFullHistory,
     state,
     errorMessage,
     analysisProgress,
     analysisStage,
-    startAnalysis,
+    collected,
+    pickFolder,
     cancel,
-    reset,
     isAnalyzing,
-  } = useAnalysis();
+  } = useLocalAnalysis();
 
   if (cityData || isLoading) return null;
 
@@ -40,6 +32,7 @@ export function Landing() {
   };
 
   const hasError = state === "error";
+  const isCollecting = state === "collecting";
 
   return (
     <div className="absolute inset-0 z-40 flex items-center justify-center pointer-events-auto overflow-hidden">
@@ -107,109 +100,57 @@ export function Landing() {
 
         <p
           className="font-jetbrains text-[13px] mb-9 leading-relaxed"
-          style={{ color: "#7f9bbf", maxWidth: 440 }}
+          style={{ color: "#7f9bbf", maxWidth: 460 }}
         >
-          Paste a GitHub repo — watch it rise as a living city. Folders become districts, files
-          become buildings,
-          <span style={{ color: "#ff2e4d" }}> red beacons</span> are security findings.
+          Pick one of your local project folders — watch it rise as a living city. Folders become
+          districts, files become buildings,
+          <span style={{ color: "#ff2e4d" }}> red beacons</span> are security findings. Everything
+          stays on your machine.
         </p>
 
-        {/* URL input row */}
-        <div className="flex items-stretch gap-2 w-full mb-2.5">
-          <div className="relative flex-1">
-            <input
-              ref={inputRef}
-              type="url"
-              value={url}
-              onChange={(e) => {
-                setUrl(e.target.value);
-                if (hasError) reset();
-              }}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && !isAnalyzing) startAnalysis();
-              }}
-              placeholder="https://github.com/owner/repo"
-              disabled={isAnalyzing}
-              aria-label="GitHub repository URL"
-              aria-invalid={hasError}
-              aria-describedby={hasError ? "landing-error" : undefined}
-              className="w-full font-jetbrains text-[13px] px-4 py-3 rounded outline-none transition-all duration-200"
-              style={{
-                background: "rgba(6,10,24,0.85)",
-                border: `1px solid ${hasError ? SEVERITY_COLOR.P0 : "rgba(77,227,255,0.28)"}`,
-                color: "#e8f0ff",
-                boxShadow: hasError ? `0 0 0 2px ${SEVERITY_COLOR.P0}22` : "none",
-                backdropFilter: "blur(8px)",
-              }}
-              onFocus={(e) => {
-                if (!hasError) e.currentTarget.style.borderColor = "rgba(77,227,255,0.6)";
-                e.currentTarget.style.boxShadow = "0 0 0 2px rgba(77,227,255,0.1)";
-              }}
-              onBlur={(e) => {
-                if (!hasError) {
-                  e.currentTarget.style.borderColor = "rgba(77,227,255,0.28)";
-                  e.currentTarget.style.boxShadow = "none";
-                }
-              }}
-            />
-          </div>
-
-          <button
-            onClick={startAnalysis}
-            disabled={isAnalyzing}
-            aria-busy={isAnalyzing}
-            className="font-jetbrains text-[13px] tracking-[0.15em] font-medium px-7 rounded transition-all duration-200 disabled:opacity-60 disabled:cursor-not-allowed"
-            style={{
-              border: "1px solid rgba(0,255,159,0.55)",
-              color: isAnalyzing ? "#00aa66" : "#00ff9f",
-              background: isAnalyzing ? "rgba(0,255,159,0.04)" : "rgba(0,255,159,0.09)",
-              boxShadow: isAnalyzing ? "none" : "0 0 20px rgba(0,255,159,0.15)",
-            }}
-          >
-            {isAnalyzing ? (
-              <span className="flex items-center gap-2.5">
-                <span
-                  className="inline-block w-2 h-2 rounded-full animate-pulse-glow"
-                  style={{ background: "#00ff9f" }}
-                />
-                BUILDING…
-              </span>
-            ) : (
-              "BUILD CITY"
-            )}
-          </button>
-        </div>
-
-        {/* Branch — only visible when URL has been typed */}
-        {url.length > 0 && !isAnalyzing && (
-          <input
-            type="text"
-            value={branch}
-            onChange={(e) => setBranch(e.target.value)}
-            placeholder="branch  (default: main)"
-            aria-label="Branch"
-            className="w-full font-jetbrains text-[11px] text-center px-3 py-1.5 rounded outline-none transition-all duration-150 mb-1"
-            style={{
-              background: "rgba(6,10,24,0.6)",
-              border: "1px solid rgba(90,130,200,0.22)",
-              color: "#aebfe0",
-            }}
-          />
-        )}
-
-        {/* Full-history secret scan — finds credentials deleted from HEAD */}
-        {url.length > 0 && !isAnalyzing && (
-          <label className="flex items-center justify-center gap-2 w-full mb-1 cursor-pointer select-none">
-            <input
-              type="checkbox"
-              checked={fullHistory}
-              onChange={(e) => setFullHistory(e.target.checked)}
-              className="accent-[#00ff9f] w-3 h-3"
-            />
-            <span className="font-jetbrains text-[10px]" style={{ color: "#6b84a8" }}>
-              scan full git history (finds deleted secrets — slower)
+        {/* Folder picker — the one primary action */}
+        <button
+          onClick={pickFolder}
+          disabled={isAnalyzing}
+          aria-busy={isAnalyzing}
+          aria-describedby={hasError ? "landing-error" : undefined}
+          className="font-jetbrains text-[13px] tracking-[0.15em] font-medium px-9 py-3.5 rounded transition-all duration-200 disabled:opacity-60 disabled:cursor-not-allowed"
+          style={{
+            border: "1px solid rgba(0,255,159,0.55)",
+            color: isAnalyzing ? "#00aa66" : "#00ff9f",
+            background: isAnalyzing ? "rgba(0,255,159,0.04)" : "rgba(0,255,159,0.09)",
+            boxShadow: isAnalyzing ? "none" : "0 0 24px rgba(0,255,159,0.18)",
+          }}
+        >
+          {isCollecting ? (
+            <span className="flex items-center gap-2.5">
+              <span
+                className="inline-block w-2 h-2 rounded-full animate-pulse-glow"
+                style={{ background: "#00ff9f" }}
+              />
+              READING FOLDER…
             </span>
-          </label>
+          ) : isAnalyzing ? (
+            <span className="flex items-center gap-2.5">
+              <span
+                className="inline-block w-2 h-2 rounded-full animate-pulse-glow"
+                style={{ background: "#00ff9f" }}
+              />
+              SCANNING…
+            </span>
+          ) : (
+            "📂  PICK PROJECT FOLDER"
+          )}
+        </button>
+
+        {/* Collection counter while walking the folder */}
+        {isCollecting && collected.files > 0 && (
+          <div
+            className="mt-3 font-jetbrains text-[10px] tracking-wide"
+            style={{ color: "#4d6488" }}
+          >
+            {collected.files} files · {(collected.bytes / 1024).toFixed(0)} KB collected
+          </div>
         )}
 
         {/* Error */}
@@ -217,7 +158,7 @@ export function Landing() {
           <div
             id="landing-error"
             role="alert"
-            className="mt-3 w-full px-4 py-2.5 rounded font-jetbrains text-[11px] flex items-start gap-2 animate-fade-up"
+            className="mt-6 w-full px-4 py-2.5 rounded font-jetbrains text-[11px] flex items-start gap-2 animate-fade-up"
             style={{
               borderColor: SEVERITY_COLOR.P0,
               color: "#ff9aa5",
@@ -231,8 +172,8 @@ export function Landing() {
         )}
 
         {/* Progress bar */}
-        {isAnalyzing && (
-          <div className="mt-6 w-full animate-fade-up">
+        {isAnalyzing && !isCollecting && (
+          <div className="mt-8 w-full animate-fade-up">
             <div className="flex justify-between font-jetbrains text-[10px] mb-1.5">
               <span style={{ color: "#4de3ff" }}>{analysisStage || "PREPARING SITE…"}</span>
               <span style={{ color: "#00ff9f" }}>{analysisProgress}%</span>

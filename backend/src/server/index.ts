@@ -26,6 +26,7 @@ import { SecurityScanner } from "../services/security/scanner.js";
 import { getHealth } from "./routes/health.js";
 import { getDemoResult } from "./routes/demo.js";
 import { handleAnalyze, getJobProgress } from "./routes/analyze.js";
+import { handleLocalAnalyze } from "./routes/local-analyze.js";
 import { WebSocketServerManager } from "../services/streaming/websocket-server.js";
 import { mapResultToCityData } from "../utils/cityMapper.js";
 import { resultToSarif } from "../utils/sarif.js";
@@ -68,6 +69,11 @@ class AnalysisStore {
     this.map.set(id, result);
     this.stamps.set(id, Date.now());
     this.evict();
+  }
+
+  delete(id: string): void {
+    this.map.delete(id);
+    this.stamps.delete(id);
   }
 
   private evict(): void {
@@ -170,6 +176,17 @@ app.get("/api/cities/default", (_req: Request, res: Response): void => {
     res.status(500).json({ error: "Internal server error" });
   }
 });
+
+// POST /api/analyze-local — analyze a folder picked in the browser
+// Large route-specific body limit: the client uploads the folder's source files
+app.post(
+  "/api/analyze-local",
+  analyzeLimiter,
+  express.json({ limit: "60mb" }),
+  async (req: Request, res: Response): Promise<void> => {
+    await handleLocalAnalyze(req, res, orchestrator, analysisStore);
+  },
+);
 
 // POST /api/analyze — kick off a repository analysis
 // Returns 202 immediately with { id, status, statusUrl } — the analysis runs

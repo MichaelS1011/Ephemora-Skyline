@@ -1,11 +1,12 @@
 # CodeCity CyberDefense
 
-Eine interaktive 3D-City-Visualisierung von GitHub-Repositories als lebendige Stadt in der Dämmerung.
+Eine interaktive 3D-City-Visualisierung deines lokalen Projekts als lebendige Stadt in der Dämmerung.
 
-**Paste a GitHub repository and watch it rise as a living city** — districts are folders,
+**Pick a local project folder and watch it rise as a living city** — districts are folders,
 buildings are files, glowing arcs are imports, and red beacons are security findings.
+Dein Code bleibt auf deinem Rechner.
 
-- **Leere Welt als Start:** Jeder Besuch beginnt auf einer leeren Dämmerungs-Landschaft. Ein Repo-Link — und die Stadt baut sich Stück für Stück auf (Straßen → Viertel → Gebäude), wie ein Film.
+- **Leere Welt als Start:** Jeder Besuch beginnt auf einer leeren Dämmerungs-Landschaft. Ordner auswählen — und die Stadt baut sich Stück für Stück auf (Straßen → Viertel → Gebäude), wie ein Film.
 - **Skalenunabhängig durch semantischen Zoom:** Die Übersicht zeigt immer einen Block pro Top-Level-Ordner — ob das Repo 100 oder 50.000 Dateien hat. Reinklicken öffnet den Block als eigenes Viertel; nicht gerenderte Dateien erscheinen ehrlich als Podium („+N more files").
 - **Security Tour:** Die Kamera fliegt von Finding zu Finding (risikogewichtet) — mit Erklärung und Fix-Vorschlag. From finding to action.
 - **Orientierung:** Brotkrumen, Minimap mit echter Kameraposition, Landmark-Turm für die gefährlichste Datei, Search-to-Fly.
@@ -163,21 +164,23 @@ GET /api/health
 { "status": "ok", "timestamp": "2025-01-01T00:00:00.000Z" }
 ```
 
-### Repository Analysieren
+### Lokalen Ordner Analysieren
 
 ```
-POST /api/analyze
+POST /api/analyze-local
 Content-Type: application/json
 
 {
-  "url": "https://github.com/username/repo",
-  "branch": "main"
+  "name": "mein-projekt",
+  "files": [{ "path": "src/index.ts", "content": "..." }]
 }
 ```
 
-**Response (Streaming via WebSocket):**
+**Response:** `202 { id, status, statusUrl }` — Progress via `GET /api/status/:id`
+(node_modules, .git, dist/build & Co. werden automatisch übersprungen;
+Caps: 3000 Dateien / 40 MB). Für Remote-Repos existiert weiterhin
+`POST /api/analyze` (git clone), die UI nutzt den lokalen Weg.
 
-- Fortschritts-Updates per WS (`ws://localhost:4000/ws`)
 - Endergebnis im Analysis-Format
 
 ### Analyse-Ergebnis abrufen

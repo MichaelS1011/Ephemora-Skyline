@@ -2,6 +2,9 @@ import type { Request, Response } from "express";
 import type { AnalysisOrchestrator } from "../../services/analyzer/orchestrator.js";
 import type { AnalysisResult, GitHubRepo, WebSocketEvent } from "../../models/index.js";
 import type { WebSocket as WsWebSocket } from "ws";
+import { setJobProgress, deleteJobProgress, getJobProgress } from "./job-progress.js";
+
+export { getJobProgress };
 
 /**
  * Strict GitHub URL parsing — only https://github.com/<owner>/<name>[.git]
@@ -45,14 +48,85 @@ function wsSend(ws: WsWebSocket | null | undefined, payload: unknown): void {
   }
 }
 
-/** Live progress per running analysis id — read by GET /api/status/:id */
-const jobProgress = new Map<string, { progress: number; stage: string }>();
-
-export function getJobProgress(id: string): { progress: number; stage: string } | undefined {
-  return jobProgress.get(id);
+/** Skeleton result so polling endpoints can observe a running job */
+export function makeSkeleton(analysisId: string, repo: GitHubRepo): AnalysisResult {
+  return {
+    id: analysisId,
+    repo,
+    files: [],
+    directories: [],
+    summary: {
+      totalFiles: 0,
+      totalDirectories: 0,
+      totalLines: 0,
+      avgCyclomatic: 0,
+      maxCyclomatic: 0,
+      languages: {},
+      totalVulnerabilities: 0,
+      vulnerabilitiesBySeverity: { P0: 0, P1: 0, P2: 0 },
+      languagesByLines: {},
+    },
+    createdAt: new Date().toISOString(),
+    status: "analyzing",
+  };
 }
 
-/** Background runner — never awaited by the HTTP/WS entry points */
+/**
+ * Shared progress forwarder: job-progress map + optional WS client.
+ * Returns a `finished()` probe so callers can avoid double-complete events.
+ */
+export function makeOnEvent(
+  analysisId: string,
+  ws?: WsWebSocket | null,
+): { onEvent: (event: WebSocketEvent) => void; finished: () => boolean } {
+  let completeSent = false;
+  return {
+    onEvent: (event: WebSocketEvent): void => {
+      if (event.type === "analysis_progress" && typeof event.payload.progress === "number") {
+        setJobProgress(analysisId, {
+          progress: event.payload.progress,
+          stage: String(event.payload.stage ?? ""),
+        });
+        if (ws) {
+          wsSend(ws, {
+            type: "analysis_progress",
+            payload: { progress: event.payload.progress, stage: event.payload.stage },
+            timestamp: event.timestamp,
+          });
+        }
+      } else if (event.type === "analysis_complete" && !completeSent) {
+        completeSent = true;
+        if (ws) {
+          wsSend(ws, {
+            type: "analysis_complete",
+            payload: event.payload,
+            timestamp: event.timestamp,
+          });
+        }
+      }
+    },
+    finished: () => completeSent,
+  };
+}
+
+/**
+ * Fail a job: remove the skeleton from the store, clear progress, notify the
+ * WS client. A failed analysis must never look like a completed empty city.
+ */
+export function failJob(
+  analysisId: string,
+  message: string,
+  analysisStore: {
+    delete(id: string): void;
+  },
+  ws?: WsWebSocket | null,
+): void {
+  deleteJobProgress(analysisId);
+  analysisStore.delete(analysisId);
+  if (ws) wsSend(ws, { type: "error", payload: { message }, timestamp: new Date().toISOString() });
+}
+
+/** Background runner for git-clone analyses — never awaited by entry points */
 async function runAnalysis(
   analysisId: string,
   repo: GitHubRepo,
@@ -60,28 +134,11 @@ async function runAnalysis(
   analysisStore: {
     set(id: string, result: AnalysisResult): void;
     get(id: string): AnalysisResult | undefined;
+    delete(id: string): void;
   },
   ws?: WsWebSocket | null,
 ): Promise<void> {
-  let completeSent = false;
-  const onEvent = (event: WebSocketEvent): void => {
-    if (event.type === "analysis_progress" && typeof event.payload.progress === "number") {
-      jobProgress.set(analysisId, {
-        progress: event.payload.progress,
-        stage: String(event.payload.stage ?? ""),
-      });
-      if (ws) {
-        wsSend(ws, {
-          type: "analysis_progress",
-          payload: { progress: event.payload.progress, stage: event.payload.stage },
-          timestamp: event.timestamp,
-        });
-      }
-    } else if (event.type === "analysis_complete" && !completeSent) {
-      completeSent = true;
-      wsSend(ws, { type: "analysis_complete", payload: event.payload, timestamp: event.timestamp });
-    }
-  };
+  const { onEvent, finished } = makeOnEvent(analysisId, ws);
 
   try {
     // Tell the client which job id to poll if the WS connection drops
@@ -92,13 +149,21 @@ async function runAnalysis(
     });
 
     const result = await orchestrator.analyzeRepo(repo, onEvent, analysisId);
-    analysisStore.set(result.id, result);
-    jobProgress.delete(result.id);
+    deleteJobProgress(analysisId);
 
-    if (ws && !completeSent) {
+    if (result.status === "failed" || result.summary.totalFiles === 0) {
+      const message =
+        result.error ??
+        "No analyzable files found — check that the repository is public and the branch exists";
+      failJob(analysisId, message, analysisStore, ws);
+      return;
+    }
+
+    analysisStore.set(result.id, result);
+
+    if (ws && !finished()) {
       // Belt and braces: some orchestrator paths return without emitting
       // analysis_complete — the client must always learn the result id.
-      completeSent = true;
       wsSend(ws, {
         type: "analysis_complete",
         payload: { id: result.id, totalFiles: result.summary.totalFiles },
@@ -107,16 +172,7 @@ async function runAnalysis(
     }
   } catch (error) {
     const message = sanitizeMessage(error instanceof Error ? error.message : "Analysis failed");
-    // Surface the failure to polling clients
-    const skeleton = analysisStore.get(analysisId);
-    if (skeleton) {
-      skeleton.status = "failed";
-      skeleton.error = message;
-      analysisStore.set(analysisId, skeleton);
-    }
-    jobProgress.delete(analysisId);
-    if (ws)
-      wsSend(ws, { type: "error", payload: { message }, timestamp: new Date().toISOString() });
+    failJob(analysisId, message, analysisStore, ws);
   }
 }
 
@@ -127,6 +183,7 @@ export async function handleAnalyze(
   analysisStore: {
     set(id: string, result: AnalysisResult): void;
     get(id: string): AnalysisResult | undefined;
+    delete(id: string): void;
   },
   ws?: WsWebSocket | null,
 ): Promise<void> {
@@ -182,25 +239,7 @@ export async function handleAnalyze(
 
     // Register a skeleton result so polling endpoints can observe the job
     const analysisId = crypto.randomUUID();
-    analysisStore.set(analysisId, {
-      id: analysisId,
-      repo,
-      files: [],
-      directories: [],
-      summary: {
-        totalFiles: 0,
-        totalDirectories: 0,
-        totalLines: 0,
-        avgCyclomatic: 0,
-        maxCyclomatic: 0,
-        languages: {},
-        totalVulnerabilities: 0,
-        vulnerabilitiesBySeverity: { P0: 0, P1: 0, P2: 0 },
-        languagesByLines: {},
-      },
-      createdAt: new Date().toISOString(),
-      status: "analyzing",
-    });
+    analysisStore.set(analysisId, makeSkeleton(analysisId, repo));
 
     // Respond immediately — clients follow progress via WS events and/or
     // GET /api/status/:id instead of holding the request open for minutes.
