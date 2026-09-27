@@ -109,6 +109,11 @@ export default function App() {
           setShowKeyboardHints(false);
           return;
         }
+        // While the tour runs it owns Escape — the app-level chain (deselect,
+        // drillOut, overview) must not fire on top of it
+        if (useStore.getState().tourActive) {
+          return;
+        }
         if (selectedUnit) {
           setSelectedUnit(null);
           canvasWrapperRef.current?.focus();

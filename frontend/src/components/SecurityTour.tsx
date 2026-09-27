@@ -21,12 +21,15 @@ export function SecurityTour() {
       if (e.key === "ArrowRight" || e.key === "Enter") nextTour();
       if (e.key === "ArrowLeft") prevTour();
       if (e.key === "Escape") {
-        e.stopPropagation();
+        // Capture phase + stopImmediatePropagation: the tour owns Escape
+        // exclusively — bubble listeners (app-level deselect/drillOut) must
+        // never see it, regardless of listener registration order
+        e.stopImmediatePropagation();
         endTour();
       }
     };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
+    window.addEventListener("keydown", onKey, true);
+    return () => window.removeEventListener("keydown", onKey, true);
   }, [tourActive, nextTour, prevTour, endTour]);
 
   if (!tourActive || !cityData) return null;
