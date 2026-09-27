@@ -15,11 +15,17 @@ import pino from "pino";
 import type {
   AnalysisResult,
   FileAnalysis,
-  DirectorySummary,
   ProjectSummary,
   GitHubRepo,
   WebSocketEvent,
 } from "../../models/index.js";
+import {
+  countLines,
+  detectLanguage,
+  estimateCyclomaticComplexity,
+  extractClasses,
+  extractFunctions,
+} from "./metrics.js";
 import type { CloneManager } from "../github/clone-manager.js";
 import type { GitHubClient } from "../github/client.js";
 import type { SecurityScanner } from "../security/scanner.js";
@@ -48,86 +54,6 @@ const SUPPORTED_EXTENSIONS = new Set([
   ".yaml",
   ".yml",
 ]);
-
-// Simple language detection by extension
-function detectLanguage(filePath: string): string {
-  const ext = path.extname(filePath).toLowerCase();
-  const langMap: Record<string, string> = {
-    ".ts": "TypeScript",
-    ".tsx": "TypeScript",
-    ".js": "JavaScript",
-    ".jsx": "JavaScript",
-    ".mjs": "JavaScript",
-    ".cjs": "JavaScript",
-    ".py": "Python",
-    ".go": "Go",
-    ".rs": "Rust",
-    ".java": "Java",
-    ".rb": "Ruby",
-    ".html": "HTML",
-    ".css": "CSS",
-    ".scss": "SCSS",
-    ".json": "JSON",
-    ".yaml": "YAML",
-    ".yml": "YAML",
-  };
-  return langMap[ext] || "Other";
-}
-
-/** Average cyclomatic complexity across a set of files (0 when empty) */
-function computeAvgComplexity(files: FileAnalysis[]): number {
-  if (files.length === 0) return 0;
-  const total = files.reduce((sum, f) => sum + f.complexity.cyclomatic, 0);
-  return Math.round((total / files.length) * 100) / 100;
-}
-
-// Estimate cyclomatic complexity from code (simple heuristic)
-function estimateCyclomaticComplexity(code: string): number {
-  const decisions = (code.match(/\b(if|else\s+if|while|for|catch|case|&&|\|\||\?)\b/g) || [])
-    .length;
-  return Math.max(1, decisions + 1);
-}
-
-// Count lines of code
-function countLines(content: string): {
-  total: number;
-  code: number;
-  comments: number;
-  blank: number;
-} {
-  const lines = content.split("\n");
-  let code = 0,
-    comments = 0,
-    blank = 0;
-
-  let inBlockComment = false;
-  for (const line of lines) {
-    const trimmed = line.trim();
-    if (trimmed === "") {
-      blank++;
-      continue;
-    }
-
-    if (inBlockComment) {
-      comments++;
-      if (trimmed.includes("*/")) inBlockComment = false;
-      continue;
-    }
-    if (trimmed.startsWith("/*")) {
-      comments++;
-      if (!trimmed.includes("*/")) inBlockComment = true;
-      continue;
-    }
-    if (trimmed.startsWith("//")) {
-      comments++;
-      continue;
-    }
-
-    code++;
-  }
-
-  return { total: lines.length, code, comments, blank };
-}
 
 export class AnalysisOrchestrator {
   private logger: pino.Logger;
@@ -227,10 +153,6 @@ export class AnalysisOrchestrator {
 
     const fileAnalyses: FileAnalysis[] = [];
     const languageLines: Record<string, number> = {};
-    const directoryMap: Map<
-      string,
-      { files: FileAnalysis[]; subdirs: Map<string, { files: FileAnalysis[] }> }
-    > = new Map();
 
     for (let i = 0; i < allFiles.length; i++) {
       const relativePath = allFiles[i]!.replace(dirPath + "/", "");
@@ -262,8 +184,8 @@ export class AnalysisOrchestrator {
         const imports = rawImports.map((imp) => ({ ...imp, line: 0 }));
 
         // Extract functions (simple regex-based)
-        const functions = this.extractFunctions(content);
-        const classes = this.extractClasses(content);
+        const functions = extractFunctions(content);
+        const classes = extractClasses(content);
 
         const fileAnalysis: FileAnalysis = {
           path: relativePath,
@@ -285,13 +207,6 @@ export class AnalysisOrchestrator {
 
         // Update language lines
         languageLines[language] = (languageLines[language] || 0) + lines.code;
-
-        // Update directory map
-        const dirPath = path.dirname(relativePath);
-        if (!directoryMap.has(dirPath)) {
-          directoryMap.set(dirPath, { files: [], subdirs: new Map() });
-        }
-        directoryMap.get(dirPath)!.files.push(fileAnalysis);
 
         emit("file_parsed", {
           file: relativePath,
@@ -328,11 +243,6 @@ export class AnalysisOrchestrator {
       this.logger.warn({ e }, "Dependency scan failed — continuing without CVE findings");
     }
 
-    // --- Phase 4: Build directories ---
-    emit("analysis_progress", { progress: 90, stage: "Building directory structure" });
-
-    const directories = this.buildDirectoryTree(directoryMap, dirPath);
-
     // --- Phase 5: Aggregate summary ---
     const totalLines = fileAnalyses.reduce((sum, f) => sum + f.lines.total, 0);
     const totalVulns = fileAnalyses.reduce((sum, f) => sum + f.vulnerabilities.length, 0);
@@ -348,7 +258,7 @@ export class AnalysisOrchestrator {
 
     const summary: ProjectSummary = {
       totalFiles: fileAnalyses.length,
-      totalDirectories: directories.length,
+      totalDirectories: 0,
       totalLines,
       avgCyclomatic,
       maxCyclomatic,
@@ -371,7 +281,7 @@ export class AnalysisOrchestrator {
       id: analysisId,
       repo,
       files: fileAnalyses,
-      directories,
+      directories: [], // structure lives in cityMapper's own trie — never consumed here
       summary,
       createdAt: new Date().toISOString(),
       status: "complete",
@@ -430,8 +340,8 @@ export class AnalysisOrchestrator {
               cyclomatic: estimateCyclomaticComplexity(content),
               cognitive: estimateCyclomaticComplexity(content),
             },
-            functions: this.extractFunctions(content),
-            classes: this.extractClasses(content),
+            functions: extractFunctions(content),
+            classes: extractClasses(content),
             imports,
             exports: fileExports.map((e) => ({
               type: e.type as "named" | "default" | "reexport",
@@ -521,12 +431,15 @@ export class AnalysisOrchestrator {
     for (const entry of entries) {
       const fullPath = path.join(currentPath, entry.name);
 
-      // Skip sensitive directories
+      // Skip directories with no relevant source — must stay in sync with
+      // SKIP_DIRS in frontend/src/hooks/useLocalAnalysis.ts
       if (
-        /^(node_modules|\.git|dist|build|\.next|coverage|\.turbo|\.vscode|\.idea)/.test(entry.name)
+        /^(node_modules|\.git|dist|build|out|\.next|\.nuxt|coverage|\.turbo|\.vscode|\.idea|__pycache__|\.venv|venv|target|vendor|\.pytest_cache|\.mypy_cache|\.gradle|Pods|bin|obj)$/i.test(
+          entry.name,
+        )
       )
         continue;
-      if (/^(\.hidden|__pycache__)/.test(entry.name)) continue;
+      if (/^\.(hidden|DS_Store)$/.test(entry.name)) continue;
 
       if (entry.isDirectory()) {
         await this.walkDirectory(basePath, fullPath, files);
@@ -534,119 +447,5 @@ export class AnalysisOrchestrator {
         files.push(fullPath);
       }
     }
-  }
-
-  /** Build directory tree from flat file list */
-  private buildDirectoryTree(
-    dirMap: Map<string, { files: FileAnalysis[]; subdirs: Map<string, { files: FileAnalysis[] }> }>,
-    basePath: string,
-  ): DirectorySummary[] {
-    const roots: DirectorySummary[] = [];
-
-    for (const [dirPath, data] of dirMap) {
-      const relativeDir = dirPath.replace(basePath + "/", "") || "/";
-      const children: DirectorySummary[] = [];
-
-      // Add subdirectory summaries
-      for (const [subDirPath, subData] of data.subdirs) {
-        const relSub = subDirPath.replace(basePath + "/", "") || "/";
-        children.push({
-          path: relSub,
-          fileCount: subData.files.length,
-          totalLines: subData.files.reduce((s, f) => s + f.lines.total, 0),
-          avgComplexity: computeAvgComplexity(subData.files),
-          vulnerabilityCount: subData.files.reduce((s, f) => s + f.vulnerabilities.length, 0),
-          children: [],
-        });
-      }
-
-      roots.push({
-        path: relativeDir,
-        fileCount: data.files.length,
-        totalLines: data.files.reduce((s, f) => s + f.lines.total, 0),
-        avgComplexity: computeAvgComplexity(data.files),
-        vulnerabilityCount: data.files.reduce((s, f) => s + f.vulnerabilities.length, 0),
-        children,
-      });
-    }
-
-    return roots;
-  }
-
-  /** Extract function signatures from source code (regex-based) */
-  private extractFunctions(content: string): Array<{
-    name: string;
-    line: number;
-    parameters: number;
-    complexity: number;
-    isAsync: boolean;
-  }> {
-    const functions: Array<{
-      name: string;
-      line: number;
-      parameters: number;
-      complexity: number;
-      isAsync: boolean;
-    }> = [];
-    const lines = content.split("\n");
-
-    // Match: function name(params), const name = (params) =>, export const name = async (params)
-    const patterns = [
-      /(?:export\s+)?(?:async\s+)?function\s+(\w+)\s*\(([^)]*)\)/g,
-      /(?:export\s+)?(?:const|let|var)\s+(\w+)\s*=\s*(?:async\s+)?\(([^)]*)\)\s*=>/g,
-      /(\w+)\s*\(([^)]*)\)\s*(?::\s*\w[\w<>,\s?|&\n]*?)?\s*\{(?!\s*\/\*)/g,
-    ];
-
-    for (let i = 0; i < lines.length; i++) {
-      for (const pattern of patterns) {
-        pattern.lastIndex = 0;
-        let match: RegExpExecArray | null;
-        while ((match = pattern.exec(lines[i] || "")) !== null) {
-          const name = match[1];
-          if (!name) break;
-          if (
-            name === "if" ||
-            name === "for" ||
-            name === "while" ||
-            name === "switch" ||
-            name === "catch"
-          )
-            continue;
-          const params = match[2] ? match[2].split(",").filter((p: string) => p.trim()).length : 0;
-          functions.push({
-            name,
-            line: i + 1,
-            parameters: params,
-            complexity: estimateCyclomaticComplexity(lines[i] || ""),
-            isAsync: (lines[i] || "").includes("async"),
-          });
-          break; // One match per line
-        }
-      }
-    }
-
-    return functions.slice(0, 100); // Limit to avoid memory issues
-  }
-
-  /** Extract class definitions (regex-based) */
-  private extractClasses(content: string): Array<{ name: string; line: number; methods: number }> {
-    const classes: Array<{ name: string; line: number; methods: number }> = [];
-    const classRegex = /(?:export\s+)?class\s+(\w+)/g;
-    let match: RegExpExecArray | null;
-
-    while ((match = classRegex.exec(content)) !== null) {
-      // Count methods in this class (simplified: count indented functions after class declaration)
-      const className = match[1]!;
-      const classLine = content.slice(0, match.index).split("\n").length;
-      const linesAfter = content.split("\n").slice(classLine - 1);
-      let methods = 0;
-      for (const line of linesAfter) {
-        if (/^\s+(?:async\s+)?\w+\s*\(/.test(line)) methods++;
-      }
-
-      classes.push({ name: className, line: classLine, methods });
-    }
-
-    return classes;
   }
 }

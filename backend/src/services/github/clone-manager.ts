@@ -170,14 +170,4 @@ export class CloneManager {
       });
     });
   }
-
-  /** Get count of active clones */
-  getActiveCloneCount(): number {
-    return this.activeClones.size;
-  }
-
-  /** Get clone status for a repo key */
-  getCloneStatus(key: string): CloneState | undefined {
-    return this.activeClones.get(key);
-  }
 }

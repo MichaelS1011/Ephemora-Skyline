@@ -72,13 +72,21 @@ function CodeFrame({ snippet }: { snippet: NonNullable<CityFinding["snippet"]> }
   );
 }
 
-function FindingRow({ finding, index }: { finding: CityFinding; index: number }) {
+function FindingRow({
+  finding,
+  index,
+  filePath,
+}: {
+  finding: CityFinding;
+  index: number;
+  filePath: string;
+}) {
   const [expanded, setExpanded] = useState(false);
   const [copied, setCopied] = useState(false);
   const color = SEVERITY_COLOR[finding.severity];
 
   const copy = async (): Promise<void> => {
-    const text = `${finding.severity} ${finding.type} — line ${finding.line}\n${finding.message}${finding.fix ? `\nFix: ${finding.fix}` : ""}${finding.refUrl ? `\nReference: ${finding.refUrl}` : ""}`;
+    const text = `${finding.severity} ${finding.type} — ${filePath}:${finding.line}\n${finding.message}${finding.fix ? `\nFix: ${finding.fix}` : ""}${finding.refUrl ? `\nReference: ${finding.refUrl}` : ""}`;
     try {
       await navigator.clipboard.writeText(text);
       setCopied(true);
@@ -402,7 +410,7 @@ export function InfoPanel() {
           </div>
           <div className="flex flex-col gap-1">
             {file.findings.map((f, i) => (
-              <FindingRow key={i} finding={f} index={i} />
+              <FindingRow key={i} finding={f} index={i} filePath={file.path} />
             ))}
           </div>
         </>

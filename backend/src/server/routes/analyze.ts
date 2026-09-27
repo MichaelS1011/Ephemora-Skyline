@@ -110,19 +110,29 @@ export function makeOnEvent(
 }
 
 /**
- * Fail a job: remove the skeleton from the store, clear progress, notify the
- * WS client. A failed analysis must never look like a completed empty city.
+ * Fail a job: mark the skeleton as failed (with the reason) so polling
+ * clients see the real error instead of an eternal "analyzing", clear live
+ * progress, notify the WS client. A failed analysis must never look like a
+ * completed empty city — nor like a vanished job.
  */
 export function failJob(
   analysisId: string,
   message: string,
   analysisStore: {
-    delete(id: string): void;
+    set(id: string, result: AnalysisResult): void;
+    get(id: string): AnalysisResult | undefined;
   },
   ws?: WsWebSocket | null,
 ): void {
   deleteJobProgress(analysisId);
-  analysisStore.delete(analysisId);
+  const skeleton = analysisStore.get(analysisId);
+  if (skeleton) {
+    analysisStore.set(analysisId, {
+      ...skeleton,
+      status: "failed",
+      error: message,
+    });
+  }
   if (ws) wsSend(ws, { type: "error", payload: { message }, timestamp: new Date().toISOString() });
 }
 
@@ -215,7 +225,7 @@ export async function handleAnalyze(
         if (process.env.GITHUB_TOKEN) headers.Authorization = `Bearer ${process.env.GITHUB_TOKEN}`;
         const apiRes = await fetch(
           `https://api.github.com/repos/${encodeURIComponent(owner)}/${encodeURIComponent(name)}`,
-          { headers },
+          { headers, signal: AbortSignal.timeout(5000) },
         );
         if (apiRes.ok) {
           const meta = (await apiRes.json()) as { default_branch?: unknown };

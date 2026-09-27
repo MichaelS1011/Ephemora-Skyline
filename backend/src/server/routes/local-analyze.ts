@@ -54,6 +54,7 @@ export async function handleLocalAnalyze(
   orchestrator: AnalysisOrchestrator,
   analysisStore: {
     set(id: string, result: AnalysisResult): void;
+    get(id: string): AnalysisResult | undefined;
     delete(id: string): void;
   },
 ): Promise<void> {
@@ -143,10 +144,11 @@ async function runLocalAnalysis(
   orchestrator: AnalysisOrchestrator,
   analysisStore: {
     set(id: string, result: AnalysisResult): void;
+    get(id: string): AnalysisResult | undefined;
     delete(id: string): void;
   },
 ): Promise<void> {
-  const { onEvent, finished } = makeOnEvent(analysisId);
+  const { onEvent } = makeOnEvent(analysisId);
   try {
     const result = await orchestrator.analyzeDirectory(analysisId, uploadDir, repo, onEvent);
     deleteJobProgress(analysisId);
@@ -160,9 +162,6 @@ async function runLocalAnalysis(
     }
 
     analysisStore.set(result.id, result);
-    if (!finished()) {
-      // Polling-only clients learn completion through /api/status/:id
-    }
   } catch (error) {
     const message = error instanceof Error ? error.message : "Analysis failed";
     failJob(analysisId, message, analysisStore);

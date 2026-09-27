@@ -171,7 +171,37 @@ export function Landing() {
           </div>
         )}
 
-        {/* Progress bar */}
+        {/* Progress bar — collection phase gets an indeterminate bar + cancel */}
+        {isCollecting && (
+          <div className="mt-8 w-full animate-fade-up">
+            <div className="flex justify-between font-jetbrains text-[10px] mb-1.5">
+              <span style={{ color: "#4de3ff" }}>Reading folder…</span>
+              <span style={{ color: "#00ff9f" }}>
+                {collected.files > 0 ? `${collected.files} files` : "…"}
+              </span>
+            </div>
+            <div
+              className="w-full h-[3px] rounded-full overflow-hidden relative"
+              style={{ background: "rgba(20,32,56,0.9)" }}
+            >
+              <div
+                className="h-full rounded-full absolute animate-pulse-glow"
+                style={{
+                  width: "30%",
+                  background: "linear-gradient(90deg, transparent, #00d4ff, #00ff9f, transparent)",
+                }}
+              />
+            </div>
+            <div className="flex justify-end mt-2.5">
+              <button
+                onClick={cancel}
+                className="font-jetbrains text-[10px] tracking-widest px-2 py-1 btn-danger"
+              >
+                CANCEL
+              </button>
+            </div>
+          </div>
+        )}
         {isAnalyzing && !isCollecting && (
           <div className="mt-8 w-full animate-fade-up">
             <div className="flex justify-between font-jetbrains text-[10px] mb-1.5">

@@ -57,9 +57,11 @@ class AnalysisStore {
   get(id: string): AnalysisResult | undefined {
     const result = this.map.get(id);
     if (!result) return undefined;
-    // LRU touch: re-insert to move to the back of eviction order
+    // LRU touch: re-insert to move to the back of eviction order and
+    // refresh the TTL stamp — actively browsed results must not expire
     this.map.delete(id);
     this.map.set(id, result);
+    if (this.stamps.has(id)) this.stamps.set(id, Date.now());
     return result;
   }
 
@@ -109,6 +111,16 @@ const readLimiter = rateLimit({
   max: 600,
   standardHeaders: true,
   legacyHeaders: false,
+});
+
+// The local-folder route serves the main UI flow of a single-user local tool —
+// a generous budget instead of the shared analyze limit
+const localAnalyzeLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 120,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Too many analyses — take a short break." },
 });
 
 const analyzeLimiter = rateLimit({
@@ -184,7 +196,7 @@ app.get("/api/cities/default", (_req: Request, res: Response): void => {
 // Large route-specific body limit: the client uploads the folder's source files
 app.post(
   "/api/analyze-local",
-  analyzeLimiter,
+  localAnalyzeLimiter,
   async (req: Request, res: Response): Promise<void> => {
     await handleLocalAnalyze(req, res, orchestrator, analysisStore);
   },
@@ -265,6 +277,7 @@ app.get("/api/status/:id", (req: Request, res: Response): void => {
     stage: result.status === "complete" ? "Complete" : live?.stage,
     filesParsed: result.files.length,
     totalFiles: result.summary.totalFiles,
+    error: result.status === "failed" ? result.error : undefined,
   });
 });
 

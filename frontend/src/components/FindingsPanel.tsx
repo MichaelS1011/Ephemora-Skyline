@@ -19,21 +19,32 @@ export function FindingsPanel() {
   const setShowFindings = useStore((s) => s.setShowFindings);
   const navigateToFile = useStore((s) => s.navigateToFile);
   const selectedUnit = useStore((s) => s.selectedUnit);
+  const threatFilter = useStore((s) => s.threatFilter);
 
   const groups = useMemo(() => {
     if (!cityData) return [];
     const out = allFiles(cityData)
-      .filter(({ file }) => file.findings.length > 0)
       .map(({ file }) => ({
         file,
-        worst: Math.min(...file.findings.map((f) => SEVERITY_RANK[f.severity])),
-        count: file.findings.length,
+        // HUD severity filter applies to the list as well — a filter that
+        // dims buildings but not the list would look broken
+        findings:
+          threatFilter === "all"
+            ? file.findings
+            : file.findings.filter((f) => f.severity === threatFilter),
+      }))
+      .filter(({ findings }) => findings.length > 0)
+      .map(({ file, findings }) => ({
+        file,
+        findings,
+        worst: Math.min(...findings.map((f) => SEVERITY_RANK[f.severity])),
+        count: findings.length,
       }))
       .sort(
         (a, b) => a.worst - b.worst || b.count - a.count || a.file.linesOfCode - b.file.linesOfCode,
       );
     return out;
-  }, [cityData]);
+  }, [cityData, threatFilter]);
 
   const totalFindings = groups.reduce((s, g) => s + g.count, 0);
 
@@ -43,7 +54,7 @@ export function FindingsPanel() {
     <div
       role="region"
       aria-label="All security and quality findings"
-      className="absolute top-[100px] right-4 bottom-24 z-30 w-[340px] flex flex-col animate-fade-up pointer-events-auto"
+      className="absolute top-[100px] right-4 bottom-[264px] z-30 w-[340px] flex flex-col animate-fade-up pointer-events-auto"
       style={{
         background: "rgba(5, 8, 20, 0.94)",
         border: "1px solid rgba(90,130,200,0.25)",
@@ -81,7 +92,7 @@ export function FindingsPanel() {
             ✓ Nothing found — this project looks clean
           </div>
         )}
-        {groups.map(({ file, worst, count }) => {
+        {groups.map(({ file, worst, count, findings: groupFindings }) => {
           const fileSeverity: Severity = worst === 0 ? "P0" : worst === 1 ? "P1" : "P2";
           const accent = SEVERITY_COLOR[fileSeverity];
           const isSelected = selectedUnit?.kind === "file" && selectedUnit.id === file.id;
@@ -132,7 +143,7 @@ export function FindingsPanel() {
 
               {/* Finding rows (compact) */}
               <div className="px-2 pb-1.5 space-y-0.5">
-                {[...file.findings]
+                {[...groupFindings]
                   .sort(
                     (a, b) =>
                       SEVERITY_RANK[a.severity] - SEVERITY_RANK[b.severity] || a.line - b.line,

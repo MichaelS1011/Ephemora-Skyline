@@ -7,6 +7,13 @@ interface HudOverlayProps {
   apiStatus: "connecting" | "live" | "demo";
 }
 
+/** Plain-language meaning of the severity buckets (P0/P1/P2) */
+const SEV_MEANING: Record<string, string> = {
+  P0: "P0 = critical — secrets, injection, code execution: fix now",
+  P1: "P1 = serious — XSS, weak crypto, unsafe patterns: fix soon",
+  P2: "P2 = hygiene — style/log issues that can hide real problems",
+};
+
 export function HudOverlay({ apiStatus }: HudOverlayProps) {
   const cityData = useStore((s) => s.cityData);
   const resetFocus = useStore((s) => s.resetFocus);
@@ -216,7 +223,7 @@ export function HudOverlay({ apiStatus }: HudOverlayProps) {
                       title={
                         threatFilter === sev
                           ? `Filter active: only ${sev} findings stay lit — click to clear`
-                          : `Dim all files without ${sev} findings`
+                          : `${SEV_MEANING[sev]} (click to dim all files without ${sev} findings)`
                       }
                       aria-pressed={threatFilter === sev}
                       className={`chip-${sev.toLowerCase()} font-jetbrains text-[9px] px-1.5 py-px rounded-sm cursor-pointer transition-all hover:brightness-125`}
@@ -297,9 +304,35 @@ export function HudOverlay({ apiStatus }: HudOverlayProps) {
           <span
             className="flex items-center gap-1 font-jetbrains text-[9px]"
             style={{ color: "#6b84a8" }}
+            title="Building height = lines of code"
+          >
+            ⬍ LOC
+          </span>
+          <span
+            className="flex items-center gap-1 font-jetbrains text-[9px]"
+            style={{ color: "#6b84a8" }}
+            title="Each city block is one folder — click to enter it"
+          >
+            ▦ folder
+          </span>
+          <span
+            className="flex items-center gap-1 font-jetbrains text-[9px]"
+            style={{ color: "#6b84a8" }}
+            title="Red curb: this district contains critical (P0) findings"
           >
             <span
-              className="w-2 h-2 rounded-full inline-block"
+              className="w-2 h-1 rounded-sm inline-block"
+              style={{ background: SEVERITY_COLOR.P0 }}
+            />
+            P0 district
+          </span>
+          <span
+            className="flex items-center gap-1 font-jetbrains text-[9px]"
+            style={{ color: "#6b84a8" }}
+            title="The light beam marks the most at-risk file in view"
+          >
+            <span
+              className="w-1.5 h-1.5 rounded-full inline-block"
               style={{ background: SEVERITY_COLOR.P0, boxShadow: `0 0 4px ${SEVERITY_COLOR.P0}` }}
             />
             Finding

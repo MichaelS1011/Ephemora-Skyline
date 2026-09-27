@@ -40,6 +40,10 @@ interface LocalFile {
   content: string;
 }
 
+/** Thrown when folder collection itself fails (too large, unreadable) —
+ * must NOT trigger the webkitdirectory fallback picker */
+class FolderCollectionError extends Error {}
+
 type DirHandle = {
   name: string;
   values: () => AsyncIterable<{
@@ -65,6 +69,7 @@ export function useLocalAnalysis() {
   const [collected, setCollected] = useState({ files: 0, bytes: 0 });
 
   const pollTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const cancelledRef = useRef(false);
   const stateRef = useRef<AnalysisState>("idle");
   stateRef.current = state;
 
@@ -109,6 +114,7 @@ export function useLocalAnalysis() {
   const pollStatus = useCallback(
     (id: string) => {
       const startedAt = Date.now();
+      let notFoundStreak = 0;
       stopPolling();
       pollTimerRef.current = setInterval(() => {
         void (async () => {
@@ -120,11 +126,23 @@ export function useLocalAnalysis() {
           }
           try {
             const res = await fetch(`/api/status/${encodeURIComponent(id)}`);
-            if (!res.ok) return; // transient — retry next tick
+            if (!res.ok) {
+              // 404 = the job is gone (backend restarted) — not transient.
+              // Other codes get a short grace period before giving up.
+              notFoundStreak = res.status === 404 ? notFoundStreak + 1 : 0;
+              if (notFoundStreak >= 3) {
+                stopPolling();
+                setErrorMessage("Analysis job not found — was the backend restarted?");
+                setState("error");
+              }
+              return;
+            }
+            notFoundStreak = 0;
             const data = (await res.json()) as {
               status?: string;
               progress?: number;
               stage?: string;
+              error?: string;
             };
             if (typeof data.progress === "number") {
               setAnalysisProgress(Math.min(100, Math.max(0, data.progress)));
@@ -136,7 +154,9 @@ export function useLocalAnalysis() {
               void fetchCityData(id);
             } else if (data.status === "failed") {
               stopPolling();
-              setErrorMessage("Analysis failed on the server — check the backend logs.");
+              setErrorMessage(
+                data.error ?? "Analysis failed on the server — check the backend logs.",
+              );
               setState("error");
             }
           } catch {
@@ -149,7 +169,7 @@ export function useLocalAnalysis() {
   );
 
   const uploadAndAnalyze = useCallback(
-    async (name: string, files: LocalFile[]) => {
+    async (name: string, files: LocalFile[], signal?: AbortSignal) => {
       setErrorMessage("");
       setAnalysisProgress(0);
       setAnalysisStage("Uploading files…");
@@ -159,6 +179,7 @@ export function useLocalAnalysis() {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ name, files }),
+          signal,
         });
         if (!res.ok) {
           const data = (await res.json().catch(() => ({}))) as { error?: string };
@@ -186,10 +207,15 @@ export function useLocalAnalysis() {
       let totalBytes = 0;
       let skipped = 0;
       for (const file of fileList) {
+        if (cancelledRef.current) {
+          setState("idle");
+          return;
+        }
         // webkitRelativePath = "<root>/<...path>" — strip the root segment
         const rel =
           (file.webkitRelativePath || file.name).split("/").slice(1).join("/") || file.name;
-        const ext = rel.slice(rel.lastIndexOf(".")).toLowerCase();
+        const dot = rel.lastIndexOf(".");
+        const ext = dot > rel.lastIndexOf("/") ? rel.slice(dot).toLowerCase() : "";
         const segments = rel.split("/");
         if (segments.some((s) => SKIP_DIRS.test(s))) continue;
         if (!SUPPORTED_EXTENSIONS.has(ext)) continue;
@@ -200,7 +226,7 @@ export function useLocalAnalysis() {
         totalBytes += file.size;
         if (files.length >= MAX_FILES || totalBytes > MAX_TOTAL_BYTES) {
           setErrorMessage(
-            `Folder too large — analyzing the first ${files.length} files. Exclude node_modules/build output and retry.`,
+            `Analysis aborted — folder exceeds ${MAX_FILES} files / 40 MB. Exclude node_modules & build output and retry.`,
           );
           setState("error");
           return;
@@ -262,17 +288,19 @@ export function useLocalAnalysis() {
       let skipped = 0;
       const walk = async (handle: DirHandle, prefix: string): Promise<void> => {
         for await (const entry of handle.values()) {
+          if (cancelledRef.current) return;
           if (entry.kind === "directory") {
             if (SKIP_DIRS.test(entry.name)) continue;
             await walk(entry as unknown as DirHandle, `${prefix}${entry.name}/`);
             continue;
           }
           const rel = `${prefix}${entry.name}`;
-          const ext = rel.slice(rel.lastIndexOf(".")).toLowerCase();
+          const dot = rel.lastIndexOf(".");
+          const ext = dot > rel.lastIndexOf("/") ? rel.slice(dot).toLowerCase() : "";
           if (!SUPPORTED_EXTENSIONS.has(ext)) continue;
           if (files.length >= MAX_FILES || totalBytes > MAX_TOTAL_BYTES) {
-            throw new Error(
-              `Folder too large — analyzing the first ${files.length} files. Exclude node_modules/build output and retry.`,
+            throw new FolderCollectionError(
+              `Analysis aborted — folder exceeds ${MAX_FILES} files / 40 MB. Exclude node_modules & build output and retry.`,
             );
           }
           try {
@@ -294,6 +322,10 @@ export function useLocalAnalysis() {
         }
       };
       await walk(dir, "");
+      if (cancelledRef.current) {
+        setState("idle");
+        return;
+      }
       if (files.length === 0) {
         setErrorMessage(
           "No analyzable source files in that folder (supported: ts, tsx, js, jsx, py, go, rs, java, rb, html, css, json, yaml)",
@@ -310,6 +342,7 @@ export function useLocalAnalysis() {
 
   const pickFolder = useCallback(async () => {
     if (stateRef.current === "collecting" || stateRef.current === "analyzing") return;
+    cancelledRef.current = false;
     setState("collecting");
     setErrorMessage("");
     if (isDirHandlePickerAvailable()) {
@@ -326,6 +359,13 @@ export function useLocalAnalysis() {
           setState("idle");
           return;
         }
+        // Collection failures (too large, unreadable) must surface as errors —
+        // only a restricted/missing picker API falls back to the input
+        if (err instanceof FolderCollectionError) {
+          setErrorMessage(err.message);
+          setState("error");
+          return;
+        }
         // Some Chromium builds restrict the API — fall back transparently
         await pickViaInputFallback();
       }
@@ -335,6 +375,7 @@ export function useLocalAnalysis() {
   }, [collectFromDirectoryHandle, pickViaInputFallback]);
 
   const cancel = useCallback(() => {
+    cancelledRef.current = true; // stops in-flight collection between files
     stopPolling();
     setState("idle");
     setAnalysisProgress(0);

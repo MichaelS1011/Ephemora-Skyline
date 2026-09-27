@@ -33,6 +33,7 @@ export default function App() {
   const setSelectedUnit = useStore((s) => s.setSelectedUnit);
   const navigateToFile = useStore((s) => s.navigateToFile);
   const drillOut = useStore((s) => s.drillOut);
+  const setAnalysisId = useStore((s) => s.setAnalysisId);
 
   const [apiStatus, setApiStatus] = useState<"connecting" | "live" | "demo">("connecting");
   const [showKeyboardHints, setShowKeyboardHints] = useState(false);
@@ -52,6 +53,7 @@ export default function App() {
     }
     let cancelled = false;
     setIsLoading(true);
+    setAnalysisId(cityId); // registers the permalink city for SARIF export
     (async (): Promise<void> => {
       try {
         const res = await fetch(`/api/result/${encodeURIComponent(cityId)}/city`, {
@@ -79,12 +81,21 @@ export default function App() {
     return () => {
       cancelled = true;
     };
-  }, [setCityData, setIsLoading]);
+  }, [setCityData, setIsLoading, setAnalysisId]);
 
   // Establishing shot whenever a new city arrives
   useEffect(() => {
     if (cityData) resetFocus();
   }, [cityData, resetFocus]);
+
+  // Status chip must tell the truth about where the city came from —
+  // local scans and permalinks are live results, the demo city is not.
+  // Permalink loads also register the analysis id (enables SARIF export).
+  useEffect(() => {
+    if (!cityData) return;
+    if (cityData.repo.owner === "local") setApiStatus("live");
+    else if (cityData.repo.name === "demo-city") setApiStatus("demo");
+  }, [cityData]);
 
   // ── Keyboard navigation ──────────────────────────────────────────────────
   const handleKeyDown = useCallback(
@@ -132,8 +143,13 @@ export default function App() {
         return;
       }
 
-      // Tab / Shift+Tab — walk the buildings of the current level
-      if (e.key === "Tab" && !isInput && cityData) {
+      // Tab / Shift+Tab — walk the buildings of the current level, but ONLY
+      // while the 3D world itself has focus. Otherwise the browser's native
+      // tab order must reach the HUD buttons, panels and modals.
+      const focusOnCanvas =
+        document.activeElement === document.body ||
+        canvasWrapperRef.current?.contains(document.activeElement) === true;
+      if (e.key === "Tab" && !isInput && focusOnCanvas && cityData) {
         e.preventDefault();
         const layout = getDirLayout(cityData, useStore.getState().focusPath);
         if (layout.buildings.length === 0) return;
