@@ -1,5 +1,3 @@
-"use client";
-
 import { useMemo } from "react";
 import { useStore } from "../stores/useStore";
 import { allFiles } from "../city/layout";
@@ -54,7 +52,7 @@ export function FindingsPanel() {
     <div
       role="region"
       aria-label="All security and quality findings"
-      className="absolute top-[100px] right-4 bottom-[264px] z-30 w-[340px] flex flex-col animate-fade-up pointer-events-auto"
+      className="absolute top-[100px] right-4 bottom-[264px] z-30 w-[340px] panel-findings flex flex-col animate-fade-up pointer-events-auto"
       style={{
         background: "rgba(5, 8, 20, 0.94)",
         border: "1px solid rgba(90,130,200,0.25)",
@@ -70,12 +68,12 @@ export function FindingsPanel() {
       >
         <div className="font-jetbrains text-[10px] tracking-[0.2em]" style={{ color: "#8fa3c4" }}>
           ⚠ ALL FINDINGS <span style={{ color: SEVERITY_COLOR.P0 }}>{totalFindings}</span>{" "}
-          <span style={{ color: "#445566" }}>in {groups.length} files</span>
+          <span style={{ color: "var(--meta-faint)" }}>in {groups.length} files</span>
         </div>
         <button
           onClick={() => setShowFindings(false)}
           aria-label="Close findings list"
-          className="font-jetbrains text-[10px] w-5 h-5 flex items-center justify-center rounded-sm transition-colors hover:brightness-125"
+          className="font-jetbrains text-[10px] w-7 h-7 flex items-center justify-center rounded-sm transition-colors hover:brightness-125"
           style={{ color: "#6688aa", background: "rgba(100,130,170,0.12)" }}
         >
           ✕
@@ -135,7 +133,10 @@ export function FindingsPanel() {
                     className="w-1.5 h-1.5 rounded-sm inline-block shrink-0"
                     style={{ background: languageColor(file.language) }}
                   />
-                  <span className="font-jetbrains text-[9px] truncate" style={{ color: "#4d6488" }}>
+                  <span
+                    className="font-jetbrains text-[9px] truncate"
+                    style={{ color: "var(--meta-strong)" }}
+                  >
                     {file.path}
                   </span>
                 </div>
@@ -169,7 +170,7 @@ export function FindingsPanel() {
                         title={`${f.message} (${f.type} · line ${f.line})`}
                       >
                         {f.message}
-                        <span style={{ color: "#445566" }}> :{f.line}</span>
+                        <span style={{ color: "var(--meta-faint)" }}> :{f.line}</span>
                       </span>
                     </button>
                   ))}
@@ -182,7 +183,7 @@ export function FindingsPanel() {
       {/* Footer hint */}
       <div
         className="px-3 py-1.5 shrink-0 font-jetbrains text-[9px]"
-        style={{ color: "#3d5070", borderTop: "1px solid rgba(90,130,200,0.14)" }}
+        style={{ color: "var(--meta-faint)", borderTop: "1px solid rgba(90,130,200,0.14)" }}
       >
         click a file to fly there · details in the right panel
       </div>

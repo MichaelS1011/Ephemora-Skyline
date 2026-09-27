@@ -1,5 +1,3 @@
-"use client";
-
 import { useState, useEffect, useRef, useCallback } from "react";
 import { Canvas } from "@react-three/fiber";
 import { EffectComposer, Bloom } from "@react-three/postprocessing";
@@ -277,7 +275,7 @@ export default function App() {
                 aria-label="Toggle keyboard shortcuts (press ? key)"
                 aria-expanded={showKeyboardHints}
                 aria-controls="keyboard-hints-overlay"
-                className="font-mono text-[10px] text-[#445566] hover:text-[#00d4ff] transition-colors
+                className="font-mono text-[10px] text-[#76889f] hover:text-[#00d4ff] transition-colors
                            focus:outline-none focus:ring-1 focus:ring-[#00d4ff] rounded px-1 py-0.5"
               >
                 [?] shortcuts

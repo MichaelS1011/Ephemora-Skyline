@@ -1,13 +1,13 @@
-'use client';
+"use client";
 
-import { useMemo } from 'react';
-import { Stars } from '@react-three/drei';
-import { useStore } from '../stores/useStore';
-import { getDirLayout } from '../city/layout';
-import { ENV } from '../city/palette';
-import { CameraRig } from './CameraRig';
-import { CityTree } from './CityTree';
-import { ParticleField } from './ParticleField';
+import { useMemo } from "react";
+import { Stars } from "@react-three/drei";
+import { useStore } from "../stores/useStore";
+import { getDirLayout } from "../city/layout";
+import { ENV } from "../city/palette";
+import { CameraRig } from "./CameraRig";
+import { CityTree } from "./CityTree";
+import { ParticleField } from "./ParticleField";
 
 /**
  * The city at dusk: hemisphere skylight, warm key light, cool fill,
@@ -27,10 +27,18 @@ export function CityScene() {
       <CameraRig />
 
       {/* Dusk lighting: blue hemisphere sky, warm low sun, cool city glow */}
-      <hemisphereLight args={['#42568c', '#0c0f18', 0.9]} />
+      <hemisphereLight args={["#42568c", "#0c0f18", 0.9]} />
       <directionalLight position={[60, 55, 30]} intensity={0.6} color="#ffd9a8" />
       <directionalLight position={[-45, 35, -35]} intensity={0.32} color="#7fb0ff" />
       <ambientLight intensity={0.22} />
+      {/* Cool city glow pooling over the plaza — deepens the dusk, no shadows */}
+      <pointLight
+        position={[0, 16, 0]}
+        color="#7fb0ff"
+        intensity={bounds * 2.4}
+        distance={bounds * 2.2 + 60}
+        decay={2}
+      />
 
       {/* Atmosphere scales with the current district size */}
       <fog attach="fog" args={[ENV.fog, bounds * 1.4, bounds * 4 + 220]} />

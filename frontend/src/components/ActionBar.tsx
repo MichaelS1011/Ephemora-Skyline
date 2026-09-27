@@ -1,5 +1,3 @@
-"use client";
-
 import { useState } from "react";
 import { useStore } from "../stores/useStore";
 import { SEVERITY_COLOR } from "../city/palette";

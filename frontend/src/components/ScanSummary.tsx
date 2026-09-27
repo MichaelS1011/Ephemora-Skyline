@@ -1,5 +1,3 @@
-"use client";
-
 import { useEffect, useState } from "react";
 import { useStore } from "../stores/useStore";
 import { SEVERITY_COLOR } from "../city/palette";
@@ -103,7 +101,7 @@ export function ScanSummary() {
 
         <button
           onClick={() => setVisible(false)}
-          className="btn-ghost w-5 h-5 flex items-center justify-center !p-0 text-[10px]"
+          className="btn-ghost w-7 h-7 flex items-center justify-center !p-0 text-[10px]"
           aria-label="Dismiss scan summary"
         >
           ✕

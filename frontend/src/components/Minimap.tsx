@@ -1,9 +1,7 @@
-'use client';
-
-import { useEffect, useRef, useCallback } from 'react';
-import { useStore } from '../stores/useStore';
-import { getDirLayout } from '../city/layout';
-import { languageColor, ENV, SEVERITY_COLOR } from '../city/palette';
+import { useEffect, useRef, useCallback } from "react";
+import { useStore } from "../stores/useStore";
+import { getDirLayout } from "../city/layout";
+import { languageColor, ENV, SEVERITY_COLOR } from "../city/palette";
 
 /**
  * City map — shows the CURRENT semantic-zoom level with the REAL camera
@@ -25,7 +23,7 @@ export function Minimap({ show = true }: { show?: boolean }) {
     if (!show || !cityData) return;
     const canvas = canvasRef.current;
     if (!canvas) return;
-    const ctx = canvas.getContext('2d');
+    const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
     const layout = getDirLayout(cityData, focusPath);
@@ -35,11 +33,13 @@ export function Minimap({ show = true }: { show?: boolean }) {
     canvas.height = MAP_SIZE * dpr;
     ctx.scale(dpr, dpr);
 
-    const toX = (x: number): number => PADDING + ((x + extent) / (extent * 2)) * (MAP_SIZE - PADDING * 2);
-    const toY = (z: number): number => PADDING + ((z + extent) / (extent * 2)) * (MAP_SIZE - PADDING * 2);
+    const toX = (x: number): number =>
+      PADDING + ((x + extent) / (extent * 2)) * (MAP_SIZE - PADDING * 2);
+    const toY = (z: number): number =>
+      PADDING + ((z + extent) / (extent * 2)) * (MAP_SIZE - PADDING * 2);
 
     ctx.clearRect(0, 0, MAP_SIZE, MAP_SIZE);
-    ctx.fillStyle = 'rgba(8, 11, 22, 0.85)';
+    ctx.fillStyle = "rgba(8, 11, 22, 0.85)";
     ctx.fillRect(0, 0, MAP_SIZE, MAP_SIZE);
 
     // blocks with their skyline towers
@@ -49,9 +49,9 @@ export function Minimap({ show = true }: { show?: boolean }) {
       const w = Math.max(3, (b.w / (extent * 2)) * (MAP_SIZE - PADDING * 2));
       const h = Math.max(3, (b.d / (extent * 2)) * (MAP_SIZE - PADDING * 2));
       const alarm = b.dir.findingsBySeverity.P0 > 0;
-      ctx.fillStyle = alarm ? 'rgba(255,46,77,0.14)' : 'rgba(90,120,180,0.16)';
+      ctx.fillStyle = alarm ? "rgba(255,46,77,0.14)" : "rgba(90,120,180,0.16)";
       ctx.fillRect(x, y, w, h);
-      ctx.strokeStyle = alarm ? SEVERITY_COLOR.P0 : 'rgba(120,160,220,0.55)';
+      ctx.strokeStyle = alarm ? SEVERITY_COLOR.P0 : "rgba(120,160,220,0.55)";
       ctx.strokeRect(x, y, w, h);
       // representative skyline towers
       for (const t of b.skyline) {
@@ -59,7 +59,7 @@ export function Minimap({ show = true }: { show?: boolean }) {
         const ty = toY(b.z + t.z);
         ctx.fillStyle = languageColor(t.file.language);
         ctx.fillRect(tx - 1.2, ty - 1.2, 2.4, 2.4);
-        if (t.file.threatLevel === 'critical') {
+        if (t.file.threatLevel === "critical") {
           ctx.strokeStyle = SEVERITY_COLOR.P0;
           ctx.strokeRect(tx - 2.6, ty - 2.6, 5.2, 5.2);
         }
@@ -72,7 +72,7 @@ export function Minimap({ show = true }: { show?: boolean }) {
       const y = toY(b.z);
       ctx.fillStyle = languageColor(b.file.language);
       ctx.fillRect(x - 1.5, y - 1.5, 3, 3);
-      if (b.file.threatLevel === 'critical') {
+      if (b.file.threatLevel === "critical") {
         ctx.strokeStyle = SEVERITY_COLOR.P0;
         ctx.strokeRect(x - 3, y - 3, 6, 6);
       }
@@ -82,7 +82,7 @@ export function Minimap({ show = true }: { show?: boolean }) {
     if (layout.podium) {
       const x = toX(layout.podium.x);
       const y = toY(layout.podium.z);
-      ctx.strokeStyle = 'rgba(140,160,200,0.6)';
+      ctx.strokeStyle = "rgba(140,160,200,0.6)";
       ctx.strokeRect(x - 2.5, y - 2.5, 5, 5);
     }
 
@@ -123,16 +123,24 @@ export function Minimap({ show = true }: { show?: boolean }) {
   return (
     <div
       className="absolute bottom-4 right-4 z-10"
-      style={{ background: 'rgba(5, 8, 20, 0.85)', border: '1px solid rgba(0,255,159,0.2)', backdropFilter: 'blur(4px)', padding: 4 }}
+      style={{
+        background: "rgba(5, 8, 20, 0.85)",
+        border: "1px solid rgba(0,255,159,0.2)",
+        backdropFilter: "blur(4px)",
+        padding: 4,
+      }}
     >
-      <div className="font-mono text-[9px] tracking-widest mb-1 px-0.5" style={{ color: 'rgba(0,255,159,0.5)' }}>
-        CITY MAP {focusPath.length > 0 ? `· /${focusPath.join('/')}` : '· OVERVIEW'}
+      <div
+        className="font-mono text-[9px] tracking-widest mb-1 px-0.5"
+        style={{ color: "rgba(0,255,159,0.5)" }}
+      >
+        CITY MAP {focusPath.length > 0 ? `· /${focusPath.join("/")}` : "· OVERVIEW"}
       </div>
       <canvas
         ref={canvasRef}
         width={MAP_SIZE}
         height={MAP_SIZE}
-        style={{ width: MAP_SIZE, height: MAP_SIZE, cursor: 'crosshair', display: 'block' }}
+        style={{ width: MAP_SIZE, height: MAP_SIZE, cursor: "crosshair", display: "block" }}
         onClick={handleClick}
         aria-label="City minimap — click to fly"
       />

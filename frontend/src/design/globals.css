@@ -24,6 +24,10 @@
   --color-border: #1e2d48;
   --color-text: #c8d8f0;
   --color-muted: #6b84a8;
+  /* Meta / secondary text — all ≥4.5:1 on --color-bg (#0b1026), WCAG AA */
+  --meta-strong: #7d95b8; /* 6.15:1 */
+  --meta: #8296b5; /* 6.25:1 */
+  --meta-faint: #76889f; /* 5.19:1 */
   /* Glass */
   --glass-bg: rgba(11, 16, 38, 0.82);
   --glass-border: rgba(77, 227, 255, 0.18);
@@ -456,6 +460,17 @@
   }
   ::-webkit-scrollbar-thumb:hover {
     background: rgba(0, 255, 159, 0.5);
+  }
+}
+
+/* ── Responsive panels ─────────────────────────────────────────
+   Below 900px the side panels would collide with the city view —
+   narrow them (inline panel widths need !important to yield). */
+@media (max-width: 900px) {
+  .panel-context-card,
+  .panel-info,
+  .panel-findings {
+    width: min(340px, 45vw) !important;
   }
 }
 

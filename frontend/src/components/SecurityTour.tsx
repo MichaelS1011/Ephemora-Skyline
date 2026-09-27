@@ -1,5 +1,3 @@
-"use client";
-
 import { useEffect } from "react";
 import { useStore } from "../stores/useStore";
 import { tourStops } from "../city/layout";
@@ -100,7 +98,7 @@ export function SecurityTour() {
               <span style={{ color, fontWeight: 600 }}>{worst.severity}</span>
               {" · "}
               <span>{worst.type}</span>
-              <span style={{ color: "#4d6488" }}> · line {worst.line}</span>
+              <span style={{ color: "var(--meta-strong)" }}> · line {worst.line}</span>
             </div>
           )}
 
@@ -149,7 +147,7 @@ export function SecurityTour() {
         </div>
       </div>
 
-      <div className="font-jetbrains text-[9px] mt-2" style={{ color: "#3d5070" }}>
+      <div className="font-jetbrains text-[9px] mt-2" style={{ color: "var(--meta-faint)" }}>
         ← → navigate · Enter next · Esc exit
       </div>
     </div>

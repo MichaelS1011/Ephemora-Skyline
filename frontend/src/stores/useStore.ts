@@ -19,9 +19,6 @@ export interface CameraInfo {
 let flyNonce = 0;
 
 interface AppState {
-  theme: string;
-  setTheme: (theme: string) => void;
-
   // ── City data ──────────────────────────────────────────────────────────
   cityData: CityData | null;
   /**
@@ -63,9 +60,7 @@ interface AppState {
   cameraInfo: CameraInfo;
   setCameraInfo: (info: CameraInfo) => void;
 
-  // ── Search & filters ───────────────────────────────────────────────────
-  searchQuery: string;
-  setSearchQuery: (q: string) => void;
+  // ── Filters ────────────────────────────────────────────────────────────
   threatFilter: Severity | "all";
   setThreatFilter: (f: Severity | "all") => void;
 
@@ -110,9 +105,6 @@ function flyToDirOverview(
 }
 
 export const useStore = create<AppState>((set, get) => ({
-  theme: "dark",
-  setTheme: (theme) => set({ theme }),
-
   cityData: null,
   buildPhase: "empty",
   buildStartedAt: 0,
@@ -185,8 +177,6 @@ export const useStore = create<AppState>((set, get) => ({
   cameraInfo: { x: 0, z: 60, angle: 0 },
   setCameraInfo: (info) => set({ cameraInfo: info }),
 
-  searchQuery: "",
-  setSearchQuery: (q) => set({ searchQuery: q }),
   threatFilter: "all",
   setThreatFilter: (f) => set({ threatFilter: f }),
 

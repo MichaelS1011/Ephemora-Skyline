@@ -1,5 +1,3 @@
-"use client";
-
 import { useState } from "react";
 import { useStore } from "../stores/useStore";
 import { findFileById } from "../city/layout";
@@ -48,7 +46,7 @@ function CodeFrame({ snippet }: { snippet: NonNullable<CityFinding["snippet"]> }
     >
       {snippet.before.map((l, i) => (
         <div key={`b${i}`} className="flex whitespace-pre">
-          <span style={{ color: "#3d5070", userSelect: "none", padding: "0 6px" }}>
+          <span style={{ color: "var(--meta-faint)", userSelect: "none", padding: "0 6px" }}>
             {gutter(snippet.number - snippet.before.length + i)}
           </span>
           <span style={{ color: "#5d7494" }}>{l}</span>
@@ -62,7 +60,7 @@ function CodeFrame({ snippet }: { snippet: NonNullable<CityFinding["snippet"]> }
       </div>
       {snippet.after.map((l, i) => (
         <div key={`a${i}`} className="flex whitespace-pre">
-          <span style={{ color: "#3d5070", userSelect: "none", padding: "0 6px" }}>
+          <span style={{ color: "var(--meta-faint)", userSelect: "none", padding: "0 6px" }}>
             {gutter(snippet.number + 1 + i)}
           </span>
           <span style={{ color: "#5d7494" }}>{l}</span>
@@ -130,13 +128,13 @@ function FindingRow({
             </span>
           )}
           {finding.ruleId && (
-            <span className="font-jetbrains text-[9px]" style={{ color: "#4d6488" }}>
+            <span className="font-jetbrains text-[9px]" style={{ color: "var(--meta-strong)" }}>
               {finding.ruleId}
             </span>
           )}
         </div>
         <div className="flex items-center gap-1 shrink-0">
-          <span className="font-jetbrains text-[9px]" style={{ color: "#4d6488" }}>
+          <span className="font-jetbrains text-[9px]" style={{ color: "var(--meta-strong)" }}>
             :{finding.line}
           </span>
           <button
@@ -245,7 +243,7 @@ export function InfoPanel() {
 
   return (
     <div
-      className="absolute panel-scroll animate-slide-right"
+      className="absolute panel-scroll animate-slide-right panel-info"
       style={{
         top: "4.5rem",
         right: showFindings ? "23rem" : "1rem",
@@ -282,13 +280,13 @@ export function InfoPanel() {
             >
               {file.language}
             </span>
-            <span className="font-jetbrains text-[9px]" style={{ color: "#4d6488" }}>
+            <span className="font-jetbrains text-[9px]" style={{ color: "var(--meta-strong)" }}>
               ·
             </span>
             <span className="font-jetbrains text-[9px]" style={{ color: "#6b84a8" }}>
               {file.linesOfCode.toLocaleString()} LOC
             </span>
-            <span className="font-jetbrains text-[9px]" style={{ color: "#4d6488" }}>
+            <span className="font-jetbrains text-[9px]" style={{ color: "var(--meta-strong)" }}>
               ·
             </span>
             <span className="font-jetbrains text-[9px]" style={{ color: "#6b84a8" }}>
@@ -305,7 +303,7 @@ export function InfoPanel() {
           </h3>
           <p
             className="font-jetbrains text-[9px] mt-0.5"
-            style={{ color: "#4d6488", wordBreak: "break-all" }}
+            style={{ color: "var(--meta-strong)", wordBreak: "break-all" }}
           >
             {file.path}
           </p>
@@ -398,7 +396,7 @@ export function InfoPanel() {
             >
               {file.findings.length} Finding{file.findings.length !== 1 ? "s" : ""}
             </span>
-            <span className="font-jetbrains text-[9px]" style={{ color: "#4d6488" }}>
+            <span className="font-jetbrains text-[9px]" style={{ color: "var(--meta-strong)" }}>
               {hasAst && hasSecrets
                 ? "AST + Heuristic + Secrets"
                 : hasAst

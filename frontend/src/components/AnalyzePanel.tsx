@@ -1,5 +1,3 @@
-"use client";
-
 import { useState } from "react";
 import { useLocalAnalysis } from "../hooks/useLocalAnalysis";
 
@@ -123,7 +121,7 @@ export function AnalyzePanel({ className = "" }: { className?: string }) {
           </button>
 
           {state === "collecting" && collected.files > 0 && (
-            <div className="mt-2 font-mono text-[10px] text-[#445566] text-center">
+            <div className="mt-2 font-mono text-[10px] text-[#76889f] text-center">
               {collected.files} files · {(collected.bytes / 1024).toFixed(0)} KB
             </div>
           )}

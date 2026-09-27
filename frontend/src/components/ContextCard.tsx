@@ -1,5 +1,3 @@
-"use client";
-
 import { useEffect, useState } from "react";
 import { useStore } from "../stores/useStore";
 import { resolveDir, tourStops } from "../city/layout";
@@ -36,7 +34,7 @@ export function ContextCard() {
 
   return (
     <div
-      className="absolute left-4 z-20 pointer-events-auto animate-slide-left"
+      className="absolute left-4 z-20 pointer-events-auto animate-slide-left panel-context-card"
       style={{
         top: 84,
         width: 292,
@@ -67,7 +65,10 @@ export function ContextCard() {
             {isRoot ? cityData.repo.name : dir.name}
           </div>
           {!isRoot && (
-            <div className="font-jetbrains text-[9px] truncate mt-0.5" style={{ color: "#4d6488" }}>
+            <div
+              className="font-jetbrains text-[9px] truncate mt-0.5"
+              style={{ color: "var(--meta-strong)" }}
+            >
               /{dir.path}
             </div>
           )}
@@ -85,7 +86,7 @@ export function ContextCard() {
       <div className="flex gap-3 mb-3 flex-wrap">
         {!isRoot && (
           <div className="flex flex-col">
-            <span className="font-jetbrains text-[9px]" style={{ color: "#4d6488" }}>
+            <span className="font-jetbrains text-[9px]" style={{ color: "var(--meta-strong)" }}>
               DISTRICTS
             </span>
             <span className="font-jetbrains text-[13px] font-semibold" style={{ color: "#4de3ff" }}>
@@ -94,7 +95,7 @@ export function ContextCard() {
           </div>
         )}
         <div className="flex flex-col">
-          <span className="font-jetbrains text-[9px]" style={{ color: "#4d6488" }}>
+          <span className="font-jetbrains text-[9px]" style={{ color: "var(--meta-strong)" }}>
             FILES
           </span>
           <span className="font-jetbrains text-[13px] font-semibold" style={{ color: "#4de3ff" }}>
@@ -102,7 +103,7 @@ export function ContextCard() {
           </span>
         </div>
         <div className="flex flex-col">
-          <span className="font-jetbrains text-[9px]" style={{ color: "#4d6488" }}>
+          <span className="font-jetbrains text-[9px]" style={{ color: "var(--meta-strong)" }}>
             LINES
           </span>
           <span className="font-jetbrains text-[13px] font-semibold" style={{ color: "#4de3ff" }}>
@@ -116,7 +117,7 @@ export function ContextCard() {
             className="flex flex-col"
             title="Risk score 0–100: every finding adds P0=10 / P1=7 / P2=3 points, weighted by file size. Below 10 is a good sign."
           >
-            <span className="font-jetbrains text-[9px]" style={{ color: "#4d6488" }}>
+            <span className="font-jetbrains text-[9px]" style={{ color: "var(--meta-strong)" }}>
               RISK
             </span>
             <span
@@ -166,7 +167,7 @@ export function ContextCard() {
       <div className="mb-3">
         <div
           className="font-jetbrains text-[9px] tracking-[0.2em] mb-1.5"
-          style={{ color: "#4d6488" }}
+          style={{ color: "var(--meta-strong)" }}
         >
           LANGUAGES
         </div>
@@ -233,7 +234,10 @@ export function ContextCard() {
         </button>
       )}
 
-      <p className="font-jetbrains text-[9px] mt-2.5 leading-relaxed" style={{ color: "#4a5e7a" }}>
+      <p
+        className="font-jetbrains text-[9px] mt-2.5 leading-relaxed"
+        style={{ color: "var(--meta)" }}
+      >
         {isRoot
           ? "Click a district to dive in · ⚑ Security Tour explains every finding"
           : "Click a sub-district to dive deeper · ↑ or ⌂ to go back"}

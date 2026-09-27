@@ -1,5 +1,3 @@
-"use client";
-
 import { useStore } from "../stores/useStore";
 import { useLocalAnalysis } from "../hooks/useLocalAnalysis";
 import { SEVERITY_COLOR } from "../city/palette";
@@ -147,7 +145,7 @@ export function Landing() {
         {isCollecting && collected.files > 0 && (
           <div
             className="mt-3 font-jetbrains text-[10px] tracking-wide"
-            style={{ color: "#4d6488" }}
+            style={{ color: "var(--meta-strong)" }}
           >
             {collected.files} files · {(collected.bytes / 1024).toFixed(0)} KB collected
           </div>
@@ -210,6 +208,11 @@ export function Landing() {
             </div>
             <div
               className="w-full h-[3px] rounded-full overflow-hidden"
+              role="progressbar"
+              aria-valuenow={analysisProgress}
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-label={`Analysis progress: ${analysisProgress}%`}
               style={{ background: "rgba(20,32,56,0.9)" }}
             >
               <div
@@ -260,9 +263,9 @@ export function Landing() {
           <button
             onClick={loadDemo}
             className="mt-8 font-jetbrains text-[11px] tracking-wide transition-colors duration-150"
-            style={{ color: "#4a5e7a" }}
+            style={{ color: "var(--meta)" }}
             onMouseEnter={(e) => (e.currentTarget.style.color = "#7f9bbf")}
-            onMouseLeave={(e) => (e.currentTarget.style.color = "#4a5e7a")}
+            onMouseLeave={(e) => (e.currentTarget.style.color = "var(--meta)")}
           >
             or explore a demo city first →
           </button>

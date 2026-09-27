@@ -1,5 +1,3 @@
-"use client";
-
 import { useStore } from "../stores/useStore";
 import { topLanguages, languageColor, SEVERITY_COLOR } from "../city/palette";
 
@@ -25,7 +23,7 @@ export function HudOverlay({ apiStatus }: HudOverlayProps) {
       ? "var(--color-neon, #00ff9f)"
       : apiStatus === "demo"
         ? "#ffd23f"
-        : "#4a5e7a";
+        : "var(--meta)";
 
   const dotLabel = apiStatus === "live" ? "LIVE" : apiStatus === "demo" ? "DEMO" : "CONNECTING";
 
@@ -68,7 +66,7 @@ export function HudOverlay({ apiStatus }: HudOverlayProps) {
             />
             <span
               className="font-jetbrains text-[10px] tracking-widest"
-              style={{ color: "#4a5e7a" }}
+              style={{ color: "var(--meta)" }}
             >
               {dotLabel}
             </span>
@@ -244,7 +242,7 @@ export function HudOverlay({ apiStatus }: HudOverlayProps) {
                     onClick={() => setThreatFilter("all")}
                     title="Clear severity filter"
                     className="font-jetbrains text-[9px] px-1 rounded-sm cursor-pointer"
-                    style={{ color: "#4d6488" }}
+                    style={{ color: "var(--meta-strong)" }}
                   >
                     ✕
                   </button>

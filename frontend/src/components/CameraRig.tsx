@@ -1,11 +1,9 @@
-'use client';
-
-import { useEffect, useRef } from 'react';
-import { useThree, useFrame } from '@react-three/fiber';
-import { OrbitControls } from '@react-three/drei';
-import type { OrbitControls as OrbitControlsImpl } from 'three-stdlib';
-import * as THREE from 'three';
-import { useStore } from '../stores/useStore';
+import { useEffect, useRef } from "react";
+import { useThree, useFrame } from "@react-three/fiber";
+import { OrbitControls } from "@react-three/drei";
+import type { OrbitControls as OrbitControlsImpl } from "three-stdlib";
+import * as THREE from "three";
+import { useStore } from "../stores/useStore";
 
 /**
  * Camera rig — click-to-fly navigation with eased transitions.
@@ -49,7 +47,7 @@ export function CameraRig() {
     const fromPos = camera.position.clone();
     const fromTarget = controls ? controls.target.clone() : new THREE.Vector3();
 
-    const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     if (reduceMotion || !controls) {
       camera.position.copy(toPos);
       if (controls) {
@@ -82,7 +80,9 @@ export function CameraRig() {
       setCameraInfo({
         x: camera.position.x,
         z: camera.position.z,
-        angle: controls ? Math.atan2(camera.position.x - controls.target.x, camera.position.z - controls.target.z) : 0,
+        angle: controls
+          ? Math.atan2(camera.position.x - controls.target.x, camera.position.z - controls.target.z)
+          : 0,
       });
     }
   });

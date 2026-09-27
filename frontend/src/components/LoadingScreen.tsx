@@ -1,6 +1,4 @@
-'use client';
-
-import { useState, useEffect } from 'react';
+import { useState, useEffect } from "react";
 
 interface BootLine {
   text: string;
@@ -8,10 +6,10 @@ interface BootLine {
 }
 
 const BOOT_LINES: BootLine[] = [
-  { text: '> INITIALIZING CODECITY CYBERDEFENSE...', delay: 200 },
-  { text: '> CONNECTING TO GRID...', delay: 900 },
-  { text: '> LOADING CITY MATRIX...', delay: 1600 },
-  { text: '> READY', delay: 2400 },
+  { text: "> INITIALIZING CODECITY CYBERDEFENSE...", delay: 200 },
+  { text: "> CONNECTING TO GRID...", delay: 900 },
+  { text: "> LOADING CITY MATRIX...", delay: 1600 },
+  { text: "> READY", delay: 2400 },
 ];
 
 interface LoadingScreenProps {
@@ -55,39 +53,39 @@ export function LoadingScreen({ isVisible }: LoadingScreenProps) {
       aria-label="Loading CodeCity CyberDefense"
       className="loading-screen"
       style={{
-        position: 'fixed',
+        position: "fixed",
         inset: 0,
         zIndex: 100,
-        background: '#000000',
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'flex-start',
-        justifyContent: 'center',
-        padding: '2rem',
+        background: "#000000",
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "flex-start",
+        justifyContent: "center",
+        padding: "2rem",
         opacity: isFadingOut ? 0 : 1,
-        transition: 'opacity 0.6s ease-out',
-        pointerEvents: isVisible ? 'auto' : 'none',
+        transition: "opacity 0.6s ease-out",
+        pointerEvents: isVisible ? "auto" : "none",
       }}
     >
       {/* Scanline overlay */}
       <div
         aria-hidden="true"
         style={{
-          position: 'absolute',
+          position: "absolute",
           inset: 0,
           background:
-            'repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,255,159,0.03) 2px, rgba(0,255,159,0.03) 4px)',
-          pointerEvents: 'none',
+            "repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,255,159,0.03) 2px, rgba(0,255,159,0.03) 4px)",
+          pointerEvents: "none",
         }}
       />
 
       {/* Boot text lines */}
       <div
         style={{
-          position: 'relative',
+          position: "relative",
           zIndex: 1,
-          maxWidth: '600px',
-          width: '100%',
+          maxWidth: "600px",
+          width: "100%",
         }}
       >
         {BOOT_LINES.map((line, index) => (
@@ -95,38 +93,37 @@ export function LoadingScreen({ isVisible }: LoadingScreenProps) {
             key={index}
             aria-hidden={!visibleLines.includes(index)}
             style={{
-              fontFamily: 'monospace',
-              fontSize: '0.9rem',
-              color: index === BOOT_LINES.length - 1 ? '#00ffff' : '#00ff9f',
-              letterSpacing: '0.05em',
-              lineHeight: '2',
+              fontFamily: "monospace",
+              fontSize: "0.9rem",
+              color: index === BOOT_LINES.length - 1 ? "#00ffff" : "#00ff9f",
+              letterSpacing: "0.05em",
+              lineHeight: "2",
               opacity: visibleLines.includes(index) ? 1 : 0,
-              transform: visibleLines.includes(index) ? 'translateX(0)' : 'translateX(-8px)',
-              transition: 'opacity 0.4s ease-out, transform 0.4s ease-out',
+              transform: visibleLines.includes(index) ? "translateX(0)" : "translateX(-8px)",
+              transition: "opacity 0.4s ease-out, transform 0.4s ease-out",
               // Respect reduced motion
-              ...(typeof window !== 'undefined' &&
-              window.matchMedia('(prefers-reduced-motion: reduce)').matches
-                ? { transition: 'none' }
+              ...(typeof window !== "undefined" &&
+              window.matchMedia("(prefers-reduced-motion: reduce)").matches
+                ? { transition: "none" }
                 : {}),
             }}
           >
             {line.text}
             {/* Blinking cursor on the last visible line */}
-            {index === Math.max(...visibleLines, -1) &&
-              visibleLines.includes(index) && (
-                <span
-                  aria-hidden="true"
-                  style={{
-                    display: 'inline-block',
-                    width: '0.6em',
-                    height: '1em',
-                    background: index === BOOT_LINES.length - 1 ? '#00ffff' : '#00ff9f',
-                    marginLeft: '2px',
-                    verticalAlign: 'text-bottom',
-                    animation: 'blink-cursor 1s step-end infinite',
-                  }}
-                />
-              )}
+            {index === Math.max(...visibleLines, -1) && visibleLines.includes(index) && (
+              <span
+                aria-hidden="true"
+                style={{
+                  display: "inline-block",
+                  width: "0.6em",
+                  height: "1em",
+                  background: index === BOOT_LINES.length - 1 ? "#00ffff" : "#00ff9f",
+                  marginLeft: "2px",
+                  verticalAlign: "text-bottom",
+                  animation: "blink-cursor 1s step-end infinite",
+                }}
+              />
+            )}
           </div>
         ))}
       </div>
