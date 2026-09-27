@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useStore } from "../stores/useStore";
 import type { CityData } from "../city/types";
+import { configPayload } from "../config/scanProfiles";
 
 export type AnalysisState = "idle" | "collecting" | "analyzing" | "success" | "error";
 
@@ -28,6 +29,25 @@ const SUPPORTED_EXTENSIONS = new Set([
 /** Directory names that never contain relevant source code */
 const SKIP_DIRS =
   /^(node_modules|\.git|dist|build|out|\.next|\.nuxt|coverage|\.turbo|\.vscode|\.idea|__pycache__|\.venv|venv|target|vendor|\.pytest_cache|\.mypy_cache|\.gradle|Pods|bin|obj)$/i;
+
+/** Dependency manifests are small text files the CVE layer (osv) needs —
+ * always uploaded regardless of their extension (.txt, .lock, .toml) */
+const MANIFEST_BASENAMES = new Set([
+  "requirements.txt",
+  "requirements-dev.txt",
+  "Pipfile.lock",
+  "poetry.lock",
+  "pyproject.toml",
+  "package-lock.json",
+  "npm-shrinkwrap.json",
+  "yarn.lock",
+  "pnpm-lock.yaml",
+  "Cargo.lock",
+  "go.mod",
+  "go.sum",
+  "Gemfile.lock",
+  "composer.lock",
+]);
 
 const MAX_FILES = 3000;
 const MAX_TOTAL_BYTES = 40 * 1024 * 1024;
@@ -175,10 +195,11 @@ export function useLocalAnalysis() {
       setAnalysisStage("Uploading files…");
       setState("analyzing");
       try {
+        const profile = useStore.getState().scanProfile;
         const res = await fetch("/api/analyze-local", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ name, files }),
+          body: JSON.stringify({ name, files, config: configPayload(profile) }),
           signal,
         });
         if (!res.ok) {
@@ -218,7 +239,8 @@ export function useLocalAnalysis() {
         const ext = dot > rel.lastIndexOf("/") ? rel.slice(dot).toLowerCase() : "";
         const segments = rel.split("/");
         if (segments.some((s) => SKIP_DIRS.test(s))) continue;
-        if (!SUPPORTED_EXTENSIONS.has(ext)) continue;
+        const base = rel.split("/").pop() ?? "";
+        if (!SUPPORTED_EXTENSIONS.has(ext) && !MANIFEST_BASENAMES.has(base)) continue;
         if (file.size > MAX_FILE_BYTES) {
           skipped++;
           continue;
@@ -297,7 +319,8 @@ export function useLocalAnalysis() {
           const rel = `${prefix}${entry.name}`;
           const dot = rel.lastIndexOf(".");
           const ext = dot > rel.lastIndexOf("/") ? rel.slice(dot).toLowerCase() : "";
-          if (!SUPPORTED_EXTENSIONS.has(ext)) continue;
+          const base = entry.name;
+          if (!SUPPORTED_EXTENSIONS.has(ext) && !MANIFEST_BASENAMES.has(base)) continue;
           if (files.length >= MAX_FILES || totalBytes > MAX_TOTAL_BYTES) {
             throw new FolderCollectionError(
               `Analysis aborted — folder exceeds ${MAX_FILES} files / 40 MB. Exclude node_modules & build output and retry.`,

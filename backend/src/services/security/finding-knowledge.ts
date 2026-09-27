@@ -106,6 +106,45 @@ export const FINDING_KNOWLEDGE: Record<string, FindingKnowledge> = {
     cwe: "CWE-319",
     refUrl: "https://owasp.org/www-project-top-ten/2021/A02_2021-Cryptographic_Failures",
   },
+  WEAK_CRYPTO: {
+    explain:
+      "A weak hash (md5/sha1) is used where collision resistance matters. Attackers can forge signatures or passwords — use SHA-256 or better (bcrypt/argon2 for passwords).",
+    cwe: "CWE-327",
+    refUrl: "https://owasp.org/www-project-top-ten/2021/A02_2021-Cryptographic_Failures",
+  },
+  QUALITY_ASSERT: {
+    explain:
+      "An assert statement validates runtime input. When Python runs with -O optimization, asserts are stripped entirely — the check silently disappears.",
+    refUrl: "https://docs.python.org/3/using/cmdline.html#cmdoption-O",
+  },
+  QUALITY_F401: {
+    explain:
+      "An imported module is never used. Dead imports slow readers down and can hide dependency cycles — remove it.",
+  },
+  QUALITY_F811: {
+    explain:
+      "A name is redefined, silently overwriting the earlier definition — often a copy-paste bug or a missing rename.",
+  },
+  QUALITY_F841: {
+    explain:
+      "A local variable is assigned but never used — usually a leftover or a forgotten return value.",
+  },
+  QUALITY_F821: {
+    explain:
+      "The code references a name that is never defined in this scope. This is a runtime crash waiting to happen when the code path executes.",
+  },
+  QUALITY_E711: {
+    explain:
+      "Comparing to None with == instead of `is` — None is a singleton, identity is the correct check.",
+  },
+  QUALITY_E712: {
+    explain:
+      "Comparing to True/False with == — use the boolean directly (`if flag:` instead of `if flag == True:`).",
+  },
+  QUALITY_B006: {
+    explain:
+      "A mutable default argument (list/dict/set) is shared across every call of the function — mutations leak between invocations. Use None and create a fresh value inside.",
+  },
 };
 
 export function knowledgeFor(type: string): FindingKnowledge {

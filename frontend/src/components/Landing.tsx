@@ -1,5 +1,6 @@
 import { useStore } from "../stores/useStore";
 import { useLocalAnalysis } from "../hooks/useLocalAnalysis";
+import { ProfileChips } from "./ProfileChips";
 import { SEVERITY_COLOR } from "../city/palette";
 
 export function Landing() {
@@ -105,6 +106,9 @@ export function Landing() {
           <span style={{ color: "#ff2e4d" }}> red beacons</span> are security findings. Everything
           stays on your machine.
         </p>
+
+        {/* Scan profile — opt-in layer below the fold, never a gate */}
+        <ProfileChips variant="landing" />
 
         {/* Folder picker — the one primary action */}
         <button

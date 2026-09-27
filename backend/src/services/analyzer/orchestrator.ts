@@ -26,6 +26,7 @@ import {
   extractClasses,
   extractFunctions,
 } from "./metrics.js";
+import { languageOfPath, type ResolvedScanConfig } from "../security/scan-config.js";
 import type { CloneManager } from "../github/clone-manager.js";
 import type { GitHubClient } from "../github/client.js";
 import type { SecurityScanner } from "../security/scanner.js";
@@ -73,6 +74,7 @@ export class AnalysisOrchestrator {
     repo: GitHubRepo,
     progressCallback?: ProgressCallback,
     analysisId: string = crypto.randomUUID(),
+    config?: ResolvedScanConfig,
   ): Promise<AnalysisResult> {
     const emit = (type: WebSocketEvent["type"], payload: Record<string, unknown>) => {
       const event: WebSocketEvent = {
@@ -101,7 +103,7 @@ export class AnalysisOrchestrator {
     }
 
     try {
-      return await this.analyzeDirectory(analysisId, clonePath, repo, progressCallback);
+      return await this.analyzeDirectory(analysisId, clonePath, repo, progressCallback, config);
     } finally {
       // Clones are never reused — delete immediately so temp disk usage
       // doesn't accumulate across analyses
@@ -119,8 +121,10 @@ export class AnalysisOrchestrator {
     dirPath: string,
     repo: GitHubRepo,
     progressCallback?: ProgressCallback,
+    config?: ResolvedScanConfig,
   ): Promise<AnalysisResult> {
     const startTime = Date.now();
+    if (config) this.scanner.setConfig(config);
 
     const emit = (type: WebSocketEvent["type"], payload: Record<string, unknown>) => {
       const event: WebSocketEvent = {
@@ -160,6 +164,12 @@ export class AnalysisOrchestrator {
       // Skip hidden dirs, node_modules, dist, build, .git
       if (/^(node_modules|\.git|dist|build|\.next|coverage|\.turbo)/.test(relativePath)) continue;
       if (!SUPPORTED_EXTENSIONS.has(path.extname(relativePath))) continue;
+      // Scan-config scope: language allowlist + user exclude paths
+      if (config?.languageScope?.length) {
+        const lang = languageOfPath(relativePath);
+        if (!config.languageScope.includes(lang)) continue;
+      }
+      if (config?.excludePaths?.some((needle) => relativePath.includes(needle))) continue;
 
       try {
         const content = await fs.readFile(allFiles[i]!, "utf-8");
@@ -217,12 +227,14 @@ export class AnalysisOrchestrator {
       }
     }
 
-    // --- Phase 3b: Batch scans (gitleaks + semgrep) — one process each on the clone, merged per file ---
-    let scanProvenance: { gitleaksRan: boolean; semgrepRan: boolean; depsRan: boolean } = {
-      gitleaksRan: false,
-      semgrepRan: false,
-      depsRan: false,
-    };
+    // --- Phase 3b: Batch scans (gitleaks + semgrep + ruff + osv) — one process each on the clone, merged per file ---
+    let scanProvenance: {
+      gitleaksRan: boolean;
+      semgrepRan: boolean;
+      depsRan: boolean;
+      ruffRan: boolean;
+      osvRan: boolean;
+    } = { gitleaksRan: false, semgrepRan: false, depsRan: false, ruffRan: false, osvRan: false };
     try {
       emit("analysis_progress", { progress: 88, stage: "Deep scan (semgrep + gitleaks)" });
       const batch = await this.scanner.scanRepositoryBatch(dirPath, fileAnalyses, {
@@ -230,6 +242,8 @@ export class AnalysisOrchestrator {
       });
       scanProvenance.gitleaksRan = batch.gitleaksRan;
       scanProvenance.semgrepRan = batch.semgrepRan;
+      scanProvenance.ruffRan = batch.ruffRan;
+      scanProvenance.osvRan = batch.osvRan;
     } catch (e) {
       this.logger.warn({ e }, "Batch scan failed — continuing with regex results");
     }
@@ -272,6 +286,8 @@ export class AnalysisOrchestrator {
         gitleaks: scanProvenance.gitleaksRan,
         semgrep: scanProvenance.semgrepRan,
         dependencies: scanProvenance.depsRan,
+        osv: scanProvenance.osvRan,
+        ruff: scanProvenance.ruffRan,
       },
     };
 

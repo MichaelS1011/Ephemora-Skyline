@@ -336,7 +336,7 @@ wss.on("connection", (wsClient: WebSocket, request: http.IncomingMessage) => {
     try {
       const parsed = JSON.parse(raw) as {
         type?: string;
-        payload?: { url?: string; branch?: string; fullHistory?: boolean };
+        payload?: { url?: string; branch?: string; fullHistory?: boolean; config?: unknown };
       };
 
       if (parsed.type === "start_analysis" && parsed.payload?.url) {
@@ -361,7 +361,7 @@ wss.on("connection", (wsClient: WebSocket, request: http.IncomingMessage) => {
         logger.info({ clientId, url }, "WS: triggering analysis");
 
         handleAnalyze(
-          { body: { url, branch }, params: {} } as Request,
+          { body: { url, branch, config: parsed.payload?.config }, params: {} } as Request,
           { json: () => {}, status: () => ({ json: () => {} }) } as unknown as Response,
           orchestrator,
           analysisStore,

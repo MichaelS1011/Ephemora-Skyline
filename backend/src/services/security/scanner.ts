@@ -14,18 +14,25 @@ import { RegexAdapter } from "./adapters/regex-adapter.js";
 import { GitleaksAdapter } from "./adapters/gitleaks-adapter.js";
 import { SemgrepAdapter } from "./adapters/semgrep-adapter.js";
 import { DependencyAdapter } from "./adapters/dependency-adapter.js";
+import { OsvAdapter } from "./adapters/osv-adapter.js";
+import { RuffAdapter } from "./adapters/ruff-adapter.js";
 import { dedupIssues, SEVERITY_ORDER } from "./dedup.js";
 import { enrichIssues } from "./finding-knowledge.js";
+import { resolveConfig, type ResolvedScanConfig } from "./scan-config.js";
 
 export class SecurityScanner {
   private logger: pino.Logger;
   private adapters: ScannerAdapter[];
   private gitleaksAdapter: GitleaksAdapter | null = null;
   private dependencyAdapter: DependencyAdapter = new DependencyAdapter();
+  private osvAdapter: OsvAdapter = new OsvAdapter();
+  private ruffAdapter: RuffAdapter = new RuffAdapter();
+  private config: ResolvedScanConfig;
   semgrepAdapter: SemgrepAdapter | null = null;
 
-  constructor(adapters?: ScannerAdapter[]) {
+  constructor(adapters?: ScannerAdapter[], config?: ResolvedScanConfig) {
     this.logger = pino({ name: "security-scanner" });
+    this.config = config ?? resolveConfig().config;
     if (adapters) {
       this.adapters = adapters;
     } else {
@@ -37,22 +44,57 @@ export class SecurityScanner {
   }
 
   /**
-   * Dependency scan — one `npm audit` run on the clone (supply-chain layer).
-   * Findings attach to the lockfile building; executed=false for non-npm repos.
+   * Dependency scan — CVEs from the best available source: osv-scanner
+   * (all ecosystems) first, then the existing npm audit. Findings attach
+   * to the lockfile/manifest building; executed=false when nothing ran.
    */
   async scanDependencies(
     clonePath: string,
     fileAnalyses: FileAnalysis[],
-  ): Promise<{ executed: boolean; added: number }> {
+  ): Promise<{ executed: boolean; added: number; runner: string | null }> {
+    // osv covers npm too — prefer it, fall back to the npm-audit adapter
+    const osv = await this.osvAdapter.scanRepository(clonePath);
+    if (this.osvAdapter.lastBatchExecuted) {
+      return {
+        executed: true,
+        added: this.mergeByFile(osv, fileAnalyses, "osv"),
+        runner: this.osvAdapter.lastRunner,
+      };
+    }
     const { issuesByFile, executed } = await this.dependencyAdapter.scanRepository(clonePath);
-    if (!executed || issuesByFile.size === 0) return { executed, added: 0 };
+    if (!executed || issuesByFile.size === 0) return { executed: false, added: 0, runner: null };
+    return {
+      executed: true,
+      added: this.mergeByFile(issuesByFile, fileAnalyses, "npm-audit"),
+      runner: "npm-audit",
+    };
+  }
+
+  /** Attach per-file issue lists to FileAnalysis entries (lockfile first) */
+  private mergeByFile(
+    issuesByFile: Map<string, SecurityIssue[]>,
+    fileAnalyses: FileAnalysis[],
+    provenance: string,
+  ): number {
     let added = 0;
     for (const [rel, issues] of issuesByFile) {
-      // Prefer the lockfile building; fall back to package.json when the
-      // lockfile was skipped (e.g. over MAX_FILE_SIZE)
+      // Manifest files (.txt/.toml/.lock) are not in fileAnalyses — create a
+      // synthetic building so the CVEs are visible in the city
       let target = fileAnalyses.find((f) => f.path === rel);
-      if (!target) target = fileAnalyses.find((f) => f.path === "package.json");
-      if (!target) continue;
+      if (!target) {
+        target = {
+          path: rel,
+          language: "Config",
+          lines: { total: 1, code: 1, comments: 0, blank: 0 },
+          complexity: { cyclomatic: 1, cognitive: 1 },
+          functions: [],
+          classes: [],
+          imports: [],
+          exports: [],
+          vulnerabilities: [],
+        } as unknown as FileAnalysis;
+        fileAnalyses.push(target);
+      }
       enrichIssues(issues, target.content);
       const merged = dedupIssues([...target.vulnerabilities, ...issues]);
       added += merged.length - target.vulnerabilities.length;
@@ -60,7 +102,13 @@ export class SecurityScanner {
         (a, b) => SEVERITY_ORDER[a.severity] - SEVERITY_ORDER[b.severity] || a.line - b.line,
       );
     }
-    return { executed, added };
+    void provenance;
+    return added;
+  }
+
+  /** Apply a scan config for the NEXT scan (mutates thresholds, tool toggles) */
+  setConfig(config: ResolvedScanConfig): void {
+    this.config = config;
   }
 
   /**
@@ -92,7 +140,7 @@ export class SecurityScanner {
       const res = await adapter.scanFile(filePath, content);
       all.push(...res);
     }
-    const deduped = dedupIssues(all);
+    const deduped = dedupIssues(all).filter((i) => this.configFilterAllows(i));
     // Sort by severity order P0>P1>P2 then line
     deduped.sort(
       (a, b) => SEVERITY_ORDER[a.severity] - SEVERITY_ORDER[b.severity] || a.line - b.line,
@@ -100,6 +148,17 @@ export class SecurityScanner {
     if (deduped.length > 0)
       this.logger.info({ filePath, issues: deduped.length }, "Security scan completed");
     return deduped;
+  }
+
+  /** Severity threshold + type allow/denylist from the scan config */
+  private configFilterAllows(issue: SecurityIssue): boolean {
+    const t = this.config.severityThreshold;
+    if (t === "P0" && issue.severity !== "P0") return false;
+    if (t === "P1" && issue.severity === "P2") return false;
+    if (this.config.disabledFindingTypes.includes(issue.type)) return false;
+    const allow = this.config.enabledFindingTypes;
+    if (allow.length > 0 && !allow.includes(issue.type)) return false;
+    return true;
   }
 
   /** Parse ESM + CJS + dynamic imports and exports from source */
@@ -210,7 +269,13 @@ export class SecurityScanner {
     clonePath: string,
     fileAnalyses: FileAnalysis[],
     opts?: { gitHistory?: boolean },
-  ): Promise<{ mergedCount: number; gitleaksRan: boolean; semgrepRan: boolean }> {
+  ): Promise<{
+    mergedCount: number;
+    gitleaksRan: boolean;
+    semgrepRan: boolean;
+    ruffRan: boolean;
+    osvRan: boolean;
+  }> {
     // Read contents once, then run gitleaks + semgrep IN PARALLEL — both are
     // independent processes and each can take a while on big repos
     const contentByPath = new Map<string, string>();
@@ -245,13 +310,47 @@ export class SecurityScanner {
       }
     })();
 
-    const [secretsByFile, semgrepByFile] = await Promise.all([gitleaksTask, semgrepTask]);
+    // ruff: Python quality/security lint (parallel, batch-only)
+    const ruffTask = (async (): Promise<Map<string, SecurityIssue[]>> => {
+      if (!this.config.tools.ruff) return new Map();
+      try {
+        return await this.ruffAdapter.scanRepository(clonePath, {
+          scope:
+            this.config.profile === "deep" || this.config.profile === "quality-only"
+              ? "full"
+              : "security",
+        });
+      } catch (e) {
+        this.logger.warn({ e }, "ruff batch scan failed — Python lint skipped");
+        return new Map();
+      }
+    })();
+
+    // osv: CVE scan across all ecosystems (parallel, has pip-audit fallback)
+    const osvTask = (async (): Promise<Map<string, SecurityIssue[]>> => {
+      if (!this.config.tools.osv) return new Map();
+      try {
+        return await this.osvAdapter.scanRepository(clonePath);
+      } catch (e) {
+        this.logger.warn({ e }, "osv batch scan failed — CVEs skipped");
+        return new Map();
+      }
+    })();
+
+    const [secretsByFile, semgrepByFile, ruffByFile, osvByFile] = await Promise.all([
+      gitleaksTask,
+      semgrepTask,
+      ruffTask,
+      osvTask,
+    ]);
 
     let mergedCount = 0;
     for (const fa of fileAnalyses) {
       const extras: SecurityIssue[] = [
         ...(secretsByFile?.get(fa.path) ?? []),
         ...(semgrepByFile.get(fa.path) ?? []),
+        ...(ruffByFile.get(fa.path) ?? []),
+        ...(osvByFile.get(fa.path) ?? []),
       ];
       if (extras.length === 0) continue;
 
@@ -277,6 +376,8 @@ export class SecurityScanner {
       mergedCount,
       gitleaksRan: secretsByFile !== null,
       semgrepRan: this.semgrepAdapter?.lastBatchExecuted ?? false,
+      ruffRan: this.ruffAdapter.lastBatchExecuted,
+      osvRan: this.osvAdapter.lastBatchExecuted,
     };
   }
 

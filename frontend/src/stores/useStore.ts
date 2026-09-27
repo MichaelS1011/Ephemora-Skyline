@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import type { CityData, SelectedUnit, Severity } from "../city/types";
 import { findFileById, getDirLayout, tourStops } from "../city/layout";
+import { loadSavedProfile, saveProfile, type ScanProfile } from "../config/scanProfiles";
 
 export interface FlyRequest {
   x: number;
@@ -68,6 +69,10 @@ interface AppState {
   // ── Findings list panel ───────────────────────────────────────────────
   showFindings: boolean;
   setShowFindings: (v: boolean) => void;
+
+  // ── Scan configuration (shared by Landing + AnalyzePanel) ─────────────
+  scanProfile: ScanProfile;
+  setScanProfile: (p: ScanProfile) => void;
 
   tourActive: boolean;
   tourIndex: number;
@@ -182,6 +187,12 @@ export const useStore = create<AppState>((set, get) => ({
 
   showFindings: false,
   setShowFindings: (v) => set({ showFindings: v }),
+
+  scanProfile: loadSavedProfile(),
+  setScanProfile: (p) => {
+    saveProfile(p);
+    set({ scanProfile: p });
+  },
 
   tourActive: false,
   tourIndex: 0,

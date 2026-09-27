@@ -45,7 +45,7 @@ Scan-Qualität ist dann deutlich geringer (`scanProvenance` im Ergebnis zeigt
 ehrlich, welche Scanner gelaufen sind):
 
 ```bash
-brew install gitleaks semgrep   # macOS (Homebrew)
+brew install gitleaks semgrep osv-scanner ruff   # macOS (Homebrew)
 ```
 
 | Scanner             | Aufgabe                                          | Ohne Binary             |

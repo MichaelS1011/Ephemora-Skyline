@@ -101,7 +101,14 @@ export interface ProjectSummary {
   vulnerabilitiesBySeverity: { P0: number; P1: number; P2: number };
   languagesByLines: Record<string, number>;
   /** Which scanners actually contributed to this result ("complete" can be regex-only) */
-  scanProvenance?: { regex: boolean; gitleaks: boolean; semgrep: boolean; dependencies?: boolean };
+  scanProvenance?: {
+    regex: boolean;
+    gitleaks: boolean;
+    semgrep: boolean;
+    dependencies?: boolean;
+    osv?: boolean;
+    ruff?: boolean;
+  };
 }
 
 export type WebSocketEventType =

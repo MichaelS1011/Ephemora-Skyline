@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useLocalAnalysis } from "../hooks/useLocalAnalysis";
+import { ProfileChips } from "./ProfileChips";
 
 function ProgressBar({ progress, stage }: { progress: number; stage: string }) {
   return (
@@ -90,6 +91,8 @@ export function AnalyzePanel({ className = "" }: { className?: string }) {
             <span>◈</span>
             <span>BUILD ANOTHER CITY</span>
           </div>
+
+          <ProfileChips variant="analyze-panel" />
 
           <button
             onClick={pickFolder}

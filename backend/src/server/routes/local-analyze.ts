@@ -6,6 +6,7 @@ import os from "os";
 import path from "path";
 import { deleteJobProgress } from "./job-progress.js";
 import { makeSkeleton, makeOnEvent, failJob } from "./analyze.js";
+import { resolveConfig, type ResolvedScanConfig } from "../../services/security/scan-config.js";
 
 /** Upload caps — a local dev folder should always fit comfortably */
 const MAX_FILES = 3000;
@@ -58,9 +59,14 @@ export async function handleLocalAnalyze(
     delete(id: string): void;
   },
 ): Promise<void> {
-  const body = req.body as { name?: unknown; files?: unknown } | undefined;
+  const body = req.body as { name?: unknown; files?: unknown; config?: unknown } | undefined;
   const name = safeDisplayName(typeof body?.name === "string" ? body.name : "");
   const files = body?.files;
+  const { config, errors: configErrors } = resolveConfig(body?.config);
+  if (configErrors.length > 0) {
+    res.status(400).json({ error: "Invalid scan config", details: configErrors });
+    return;
+  }
 
   if (!Array.isArray(files) || files.length === 0) {
     res.status(400).json({ error: "No files received — pick a folder and try again" });
@@ -133,7 +139,9 @@ export async function handleLocalAnalyze(
     statusUrl: `/api/status/${analysisId}`,
   });
 
-  void runLocalAnalysis(analysisId, uploadDir, repo, orchestrator, analysisStore).catch(() => {});
+  void runLocalAnalysis(analysisId, uploadDir, repo, orchestrator, analysisStore, config).catch(
+    () => {},
+  );
 }
 
 /** Background runner for local-folder analyses — never awaited */
@@ -147,10 +155,17 @@ async function runLocalAnalysis(
     get(id: string): AnalysisResult | undefined;
     delete(id: string): void;
   },
+  config?: ResolvedScanConfig,
 ): Promise<void> {
   const { onEvent } = makeOnEvent(analysisId);
   try {
-    const result = await orchestrator.analyzeDirectory(analysisId, uploadDir, repo, onEvent);
+    const result = await orchestrator.analyzeDirectory(
+      analysisId,
+      uploadDir,
+      repo,
+      onEvent,
+      config,
+    );
     deleteJobProgress(analysisId);
 
     if (result.status === "failed" || result.summary.totalFiles === 0) {

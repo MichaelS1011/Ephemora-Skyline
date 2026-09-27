@@ -3,6 +3,7 @@ import type { AnalysisOrchestrator } from "../../services/analyzer/orchestrator.
 import type { AnalysisResult, GitHubRepo, WebSocketEvent } from "../../models/index.js";
 import type { WebSocket as WsWebSocket } from "ws";
 import { setJobProgress, deleteJobProgress, getJobProgress } from "./job-progress.js";
+import { resolveConfig, type ResolvedScanConfig } from "../../services/security/scan-config.js";
 
 export { getJobProgress };
 
@@ -147,6 +148,7 @@ async function runAnalysis(
     delete(id: string): void;
   },
   ws?: WsWebSocket | null,
+  config?: ResolvedScanConfig,
 ): Promise<void> {
   const { onEvent, finished } = makeOnEvent(analysisId, ws);
 
@@ -158,7 +160,7 @@ async function runAnalysis(
       timestamp: new Date().toISOString(),
     });
 
-    const result = await orchestrator.analyzeRepo(repo, onEvent, analysisId);
+    const result = await orchestrator.analyzeRepo(repo, onEvent, analysisId, config);
     deleteJobProgress(analysisId);
 
     if (result.status === "failed" || result.summary.totalFiles === 0) {
@@ -198,8 +200,10 @@ export async function handleAnalyze(
   ws?: WsWebSocket | null,
 ): Promise<void> {
   try {
-    const body = req.body as { url?: string; branch?: string; fullHistory?: boolean } | undefined;
-    const { url, branch, fullHistory } = body ?? {};
+    const body = req.body as
+      { url?: string; branch?: string; fullHistory?: boolean; config?: unknown } | undefined;
+    const { url, branch, fullHistory, config } = body ?? {};
+    const resolvedScanConfig = resolveConfig(config).config;
 
     const parsedUrl = url ? parseGitHubUrl(url) : null;
     if (!url || !parsedUrl) {
@@ -259,7 +263,9 @@ export async function handleAnalyze(
       statusUrl: `/api/status/${analysisId}`,
     });
 
-    void runAnalysis(analysisId, repo, orchestrator, analysisStore, ws).catch(() => {});
+    void runAnalysis(analysisId, repo, orchestrator, analysisStore, ws, resolvedScanConfig).catch(
+      () => {},
+    );
   } catch (error) {
     const message = sanitizeMessage(
       error instanceof Error ? error.message : "Internal server error",
