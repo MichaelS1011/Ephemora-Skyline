@@ -22,7 +22,11 @@ export const REGEX_PATTERNS: ScanPattern[] = [
     score: 10,
   },
   {
-    regex: /SELECT\s+[\s\S]*?\s+FROM\s+[\s\S]*?\s+(?:WHERE|ORDER|GROUP)/gi,
+    // SQL only inside execute()/query() calls or as a quoted SQL statement —
+    // the old cross-newline SELECT...FROM regex also flagged English prose
+    // ("Select the model ... from ...") in comments and docstrings
+    regex:
+      /(?:(?:execute|query|exec)\s*\(\s*[fFrRbB]{0,2}['"`][^'"`]{0,300}SELECT\b[^'"`]{0,300}|['"`]\s*SELECT\b[^'"`]{0,300}\b(?:WHERE|ORDER\s+BY|GROUP\s+BY|LIMIT|INSERT\s+INTO|UPDATE|DELETE\s+FROM)\b[^'"`]{0,200}['"`])/gi,
     type: "SQL_INJECTION",
     severity: "P0",
     message: "Raw SQL query detected — potential SQL injection",
@@ -30,7 +34,9 @@ export const REGEX_PATTERNS: ScanPattern[] = [
     score: 9,
   },
   {
-    regex: /eval\s*\(/g,
+    // Built-in eval() only — `model.eval()` (PyTorch), `ast.literal_eval()`
+    // and friends are not the eval builtin (real-project false positives)
+    regex: /(?<![.\w])eval\s*\(/g,
     type: "EVAL_USAGE",
     severity: "P0",
     message: "eval() detected — arbitrary code execution risk",
@@ -75,7 +81,9 @@ export const REGEX_PATTERNS: ScanPattern[] = [
     score: 7,
   },
   {
-    regex: /deserializeObject|unserialize|yaml\.load\s*\([^,)]*\)/gi,
+    // pickle/yaml on untrusted data = arbitrary code execution (Python);
+    // yaml.load is unsafe unless Loader=SafeLoader is passed
+    regex: /pickle\.loads?\s*\(|yaml\.load\s*\((?![^)]*SafeLoader)[^)]*\)/gi,
     type: "UNSAFE_DESERIALIZATION",
     severity: "P1",
     message: "Unsafe deserialization detected",
@@ -131,17 +139,100 @@ export class RegexAdapter implements ScannerAdapter {
   scanFile(filePath: string, content: string): SecurityIssue[] {
     const issues: SecurityIssue[] = [];
     const lines = content.split("\n");
+    const dot = filePath.lastIndexOf(".");
+    const ext = dot > filePath.lastIndexOf("/") ? filePath.slice(dot).toLowerCase() : "";
+    const isJsFamily = [".js", ".jsx", ".ts", ".tsx", ".mjs", ".cjs"].includes(ext);
 
     // Heuristic: findings in test/spec files are lower priority
     const isTestFile =
-      /[/\\](?:test|tests|__tests__|spec|__spec__|fixtures)[/\\]|\.(?:test|spec)\.[jt]sx?$/.test(
+      /(^|[/\\])(?:test|tests|__tests__|spec|__spec__|fixtures)(?:[/\\]|$)|\.(?:test|spec)\.[jt]sx?$/.test(
         filePath,
       );
 
+    // Python comments and triple-quoted docstrings are prose — scanner hits
+    // inside them ("Select the model ... from ...") are never actionable.
+    // Mini-lexer: tracks string/comment/docstring state character-wise, so
+    // module-level `PROMPT = """..."""` constants don't desync the parity
+    // (a line starting with `"""` can be a CLOSER, not an opener).
+    const suppressedLines = new Set<number>();
+    if (ext === ".py") {
+      type PyState = { mode: "code" | "line-comment" | "doc" | "string"; delim?: string };
+      let state: PyState = { mode: "code" };
+      const isTriple = (a: string, b: string, c: string): boolean =>
+        a === b && b === c && (c === '"' || c === "'");
+      lines.forEach((line, i) => {
+        let quote: string | null = null; // single-char quote inside code
+        let j = 0;
+        if (state.mode === "doc" || state.mode === "string") {
+          suppressedLines.add(i + 1);
+          const delim = state.delim!;
+          while (j < line.length - 2) {
+            if (isTriple(line[j]!, line[j + 1]!, line[j + 2]!) && delim === line.slice(j, j + 3)) {
+              state = { mode: "code" };
+              j += 3;
+              break;
+            }
+            j++;
+          }
+          if (state.mode !== "code") return; // whole line is prose
+        }
+        while (j < line.length) {
+          const c = line[j]!;
+          if (state.mode === "line-comment") {
+            suppressedLines.add(i + 1);
+            break;
+          }
+          if (c === "#" && !quote) {
+            state = { mode: "line-comment" };
+            continue;
+          }
+          if (c === "\\" && quote) {
+            j += 2;
+            continue;
+          }
+          if (quote && c === quote) {
+            quote = null;
+            j++;
+            continue;
+          }
+          if (!quote && (c === '"' || c === "'")) {
+            if (isTriple(c, line[j + 1] ?? "", line[j + 2] ?? "")) {
+              const delim = line.slice(j, j + 3);
+              const rest = line.slice(j + 3);
+              const closeIdx = rest.indexOf(delim);
+              if (closeIdx === -1) {
+                state = { mode: "doc", delim };
+                suppressedLines.add(i + 1);
+                break; // docstring continues on the next line
+              }
+              j += 3 + closeIdx + 3;
+              continue;
+            }
+            quote = c;
+            j++;
+            continue;
+          }
+          j++;
+        }
+        if (state.mode === "line-comment") state = { mode: "code" };
+      });
+    }
+
     for (const pattern of this.patterns) {
+      // Language gating: loose equality is a JavaScript-only pitfall — in
+      // Python `==` is the correct operator (400+ false positives in real
+      // Python projects otherwise)
+      if (pattern.type === "LOOSE_EQUALITY" && !isJsFamily) continue;
       let match: RegExpExecArray | null;
       pattern.regex.lastIndex = 0;
       while ((match = pattern.regex.exec(content)) !== null) {
+        const lineNum = content.slice(0, match.index).split("\n").length;
+        // Never flag prose: comments, docstrings
+        if (suppressedLines.has(lineNum)) {
+          if (match[0].length === 0) pattern.regex.lastIndex++;
+          continue;
+        }
+
         // SQL_INJECTION: skip parameterized queries
         if (pattern.type === "SQL_INJECTION") {
           const win = content.slice(match.index, match.index + 400);
@@ -166,7 +257,6 @@ export class RegexAdapter implements ScannerAdapter {
           }
         }
 
-        const lineNum = content.slice(0, match.index).split("\n").length;
         const lineContent = lines[lineNum - 1] ?? "";
 
         // Downgrade severity for test files (except secrets which are always P0)
