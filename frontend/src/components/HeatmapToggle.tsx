@@ -65,13 +65,22 @@ export function HeatmapToggle() {
                 : `${label}: color heat cells by ${what}. Click to zoom out into the heat view.`
             }
             onClick={() => pick(id)}
-            className="font-mono text-[9px] tracking-wider px-1.5 py-0.5 rounded transition-colors duration-150
-                       focus:outline-none focus:ring-1 focus:ring-[#e8503c] cursor-pointer"
+            className="font-mono text-[9px] tracking-wider px-1.5 py-0.5 rounded transition-all duration-150
+                       focus:outline-none focus:ring-1 focus:ring-[#e8503c] cursor-pointer
+                       hover:brightness-125 active:scale-[0.96]"
             style={{
               color: unavailable ? "#8a867c" : active ? "#e8503c" : "#a8a49a",
               background: active ? "rgba(232, 80, 60, 0.12)" : "transparent",
-              border: `1px solid ${active ? "rgba(232, 80, 60, 0.5)" : "transparent"}`,
+              border: `1px solid ${
+                active
+                  ? "rgba(232, 80, 60, 0.5)"
+                  : unavailable
+                    ? "transparent"
+                    : "rgba(150, 142, 128, 0.25)"
+              }`,
+              boxShadow: active ? "inset 0 0 0 1px rgba(232, 80, 60, 0.25)" : undefined,
               opacity: unavailable ? 0.45 : 1,
+              cursor: unavailable ? "not-allowed" : undefined,
             }}
           >
             {label}

@@ -90,7 +90,10 @@ export function FindingsPanel() {
         className="flex items-center justify-between px-3 py-2.5 shrink-0"
         style={{ borderBottom: "1px solid rgba(150,142,128,0.18)" }}
       >
-        <div className="font-jetbrains text-[10px] tracking-[0.2em]" style={{ color: "#a8a49a" }}>
+        <div
+          className="font-jetbrains text-[10px] tracking-[0.2em]"
+          style={{ color: "var(--meta-strong)" }}
+        >
           ⚠ ALL FINDINGS <span style={{ color: SEVERITY_COLOR.P0 }}>{totalFindings}</span>{" "}
           <span style={{ color: "var(--meta-faint)" }}>in {groups.length} files</span>
         </div>
@@ -98,7 +101,7 @@ export function FindingsPanel() {
           onClick={() => setShowFindings(false)}
           aria-label="Close findings list"
           className="font-jetbrains text-[10px] w-7 h-7 flex items-center justify-center rounded-sm transition-colors hover:brightness-125"
-          style={{ color: "#6688aa", background: "rgba(100,130,170,0.12)" }}
+          style={{ color: "var(--meta-strong)", background: "rgba(150,142,128,0.12)" }}
         >
           ✕
         </button>
@@ -127,8 +130,9 @@ export function FindingsPanel() {
               }}
               className="rounded-sm"
               style={{
-                borderLeft: `2px solid ${accent}`,
-                background: isSelected ? "rgba(232,178,60,0.08)" : "rgba(15,22,40,0.55)",
+                borderLeft: `2px solid ${isSelected ? "#e8503c" : accent}`,
+                background: isSelected ? "rgba(232,80,60,0.08)" : "rgba(15,22,40,0.55)",
+                boxShadow: isSelected ? "0 0 12px rgba(232,80,60,0.28)" : "none",
                 marginBottom: 4,
               }}
             >

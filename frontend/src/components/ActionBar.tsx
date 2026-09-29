@@ -52,7 +52,7 @@ function ActionButton({
       aria-label={title}
       onMouseEnter={() => setHov(true)}
       onMouseLeave={() => setHov(false)}
-      className="font-jetbrains text-[10px] tracking-[0.12em] px-3 py-1.5 rounded-sm transition-all duration-150 disabled:opacity-35 disabled:cursor-not-allowed flex items-center gap-1.5"
+      className="font-jetbrains text-[10px] tracking-[0.12em] px-3 py-1.5 rounded-sm transition-all duration-150 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5"
       style={{
         border: `1px solid ${borderColor}`,
         color,

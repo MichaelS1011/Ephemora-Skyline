@@ -75,24 +75,31 @@ export function ScanSummary() {
           style={{ color: accent }}
         >
           {clean && <ConfettiBurst />}
-          {clean ? "✓ CLEAN CITY" : "◈ SCAN COMPLETE"}
+          {clean ? "✓ All clear — no issues found" : "◈ Scan complete"}
         </span>
 
         {/* File count */}
         <span className="font-jetbrains text-[10px]" style={{ color: "#8f8b82" }}>
-          {cityData.totalFiles.toLocaleString()} files scanned
+          {cityData.totalFiles.toLocaleString()} files analyzed
         </span>
 
         {/* Severity badges */}
         {!clean && (
           <div className="flex items-center gap-1.5">
-            {(["P0", "P1", "P2"] as const).map((sev) =>
+            {(
+              [
+                { sev: "P0", label: "Critical" },
+                { sev: "P1", label: "High" },
+                { sev: "P2", label: "Medium" },
+              ] as const
+            ).map(({ sev, label }) =>
               f[sev] > 0 ? (
                 <span
                   key={sev}
+                  title={`${label} security risk`}
                   className={`chip-${sev.toLowerCase()} font-jetbrains text-[9px] px-1.5 py-px rounded`}
                 >
-                  {sev}: {f[sev]}
+                  {label}: {f[sev]}
                 </span>
               ) : null,
             )}

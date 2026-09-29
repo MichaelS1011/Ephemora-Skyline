@@ -6,10 +6,10 @@ interface BootLine {
 }
 
 const BOOT_LINES: BootLine[] = [
-  { text: "> INITIALIZING EPHEMORA SKYLINE...", delay: 200 },
-  { text: "> CONNECTING TO GRID...", delay: 900 },
-  { text: "> LOADING CITY MATRIX...", delay: 1600 },
-  { text: "> READY", delay: 2400 },
+  { text: "> Starting Ephemora Skyline...", delay: 200 },
+  { text: "> Rendering your city in 3D...", delay: 900 },
+  { text: "> Positioning the fly-over camera...", delay: 1600 },
+  { text: "> Ready", delay: 2400 },
 ];
 
 interface LoadingScreenProps {

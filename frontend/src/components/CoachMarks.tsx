@@ -6,10 +6,10 @@ const COACH_KEY = "codecity-coach-v2";
 
 /* The core loop, in four lines */
 const HINTS = [
-  { icon: "⊕", text: "Drag to orbit · scroll to zoom" },
-  { icon: "▦", text: "Click a district block (a folder) to zoom into it" },
-  { icon: "▣", text: "Click a building (a file) for its details" },
-  { icon: "?", text: "Press ? anytime for all shortcuts" },
+  { step: "1", icon: "⊕", text: "Drag to orbit · scroll to zoom" },
+  { step: "2", icon: "▦", text: "Click a district block (a folder) to zoom into it" },
+  { step: "3", icon: "▣", text: "Click a building (a file) for its details" },
+  { step: "4", icon: "?", text: "Press ? anytime for all shortcuts" },
 ];
 
 /* ── Marker legend — "What am I looking at?" ───────────────────────────────
@@ -160,7 +160,9 @@ export function CoachMarks() {
   const focusPath = useStore((s) => s.focusPath);
   const buildPhase = useStore((s) => s.buildPhase);
   const [visible, setVisible] = useState(false);
-  const [primerOpen, setPrimerOpen] = useState(true);
+  // Start collapsed: the four steps are the one-glance story; the 13-row
+  // marker legend is opt-in detail (progressive disclosure), never a wall.
+  const [primerOpen, setPrimerOpen] = useState(false);
 
   useEffect(() => {
     let seen = false;
@@ -206,29 +208,13 @@ export function CoachMarks() {
         }}
         role="status"
       >
-        <div className="flex items-start gap-4">
-          {/* Hints grid — the core loop */}
-          <div className="grid grid-cols-2 gap-x-5 gap-y-1.5">
-            {HINTS.map((h) => (
-              <div key={h.icon} className="flex items-center gap-2">
-                <span
-                  className="w-5 h-5 flex items-center justify-center shrink-0 font-jetbrains text-[11px]"
-                  style={{
-                    color: "#f2d5a0",
-                    background: "rgba(232,178,60,0.1)",
-                    border: "1px solid rgba(232,178,60,0.25)",
-                    borderRadius: 3,
-                  }}
-                >
-                  {h.icon}
-                </span>
-                <span className="font-jetbrains text-[10px]" style={{ color: "#a8a49a" }}>
-                  {h.text}
-                </span>
-              </div>
-            ))}
+        <div className="flex items-start justify-between gap-3 mb-2">
+          <div
+            className="font-jetbrains text-[9px] tracking-[0.25em]"
+            style={{ color: "var(--meta-strong)" }}
+          >
+            FIRST-RUN GUIDE <span style={{ color: "var(--meta-faint)" }}>· 4 STEPS</span>
           </div>
-
           {/* Dismiss */}
           <button
             onClick={dismiss}
@@ -238,6 +224,41 @@ export function CoachMarks() {
           >
             ✕
           </button>
+        </div>
+        <div className="flex items-start gap-4">
+          {/* Hints grid — the core loop */}
+          <div className="grid grid-cols-2 gap-x-5 gap-y-1.5">
+            {HINTS.map((h) => (
+              <div key={h.icon} className="flex items-center gap-2">
+                {/* step number — the dominant element: reads as an ordered story, not a list of tips */}
+                <span
+                  className="font-jetbrains font-semibold text-[13px] leading-none tabular-nums shrink-0"
+                  style={{ color: "#f2d5a0" }}
+                  aria-hidden
+                >
+                  {h.step}
+                </span>
+                <span
+                  className="w-5 h-5 flex items-center justify-center shrink-0 font-jetbrains text-[11px]"
+                  style={{
+                    color: "var(--meta-strong)",
+                    background: "rgba(232,178,60,0.07)",
+                    border: "1px solid rgba(232,178,60,0.18)",
+                    borderRadius: 3,
+                  }}
+                  aria-hidden
+                >
+                  {h.icon}
+                </span>
+                <span
+                  className="font-jetbrains text-[10px] leading-snug"
+                  style={{ color: "#cfcabe" }}
+                >
+                  {h.text}
+                </span>
+              </div>
+            ))}
+          </div>
         </div>
 
         {/* What am I looking at? — marker primer */}
@@ -253,6 +274,9 @@ export function CoachMarks() {
           }}
         >
           <span style={{ fontSize: 8 }}>{primerOpen ? "▾" : "▸"}</span> WHAT AM I LOOKING AT?
+          <span style={{ color: "var(--meta-faint)", letterSpacing: "normal" }}>
+            — {MARKER_LEGEND.length} marker meanings
+          </span>
         </button>
         {primerOpen && (
           <div className="mt-2">

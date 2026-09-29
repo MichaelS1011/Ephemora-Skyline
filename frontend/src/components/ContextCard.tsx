@@ -64,16 +64,26 @@ export function ContextCard() {
           </div>
           <div
             className="font-jetbrains font-bold truncate"
-            style={{ color: "#e8f0ff", fontSize: "0.82rem" }}
+            style={{ color: "#f2efe8", fontSize: "0.95rem", letterSpacing: "0.01em" }}
           >
             {isRoot ? cityData.repo.name : dir.name}
           </div>
           {!isRoot && (
             <div
               className="font-jetbrains text-[9px] truncate mt-0.5"
-              style={{ color: "var(--meta-strong)" }}
+              style={{ color: "var(--meta-faint)" }}
+              title={`Current district path: /${dir.path}`}
             >
-              /{dir.path}
+              {dir.path.includes("/") ? (
+                <>
+                  /{dir.path.slice(0, dir.path.lastIndexOf("/") + 1)}
+                  <span style={{ color: "var(--meta-strong)" }}>
+                    {dir.path.slice(dir.path.lastIndexOf("/") + 1)}
+                  </span>
+                </>
+              ) : (
+                `/${dir.path}`
+              )}
             </div>
           )}
         </div>

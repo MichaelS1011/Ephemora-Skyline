@@ -27,13 +27,26 @@ interface TipState {
 export function HelpTipProvider() {
   const [tip, setTip] = useState<TipState | null>(null);
   const frame = useRef(0);
+  const activeRef = useRef(false);
 
   useEffect(() => {
     const promote = (el: HTMLElement): string | null => {
       // title → data-tip once, so the native tooltip never appears
       if (!el.hasAttribute("data-tip") && el.hasAttribute("title")) {
-        el.setAttribute("data-tip", el.getAttribute("title") ?? "");
+        const text = el.getAttribute("title") ?? "";
+        el.setAttribute("data-tip", text);
         el.removeAttribute("title");
+        // Removing title would strip the accessible name of icon-only
+        // controls (WCAG 4.1.2) — preserve it as aria-label when no
+        // visible text provides one.
+        if (
+          !el.hasAttribute("aria-label") &&
+          !el.hasAttribute("aria-labelledby") &&
+          el.textContent.trim() === "" &&
+          (/^(BUTTON|A|INPUT|SUMMARY)$/.test(el.tagName) || el.hasAttribute("role"))
+        ) {
+          el.setAttribute("aria-label", text);
+        }
       }
       const text = el.getAttribute("data-tip");
       return text && text.trim() ? text : null;
@@ -58,12 +71,19 @@ export function HelpTipProvider() {
     const showFor = (el: HTMLElement, text: string): void => {
       const r = el.getBoundingClientRect();
       const above = r.top > 90; // prefer above; fall back below near the top bar
+      activeRef.current = true;
       setTip({ text, x: r.left + r.width / 2, y: above ? r.top - 8 : r.bottom + 8, above });
     };
 
+    const hide = (): void => {
+      activeRef.current = false;
+      setTip(null);
+    };
+
     const onMove = (e: MouseEvent): void => {
-      // Reposition while hovering the same element (scroll/layout shifts)
-      if (!tip) return;
+      // Reposition while hovering the same element (scroll/layout shifts).
+      // Ref instead of state: the effect mounts once, a `tip` closure would be stale.
+      if (!activeRef.current) return;
       const target = e.target as HTMLElement | null;
       if (!target || !(target instanceof Element)) return;
       const el = target.closest<HTMLElement>("[data-tip]");
@@ -73,9 +93,18 @@ export function HelpTipProvider() {
     const onOut = (e: Event): void => {
       const to = (e as MouseEvent).relatedTarget as HTMLElement | null;
       if (!to || !(to instanceof Element) || !to.closest("[data-tip],[title]")) {
-        setTip(null);
+        hide();
       }
     };
+
+    // WCAG 1.4.13: tips for focusable controls must also appear on keyboard focus
+    const onFocusIn = (e: FocusEvent): void => {
+      const el = (e.target as HTMLElement | null)?.closest?.<HTMLElement>("[data-tip],[title]");
+      if (!el || el === document.body) return;
+      const text = promote(el);
+      if (text) showFor(el, text);
+    };
+    const onFocusOut = (): void => hide();
 
     const onScrollOrResize = (): void => {
       cancelAnimationFrame(frame.current);
@@ -85,12 +114,16 @@ export function HelpTipProvider() {
     document.addEventListener("mouseover", onOver, true);
     document.addEventListener("mousemove", onMove);
     document.addEventListener("mouseout", onOut, true);
+    document.addEventListener("focusin", onFocusIn, true);
+    document.addEventListener("focusout", onFocusOut, true);
     window.addEventListener("scroll", onScrollOrResize, true);
     window.addEventListener("resize", onScrollOrResize);
     return () => {
       document.removeEventListener("mouseover", onOver, true);
       document.removeEventListener("mousemove", onMove);
       document.removeEventListener("mouseout", onOut, true);
+      document.removeEventListener("focusin", onFocusIn, true);
+      document.removeEventListener("focusout", onFocusOut, true);
       window.removeEventListener("scroll", onScrollOrResize, true);
       window.removeEventListener("resize", onScrollOrResize);
       cancelAnimationFrame(frame.current);

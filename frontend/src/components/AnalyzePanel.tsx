@@ -88,9 +88,8 @@ export function AnalyzePanel({ className = "" }: { className?: string }) {
             : "Toggle analyze panel"
         }
         title="Build another city: pick a local folder and scan it — the current city stays open until the new one is ready"
-        className="font-mono text-xs px-3 py-1.5 border transition-all duration-150
-                   bg-[rgba(16,16,14,0.85)] hover:bg-[rgba(232,178,60,0.1)]
-                   focus:outline-none focus:ring-2 focus:ring-[#e8b23c] focus:ring-offset-1 focus:ring-offset-transparent"
+        className="font-mono text-xs px-3 py-1.5 rounded-sm border transition-all duration-150
+                   bg-[rgba(16,16,14,0.85)] hover:bg-[rgba(232,178,60,0.1)]"
         style={{ borderColor, color: borderColor }}
       >
         {/* Progress leaks onto the toggle: with the panel closed the running
@@ -131,8 +130,7 @@ export function AnalyzePanel({ className = "" }: { className?: string }) {
             disabled={isAnalyzing}
             aria-busy={isAnalyzing}
             aria-label={isAnalyzing ? "Analysis in progress" : "Pick a local project folder"}
-            className="w-full py-2 font-mono text-xs tracking-widest border transition-all duration-150
-                       focus:outline-none focus:ring-2 focus:ring-[#e8503c] focus:ring-offset-1 focus:ring-offset-transparent
+            className="w-full mt-2 py-2 font-mono text-xs tracking-widest rounded-sm border transition-all duration-150
                        disabled:opacity-50 disabled:cursor-not-allowed"
             style={{
               background: isAnalyzing ? "rgba(232,80,60,0.05)" : "rgba(232,80,60,0.1)",
@@ -188,9 +186,9 @@ export function AnalyzePanel({ className = "" }: { className?: string }) {
           {isAnalyzing && (
             <button
               onClick={cancel}
-              className="w-full mt-2 py-1 font-mono text-[10px] tracking-widest border border-[#ff0044]
+              className="w-full mt-2 py-1 rounded-sm font-mono text-[10px] tracking-widest border border-[#ff0044]
                          text-[#ff0044] bg-transparent hover:bg-[rgba(255,0,68,0.08)]
-                         transition-all duration-150 focus:outline-none focus:ring-2 focus:ring-[#ff0044]"
+                         transition-all duration-150"
               aria-label="Cancel analysis"
             >
               CANCEL

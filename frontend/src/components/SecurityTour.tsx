@@ -74,6 +74,11 @@ export function SecurityTour() {
       role="region"
       aria-label="Security tour"
     >
+      {/* WCAG 4.1.3: announce each tour-step change to screen readers. The
+          visible step count below is not aria-live, so SR users would miss it. */}
+      <span className="sr-only" role="status" aria-live="polite">
+        Step {idx + 1} of {stops.length}: {stop.file.name}
+      </span>
       {/* Progress bar */}
       <div
         className="w-full h-[2px] rounded-full overflow-hidden mb-2.5"

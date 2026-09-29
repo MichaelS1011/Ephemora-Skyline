@@ -1,0 +1,24 @@
+name: Feature Request
+description: Suggest an improvement or new capability for Ephemora Skyline.
+about: Suggest an improvement or new capability
+title: "[feat] "
+labels: ["enhancement"]
+body:
+  - type: textarea
+    attributes:
+      label: The problem this solves
+      description: What are you trying to do that the tool does not help with today?
+      placeholder: As a ... I want ... so that ...
+    validations:
+      required: true
+  - type: textarea
+    attributes:
+      label: Proposed solution
+      description: Concrete, and keep it to the smallest change that works.
+    validations:
+      required: true
+  - type: textarea
+    attributes:
+      label: Alternatives considered
+    validations:
+      required: false

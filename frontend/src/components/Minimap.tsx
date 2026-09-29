@@ -118,6 +118,21 @@ export function Minimap({ show = true }: { show?: boolean }) {
     [cityData, focusPath, requestFly],
   );
 
+  // WCAG 2.1.1: the click-to-fly minimap must also be keyboard-operable.
+  // Enter/Space flies to the city centre — the same action the Overview
+  // button performs — so a keyboard user is never locked out of navigation.
+  const handleKey = useCallback(
+    (e: React.KeyboardEvent<HTMLCanvasElement>) => {
+      if (!cityData) return;
+      if (e.key === "Enter" || e.key === " ") {
+        e.preventDefault();
+        const layout = getDirLayout(cityData, focusPath);
+        requestFly(0, 0, layout.bounds * 1.1);
+      }
+    },
+    [cityData, focusPath, requestFly],
+  );
+
   if (!show) return null;
 
   return (
@@ -142,7 +157,10 @@ export function Minimap({ show = true }: { show?: boolean }) {
         height={MAP_SIZE}
         style={{ width: MAP_SIZE, height: MAP_SIZE, cursor: "crosshair", display: "block" }}
         onClick={handleClick}
-        aria-label="City minimap — click to fly"
+        onKeyDown={handleKey}
+        tabIndex={0}
+        role="button"
+        aria-label="City minimap — click to fly, or press Enter to go to city overview"
       />
     </div>
   );

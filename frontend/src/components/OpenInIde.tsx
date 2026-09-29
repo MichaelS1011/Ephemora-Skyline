@@ -69,7 +69,7 @@ export function OpenInIde({
             style={{
               background: "rgba(0,0,0,0.4)",
               border: invalid ? "1px solid #ff0044" : "1px solid rgba(150,142,128,0.3)",
-              color: "#e8e4da",
+              color: "var(--brand-ink)",
               outline: "none",
             }}
           />
@@ -113,8 +113,7 @@ export function OpenInIde({
         disabled={!link}
         aria-label={`Open ${filePath} in ${EDITOR_LABELS[editor]}${line ? ` at line ${line}` : ""}`}
         className="inline-flex items-center gap-1.5 font-jetbrains text-[9px] tracking-wide px-2 py-1 rounded-sm
-                   transition-opacity hover:opacity-80 focus:outline-none focus:ring-1 focus:ring-[#e8b23c]
-                   disabled:opacity-40 cursor-pointer"
+                   transition-opacity hover:opacity-80 disabled:opacity-40 cursor-pointer"
         style={{
           color: "#f2d5a0",
           border: "1px solid rgba(232,178,60,0.4)",
@@ -131,7 +130,7 @@ export function OpenInIde({
         }}
         aria-label={`Switch editor to ${EDITOR_LABELS[editor === "vscode" ? "cursor" : "vscode"]}`}
         className="font-jetbrains text-[9px] px-1.5 py-1 rounded-sm cursor-pointer hover:opacity-80"
-        style={{ color: "#8f8b82", border: "1px solid rgba(100,130,170,0.3)" }}
+        style={{ color: "var(--meta)", border: "1px solid rgba(150,142,128,0.3)" }}
       >
         ⇄
       </button>

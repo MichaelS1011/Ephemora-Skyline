@@ -12,10 +12,14 @@ export function Breadcrumbs() {
   if (!cityData) return null;
 
   return (
-    <div className="absolute top-[52px] left-4 z-20 pointer-events-auto flex items-center gap-1.5 flex-wrap max-w-[55vw]">
+    <nav
+      aria-label="Breadcrumb"
+      className="absolute top-[52px] left-4 z-20 pointer-events-auto flex items-center gap-1.5 flex-wrap max-w-[55vw]"
+    >
       {focusPath.length > 0 && (
         <button
           onClick={drillOut}
+          aria-label="Up one level"
           className="font-mono text-[10px] px-1.5 py-0.5"
           style={{
             border: "1px solid rgba(165,158,144,0.4)",
@@ -29,10 +33,13 @@ export function Breadcrumbs() {
       )}
       <button
         onClick={() => setFocusPath([])}
+        aria-current={focusPath.length === 0 ? "location" : undefined}
+        title="Root level"
         className="font-mono text-[10px] px-2 py-0.5 transition-colors"
         style={{
           border: `1px solid ${focusPath.length === 0 ? "#f2d5a0" : "rgba(165,158,144,0.35)"}`,
-          color: focusPath.length === 0 ? "#f2d5a0" : "#cfcabe",
+          color: focusPath.length === 0 ? "#f2d5a0" : "var(--meta-strong)",
+          fontWeight: focusPath.length === 0 ? 600 : 400,
           background: "rgba(16,16,14,0.8)",
         }}
       >
@@ -42,15 +49,23 @@ export function Breadcrumbs() {
         const isLast = i === focusPath.length - 1;
         return (
           <span key={`${seg}-${i}`} className="flex items-center gap-1.5">
-            <span className="font-mono text-[10px]" style={{ color: "#55688a" }}>
+            <span
+              className="font-mono text-[10px]"
+              aria-hidden="true"
+              style={{ color: "var(--meta-faint)" }}
+            >
               ›
             </span>
             <button
               onClick={() => setFocusPath(focusPath.slice(0, i + 1))}
+              aria-label={isLast ? `Current location: ${seg}` : `Navigate to ${seg}`}
+              aria-current={isLast ? "location" : undefined}
+              title={isLast ? "Current location" : `Go to ${seg}`}
               className="font-mono text-[10px] px-2 py-0.5 transition-colors"
               style={{
                 border: `1px solid ${isLast ? "#f2d5a0" : "rgba(165,158,144,0.35)"}`,
-                color: isLast ? "#f2d5a0" : "#cfcabe",
+                color: isLast ? "#f2d5a0" : "var(--meta-strong)",
+                fontWeight: isLast ? 600 : 400,
                 background: "rgba(16,16,14,0.8)",
               }}
             >
@@ -59,6 +74,6 @@ export function Breadcrumbs() {
           </span>
         );
       })}
-    </div>
+    </nav>
   );
 }

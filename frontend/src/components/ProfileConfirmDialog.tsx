@@ -24,6 +24,7 @@ interface ProfileConfirmDialogProps {
  */
 export function ProfileConfirmDialog({ profile, onConfirm, onCancel }: ProfileConfirmDialogProps) {
   const confirmRef = useRef<HTMLButtonElement>(null);
+  const dialogRef = useRef<HTMLDivElement>(null);
 
   const meta = SCAN_PROFILES.find((p) => p.id === profile) ?? SCAN_PROFILES[1]!;
   const activeEngines = new Set(PROFILE_ENGINES[profile]);
@@ -35,6 +36,25 @@ export function ProfileConfirmDialog({ profile, onConfirm, onCancel }: ProfileCo
       if (e.key === "Escape") {
         e.stopPropagation();
         onCancel();
+        return;
+      }
+      // WCAG 2.1.2: this is aria-modal, so keyboard focus must not escape
+      // into the page behind the dialog — wrap Tab/Shift-Tab inside it.
+      if (e.key === "Tab" && dialogRef.current) {
+        const focusable = dialogRef.current.querySelectorAll<HTMLElement>(
+          'button, [href], [tabindex]:not([tabindex="-1"])',
+        );
+        if (focusable.length === 0) return;
+        const first = focusable[0]!;
+        const last = focusable[focusable.length - 1]!;
+        const active = document.activeElement;
+        if (e.shiftKey && (active === first || !dialogRef.current.contains(active))) {
+          e.preventDefault();
+          last.focus();
+        } else if (!e.shiftKey && active === last) {
+          e.preventDefault();
+          first.focus();
+        }
       }
     };
     window.addEventListener("keydown", onKey, true);
@@ -49,6 +69,7 @@ export function ProfileConfirmDialog({ profile, onConfirm, onCancel }: ProfileCo
       role="presentation"
     >
       <div
+        ref={dialogRef}
         role="dialog"
         aria-modal="true"
         aria-label={`What the ${meta.label} scan checks`}
@@ -157,7 +178,8 @@ export function ProfileConfirmDialog({ profile, onConfirm, onCancel }: ProfileCo
           </p>
         )}
 
-        {/* Yes / No */}
+        {/* Yes / No — the confirm button is the dialog's primary and is
+            focused on open, so Enter commits without a Tab hunt */}
         <div className="flex items-center gap-2">
           <button
             ref={confirmRef}

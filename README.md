@@ -12,10 +12,14 @@ Dein Code bleibt auf deinem Rechner.
 - **Orientierung:** Brotkrumen, Minimap mit echter Kameraposition, Landmark-Turm für die gefährlichste Datei, Search-to-Fly.
 - **Teilen:** Jede Stadt hat einen Permalink (`?city=<id>`) plus PNG-Export.
 
-![Ephemora Skyline](https://img.shields.io/badge/status-beta-orange)
-![Node.js](https://img.shields.io/badge/node-%3E%3D20-brightgreen)
+![Node.js](https://img.shields.io/badge/node-%3E%3D20-limegreen)
 ![TypeScript](https://img.shields.io/badge/typescript-5.8-blue)
+![React](https://img.shields.io/badge/react-19-61dafb)
+![three.js](https://img.shields.io/badge/three.js-r186-black)
 ![License](https://img.shields.io/badge/license-BSL--1.1-informational)
+![PRs](https://img.shields.io/badge/PRs-welcome-brightgreen)
+
+> A CI badge is deliberately **absent** until a green run exists on `main`. A badge that does not reflect enforced CI is decoration, not a signal.
 
 ## 🏗️ Tech Stack
 
@@ -40,8 +44,8 @@ Dein Code bleibt auf deinem Rechner.
 
 ```bash
 # Repository clonen
-git clone https://github.com/username/codecity-cyberdefense.git
-cd codecity-cyberdefense
+git clone https://github.com/MichaelS1011/Ephemora-Skyline.git
+cd Ephemora-Skyline
 
 # Dependencies installieren
 npm install
@@ -226,7 +230,7 @@ GET /api/demo
 ## 🏛️ Architektur
 
 ```
-codecity-cyberdefense/
+Ephemora-Skyline/
 ├── backend/                  # Express API Server
 │   └── src/
 │       ├── server/           # HTTP Server & Routes

@@ -1,0 +1,43 @@
+name: Bug Report
+description: Report something in Ephemora Skyline that is not working as expected.
+about: Something is not working as expected
+title: "[bug] "
+labels: ["bug"]
+body:
+  - type: textarea
+    attributes:
+      label: Describe the bug
+      description: What did you expect vs. what happened?
+      placeholder: I selected a folder and expected the city to render, but...
+    validations:
+      required: true
+  - type: textarea
+    attributes:
+      label: Steps to reproduce
+      value: |
+        1. Go to ...
+        2. Click ...
+        3. See error
+      render: markdown
+    validations:
+      required: true
+  - type: input
+    attributes:
+      label: Commit or version
+      placeholder: e.g. main @ abc1234, or v0.1.0
+    validations:
+      required: true
+  - type: input
+    attributes:
+      label: Environment
+      description: OS + GPU, browser, Node version (node -v).
+      placeholder: macOS 26.5 / Apple M5 / Chrome 140 / Node v22
+    validations:
+      required: true
+  - type: textarea
+    attributes:
+      label: Console / backend output
+      description: Browser console errors and the backend log line. Paste as text, not screenshots of text.
+      render: shell
+    validations:
+      required: false

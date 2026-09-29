@@ -84,6 +84,7 @@ function FindingRow({
   const [expanded, setExpanded] = useState(false);
   const [copied, setCopied] = useState(false);
   const color = SEVERITY_COLOR[finding.severity];
+  const detailsId = `finding-details-${filePath.replace(/[^a-z0-9]/gi, "-")}-${index}`;
 
   const copy = async (): Promise<void> => {
     const text = `${finding.severity} ${finding.type} — ${filePath}:${finding.line}\n${finding.message}${finding.fix ? `\nFix: ${finding.fix}` : ""}${finding.refUrl ? `\nReference: ${finding.refUrl}` : ""}`;
@@ -146,6 +147,7 @@ function FindingRow({
             style={{ color: "#6688aa", background: "rgba(100,130,170,0.1)" }}
             aria-label={expanded ? "Collapse finding details" : "Expand finding details"}
             aria-expanded={expanded}
+            aria-controls={expanded ? detailsId : undefined}
           >
             {expanded ? "▲" : "▼"}
           </button>
@@ -168,7 +170,12 @@ function FindingRow({
 
       {/* Expanded: what it means, where it is, how to fix, where to read more */}
       {expanded && (
-        <div className="mt-2 space-y-2 animate-fade-up">
+        <div
+          id={detailsId}
+          role="region"
+          aria-label="Finding explanation and remediation"
+          className="mt-2 space-y-2 animate-fade-up"
+        >
           {finding.explanation && (
             <div
               className="font-jetbrains text-[10px] leading-relaxed px-2 py-1.5 rounded-sm"

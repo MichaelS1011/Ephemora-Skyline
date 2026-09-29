@@ -133,10 +133,10 @@ export function Landing() {
           className="font-jetbrains text-[13px] mb-9 leading-relaxed"
           style={{ color: "var(--meta)", maxWidth: 460 }}
         >
-          Pick one of your local project folders — watch it rise as a living city. Folders become
-          districts, files become buildings,
-          <span style={{ color: red }}> red beacons</span> are security findings. Everything stays
-          on your machine.
+          Choose any folder on this computer and it rises as a 3D city: each folder becomes a
+          district, each file a building. Taller buildings hold the most tangled code;
+          <span style={{ color: red }}> red beacons</span> mark files with security risks. Nothing
+          ever leaves this machine.
         </p>
 
         {/* Scan profile — opt-in layer below the fold, never a gate */}
@@ -171,7 +171,7 @@ export function Landing() {
                 className="inline-block w-2 h-2 rounded-full animate-pulse-glow"
                 style={{ background: red }}
               />
-              READING FOLDER…
+              Reading your files…
             </span>
           ) : isAnalyzing ? (
             <span className="flex items-center gap-2.5">
@@ -179,10 +179,10 @@ export function Landing() {
                 className="inline-block w-2 h-2 rounded-full animate-pulse-glow"
                 style={{ background: red }}
               />
-              SCANNING…
+              Analyzing code…
             </span>
           ) : (
-            "📂  PICK PROJECT FOLDER"
+            "Choose project folder"
           )}
         </button>
 
@@ -218,7 +218,7 @@ export function Landing() {
         {isCollecting && (
           <div className="mt-8 w-full animate-fade-up">
             <div className="flex justify-between font-jetbrains text-[10px] mb-1.5">
-              <span style={{ color: BRAND.ink }}>Reading folder…</span>
+              <span style={{ color: BRAND.ink }}>Reading your files…</span>
               <span style={{ color: red }}>
                 {collected.files > 0 ? `${collected.files} files` : "…"}
               </span>
@@ -248,7 +248,7 @@ export function Landing() {
         {isAnalyzing && !isCollecting && (
           <div className="mt-8 w-full animate-fade-up">
             <div className="flex justify-between font-jetbrains text-[10px] mb-1.5">
-              <span style={{ color: "#8f8b82" }}>{analysisStage || "PREPARING SITE…"}</span>
+              <span style={{ color: "#8f8b82" }}>{analysisStage || "Getting ready…"}</span>
               <span style={{ color: red }}>{analysisProgress}%</span>
             </div>
             <div
@@ -299,7 +299,7 @@ export function Landing() {
             className="mt-5 font-jetbrains text-[11px] tracking-widest animate-fade-up"
             style={{ color: BRAND.ink, textShadow: `0 0 12px ${red}55` }}
           >
-            ✓ SURVEY COMPLETE — raising the city…
+            ✓ Scan complete — building your city…
           </div>
         )}
 

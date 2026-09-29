@@ -217,7 +217,8 @@ export function HudOverlay({ apiStatus }: HudOverlayProps) {
                   <button
                     onClick={() => setThreatFilter("all")}
                     title="Clear severity filter"
-                    className="font-jetbrains text-[9px] px-1 rounded cursor-pointer"
+                    aria-label="Clear severity filter"
+                    className="font-jetbrains text-[9px] px-1 min-w-[24px] min-h-[24px] rounded cursor-pointer"
                     style={{ color: "var(--meta-strong)" }}
                   >
                     ✕

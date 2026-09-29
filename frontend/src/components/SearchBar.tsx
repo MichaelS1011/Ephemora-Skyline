@@ -98,7 +98,7 @@ export function SearchBar() {
           aria-expanded={showResults}
           aria-controls="search-results"
           aria-autocomplete="list"
-          className="w-full font-jetbrains text-xs pl-8 pr-8 py-1.5 rounded-sm outline-none transition-all duration-150"
+          className="w-full font-jetbrains text-xs pl-8 pr-8 py-2 rounded-sm outline-none transition-all duration-150"
           style={{
             background: "rgba(18, 18, 16, 0.88)",
             border: `1px solid ${open && value ? "rgba(232,178,60,0.45)" : "rgba(150,142,128,0.3)"}`,
@@ -140,7 +140,10 @@ export function SearchBar() {
           aria-label="Search results"
         >
           {results.length === 0 ? (
-            <div className="px-4 py-3 font-jetbrains text-[10px]" style={{ color: "var(--meta)" }}>
+            <div
+              className="px-4 py-3 font-jetbrains text-[10px]"
+              style={{ color: "var(--meta-strong)" }}
+            >
               No matching files in this city
             </div>
           ) : (
@@ -155,7 +158,7 @@ export function SearchBar() {
                     onMouseEnter={() => setActiveIdx(i)}
                     className="w-full text-left px-3 py-2 transition-colors duration-100 flex items-center justify-between gap-2"
                     style={{
-                      background: isActive ? "rgba(232,178,60,0.07)" : "transparent",
+                      background: isActive ? "rgba(232,178,60,0.1)" : "transparent",
                       borderBottom:
                         i < results.length - 1 ? "1px solid rgba(232,178,60,0.07)" : "none",
                     }}

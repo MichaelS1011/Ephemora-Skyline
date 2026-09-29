@@ -41,9 +41,18 @@ interface KeyboardHintsProps {
 export function KeyboardHints({ isOpen, onClose }: KeyboardHintsProps) {
   const closeButtonRef = useRef<HTMLButtonElement | null>(null);
   const overlayRef = useRef<HTMLDivElement | null>(null);
+  // WCAG 2.4.3: remember what had focus before the dialog opened so keyboard
+  // focus returns to the '?' trigger on close instead of dropping to <body>.
+  const prevFocusRef = useRef<Element | null>(null);
 
   useEffect(() => {
-    if (isOpen) closeButtonRef.current?.focus();
+    if (isOpen) {
+      prevFocusRef.current = document.activeElement;
+      closeButtonRef.current?.focus();
+    } else if (prevFocusRef.current instanceof HTMLElement) {
+      prevFocusRef.current.focus();
+      prevFocusRef.current = null;
+    }
   }, [isOpen]);
 
   useEffect(() => {

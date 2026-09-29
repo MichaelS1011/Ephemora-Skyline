@@ -126,7 +126,7 @@ export function Tooltip() {
         padding: "0.55rem 0.7rem",
         fontFamily: "var(--font-mono)",
         fontSize: "0.68rem",
-        color: "#e8e4da",
+        color: "var(--brand-ink)",
         pointerEvents: "none",
         zIndex: 50,
         boxShadow: `0 0 18px ${accent}22, 0 4px 16px rgba(0,0,0,0.5)`,
