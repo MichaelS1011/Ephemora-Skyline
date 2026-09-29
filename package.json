@@ -5,7 +5,7 @@
   "type": "module",
   "version": "0.1.0",
   "packageManager": "npm@10.0.0",
-  "description": "Eine interaktive 3D-City-Visualisierung von GitHub-Repositories als lebendige Cyberpunk-Stadt",
+  "description": "3D city visualizer for local codebases — folders rise as districts, security findings glow as beacons",
   "repository": {
     "type": "git",
     "url": "https://github.com/MichaelS1011/Ephemora-Skyline.git"
