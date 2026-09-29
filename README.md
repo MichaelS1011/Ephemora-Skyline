@@ -1,314 +1,122 @@
 # Ephemora Skyline
 
-Eine interaktive 3D-City-Visualisierung deines lokalen Projekts als lebendige Stadt in der Dämmerung.
+**Your local codebase, rendered as a living 3D city at dusk.** Pick any folder and watch it rise: folders become districts, files become buildings, taller buildings hold more tangled code, and red beacons mark security findings. Your code never leaves your machine.
 
-**Pick a local project folder and watch it rise as a living city** — districts are folders,
-buildings are files, glowing arcs are imports, and red beacons are security findings.
-Dein Code bleibt auf deinem Rechner.
+![Ephemora Skyline landing — scan profiles and the Choose-project-folder call to action](docs/assets/hero.png)
 
-- **Leere Welt als Start:** Jeder Besuch beginnt auf einer leeren Dämmerungs-Landschaft. Ordner auswählen — und die Stadt baut sich Stück für Stück auf (Straßen → Viertel → Gebäude), wie ein Film.
-- **Skalenunabhängig durch semantischen Zoom:** Die Übersicht zeigt immer einen Block pro Top-Level-Ordner — ob das Repo 100 oder 50.000 Dateien hat. Reinklicken öffnet den Block als eigenes Viertel; nicht gerenderte Dateien erscheinen ehrlich als Podium („+N more files").
-- **Security Tour:** Die Kamera fliegt von Finding zu Finding (risikogewichtet) — mit Erklärung und Fix-Vorschlag. From finding to action.
-- **Orientierung:** Brotkrumen, Minimap mit echter Kameraposition, Landmark-Turm für die gefährlichste Datei, Search-to-Fly.
-- **Teilen:** Jede Stadt hat einen Permalink (`?city=<id>`) plus PNG-Export.
+<p align="left">
+  <img alt="Node >=20" src="https://img.shields.io/badge/node-%3E%3D20-339933?style=flat&logo=nodedotjs&logocolor=white">
+  <img alt="TypeScript 5.8" src="https://img.shields.io/badge/typescript-5.8-3178c2?style=flat&logo=typescript&logocolor=white">
+  <img alt="React 19" src="https://img.shields.io/badge/react-19-61dafb?style=flat&logo=react&logocolor=000">
+  <img alt="three.js r186" src="https://img.shields.io/badge/three.js-r186-000000?style=flat">
+  <img alt="License BSL-1.1" src="https://img.shields.io/badge/license-BSL--1.1-informational?style=flat">
+</p>
 
-![Node.js](https://img.shields.io/badge/node-%3E%3D20-limegreen)
-![TypeScript](https://img.shields.io/badge/typescript-5.8-blue)
-![React](https://img.shields.io/badge/react-19-61dafb)
-![three.js](https://img.shields.io/badge/three.js-r186-black)
-![License](https://img.shields.io/badge/license-BSL--1.1-informational)
-![PRs](https://img.shields.io/badge/PRs-welcome-brightgreen)
+> A CI badge is deliberately **absent** until a green run exists on `main`. A badge that does not reflect enforced CI is decoration, not a signal. The four gates below are exactly what CI runs; run them locally first.
 
-> A CI badge is deliberately **absent** until a green run exists on `main`. A badge that does not reflect enforced CI is decoration, not a signal.
+## Why it is different
 
-## 🏗️ Tech Stack
+Most security tooling is a terminal of findings you scroll. Ephemora Skyline makes a codebase **spatially legible**, so "where is the risk?" is answered by sight before you read a line. Clarity is the first security control.
 
-| Layer         | Technologie                                                                      |
-| ------------- | -------------------------------------------------------------------------------- |
-| **Backend**   | Express, TypeScript (ESM), pino Logging, WebSocket (ws)                          |
-| **Git**       | system git via `execFile` (Argument-Array, keine Shell)                          |
-| **Security**  | Regex-Heuristics + gitleaks (Secrets) + semgrep (AST) + npm audit (Dependencies) |
-| **Frontend**  | Vite, React 19, Three.js r186 (@react-three/fiber 9), Zustand, Tailwind CSS      |
-| **Build**     | Turborepo (Monorepo), TypeScript, ESLint, Prettier                               |
-| **Testing**   | Vitest                                                                           |
-| **Dev Tools** | Husky, lint-staged                                                               |
+- **Empty world, then it builds.** Every visit starts on an empty dusk landscape. Pick a folder and the city assembles itself — roads, districts, buildings — like a film.
+- **Scale-independent semantic zoom.** The overview shows one block per top-level folder, whether the repo has 100 or 50,000 files. Click in to open a block as its own district; unrendered files show honestly as a podium ("+N more files"), never silently dropped.
+- **Security Tour.** The camera flies finding to finding, weighted by risk, with an explanation and a fix suggestion. From finding to action.
+- **Orientation, always.** Breadcrumbs, a minimap with the real camera position, a landmark tower for the most dangerous file, and search-to-fly.
+- **Shareable.** Every city has a permalink (`?city=<id>`) and a PNG export.
 
-## 🚀 Quick Start
+## Privacy model
 
-### Voraussetzungen
+Local analysis reads file contents in-process on your own machine through the `localhost` backend and sends nothing to a third party. Git runs through `execFile` with an argument array (never a shell string), so file names cannot inject commands. Local analysis is bounded at **3000 files / 40 MB** and skips `node_modules`, `.git`, and build dirs. The remote path (`POST /api/analyze`, public-repo clone via the GitHub API) is an explicit, separate action. See [SECURITY.md](./SECURITY.md) for the reporting process.
 
-- Node.js >= 20.0.0
-- npm >= 10.0.0
+## Quick start
 
-### Installation
+Requires **Node >= 20** and **npm >= 10**.
 
 ```bash
-# Repository clonen
 git clone https://github.com/MichaelS1011/Ephemora-Skyline.git
 cd Ephemora-Skyline
-
-# Dependencies installieren
-npm install
-
-# Optional: GitHub Token setzen (empfohlen für höhere Rate Limits)
-export GITHUB_TOKEN=your_github_token_here
+npm install            # ~492 packages
+npm run dev            # backend :4000 + frontend :3010, in parallel
 ```
 
-### Entwicklungsumgebung starten
+Open **http://localhost:3010** and click **Choose project folder** — or **explore a demo city first** for the full experience with no folder. Optional, for higher rate limits on the remote path:
 
 ```bash
-# Startet Backend (Port 4000) + Frontend (Vite Dev Server) parallel
-npm run dev
+export GITHUB_TOKEN=your_token
 ```
 
-- Backend: http://localhost:4000
-- Frontend: http://localhost:3010
-
-## 📦 Build
+### The four gates (what CI enforces)
 
 ```bash
-# Vollständiger Build (beide Packages)
-npm run build
-
-# Einzeln
-cd backend && npm run build   # → dist/
-cd frontend && npm run build  # → dist/
+npm run lint           # ESLint, zero warnings
+npm run type-check     # tsc --noEmit, both packages
+npm run test           # Vitest — 120 tests (36 frontend + 84 backend)
+npm run build          # production build, both packages
 ```
 
-## 🌍 Deployment
+A fifth check runs in CI: `npm audit --audit-level high` must report no high-severity advisories.
 
-### Render (Backend)
+## Tech stack
 
-```yaml
-# render.yaml
-services:
-  - type: web
-    name: codecity-backend
-    env: node
-    buildCommand: npm ci && npm run build
-    startCommand: npm start
-    envVars:
-      - key: NODE_ENV
-        value: production
-      - key: PORT
-        value: 10000
-```
+| Layer    | Technology                                                                            |
+| -------- | ------------------------------------------------------------------------------------- |
+| Backend  | Express 4, TypeScript (ESM), pino logging, WebSocket (`ws`)                           |
+| Git      | system `git` via `execFile` — argument array, never a shell string                    |
+| Security | regex heuristics + `gitleaks` (secrets) + `semgrep` (AST) + `npm audit` (deps)        |
+| Frontend | Vite 8, React 19, three.js r186 (`@react-three/fiber` 9), Zustand 5, Tailwind CSS 3.4 |
+| Build    | Turborepo (monorepo), TypeScript 5.8, ESLint 9, Prettier                              |
+| Testing  | Vitest                                                                                |
+| Dev      | Husky, lint-staged                                                                    |
 
-### Vercel (Frontend)
+## Architecture
 
-```json
-// vercel.json
-{
-  "buildCommand": "npm run build",
-  "outputDirectory": "frontend/dist",
-  "rewrites": [
-    { "source": "/api/(.*)", "destination": "https://codecity-backend.onrender.com/api/$1" },
-    { "source": "/(.*)", "destination": "/index.html" }
-  ]
-}
-```
-
-### Docker (Lokal)
-
-```bash
-# Backend + Frontend mit docker-compose starten
-docker compose -f docker/docker-compose.yml up --build
-```
-
-- Frontend: http://localhost:3000
-- Backend: http://localhost:4000
-
-## 📜 Scripts-Übersicht
-
-### Root (Monorepo)
-
-| Script               | Beschreibung                                    |
-| -------------------- | ----------------------------------------------- |
-| `npm run dev`        | Backend + Frontend parallel starten (Turborepo) |
-| `npm run build`      | Vollständiger Build (beide Packages)            |
-| `npm run lint`       | ESLint über alle Packages                       |
-| `npm run type-check` | TypeScript Check über alle Packages             |
-| `npm run test`       | Vitest Tests über alle Packages                 |
-| `npm run format`     | Prettier Formatierung (alle Files)              |
-| `npm run clean`      | Alle dist/, .turbo/, node_modules löschen       |
-
-### Backend
-
-| Script               | Beschreibung                                 |
-| -------------------- | -------------------------------------------- |
-| `npm run dev`        | Hot-reload mit tsx watch                     |
-| `npm run build`      | TypeScript Compilation (tsc -b)              |
-| `npm start`          | Production Start (node dist/server/index.js) |
-| `npm run test`       | Unit Tests (vitest run)                      |
-| `npm run test:watch` | Test Watch Mode                              |
-| `npm run lint`       | ESLint Check                                 |
-| `npm run type-check` | TypeScript Check                             |
-
-### Frontend
-
-| Script               | Beschreibung            |
-| -------------------- | ----------------------- |
-| `npm run dev`        | Vite Dev Server mit HMR |
-| `npm run build`      | TypeScript + Vite Build |
-| `npm run test`       | Vitest Tests            |
-| `npm run lint`       | ESLint Check            |
-| `npm run type-check` | TypeScript Check        |
-
-## 🔌 API Endpoints
-
-### Health Check
-
-```
-GET /api/health
-```
-
-**Response:**
-
-```json
-{ "status": "ok", "timestamp": "2025-01-01T00:00:00.000Z" }
-```
-
-### Lokalen Ordner Analysieren
-
-```
-POST /api/analyze-local
-Content-Type: application/json
-
-{
-  "name": "mein-projekt",
-  "files": [{ "path": "src/index.ts", "content": "..." }]
-}
-```
-
-**Response:** `202 { id, status, statusUrl }` — Progress via `GET /api/status/:id`
-(node_modules, .git, dist/build & Co. werden automatisch übersprungen;
-Caps: 3000 Dateien / 40 MB). Für Remote-Repos existiert weiterhin
-`POST /api/analyze` (git clone), die UI nutzt den lokalen Weg.
-
-- Endergebnis im Analysis-Format
-
-### Analyse-Ergebnis abrufen
-
-```
-GET /api/result/:sessionId
-```
-
-**Response:**
-
-```json
-{
-  "sessionId": "...",
-  "status": "completed",
-  "data": {/* City-Daten */}
-}
-```
-
-### Analyse-Status prüfen
-
-```
-GET /api/status/:sessionId
-```
-
-**Response:**
-
-```json
-{
-  "sessionId": "...",
-  "status": "analyzing", // | "completed" | "error"
-  "progress": 0.75
-}
-```
-
-### Demo-Repository
-
-```
-GET /api/demo
-```
-
-**Response:** Lädt ein Demo-Repository zur Visualisierung.
-
-## 🏛️ Architektur
+Full detail in [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md); first-run walkthrough in [`docs/GETTING_STARTED.md`](./docs/GETTING_STARTED.md).
 
 ```
 Ephemora-Skyline/
-├── backend/                  # Express API Server
+├── backend/                 # Express API server (:4000)
 │   └── src/
-│       ├── server/           # HTTP Server & Routes
-│       │   ├── index.ts      # Server Entry Point
-│       │   └── routes/       # API Route Handlers
-│       │       ├── health.ts # Health Check Endpoint
-│       │       ├── analyze.ts# Repository Analysis
-│       │       └── demo.ts   # Demo Repository
-│       ├── services/         # Core Services
-│       │   ├── analyzer/     # Pipeline: clone → parse → scan → aggregate
-│       │   │   └── orchestrator.ts
-│       │   ├── github/       # clone-manager (execFile git) + API client
-│       │   ├── security/     # scanner.ts (Fassade)
-│       │   │   └── adapters/ # regex / gitleaks / semgrep / dependency
-│       │   └── streaming/    # WS Progress Streaming
-│       ├── models/           # Data Models & Types
-│       └── utils/            # cityMapper (Stadt-Layout) + SARIF-Export
-├── frontend/                 # React 3D Visualisierung
+│       ├── server/routes/   # health, analyze, demo handlers
+│       ├── services/
+│       │   ├── analyzer/    # pipeline: parse -> scan -> aggregate (orchestrator.ts)
+│       │   ├── github/      # clone-manager (execFile git) + API client
+│       │   ├── security/    # scanner facade + adapters (regex / gitleaks / semgrep / dep)
+│       │   └── streaming/   # WebSocket progress
+│       ├── models/          # CityData, Finding, FileNode
+│       └── utils/           # cityMapper (city layout) + SARIF export
+├── frontend/                # React + three.js visualization (:3010 via Vite)
 │   └── src/
-│       ├── components/       # 3D & UI Components
-│       │   ├── CityScene.tsx  # Haupt-Szene
-│       │   ├── Building.tsx   # Einzelne Gebäude
-│       │   ├── RoadSystem.tsx # Straßennetz
-│       │   ├── ParticleField.tsx # Partikeleffekte
-│       │   ├── InfoPanel.tsx  # Informations-Panel
-│       │   ├── Minimap.tsx    # Mini-Map
-│       │   └── SearchBar.tsx  # Suche
-│       ├── renderer/         # 3D Renderer
-│       ├── stores/           # Zustand Stores
-│       ├── hooks/            # Custom Hooks
-│       └── design/           # Design Tokens
-├── docker/                   # Docker Configuration
-├── render.yaml               # Render Deploy Config
-├── vercel.json               # Vercel Deploy Config
-└── package.json              # Root + Turborepo Config
+│       ├── city/            # layout, types, geometry
+│       ├── components/      # 3D scene + UI (InfoPanel, Minimap, SearchBar, ...)
+│       ├── renderer/        # three.js render loop
+│       ├── hooks/           # useLocalAnalysis, useTestRunner, useLod...
+│       ├── stores/          # Zustand
+│       └── design/          # design tokens
+├── docs/                    # ARCHITECTURE, GETTING_STARTED, assets/
+└── .github/                 # CI, issue/PR templates, dependabot
 ```
 
-## 🔧 Entwicklung
+## API (`:4000`)
 
-### Code Style
+| Method / path               | Purpose                                        |
+| --------------------------- | ---------------------------------------------- |
+| `GET  /api/health`          | liveness check                                 |
+| `GET  /api/demo`            | seeded demo city (`demo-001`)                  |
+| `POST /api/analyze-local`   | analyze a locally-picked folder (primary path) |
+| `GET  /api/status/:id`      | analyze progress (0..1, phase)                 |
+| `GET  /api/result/:id/city` | completed city data for the renderer           |
+| `POST /api/analyze`         | clone a public repo (explicit alternative)     |
 
-```bash
-# Alle Files formatieren
-npm run format
+## Contributing
 
-# Formatierung prüfen
-npm run format
+The four gates, commit conventions, and PR checklist live in **[CONTRIBUTING.md](./CONTRIBUTING.md)**. Small, reviewable changes land fastest. The `Ephemora Skyline` name and the BSL-1.1 license are non-negotiable; UI strings are English; 3D/render-critical changes need a real-GPU screenshot (headless CI cannot render WebGL).
 
-# ESLint Fix
-# Läuft automatisch via lint-staged vor Commits
-```
+## License
 
-### Testing
+**Business Source License 1.1 (BSL-1.1)** — see [LICENSE](./LICENSE). Source-available, **not** OSI open-source.
 
-```bash
-# Tests ausführen
-npm run test
+- **Allowed:** read, modify, run, and share the code for personal, educational, internal-business, and all non-production purposes (development, testing, evaluation, research).
+- **Not allowed** (without a separate commercial license): offering the software or derivatives to third parties as a hosted/managed service (SaaS).
+- **Automatic conversion:** on the Change Date (**2030-09-29**) the license converts to **Apache License 2.0**.
 
-# Watch Mode
-npm run test:watch
-```
-
-## 📝 Lizenz
-
-**Business Source License 1.1** (BSL-1.1) — siehe [LICENSE](./LICENSE).
-
-Ephemora Skyline ist _source-available_, nicht OSI-Open-Source. Das heißt konkret:
-
-- ✅ **Erlaubt:** Code lesen, modifizieren, laufen lassen und weitergeben — für
-  persönliche, Bildungszwecke, interne Geschäftsnutzung und alle
-  Nicht-Produktionszwecke (Entwicklung, Tests, Evaluation, Forschung).
-- ❌ **Nicht erlaubt (ohne separate kommerzielle Lizenz):** die Software selbst
-  oder Ableitungen davon Dritten als gehosteter/verwalteter Service (SaaS)
-  anzubieten.
-- 🔄 **Automatische Konvertierung:** Mit dem _Change Date_ (**2030-09-29**)
-  wechselt die Lizenz automatisch zu **Apache License 2.0**.
-
-Kopien müssen diese Lizenz, das „Ephemora Skyline"-Branding und alle
-Copyright-Hinweise enthalten. Kommerzielle Lizenzen (u. a. für
-Hosted-Service-Rechte, White-Labeling, Enterprise-Redistribution) über
-Ephemora.
+Copies must retain this license, the "Ephemora Skyline" branding, and all copyright notices. Commercial licenses (hosted-service rights, white-labeling, enterprise redistribution) are available via Ephemora.
