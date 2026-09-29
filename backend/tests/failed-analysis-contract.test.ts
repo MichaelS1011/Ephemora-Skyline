@@ -2,8 +2,8 @@ import { describe, it, expect } from "vitest";
 import { promises as fs } from "fs";
 import os from "os";
 import path from "path";
-import { handleLocalAnalyze } from "../src/server/routes/local-analyze.js";
-import { makeSkeleton, failJob } from "../src/server/routes/analyze.js";
+import { handleLocalAnalyze, pruneStaleUploadDirs } from "../src/server/routes/local-analyze.js";
+import { makeSkeleton, failJob } from "../src/server/routes/job-progress.js";
 import { AnalysisOrchestrator } from "../src/services/analyzer/orchestrator.js";
 import type { AnalysisResult } from "../src/models/index.js";
 
@@ -89,14 +89,13 @@ describe("failed analysis contract (H1)", () => {
     expect((res.body as { error: string }).error).toContain("No files received");
   });
 
-  it("stages and cleans up: upload dir is removed even when the pipeline throws", async () => {
+  it("stages and KEEPS the upload dir when the pipeline throws — test runner reuses it", async () => {
     const orchestrator = {
       analyzeDirectory: async (): Promise<AnalysisResult> => {
         throw new Error("boom");
       },
     } as unknown as AnalysisOrchestrator;
     const uploadsRoot = path.join(os.tmpdir(), "codecity-uploads");
-    const before = new Set(await fs.readdir(uploadsRoot).catch(() => []));
     const store: Store = new Map();
     const res = makeRes();
     await handleLocalAnalyze(
@@ -109,16 +108,18 @@ describe("failed analysis contract (H1)", () => {
     for (let i = 0; i < 20 && store.get(id)?.status === "analyzing"; i++) {
       await new Promise((r) => setTimeout(r, 100));
     }
-    // cleanup runs in the finally AFTER the failed status lands — poll for it
-    let dirGone = false;
-    for (let i = 0; i < 50; i++) {
-      const after = await fs.readdir(uploadsRoot).catch(() => [] as string[]);
-      if (!after.includes(id)) {
-        dirGone = true;
-        break;
-      }
-      await new Promise((r) => setTimeout(r, 100));
-    }
-    expect(dirGone).toBe(true); // cleaned up despite the crash
+    expect(store.get(id)?.status).toBe("failed");
+    // New contract: the staged dir SURVIVES the failure so the test runner
+    // can reuse it; the TTL sweeper (pruneStaleUploadDirs) removes it later.
+    const after = await fs.readdir(uploadsRoot).catch(() => [] as string[]);
+    expect(after).toContain(id);
+    // …and the sweeper honors its TTL contract: fresh dirs survive,
+    // stale ones (>24h) are swept
+    await pruneStaleUploadDirs();
+    const afterFreshPrune = await fs.readdir(uploadsRoot).catch(() => [] as string[]);
+    expect(afterFreshPrune).toContain(id);
+    await pruneStaleUploadDirs(Date.now() + 25 * 60 * 60 * 1000);
+    const afterStalePrune = await fs.readdir(uploadsRoot).catch(() => [] as string[]);
+    expect(afterStalePrune).not.toContain(id);
   });
 });

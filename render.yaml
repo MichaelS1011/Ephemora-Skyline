@@ -3,15 +3,16 @@ services:
     name: codecity-backend
     runtime: node
     region: frankfurt
-    plan: free
-    buildCommand: cd backend && npm ci && npm run build
-    startCommand: cd backend && npm start
+    buildCommand: npm ci && npm run build --workspace=codecity-backend
+    startCommand: npm start --workspace=codecity-backend
     healthCheckPath: /api/health
     envVars:
       - key: NODE_ENV
         value: production
       - key: PORT
         value: 10000
+      - key: TRUST_PROXY
+        value: "1"
       - key: FRONTEND_ORIGIN
         sync: false   # set in Render dashboard
       - key: GITHUB_TOKEN

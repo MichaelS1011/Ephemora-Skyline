@@ -2,27 +2,34 @@ FROM node:20-alpine AS builder
 
 WORKDIR /app
 
-# git is required by CloneManager (child_process.exec('git clone ...'))
 RUN apk add --no-cache git
 
-COPY package*.json ./
+COPY package*.json .npmrc ./
+COPY backend/package.json ./backend/
+COPY frontend/package.json ./frontend/
 RUN npm ci --ignore-scripts
 
-COPY tsconfig.json tsconfig.base.json ./
-COPY src/ src/
-RUN npm run build
+COPY tsconfig.base.json ./
+COPY backend/tsconfig*.json ./backend/
+COPY backend/src/ ./backend/src/
+RUN npm run build --workspace=codecity-backend
 
-FROM node:20-alpine
+FROM node:20-alpine AS runner
 
 WORKDIR /app
 
-# git must be present in the final image for runtime cloning
 RUN apk add --no-cache git
 
-COPY package*.json ./
-RUN npm ci --ignore-scripts
+ENV NODE_ENV=production
 
-COPY --from=builder /app/dist ./dist
+COPY package*.json .npmrc ./
+COPY backend/package.json ./backend/
+COPY frontend/package.json ./frontend/
+RUN npm ci --omit=dev --ignore-scripts && npm cache clean --force
+
+COPY --from=builder /app/backend/dist ./backend/dist
+
+WORKDIR /app/backend
 
 EXPOSE 4000
 

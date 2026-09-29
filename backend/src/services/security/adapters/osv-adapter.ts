@@ -215,7 +215,6 @@ export class OsvAdapter implements ScannerAdapter {
       "pip-audit",
       "/opt/homebrew/bin/pip-audit",
       "/usr/local/bin/pip-audit",
-      "/Users/mimiai/swarms_venv/bin/pip-audit",
     ]) {
       try {
         const { stdout } = await execFileAsync(

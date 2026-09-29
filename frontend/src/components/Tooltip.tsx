@@ -62,7 +62,7 @@ export function Tooltip() {
 
   let title = "";
   let subtitle = "";
-  let accent = "#4de3ff";
+  let accent = "#f2d5a0";
   let badge = "";
   let badgeColor = "";
   let hint = "";
@@ -72,35 +72,42 @@ export function Tooltip() {
     const block = layout.blocks.find((b) => b.dir.path === blockPath);
     if (!block) return null;
     title = block.dir.name;
-    subtitle = `${block.dir.fileCount} files · ${block.dir.linesOfCode.toLocaleString()} LOC`;
+    subtitle = `folder · ${block.dir.fileCount} files · ${block.dir.linesOfCode.toLocaleString()} LOC`;
     if (block.dir.findingsBySeverity.P0 > 0) {
       accent = SEVERITY_COLOR.P0;
-      badge = `${block.dir.findingsBySeverity.P0} critical`;
+      badge = `${block.dir.findingsBySeverity.P0} critical finding${
+        block.dir.findingsBySeverity.P0 !== 1 ? "s" : ""
+      }`;
       badgeColor = SEVERITY_COLOR.P0;
     } else if (block.dir.findingsBySeverity.P1 > 0) {
       accent = SEVERITY_COLOR.P1;
-      badge = `${block.dir.findingsBySeverity.P1} high`;
+      badge = `${block.dir.findingsBySeverity.P1} high finding${
+        block.dir.findingsBySeverity.P1 !== 1 ? "s" : ""
+      }`;
       badgeColor = SEVERITY_COLOR.P1;
     } else {
       badge = "no findings";
       badgeColor = "#29d398";
     }
-    hint = "click to enter district";
+    hint = "click to zoom into this district";
   } else {
     const b = layout.buildings.find((x) => x.file.id === hoveredId);
     if (!b) return null;
+    const loc = b.file.linesOfCode.toLocaleString();
     title = b.file.name;
     subtitle = b.file.path;
     accent = languageColor(b.file.language);
     if (b.file.findings.length > 0) {
       accent = THREAT_COLOR[b.file.threatLevel as ThreatLevel] ?? accent;
-      badge = `${b.file.findings.length} finding${b.file.findings.length !== 1 ? "s" : ""}`;
+      badge = `${loc} LOC · ${b.file.findings.length} finding${
+        b.file.findings.length !== 1 ? "s" : ""
+      }`;
       badgeColor = THREAT_COLOR[b.file.threatLevel as ThreatLevel] ?? SEVERITY_COLOR.P0;
-      hint = b.file.findings[0]?.type ?? "";
+      hint = "click for details";
     } else {
-      badge = `${b.file.linesOfCode.toLocaleString()} LOC`;
+      badge = `${loc} LOC · no findings`;
       badgeColor = "#29d398";
-      hint = b.file.language;
+      hint = `${b.file.language} · click for details`;
     }
   }
 
@@ -113,13 +120,13 @@ export function Tooltip() {
         left: -9999,
         top: -9999,
         width: TOOLTIP_W,
-        background: "rgba(6, 9, 20, 0.95)",
+        background: "rgba(18, 18, 16, 0.95)",
         border: `1px solid ${accent}55`,
         borderRadius: 4,
         padding: "0.55rem 0.7rem",
         fontFamily: "var(--font-mono)",
         fontSize: "0.68rem",
-        color: "#c8d8f0",
+        color: "#e8e4da",
         pointerEvents: "none",
         zIndex: 50,
         boxShadow: `0 0 18px ${accent}22, 0 4px 16px rgba(0,0,0,0.5)`,
@@ -166,11 +173,6 @@ export function Tooltip() {
         >
           {badge}
         </span>
-        {isBlock && (
-          <span className="font-jetbrains text-[9px]" style={{ color: "var(--meta-faint)" }}>
-            click to enter
-          </span>
-        )}
       </div>
     </div>
   );

@@ -20,13 +20,12 @@ import pino from "pino";
 
 import type { AnalysisResult } from "../models/index.js";
 import { AnalysisOrchestrator } from "../services/analyzer/orchestrator.js";
-import { GitHubClient } from "../services/github/client.js";
-import { CloneManager } from "../services/github/clone-manager.js";
 import { SecurityScanner } from "../services/security/scanner.js";
 import { getHealth } from "./routes/health.js";
 import { getDemoResult } from "./routes/demo.js";
-import { handleAnalyze, getJobProgress } from "./routes/analyze.js";
-import { handleLocalAnalyze } from "./routes/local-analyze.js";
+import { getJobProgress } from "./routes/job-progress.js";
+import { handleLocalAnalyze, pruneStaleUploadDirs } from "./routes/local-analyze.js";
+import { handleTestRun, handleTestStatus } from "./routes/tests.js";
 import { WebSocketServerManager } from "../services/streaming/websocket-server.js";
 import { mapResultToCityData } from "../utils/cityMapper.js";
 import { resultToSarif } from "../utils/sarif.js";
@@ -98,10 +97,8 @@ class AnalysisStore {
 const analysisStore = new AnalysisStore();
 
 // ── Service instances ─────────────────────────────────────────────────────
-const githubClient = new GitHubClient(logger);
-const cloneManager = new CloneManager(logger);
 const securityScanner = new SecurityScanner();
-const orchestrator = new AnalysisOrchestrator(cloneManager, githubClient, securityScanner);
+const orchestrator = new AnalysisOrchestrator(securityScanner);
 
 // ── Rate limiting ─────────────────────────────────────────────────────────
 // Read endpoints get a generous budget (browsing a city should never lock
@@ -123,34 +120,14 @@ const localAnalyzeLimiter = rateLimit({
   message: { error: "Too many analyses — take a short break." },
 });
 
-const analyzeLimiter = rateLimit({
-  windowMs: 60 * 60 * 1000, // 1 hour
-  max: 10, // max 10 analyses per IP per hour
-  standardHeaders: true,
-  legacyHeaders: false,
-  message: { error: "Analysis rate limit reached — maximum 10 analyses per hour per IP." },
-});
-
 // ── WS analyze budget ─────────────────────────────────────────────────────
-// WS start_analysis bypasses express middleware, so the analysis budget is
-// applied manually here, keyed on the socket's remote address.
-const WS_ANALYZE_WINDOW_MS = 60 * 60 * 1000;
-const WS_ANALYZE_MAX = 10;
-const wsAnalyzeHits = new Map<string, number[]>();
-
-function allowWsAnalyze(ip: string): boolean {
-  const now = Date.now();
-  const hits = (wsAnalyzeHits.get(ip) ?? []).filter((t) => now - t < WS_ANALYZE_WINDOW_MS);
-  if (hits.length >= WS_ANALYZE_MAX) {
-    wsAnalyzeHits.set(ip, hits);
-    return false;
-  }
-  hits.push(now);
-  wsAnalyzeHits.set(ip, hits);
-  return true;
-}
 
 // ── Middleware ─────────────────────────────────────────────────────────────
+// Behind a reverse proxy (nginx in compose, Render's router) express-rate-limit
+// must key on the client IP from X-Forwarded-For, not on the proxy's IP.
+if (process.env.TRUST_PROXY) {
+  app.set("trust proxy", process.env.TRUST_PROXY);
+}
 app.use(helmet());
 app.use(
   cors({
@@ -202,13 +179,14 @@ app.post(
   },
 );
 
-// POST /api/analyze — kick off a repository analysis
-// Returns 202 immediately with { id, status, statusUrl } — the analysis runs
-// in the background; progress via WS events or GET /api/status/:id
-app.post("/api/analyze", analyzeLimiter, async (req: Request, res: Response): Promise<void> => {
-  // handleAnalyze registers a skeleton result in the store and starts the
-  // analysis in the background — no long-blocking request
-  await handleAnalyze(req, res, orchestrator, analysisStore);
+// POST /api/tests/:id/run — run the project's own tests from the staged copy
+app.post("/api/tests/:id/run", readLimiter, (req: Request, res: Response): void => {
+  void handleTestRun(req, res);
+});
+
+// GET /api/tests/run/:runId — poll a test run
+app.get("/api/tests/run/:runId", readLimiter, (req: Request, res: Response): void => {
+  handleTestStatus(req, res);
 });
 
 // GET /api/result/:id — retrieve a completed analysis
@@ -301,10 +279,10 @@ wss.on("connection", (wsClient: WebSocket, request: http.IncomingMessage) => {
   // Register with manager for heartbeat + cleanup tracking
   wsManager.handleConnection(wsClient, request.url ?? "/ws");
 
-  // Allow 5s for client to send start_analysis before defaulting to demo
+  // Allow 5s for client activity before defaulting to demo data
   const startAnalysisTimeout = setTimeout(() => {
     if (wsClient.readyState === wsClient.OPEN) {
-      logger.info({ clientId }, "No start_analysis received — sending demo data");
+      logger.info({ clientId }, "No activity received — sending demo data");
       try {
         wsClient.send(
           JSON.stringify({
@@ -328,52 +306,6 @@ wss.on("connection", (wsClient: WebSocket, request: http.IncomingMessage) => {
       }
     }
   }, 5000);
-
-  wsClient.on("message", (data: Buffer) => {
-    clearTimeout(startAnalysisTimeout);
-    const raw = data.toString();
-
-    try {
-      const parsed = JSON.parse(raw) as {
-        type?: string;
-        payload?: { url?: string; branch?: string; fullHistory?: boolean; config?: unknown };
-      };
-
-      if (parsed.type === "start_analysis" && parsed.payload?.url) {
-        const ip = request.socket.remoteAddress ?? "unknown";
-        if (!allowWsAnalyze(ip)) {
-          logger.warn({ clientId, ip }, "WS: analysis rate limit reached");
-          try {
-            wsClient.send(
-              JSON.stringify({
-                type: "error",
-                payload: { message: "Analysis rate limit reached — maximum 10 analyses per hour." },
-                timestamp: new Date().toISOString(),
-              }),
-            );
-          } catch {
-            /* client already closed */
-          }
-          return;
-        }
-
-        const { url, branch } = parsed.payload;
-        logger.info({ clientId, url }, "WS: triggering analysis");
-
-        handleAnalyze(
-          { body: { url, branch, config: parsed.payload?.config }, params: {} } as Request,
-          { json: () => {}, status: () => ({ json: () => {} }) } as unknown as Response,
-          orchestrator,
-          analysisStore,
-          wsClient,
-        ).catch((err: unknown) => {
-          logger.error({ clientId, err }, "WS analysis failed");
-        });
-      }
-    } catch {
-      logger.warn({ clientId, raw }, "WS: received non-JSON message");
-    }
-  });
 
   wsClient.on("close", () => {
     clearTimeout(startAnalysisTimeout);
@@ -401,5 +333,9 @@ const PORT = parseInt(process.env.PORT ?? "4000", 10);
 server.listen(PORT, () => {
   logger.info({ port: PORT }, "CodeCity backend listening");
 });
+
+// Prune stale staged uploads (test-runner copies) every 6 hours
+void pruneStaleUploadDirs();
+setInterval(() => void pruneStaleUploadDirs(), 6 * 60 * 60 * 1000);
 
 export { app, server };

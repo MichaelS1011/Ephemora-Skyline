@@ -1,25 +1,21 @@
-ARG VITE_API_URL=/api
-ARG VITE_WS_URL=/ws
-
 FROM node:20-alpine AS builder
 
 WORKDIR /app
 
-COPY package*.json ./
+COPY package*.json .npmrc ./
+COPY backend/package.json ./backend/
+COPY frontend/package.json ./frontend/
+# .npmrc (legacy-peer-deps) must be present for npm ci to accept the lockfile
 RUN npm ci --ignore-scripts
 
-COPY tsconfig.json tsconfig.base.json ./
-COPY src/ src/
-COPY vite.config.ts ./
+COPY tsconfig.base.json ./
+COPY frontend/ ./frontend/
 
-ENV VITE_API_URL=${VITE_API_URL}
-ENV VITE_WS_URL=${VITE_WS_URL}
-
-RUN npm run build
+RUN npm run build --workspace=codecity-frontend
 
 FROM nginx:alpine
 
-COPY --from=builder /app/dist /usr/share/nginx/html
+COPY --from=builder /app/frontend/dist /usr/share/nginx/html
 COPY docker/nginx.conf /etc/nginx/conf.d/default.conf
 
 EXPOSE 80

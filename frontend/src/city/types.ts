@@ -39,6 +39,26 @@ export interface CityFile {
   cyclomaticComplexity: number;
   threatLevel: ThreatLevel;
   findings: CityFinding[];
+  /** Raw file size in bytes — bloat LOC hides */
+  bytes?: number;
+  /** 0..1 git change-frequency hotspot score (absent without git history) */
+  churnScore?: number;
+  commitCount?: number;
+  daysSinceLastCommit?: number;
+  /** Developer with the most commits touching this file */
+  topAuthor?: string;
+  /** Number of exported symbols — the file's public API surface */
+  exportedSymbols?: number;
+  /** Number of import statements — coupling proxy until the AST core lands */
+  importCount?: number;
+  /** Exports exist but nothing imports this file (conservative heuristic) */
+  deadCodeCandidate?: boolean;
+  /** Part of at least one circular import chain */
+  inCycle?: boolean;
+  /** Line coverage 0..100 parsed from a lcov-style report, if present */
+  coveragePct?: number;
+  /** Files sharing ≥6 normalized duplicated lines with this one (top 3) */
+  clonePartners?: Array<{ id: string; path: string; lines: number }>;
 }
 
 export interface CityDir {
@@ -55,6 +75,9 @@ export interface CityDir {
   remainingFiles: number;
   /** Up to 6 representative subtree files — the district's skyline. */
   districtFiles: CityFile[];
+  /** Author owning the most files in this subtree ("Anna's district") */
+  topAuthor?: string;
+  topAuthorShare?: number;
 }
 
 export interface FileConnection {
@@ -79,6 +102,15 @@ export interface CityData {
   tree: CityDir;
   fileConnections: FileConnection[];
   dirConnections: DirConnection[];
+  /** Which optional dimensions are present — UI degrades gracefully without */
+  meta: {
+    churn: boolean;
+    deadCode: boolean;
+    duplicates: boolean;
+    cycles: boolean;
+    coverage: boolean;
+    blame: boolean;
+  };
 }
 
 /** Which unit is currently selected (a rendered file building or a block). */

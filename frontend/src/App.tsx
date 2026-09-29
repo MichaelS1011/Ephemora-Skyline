@@ -18,6 +18,8 @@ import { CoachMarks } from "./components/CoachMarks";
 import { ActionBar } from "./components/ActionBar";
 import { ContextCard } from "./components/ContextCard";
 import { FindingsPanel } from "./components/FindingsPanel";
+import { HeatmapToggle } from "./components/HeatmapToggle";
+import { HelpTipProvider } from "./components/HelpTipProvider";
 import { useStore } from "./stores";
 import { getDirLayout } from "./city/layout";
 import type { CityData } from "./city/types";
@@ -188,10 +190,11 @@ export default function App() {
   }, [handleKeyDown]);
 
   const inCity = cityData !== null;
+  const isLoading = useStore((s) => s.isLoading);
 
   return (
-    <div className="w-full h-screen relative bg-[#0b1026]">
-      <LoadingScreen isVisible={useStore((s) => s.isLoading)} />
+    <div className="w-full h-screen relative bg-[#161614]">
+      <LoadingScreen isVisible={isLoading} />
 
       {/* 3D world — empty at first, city rises into it */}
       <div
@@ -223,7 +226,7 @@ export default function App() {
               className="absolute top-16 left-1/2 -translate-x-1/2 z-30 flex items-center gap-3
                          font-jetbrains text-[11px] px-4 py-2.5 rounded"
               style={{
-                background: "rgba(30, 12, 18, 0.92)",
+                background: "rgba(32, 16, 12, 0.92)",
                 border: "1px solid rgba(255, 107, 107, 0.45)",
                 color: "#ffb4b4",
                 boxShadow: "0 4px 24px rgba(0,0,0,0.5)",
@@ -269,14 +272,18 @@ export default function App() {
             <Minimap show />
             <CoachMarks />
 
+            <div className="absolute bottom-28 left-4 pointer-events-auto z-20">
+              <HeatmapToggle />
+            </div>
+
             <div className="absolute bottom-16 left-4 pointer-events-auto z-20">
               <button
                 onClick={() => setShowKeyboardHints((v) => !v)}
                 aria-label="Toggle keyboard shortcuts (press ? key)"
                 aria-expanded={showKeyboardHints}
                 aria-controls="keyboard-hints-overlay"
-                className="font-mono text-[10px] text-[#76889f] hover:text-[#00d4ff] transition-colors
-                           focus:outline-none focus:ring-1 focus:ring-[#00d4ff] rounded px-1 py-0.5"
+                className="font-mono text-[10px] text-[#7d796f] hover:text-[#e8b23c] transition-colors
+                           focus:outline-none focus:ring-1 focus:ring-[#e8b23c] rounded px-1 py-0.5"
               >
                 [?] shortcuts
               </button>
@@ -292,6 +299,7 @@ export default function App() {
       </div>
 
       <Tooltip />
+      <HelpTipProvider />
     </div>
   );
 }

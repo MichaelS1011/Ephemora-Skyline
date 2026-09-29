@@ -15,6 +15,25 @@ export interface CameraInfo {
   x: number;
   z: number;
   angle: number;
+  /** Camera distance to the orbit target — drives LOD transitions. */
+  dist: number;
+}
+
+export type HeatChannel = "threat" | "complexity" | "churn";
+
+export interface TestFailureInfo {
+  name: string;
+  message: string;
+}
+export interface TestFileResultInfo {
+  path: string;
+  status: "passed" | "failed";
+  tests: number;
+  failures: TestFailureInfo[];
+}
+export interface TestRunState {
+  status: "idle" | "installing" | "running" | "complete" | "failed";
+  stage: string;
 }
 
 let flyNonce = 0;
@@ -34,6 +53,7 @@ interface AppState {
   constructionTotal: number; // units to raise in the current level
   constructionDone: number;
   setCityData: (data: CityData | null) => void;
+  resetToLanding: () => void;
   setBuildPhase: (phase: "empty" | "constructing" | "built") => void;
   setConstructionProgress: (done: number, total: number) => void;
 
@@ -49,7 +69,7 @@ interface AppState {
   drillOut: () => void;
   /** Back to the city overview. */
   resetFocus: () => void;
-  setFocusPath: (path: string[]) => void;
+  setFocusPath: (path: string[], opts?: { keepSelection?: boolean }) => void;
   setSelectedUnit: (unit: SelectedUnit) => void;
 
   /** Navigate to a specific file: drill into its district, select + fly. */
@@ -64,6 +84,16 @@ interface AppState {
   // ── Filters ────────────────────────────────────────────────────────────
   threatFilter: Severity | "all";
   setThreatFilter: (f: Severity | "all") => void;
+
+  /** What the far-zoom heat cells are colored by. */
+  heatChannel: HeatChannel;
+  setHeatChannel: (c: HeatChannel) => void;
+
+  // ── Test runner ──────────────────────────────────────────────────────────
+  testRun: TestRunState;
+  testResults: Record<string, TestFileResultInfo>; // path → result
+  setTestRun: (run: TestRunState) => void;
+  setTestResults: (files: TestFileResultInfo[]) => void;
 
   // ── Security Tour ──────────────────────────────────────────────────────
   // ── Findings list panel ───────────────────────────────────────────────
@@ -121,11 +151,36 @@ export const useStore = create<AppState>((set, get) => ({
       cityData: data,
       focusPath: [],
       selectedUnit: null,
+      hoveredId: null,
+      // Stale view state must never leak into a new city: a P0 filter from
+      // the previous repo would dim the new one with no visible indicator
+      // (chips hide when a severity has 0 findings), and a running tour
+      // would keep walking a city it was never started for.
+      threatFilter: "all",
+      tourActive: false,
+      tourIndex: 0,
+      testRun: { status: "idle", stage: "" },
+      testResults: {},
       buildPhase: data ? "constructing" : "empty",
       buildStartedAt: data ? Date.now() : 0,
       constructionDone: 0,
       constructionTotal: 0,
     }),
+
+  /** Tear the city down and return to the Landing screen ("start over"). */
+  resetToLanding: () => {
+    set({
+      cityData: null,
+      buildPhase: "empty",
+      analysisId: null,
+      isLoading: false,
+      analysisProgress: 0,
+      analysisStage: "",
+    });
+    if (typeof window !== "undefined" && window.history.replaceState) {
+      window.history.replaceState(null, "", window.location.pathname);
+    }
+  },
   setBuildPhase: (phase) => set({ buildPhase: phase }),
   setConstructionProgress: (done, total) =>
     set({ constructionDone: done, constructionTotal: total }),
@@ -135,8 +190,8 @@ export const useStore = create<AppState>((set, get) => ({
   hoveredId: null,
   setHoveredId: (id) => set({ hoveredId: id }),
 
-  setFocusPath: (path) => {
-    set({ focusPath: path, selectedUnit: null });
+  setFocusPath: (path, opts) => {
+    set({ focusPath: path, ...(opts?.keepSelection ? {} : { selectedUnit: null }) });
     const city = get().cityData;
     if (city) flyToDirOverview(set, city, path);
   },
@@ -179,11 +234,24 @@ export const useStore = create<AppState>((set, get) => ({
 
   flyRequest: null,
   requestFly: (x, z, distance = 40) => set({ flyRequest: { x, z, distance, nonce: ++flyNonce } }),
-  cameraInfo: { x: 0, z: 60, angle: 0 },
+  cameraInfo: { x: 0, z: 60, angle: 0, dist: 80 },
   setCameraInfo: (info) => set({ cameraInfo: info }),
 
   threatFilter: "all",
   setThreatFilter: (f) => set({ threatFilter: f }),
+
+  heatChannel: "threat",
+  setHeatChannel: (c) => set({ heatChannel: c }),
+
+  testRun: { status: "idle", stage: "" },
+  testResults: {},
+  setTestRun: (run) => set({ testRun: run }),
+  setTestResults: (files) =>
+    set((state) => {
+      const next = { ...state.testResults };
+      for (const f of files) next[f.path] = f;
+      return { testResults: next };
+    }),
 
   showFindings: false,
   setShowFindings: (v) => set({ showFindings: v }),

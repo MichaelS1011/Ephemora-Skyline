@@ -19,6 +19,8 @@ export interface FileAnalysis {
   path: string;
   language: string;
   lines: { total: number; code: number; comments: number; blank: number };
+  /** Raw file size in bytes — flags binary bloat that LOC hides */
+  bytes?: number;
   complexity: { cyclomatic: number; cognitive: number };
   functions: Array<{
     name: string;
@@ -39,6 +41,27 @@ export interface FileAnalysis {
     name: string;
     line: number;
   }>;
+  /**
+   * Git change-frequency data (clone-based scans only; absent for local
+   * uploads or single-commit clones). Drives the visual "git erosion".
+   */
+  churn?: {
+    commits: number;
+    addedLines: number;
+    deletedLines: number;
+    daysSinceLastCommit: number;
+    authors: number;
+    /** Developer with the most commits on this file */
+    topAuthor?: string;
+    /** 0..1 normalized hotspot score */
+    score: number;
+  };
+  /** Line-coverage percentage parsed from lcov-style reports, if present */
+  coveragePct?: number;
+  /** Other files sharing ≥ MIN_CLONE_LINES normalized lines (top 3) */
+  clonePartners?: Array<{ path: string; lines: number }>;
+  /** Part of at least one circular import chain */
+  inCycle?: boolean;
   content?: string;
   vulnerabilities: SecurityIssue[];
 }
@@ -108,6 +131,12 @@ export interface ProjectSummary {
     dependencies?: boolean;
     osv?: boolean;
     ruff?: boolean;
+    /** git history was deep enough for trustworthy churn scores */
+    churn?: boolean;
+    /** copy-paste clones were found */
+    duplicates?: boolean;
+    /** a lcov-style coverage report was found and parsed */
+    coverage?: boolean;
   };
 }
 

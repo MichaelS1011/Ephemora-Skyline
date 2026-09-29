@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useLocalAnalysis } from "../hooks/useLocalAnalysis";
 import { ProfileChips } from "./ProfileChips";
 
@@ -13,20 +13,20 @@ function ProgressBar({ progress, stage }: { progress: number; stage: string }) {
       aria-label={`Analysis progress: ${progress}%`}
     >
       <div className="flex justify-between items-center mb-1">
-        <span className="font-mono text-[10px] text-[#00d4ff] tracking-widest truncate max-w-[200px]">
+        <span className="font-mono text-[10px] text-[#e8b23c] tracking-widest truncate max-w-[200px]">
           {stage || "INITIALIZING..."}
         </span>
-        <span className="font-mono text-[10px] text-[#00ff9f] ml-2 shrink-0">{progress}%</span>
+        <span className="font-mono text-[10px] text-[#e8503c] ml-2 shrink-0">{progress}%</span>
       </div>
-      <div className="w-full h-[3px] bg-[#0a0a1a] border border-[#1a2a3a] rounded-sm overflow-hidden">
+      <div className="w-full h-[3px] bg-[#1c1c1a] border border-[#1a2a3a] rounded-sm overflow-hidden">
         <div
-          className="h-full bg-[#00ff9f] transition-all duration-300 ease-out relative"
+          className="h-full bg-[#e8503c] transition-all duration-300 ease-out relative"
           style={{ width: `${progress}%` }}
         >
           <div
             className="absolute right-0 top-0 h-full w-4 opacity-80"
             style={{
-              background: "linear-gradient(to right, transparent, #00ff9f)",
+              background: "linear-gradient(to right, transparent, #e8503c)",
               filter: "blur(2px)",
             }}
           />
@@ -53,7 +53,28 @@ export function AnalyzePanel({ className = "" }: { className?: string }) {
     isAnalyzing,
   } = useLocalAnalysis();
 
-  const borderColor = state === "error" ? "#ff0044" : state === "success" ? "#00ff9f" : "#00d4ff";
+  // Global Esc closes the dialog — the div-level onKeyDown only fires when
+  // focus is inside it, which users don't expect
+  useEffect(() => {
+    if (!isOpen) return;
+    const onKey = (e: KeyboardEvent): void => {
+      if (e.key === "Escape") {
+        e.stopPropagation();
+        setIsOpen(false);
+      }
+    };
+    window.addEventListener("keydown", onKey, true);
+    return () => window.removeEventListener("keydown", onKey, true);
+  }, [isOpen]);
+
+  // Success speaks for itself — the new city is rising behind the dialog
+  useEffect(() => {
+    if (state !== "success") return;
+    const t = setTimeout(() => setIsOpen(false), 1600);
+    return () => clearTimeout(t);
+  }, [state]);
+
+  const borderColor = state === "error" ? "#ff0044" : state === "success" ? "#e8503c" : "#e8b23c";
 
   return (
     <div className={`relative ${className}`}>
@@ -61,13 +82,24 @@ export function AnalyzePanel({ className = "" }: { className?: string }) {
         onClick={() => setIsOpen((v) => !v)}
         aria-expanded={isOpen}
         aria-controls="analyze-panel"
-        aria-label="Toggle analyze panel"
+        aria-label={
+          isAnalyzing
+            ? `Toggle analyze panel — analyzing, ${analysisProgress}% done`
+            : "Toggle analyze panel"
+        }
+        title="Build another city: pick a local folder and scan it — the current city stays open until the new one is ready"
         className="font-mono text-xs px-3 py-1.5 border transition-all duration-150
-                   bg-[rgba(5,8,20,0.85)] hover:bg-[rgba(0,212,255,0.1)]
-                   focus:outline-none focus:ring-2 focus:ring-[#00d4ff] focus:ring-offset-1 focus:ring-offset-transparent"
+                   bg-[rgba(16,16,14,0.85)] hover:bg-[rgba(232,178,60,0.1)]
+                   focus:outline-none focus:ring-2 focus:ring-[#e8b23c] focus:ring-offset-1 focus:ring-offset-transparent"
         style={{ borderColor, color: borderColor }}
       >
-        {isOpen ? "▲ ANALYZE" : "▼ ANALYZE"}
+        {/* Progress leaks onto the toggle: with the panel closed the running
+            analysis would otherwise be invisible to the user */}
+        {isAnalyzing
+          ? `${isOpen ? "▲" : "▼"} ${analysisProgress}%`
+          : isOpen
+            ? "▲ ANALYZE"
+            : "▼ ANALYZE"}
       </button>
 
       {isOpen && (
@@ -75,9 +107,9 @@ export function AnalyzePanel({ className = "" }: { className?: string }) {
           id="analyze-panel"
           role="dialog"
           aria-label="Folder analyze panel"
-          className="absolute top-full right-0 mt-2 w-80 z-30"
+          className="absolute top-full right-0 mt-2 w-80 z-50"
           style={{
-            background: "rgba(5, 8, 20, 0.96)",
+            background: "rgba(16, 16, 14, 0.96)",
             border: `1px solid ${borderColor}`,
             borderRadius: "4px",
             padding: "1rem",
@@ -87,7 +119,7 @@ export function AnalyzePanel({ className = "" }: { className?: string }) {
             if (e.key === "Escape") setIsOpen(false);
           }}
         >
-          <div className="font-mono text-xs text-[#00d4ff] tracking-widest mb-3 flex items-center gap-2">
+          <div className="font-mono text-xs text-[#e8b23c] tracking-widest mb-3 flex items-center gap-2">
             <span>◈</span>
             <span>BUILD ANOTHER CITY</span>
           </div>
@@ -100,22 +132,22 @@ export function AnalyzePanel({ className = "" }: { className?: string }) {
             aria-busy={isAnalyzing}
             aria-label={isAnalyzing ? "Analysis in progress" : "Pick a local project folder"}
             className="w-full py-2 font-mono text-xs tracking-widest border transition-all duration-150
-                       focus:outline-none focus:ring-2 focus:ring-[#00ff9f] focus:ring-offset-1 focus:ring-offset-transparent
+                       focus:outline-none focus:ring-2 focus:ring-[#e8503c] focus:ring-offset-1 focus:ring-offset-transparent
                        disabled:opacity-50 disabled:cursor-not-allowed"
             style={{
-              background: isAnalyzing ? "rgba(0,255,159,0.05)" : "rgba(0,255,159,0.1)",
-              borderColor: isAnalyzing ? "#00aa66" : "#00ff9f",
-              color: isAnalyzing ? "#00aa66" : "#00ff9f",
+              background: isAnalyzing ? "rgba(232,80,60,0.05)" : "rgba(232,80,60,0.1)",
+              borderColor: isAnalyzing ? "#a03a2c" : "#e8503c",
+              color: isAnalyzing ? "#a03a2c" : "#e8503c",
             }}
           >
             {state === "collecting" ? (
               <span className="flex items-center justify-center gap-2">
-                <span className="inline-block w-2 h-2 rounded-full bg-[#00ff9f] animate-pulse" />
+                <span className="inline-block w-2 h-2 rounded-full bg-[#e8503c] animate-pulse" />
                 READING FOLDER…
               </span>
             ) : isAnalyzing ? (
               <span className="flex items-center justify-center gap-2">
-                <span className="inline-block w-2 h-2 rounded-full bg-[#00ff9f] animate-pulse" />
+                <span className="inline-block w-2 h-2 rounded-full bg-[#e8503c] animate-pulse" />
                 ANALYZING...
               </span>
             ) : (
@@ -124,7 +156,7 @@ export function AnalyzePanel({ className = "" }: { className?: string }) {
           </button>
 
           {state === "collecting" && collected.files > 0 && (
-            <div className="mt-2 font-mono text-[10px] text-[#76889f] text-center">
+            <div className="mt-2 font-mono text-[10px] text-[#7d796f] text-center">
               {collected.files} files · {(collected.bytes / 1024).toFixed(0)} KB
             </div>
           )}
@@ -147,8 +179,8 @@ export function AnalyzePanel({ className = "" }: { className?: string }) {
             <div
               role="status"
               aria-live="polite"
-              className="mt-3 px-2 py-1.5 border border-[#00ff9f] rounded font-mono text-[10px] text-[#00ff9f]"
-              style={{ background: "rgba(0,255,159,0.08)" }}
+              className="mt-3 px-2 py-1.5 border border-[#e8503c] rounded font-mono text-[10px] text-[#e8503c]"
+              style={{ background: "rgba(232,80,60,0.08)" }}
             >
               ✓ CITY BUILT — explore it below
             </div>

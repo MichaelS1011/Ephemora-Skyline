@@ -25,12 +25,12 @@ export default defineConfig({
   },
   build: {
     outDir: "dist",
-    sourcemap: true,
+    sourcemap: false,
     chunkSizeWarningLimit: 1200,
     rollupOptions: {
       output: {
-        // Vite 8 (Rolldown): advancedChunks replaces manualChunks
-        advancedChunks: {
+        // Vite 8 (Rolldown): codeSplitting replaces advancedChunks
+        codeSplitting: {
           groups: [
             {
               name: "react-vendor",

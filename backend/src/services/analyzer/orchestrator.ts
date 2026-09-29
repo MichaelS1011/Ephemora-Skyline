@@ -27,8 +27,9 @@ import {
   extractFunctions,
 } from "./metrics.js";
 import { languageOfPath, type ResolvedScanConfig } from "../security/scan-config.js";
-import type { CloneManager } from "../github/clone-manager.js";
-import type { GitHubClient } from "../github/client.js";
+import { collectGitChurn, hasGitHistory } from "./git-churn.js";
+import { detectDuplicates } from "./duplicates.js";
+import { collectCoverage } from "./coverage.js";
 import type { SecurityScanner } from "../security/scanner.js";
 
 interface ProgressCallback {
@@ -58,63 +59,17 @@ const SUPPORTED_EXTENSIONS = new Set([
 
 export class AnalysisOrchestrator {
   private logger: pino.Logger;
-  private cloneManager: CloneManager;
-  private githubClient: GitHubClient;
   private scanner: SecurityScanner;
 
-  constructor(cloneManager: CloneManager, githubClient: GitHubClient, scanner: SecurityScanner) {
+  constructor(scanner: SecurityScanner) {
     this.logger = pino({ name: "analysis-orchestrator" });
-    this.cloneManager = cloneManager;
-    this.githubClient = githubClient;
     this.scanner = scanner;
   }
 
-  /** Analyze a GitHub repository: clone, then run the shared directory pipeline */
-  async analyzeRepo(
-    repo: GitHubRepo,
-    progressCallback?: ProgressCallback,
-    analysisId: string = crypto.randomUUID(),
-    config?: ResolvedScanConfig,
-  ): Promise<AnalysisResult> {
-    const emit = (type: WebSocketEvent["type"], payload: Record<string, unknown>) => {
-      const event: WebSocketEvent = {
-        type,
-        payload,
-        timestamp: new Date().toISOString(),
-      };
-      this.logger.debug({ type }, "Progress event");
-      progressCallback?.(event);
-    };
-
-    emit("repo_cloned", { repo: `${repo.owner}/${repo.name}` });
-    emit("analysis_progress", {
-      progress: 10,
-      stage: "Cloning repository",
-      repo: `${repo.owner}/${repo.name}`,
-    });
-
-    let clonePath: string;
-    try {
-      clonePath = await this.cloneManager.cloneRepo(repo);
-    } catch (error) {
-      this.logger.error({ error, repo }, "Clone failed, trying API fallback");
-      // Fallback: try to use GitHub API directly
-      return this.analyzeViaApi(analysisId, repo, progressCallback);
-    }
-
-    try {
-      return await this.analyzeDirectory(analysisId, clonePath, repo, progressCallback, config);
-    } finally {
-      // Clones are never reused — delete immediately so temp disk usage
-      // doesn't accumulate across analyses
-      await this.cloneManager.cleanup(clonePath).catch(() => {});
-    }
-  }
-
   /**
-   * Phases 2-5 over a directory that already exists on disk — shared by the
-   * git-clone path and the local-folder upload path (POST /api/analyze-local).
-   * Does NOT clean up dirPath — the caller owns the directory lifecycle.
+   * Phases 2-5 over a directory that already exists on disk (the staged
+   * local-folder upload from POST /api/analyze-local). Does NOT clean up
+   * dirPath — the caller owns the directory lifecycle.
    */
   async analyzeDirectory(
     analysisId: string,
@@ -157,10 +112,13 @@ export class AnalysisOrchestrator {
 
     const fileAnalyses: FileAnalysis[] = [];
     const languageLines: Record<string, number> = {};
+    // Duplicate detection needs the raw lines — collected alongside parsing
+    // (content is otherwise not persisted)
+    const contentMap = new Map<string, string>();
 
-    for (let i = 0; i < allFiles.length; i++) {
-      const relativePath = allFiles[i]!.replace(dirPath + "/", "");
-
+    const candidateFiles: Array<{ fullPath: string; relativePath: string }> = [];
+    for (const filePath of allFiles) {
+      const relativePath = filePath.replace(dirPath + "/", "");
       // Skip hidden dirs, node_modules, dist, build, .git
       if (/^(node_modules|\.git|dist|build|\.next|coverage|\.turbo)/.test(relativePath)) continue;
       if (!SUPPORTED_EXTENSIONS.has(path.extname(relativePath))) continue;
@@ -170,60 +128,74 @@ export class AnalysisOrchestrator {
         if (!config.languageScope.includes(lang)) continue;
       }
       if (config?.excludePaths?.some((needle) => relativePath.includes(needle))) continue;
+      candidateFiles.push({ fullPath: filePath, relativePath });
+    }
 
-      try {
-        const content = await fs.readFile(allFiles[i]!, "utf-8");
+    const PARALLEL_BATCH_SIZE = 16;
+    for (let i = 0; i < candidateFiles.length; i += PARALLEL_BATCH_SIZE) {
+      const batch = candidateFiles.slice(i, i + PARALLEL_BATCH_SIZE);
+      const results = await Promise.all(
+        batch.map(async ({ fullPath, relativePath }, idx) => {
+          const fileIndex = i + idx;
+          try {
+            const content = await fs.readFile(fullPath, "utf-8");
+            // Skip oversized files
+            if (content.length > MAX_FILE_SIZE) return null;
 
-        // Skip oversized files
-        if (content.length > MAX_FILE_SIZE) continue;
+            emit("file_parsing_started", {
+              file: relativePath,
+              progress: Math.round((fileIndex / totalFiles) * 60) + 30,
+            });
 
-        emit("file_parsing_started", {
-          file: relativePath,
-          progress: Math.round((i / totalFiles) * 60) + 30,
-        });
+            const lines = countLines(content);
+            const language = detectLanguage(relativePath);
+            const cyclomatic = estimateCyclomaticComplexity(content);
 
-        const lines = countLines(content);
-        const language = detectLanguage(relativePath);
-        const cyclomatic = estimateCyclomaticComplexity(content);
+            const vulnerabilities = await this.scanner.scanFile(relativePath, content);
+            const { imports: rawImports, exports: fileExports } = this.scanner.scanFileStructure(
+              relativePath,
+              content,
+            );
+            const imports = rawImports.map((imp) => ({ ...imp, line: 0 }));
 
-        const vulnerabilities = await this.scanner.scanFile(relativePath, content);
-        const { imports: rawImports, exports: fileExports } = this.scanner.scanFileStructure(
-          relativePath,
-          content,
-        );
-        const imports = rawImports.map((imp) => ({ ...imp, line: 0 }));
+            // Extract functions (simple regex-based)
+            const functions = extractFunctions(content);
+            const classes = extractClasses(content);
 
-        // Extract functions (simple regex-based)
-        const functions = extractFunctions(content);
-        const classes = extractClasses(content);
+            const analysis: FileAnalysis = {
+              path: relativePath,
+              language,
+              lines,
+              bytes: Buffer.byteLength(content, "utf-8"),
+              complexity: { cyclomatic, cognitive: cyclomatic },
+              functions,
+              classes,
+              imports,
+              exports: fileExports.map((e) => ({
+                type: e.type as "named" | "default" | "reexport",
+                name: e.name,
+                line: 0, // would need AST for line numbers
+              })),
+              vulnerabilities,
+            };
 
-        const fileAnalysis: FileAnalysis = {
-          path: relativePath,
-          language,
-          lines,
-          complexity: { cyclomatic: cyclomatic, cognitive: cyclomatic },
-          functions,
-          classes,
-          imports,
-          exports: fileExports.map((e) => ({
-            type: e.type as "named" | "default" | "reexport",
-            name: e.name,
-            line: 0, // would need AST for line numbers
-          })),
-          vulnerabilities,
-        };
+            emit("file_parsed", {
+              file: relativePath,
+              progress: Math.round((fileIndex / totalFiles) * 60) + 30,
+            });
 
-        fileAnalyses.push(fileAnalysis);
+            contentMap.set(relativePath, content);
+            return analysis;
+          } catch {
+            return null;
+          }
+        }),
+      );
 
-        // Update language lines
-        languageLines[language] = (languageLines[language] || 0) + lines.code;
-
-        emit("file_parsed", {
-          file: relativePath,
-          progress: Math.round((i / totalFiles) * 60) + 30,
-        });
-      } catch {
-        // Skip files that can't be read
+      for (const res of results) {
+        if (!res) continue;
+        fileAnalyses.push(res);
+        languageLines[res.language] = (languageLines[res.language] || 0) + res.lines.code;
       }
     }
 
@@ -234,7 +206,19 @@ export class AnalysisOrchestrator {
       depsRan: boolean;
       ruffRan: boolean;
       osvRan: boolean;
-    } = { gitleaksRan: false, semgrepRan: false, depsRan: false, ruffRan: false, osvRan: false };
+      churnRan: boolean;
+      duplicatesRan: boolean;
+      coverageRan: boolean;
+    } = {
+      gitleaksRan: false,
+      semgrepRan: false,
+      depsRan: false,
+      ruffRan: false,
+      osvRan: false,
+      churnRan: false,
+      duplicatesRan: false,
+      coverageRan: false,
+    };
     try {
       emit("analysis_progress", { progress: 88, stage: "Deep scan (semgrep + gitleaks)" });
       const batch = await this.scanner.scanRepositoryBatch(dirPath, fileAnalyses, {
@@ -255,6 +239,59 @@ export class AnalysisOrchestrator {
       scanProvenance.depsRan = deps.executed;
     } catch (e) {
       this.logger.warn({ e }, "Dependency scan failed — continuing without CVE findings");
+    }
+
+    // --- Phase 3d: Git churn (hotspot analysis, clone-based scans only) ---
+    try {
+      if (await hasGitHistory(dirPath)) {
+        emit("analysis_progress", { progress: 90, stage: "Analyzing git history" });
+        const churn = await collectGitChurn(dirPath);
+        if (churn.meaningful) {
+          for (const f of fileAnalyses) {
+            const c = churn.byPath.get(f.path);
+            if (c) f.churn = c;
+          }
+          scanProvenance.churnRan = true;
+        } else {
+          this.logger.debug(
+            { totalCommits: churn.totalCommits },
+            "Git history too shallow for churn scores",
+          );
+        }
+      }
+    } catch (e) {
+      this.logger.warn({ e }, "Git churn analysis failed — continuing without erosion data");
+    }
+
+    // --- Phase 3e: Code duplicates (copy-paste detection) ---
+    try {
+      if (contentMap.size > 1) {
+        emit("analysis_progress", { progress: 91, stage: "Detecting code duplicates" });
+        const dup = detectDuplicates(contentMap);
+        for (const f of fileAnalyses) {
+          const partners = dup.byPath.get(f.path);
+          if (partners && partners.length > 0) f.clonePartners = partners;
+        }
+        scanProvenance.duplicatesRan = dup.pairs.length > 0;
+        contentMap.clear(); // free the memory — content is never persisted
+      }
+    } catch (e) {
+      this.logger.warn({ e }, "Duplicate detection failed — continuing without clone data");
+    }
+
+    // --- Phase 3f: Test coverage (read existing lcov reports, never run tests) ---
+    try {
+      emit("analysis_progress", { progress: 92, stage: "Reading coverage reports" });
+      const cov = await collectCoverage(dirPath);
+      if (cov.source) {
+        for (const f of fileAnalyses) {
+          const pct = cov.byPath.get(f.path);
+          if (pct !== undefined) f.coveragePct = pct;
+        }
+        scanProvenance.coverageRan = true;
+      }
+    } catch (e) {
+      this.logger.warn({ e }, "Coverage parsing failed — continuing without shields");
     }
 
     // --- Phase 5: Aggregate summary ---
@@ -288,6 +325,9 @@ export class AnalysisOrchestrator {
         dependencies: scanProvenance.depsRan,
         osv: scanProvenance.osvRan,
         ruff: scanProvenance.ruffRan,
+        churn: scanProvenance.churnRan,
+        duplicates: scanProvenance.duplicatesRan,
+        coverage: scanProvenance.coverageRan,
       },
     };
 
@@ -321,121 +361,6 @@ export class AnalysisOrchestrator {
     return result;
   }
 
-  /** Fallback analysis via GitHub API (no clone needed) */
-  private async analyzeViaApi(
-    analysisId: string,
-    repo: GitHubRepo,
-    progressCallback?: ProgressCallback,
-  ): Promise<AnalysisResult> {
-    this.logger.info({ repo: `${repo.owner}/${repo.name}` }, "Falling back to API-based analysis");
-
-    try {
-      const fileList = await this.githubClient.listRootFiles(repo);
-      const totalFiles = fileList.length;
-      const fileAnalyses: FileAnalysis[] = [];
-
-      emitProgress(30);
-
-      for (let i = 0; i < Math.min(totalFiles, 200); i++) {
-        try {
-          const content = await this.githubClient.getFileContent(repo, fileList[i]!);
-          const lines = countLines(content);
-          const language = detectLanguage(fileList[i]!);
-          const vulnerabilities = await this.scanner.scanFile(fileList[i]!, content);
-          const { imports: rawImports, exports: fileExports } = this.scanner.scanFileStructure(
-            fileList[i]!,
-            content,
-          );
-          const imports = rawImports.map((imp) => ({ ...imp, line: 0 }));
-
-          fileAnalyses.push({
-            path: fileList[i]!,
-            language,
-            lines,
-            complexity: {
-              cyclomatic: estimateCyclomaticComplexity(content),
-              cognitive: estimateCyclomaticComplexity(content),
-            },
-            functions: extractFunctions(content),
-            classes: extractClasses(content),
-            imports,
-            exports: fileExports.map((e) => ({
-              type: e.type as "named" | "default" | "reexport",
-              name: e.name,
-              line: 0,
-            })),
-            vulnerabilities,
-          });
-        } catch {
-          // Skip files that fail
-        }
-        emitProgress(30 + Math.round((i / Math.min(totalFiles, 200)) * 60));
-      }
-
-      const totalVulns = fileAnalyses.reduce((s, f) => s + f.vulnerabilities.length, 0);
-      const vulnBySeverity = this.scanner.countBySeverity(
-        fileAnalyses.flatMap((f) => f.vulnerabilities),
-      );
-      const langLines: Record<string, number> = {};
-      for (const f of fileAnalyses) {
-        langLines[f.language] = (langLines[f.language] || 0) + f.lines.code;
-      }
-
-      const result: AnalysisResult = {
-        id: analysisId,
-        repo,
-        files: fileAnalyses,
-        directories: [],
-        summary: {
-          totalFiles: fileAnalyses.length,
-          totalDirectories: 0,
-          totalLines: fileAnalyses.reduce((s, f) => s + f.lines.total, 0),
-          avgCyclomatic: 0,
-          maxCyclomatic: 0,
-          languages: langLines,
-          totalVulnerabilities: totalVulns,
-          vulnerabilitiesBySeverity: vulnBySeverity,
-          languagesByLines: langLines,
-        },
-        createdAt: new Date().toISOString(),
-        status: "complete",
-      };
-
-      emitProgress(100);
-      return result;
-    } catch (error) {
-      this.logger.error({ error }, "API analysis failed completely");
-      return {
-        id: analysisId,
-        repo,
-        files: [],
-        directories: [],
-        summary: {
-          totalFiles: 0,
-          totalDirectories: 0,
-          totalLines: 0,
-          avgCyclomatic: 0,
-          maxCyclomatic: 0,
-          languages: {},
-          totalVulnerabilities: 0,
-          vulnerabilitiesBySeverity: { P0: 0, P1: 0, P2: 0 },
-          languagesByLines: {},
-        },
-        createdAt: new Date().toISOString(),
-        status: "failed",
-        error: error instanceof Error ? error.message : "API analysis failed",
-      };
-    }
-
-    function emitProgress(progress: number) {
-      progressCallback?.({
-        type: "analysis_progress",
-        payload: { progress, stage: "Analyzing via API" },
-        timestamp: new Date().toISOString(),
-      });
-    }
-  }
-
   /** Recursively walk directory and collect file paths */
   private async walkDirectory(
     basePath: string,
@@ -456,6 +381,10 @@ export class AnalysisOrchestrator {
       )
         continue;
       if (/^\.(hidden|DS_Store)$/.test(entry.name)) continue;
+
+      // Symlinks in untrusted repos could point anywhere on disk (e.g.
+      // /etc/passwd) — never follow them into reads or recursion.
+      if (entry.isSymbolicLink()) continue;
 
       if (entry.isDirectory()) {
         await this.walkDirectory(basePath, fullPath, files);

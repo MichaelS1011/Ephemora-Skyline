@@ -18,11 +18,11 @@ export function Breadcrumbs() {
           onClick={drillOut}
           className="font-mono text-[10px] px-1.5 py-0.5"
           style={{
-            border: "1px solid rgba(120,160,220,0.4)",
-            color: "#aebfe0",
-            background: "rgba(5,8,20,0.8)",
+            border: "1px solid rgba(165,158,144,0.4)",
+            color: "#cfcabe",
+            background: "rgba(16,16,14,0.8)",
           }}
-          title="Up one level (Esc)"
+          title="Up one level"
         >
           ↑
         </button>
@@ -31,9 +31,9 @@ export function Breadcrumbs() {
         onClick={() => setFocusPath([])}
         className="font-mono text-[10px] px-2 py-0.5 transition-colors"
         style={{
-          border: `1px solid ${focusPath.length === 0 ? "#4de3ff" : "rgba(120,160,220,0.35)"}`,
-          color: focusPath.length === 0 ? "#4de3ff" : "#aebfe0",
-          background: "rgba(5,8,20,0.8)",
+          border: `1px solid ${focusPath.length === 0 ? "#f2d5a0" : "rgba(165,158,144,0.35)"}`,
+          color: focusPath.length === 0 ? "#f2d5a0" : "#cfcabe",
+          background: "rgba(16,16,14,0.8)",
         }}
       >
         {cityData.repo.name}
@@ -49,9 +49,9 @@ export function Breadcrumbs() {
               onClick={() => setFocusPath(focusPath.slice(0, i + 1))}
               className="font-mono text-[10px] px-2 py-0.5 transition-colors"
               style={{
-                border: `1px solid ${isLast ? "#4de3ff" : "rgba(120,160,220,0.35)"}`,
-                color: isLast ? "#4de3ff" : "#aebfe0",
-                background: "rgba(5,8,20,0.8)",
+                border: `1px solid ${isLast ? "#f2d5a0" : "rgba(165,158,144,0.35)"}`,
+                color: isLast ? "#f2d5a0" : "#cfcabe",
+                background: "rgba(16,16,14,0.8)",
               }}
             >
               {seg}

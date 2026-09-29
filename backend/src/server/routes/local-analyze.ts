@@ -5,7 +5,7 @@ import { promises as fs } from "fs";
 import os from "os";
 import path from "path";
 import { deleteJobProgress } from "./job-progress.js";
-import { makeSkeleton, makeOnEvent, failJob } from "./analyze.js";
+import { makeSkeleton, makeOnEvent, failJob } from "./job-progress.js";
 import { resolveConfig, type ResolvedScanConfig } from "../../services/security/scan-config.js";
 
 /** Upload caps — a local dev folder should always fit comfortably */
@@ -14,10 +14,50 @@ const MAX_TOTAL_BYTES = 40 * 1024 * 1024;
 const MAX_FILE_BYTES = 2 * 1024 * 1024; // matches the pipeline's MAX_FILE_SIZE
 const MAX_NAME_LEN = 80;
 const MAX_PATH_LEN = 512;
+/**
+ * The .git folder rides along so the scanner can read real git history
+ * (churn, author districts). Binary payloads arrive base64-encoded and live
+ * in their own budget — git metadata must never crowd out source files.
+ */
+const GIT_MAX_TOTAL_BYTES = 20 * 1024 * 1024;
+const GIT_MAX_FILE_BYTES = 8 * 1024 * 1024;
+const isGitPath = (rel: string): boolean => rel === ".git" || rel.startsWith(".git/");
+
+// ── Staged-directory registry ──────────────────────────────────────────────
+// Staged copies outlive the scan so the test runner can execute the
+// project's own tests from the city ("run my tests"). A TTL sweeper prunes
+// directories whose analysis is old — nothing accumulates forever.
+const STAGED_DIRS = new Map<string, { dir: string; lastUsed: number }>();
+const STAGED_TTL_MS = 24 * 60 * 60 * 1000;
+
+export function registerUploadDir(analysisId: string, dir: string): void {
+  STAGED_DIRS.set(analysisId, { dir, lastUsed: Date.now() });
+}
+
+export function getStagedDir(analysisId: string): string | null {
+  const entry = STAGED_DIRS.get(analysisId);
+  if (!entry) return null;
+  entry.lastUsed = Date.now();
+  return entry.dir;
+}
+
+export function pruneStaleUploadDirs(now: number = Date.now()): Promise<void> {
+  // `now` injectable so tests can fast-forward the clock
+  const jobs: Array<Promise<unknown>> = [];
+  for (const [id, entry] of STAGED_DIRS) {
+    if (now - entry.lastUsed > STAGED_TTL_MS) {
+      STAGED_DIRS.delete(id);
+      jobs.push(fs.rm(entry.dir, { recursive: true, force: true }).catch(() => {}));
+    }
+  }
+  return Promise.all(jobs).then(() => undefined);
+}
 
 export interface UploadedFile {
   path: string;
   content: string;
+  /** "base64" for binary .git payloads — everything else is utf-8 text */
+  encoding?: "base64";
 }
 
 /** Normalize + validate an uploaded relative path; null when unsafe */
@@ -82,11 +122,22 @@ export async function handleLocalAnalyze(
   // Validate + normalize everything BEFORE touching the disk
   const cleaned: UploadedFile[] = [];
   let totalBytes = 0;
-  for (const f of files as Array<{ path?: unknown; content?: unknown }>) {
+  let gitBytes = 0;
+  for (const f of files as Array<{ path?: unknown; content?: unknown; encoding?: unknown }>) {
     if (typeof f?.path !== "string" || typeof f?.content !== "string") continue;
     const rel = safeRelativePath(f.path);
     if (!rel) continue; // silently drop unsafe paths — the picker only sends real files
+    const encoding = f.encoding === "base64" ? "base64" : undefined;
     const byteLen = f.content.length; // chars ≈ bytes upper bound for UTF-8 code files
+    if (isGitPath(rel)) {
+      if (encoding !== "base64") continue; // binary git data must arrive exactly
+      if (byteLen > GIT_MAX_FILE_BYTES * 1.4 || gitBytes + byteLen > GIT_MAX_TOTAL_BYTES * 1.4) {
+        continue; // base64 inflates ~4/3 — cap on the encoded size with headroom
+      }
+      gitBytes += byteLen;
+      cleaned.push({ path: rel, content: f.content, encoding });
+      continue;
+    }
     if (byteLen > MAX_FILE_BYTES) continue; // pipeline skips oversized files anyway
     totalBytes += byteLen;
     if (totalBytes > MAX_TOTAL_BYTES) {
@@ -97,7 +148,7 @@ export async function handleLocalAnalyze(
     }
     cleaned.push({ path: rel, content: f.content });
   }
-  if (cleaned.length === 0) {
+  if (!cleaned.some((f) => !isGitPath(f.path))) {
     res.status(400).json({
       error:
         "No analyzable source files in that folder (supported: ts, tsx, js, jsx, py, go, rs, java, rb, html, css, json, yaml)",
@@ -114,7 +165,11 @@ export async function handleLocalAnalyze(
       const target = path.resolve(uploadDir, f.path);
       if (!target.startsWith(uploadDir + path.sep)) continue; // belt and braces
       await fs.mkdir(path.dirname(target), { recursive: true });
-      await fs.writeFile(target, f.content, "utf-8");
+      if (f.encoding === "base64") {
+        await fs.writeFile(target, Buffer.from(f.content, "base64"));
+      } else {
+        await fs.writeFile(target, f.content, "utf-8");
+      }
     }
   } catch (error) {
     await fs.rm(uploadDir, { recursive: true, force: true }).catch(() => {});
@@ -122,6 +177,7 @@ export async function handleLocalAnalyze(
     res.status(500).json({ error: message });
     return;
   }
+  registerUploadDir(analysisId, uploadDir);
 
   const repo: GitHubRepo = {
     owner: "local",
@@ -180,8 +236,7 @@ async function runLocalAnalysis(
   } catch (error) {
     const message = error instanceof Error ? error.message : "Analysis failed";
     failJob(analysisId, message, analysisStore);
-  } finally {
-    // The uploaded copy is never reused — remove it right away
-    await fs.rm(uploadDir, { recursive: true, force: true }).catch(() => {});
   }
+  // The staged copy is KEPT: the test runner reuses it ("run my tests from
+  // the city"). A TTL sweeper prunes stale dirs (pruneStaleUploadDirs).
 }

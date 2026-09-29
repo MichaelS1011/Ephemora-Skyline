@@ -1,10 +1,10 @@
-'use client';
+"use client";
 
-import { useLayoutEffect, useMemo, useRef } from 'react';
-import { useFrame } from '@react-three/fiber';
-import * as THREE from 'three';
-import type { DirLayout } from '../city/layout';
-import { ENV } from '../city/palette';
+import { useLayoutEffect, useMemo, useRef } from "react";
+import { useFrame } from "@react-three/fiber";
+import * as THREE from "three";
+import type { DirLayout } from "../city/layout";
+import { ENV } from "../city/palette";
 
 /**
  * Streets & city furniture: plot slabs, lane dashes, warm streetlights,
@@ -138,8 +138,14 @@ export function RoadSystem({ layout }: { layout: DirLayout }) {
       const lb = Math.hypot(b.x2 - b.x1, b.z2 - b.z1);
       return lb - la;
     });
-    const items: Array<{ lane: number; t: number; speed: number; dir: 1 | -1; color: THREE.Color }> = [];
-    const palette = ['#ffe9c4', '#ff6a4d', '#bfe8ff', '#ffd9a0'];
+    const items: Array<{
+      lane: number;
+      t: number;
+      speed: number;
+      dir: 1 | -1;
+      color: THREE.Color;
+    }> = [];
+    const palette = ["#ffe9c4", "#ff6a4d", "#bfe8ff", "#ffd9a0"];
     for (let i = 0; i < Math.min(20, lanes.length * 2); i++) {
       items.push({
         lane: i % Math.max(1, lanes.length),
@@ -167,7 +173,7 @@ export function RoadSystem({ layout }: { layout: DirLayout }) {
       const lane = carData.lanes[c.lane];
       if (!lane) return;
       const len = Math.hypot(lane.x2 - lane.x1, lane.z2 - lane.z1);
-      c.t = (c.t + (delta * c.speed) / Math.max(len, 1) * c.dir + 1) % 1;
+      c.t = (c.t + ((delta * c.speed) / Math.max(len, 1)) * c.dir + 1) % 1;
       const x = lane.x1 + (lane.x2 - lane.x1) * c.t;
       const z = lane.z1 + (lane.z2 - lane.z1) * c.t;
       dummy.position.set(x, 0.28, z);
@@ -194,39 +200,63 @@ export function RoadSystem({ layout }: { layout: DirLayout }) {
             rotation={[0, angle, 0]}
           >
             <boxGeometry args={[len + 3.4, 0.05, 3.8]} />
-            <meshStandardMaterial color="#161b26" roughness={0.96} />
+            <meshStandardMaterial color="#1b1b18" roughness={0.96} />
           </mesh>
         );
       })}
 
       {/* Lane dashes */}
-      <instancedMesh ref={dashRef} args={[undefined, undefined, Math.max(1, dashData.length)]} frustumCulled={false}>
+      <instancedMesh
+        ref={dashRef}
+        args={[undefined, undefined, Math.max(1, dashData.length)]}
+        frustumCulled={false}
+      >
         <boxGeometry args={[1.1, 0.04, 0.3]} />
         <meshBasicMaterial color={ENV.laneDash} toneMapped={false} />
       </instancedMesh>
 
       {/* Streetlights */}
-      <instancedMesh ref={poleRef} args={[undefined, undefined, Math.max(1, lampData.length)]} frustumCulled={false}>
+      <instancedMesh
+        ref={poleRef}
+        args={[undefined, undefined, Math.max(1, lampData.length)]}
+        frustumCulled={false}
+      >
         <cylinderGeometry args={[0.05, 0.08, 3, 6]} />
         <meshStandardMaterial color="#2b3346" roughness={0.6} />
       </instancedMesh>
-      <instancedMesh ref={headRef} args={[undefined, undefined, Math.max(1, lampData.length)]} frustumCulled={false}>
+      <instancedMesh
+        ref={headRef}
+        args={[undefined, undefined, Math.max(1, lampData.length)]}
+        frustumCulled={false}
+      >
         <sphereGeometry args={[0.17, 8, 8]} />
         <meshBasicMaterial color={ENV.streetlight} toneMapped={false} />
       </instancedMesh>
 
       {/* Trees */}
-      <instancedMesh ref={trunkRef} args={[undefined, undefined, Math.max(1, treeData.length)]} frustumCulled={false}>
+      <instancedMesh
+        ref={trunkRef}
+        args={[undefined, undefined, Math.max(1, treeData.length)]}
+        frustumCulled={false}
+      >
         <cylinderGeometry args={[0.09, 0.14, 1.1, 5]} />
         <meshStandardMaterial color="#3d3226" roughness={0.95} />
       </instancedMesh>
-      <instancedMesh ref={crownRef} args={[undefined, undefined, Math.max(1, treeData.length)]} frustumCulled={false}>
+      <instancedMesh
+        ref={crownRef}
+        args={[undefined, undefined, Math.max(1, treeData.length)]}
+        frustumCulled={false}
+      >
         <icosahedronGeometry args={[0.85, 0]} />
         <meshStandardMaterial color="#2c5f49" roughness={0.9} flatShading />
       </instancedMesh>
 
       {/* Traffic */}
-      <instancedMesh ref={carRef} args={[undefined, undefined, Math.max(1, carCount)]} frustumCulled={false}>
+      <instancedMesh
+        ref={carRef}
+        args={[undefined, undefined, Math.max(1, carCount)]}
+        frustumCulled={false}
+      >
         <boxGeometry args={[0.85, 0.22, 0.42]} />
         <meshBasicMaterial toneMapped={false} />
       </instancedMesh>

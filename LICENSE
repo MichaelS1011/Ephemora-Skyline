@@ -1,0 +1,166 @@
+Business Source License 1.1
+
+Parameters
+
+Licensor:             Ephemora
+Licensed Work:        Ephemora Skyline
+                      The Licensed Work is the complete Ephemora Skyline
+                      software, including the frontend, backend, all
+                      analyzer and scanner components, and associated
+                      build and deployment configuration.
+Additional Use Grant: Production use of the Licensed Work is permitted
+                      for your own internal business purposes and for
+                      personal, educational, and other non-commercial
+                      purposes.
+
+                      You may NOT offer the Licensed Work, or any
+                      derivative of it, to third parties as a hosted,
+                      managed, or commercial service (including SaaS)
+                      without a separate written commercial license from
+                      the Licensor.
+
+                      Distribution of unmodified or modified copies of
+                      the Licensed Work for the purposes permitted above
+                      must retain this license, the "Ephemora Skyline"
+                      branding, and all copyright notices.
+Change Date:          2030-09-29
+Change License:       Apache License 2.0
+
+Terms
+
+The Licensor hereby grants you the right to copy, modify, create
+derivative works, publicly display, publicly perform, sublicense, and
+distribute the Licensed Work and such derivative works in source code or
+object code form so long as such use is solely for nonproduction
+purposes, and further subject to the following conditions.
+
+1. Acceptance
+
+By exercising the Licensed Rights (defined below), You accept and agree
+to be bound by the terms and conditions of this Business Source License
+("the License"). Where this License is silent or ambiguous, the license
+granted by the Licensor under section 3 is not restricted or limited in
+any way.
+
+2. Definitions
+
+"Licensed Rights" means the rights granted to You under the terms and
+conditions of this License, which are limited to the copyright rights
+to copy, modify, create derivative works, publicly display, publicly
+perform, sublicense, and distribute the Licensed Work. The Licensed
+Rights do not include any patent or other intellectual property rights.
+
+"Licensor" means the individual, individuals, entity or entities that
+create, distribute, or publicly perform or display the Work and its
+derivative works and that offer the Work under the terms and conditions
+of this License.
+
+"Work" means the Licensed Work.
+
+"You" means an individual or entity exercising the Licensed Rights.
+
+"Nonproduction Purposes" means all uses other than production use of
+the Work. For the avoidance of doubt, Nonproduction Purposes include
+testing, development, evaluation, demonstration, personal, educational,
+and internal research uses.
+
+"Production Use" means any use of the Work that is not a Nonproduction
+Purpose, including any use by You or Your affiliates for internal
+business purposes or for any commercial purpose, and any use in the
+ordinary course of Your business.
+
+"Change Date" means the date specified in the Parameters section of
+this License.
+
+"Change License" means the license specified in the Parameters section
+of this License under which the Licensed Work will be licensed as of
+the Change Date.
+
+3. License Grant
+
+Subject to the terms and conditions of this License, the Licensor
+grants to You a worldwide, royalty-free, non-exclusive, non-transferable
+license to exercise the Licensed Rights in the Licensed Work solely for
+Nonproduction Purposes, and the Licensor reserves all other rights not
+expressly granted.
+
+4. Conditions
+
+The license granted in section 3 is expressly made subject to the
+following conditions:
+
+a. You may exercise the Licensed Rights solely for Nonproduction
+   Purposes, subject to any additional use granted in the Parameters
+   section of this License.
+
+b. All copies of the Licensed Work must retain all notices and
+   attribution required by this License and the Licensor, and You may
+   not remove or obscure any proprietary, copyright, or license
+   notices contained in the Licensed Work.
+
+c. The Licensed Rights do not include any patent or trademark rights,
+   and the Licensor reserves all rights not expressly granted.
+
+5. Change of License
+
+On the Change Date, the Licensed Work will automatically be licensed
+under the Change License, and this License will immediately terminate
+with respect to the Licensed Work, except that this License will
+continue to apply to any copies of the Licensed Work made before the
+Change Date.
+
+6. Trademarks
+
+This License does not grant any rights in the trademarks, service
+marks, brand names, or logos of the Licensor, except as necessary for
+reasonable and customary use in describing the origin of the Licensed
+Work.
+
+7. Disclaimer of Warranty
+
+TO THE EXTENT PERMITTED BY APPLICABLE LAW, THE LICENSOR OFFERS THE
+WORK AS-IS AND ONLY AS-IS, AND MAKES NO REPRESENTATIONS OR WARRANTIES
+OF ANY KIND CONCERNING THE WORK, WHETHER EXPRESS, IMPLIED, STATUTORY,
+OR OTHERWISE, INCLUDING, WITHOUT LIMITATION, WARRANTIES OF TITLE,
+MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, NON-INFRINGEMENT,
+OR THE ABSENCE OF LATENT OR OTHER DEFECTS, ACCURACY, OR THE PRESENCE
+OF ABSENCE OF ERRORS, WHETHER OR NOT DISCOVERABLE. SOME JURISDICTIONS
+DO NOT ALLOW THE EXCLUSION OF IMPLIED WARRANTIES, SO THIS EXCLUSION
+MAY NOT APPLY TO YOU.
+
+8. Limitation of Liability
+
+TO THE EXTENT PERMITTED BY APPLICABLE LAW, IN NO EVENT WILL THE
+LICENSOR BE LIABLE TO YOU ON ANY LEGAL THEORY FOR ANY SPECIAL,
+INCIDENTAL, CONSEQUENTIAL, PUNITIVE, OR EXEMPLARY DAMAGES ARISING OUT
+OF THIS LICENSE OR THE USE OF THE WORK, EVEN IF THE LICENSOR HAS BEEN
+ADVISED OF THE POSSIBILITY OF SUCH DAMAGES. SOME JURISDICTIONS DO NOT
+ALLOW THE EXCLUSION OR LIMITATION OF INCIDENTAL OR CONSEQUENTIAL
+DAMAGES, SO THIS LIMITATION MAY NOT APPLY TO YOU.
+
+9. Termination
+
+a. The license granted under this License will automatically terminate
+   upon any breach by You of the terms and conditions of this License.
+
+b. Individuals or entities who have received copies or public
+   performance rights of the Work from You under this License will not
+   have their licenses terminated provided such individuals or
+   entities remain in full compliance with those licenses.
+
+10. Severability
+
+If any provision of this License is held to be unenforceable, that
+provision shall be enforced to the maximum extent permissible so as to
+effect the intent of the parties, and the remainder of this License
+shall continue in full force and effect.
+
+---
+
+Why this license? Ephemora Skyline is source-available: you can read,
+modify and run the full code today, and it converts automatically into
+an open source license (Apache 2.0) on the Change Date. The only thing
+reserved is competing with Ephemora by offering the software itself as
+a hosted service. For a commercial license (including hosted-service
+rights, white-labeling, or enterprise redistribution), contact
+Ephemora.

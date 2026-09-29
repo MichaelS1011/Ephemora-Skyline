@@ -6,7 +6,7 @@ interface BootLine {
 }
 
 const BOOT_LINES: BootLine[] = [
-  { text: "> INITIALIZING CODECITY CYBERDEFENSE...", delay: 200 },
+  { text: "> INITIALIZING EPHEMORA SKYLINE...", delay: 200 },
   { text: "> CONNECTING TO GRID...", delay: 900 },
   { text: "> LOADING CITY MATRIX...", delay: 1600 },
   { text: "> READY", delay: 2400 },
@@ -50,13 +50,13 @@ export function LoadingScreen({ isVisible }: LoadingScreenProps) {
     <div
       role="status"
       aria-live="polite"
-      aria-label="Loading CodeCity CyberDefense"
+      aria-label="Loading Ephemora Skyline"
       className="loading-screen"
       style={{
         position: "fixed",
         inset: 0,
         zIndex: 100,
-        background: "#000000",
+        background: "#161614",
         display: "flex",
         flexDirection: "column",
         alignItems: "flex-start",
@@ -74,7 +74,7 @@ export function LoadingScreen({ isVisible }: LoadingScreenProps) {
           position: "absolute",
           inset: 0,
           background:
-            "repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,255,159,0.03) 2px, rgba(0,255,159,0.03) 4px)",
+            "repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(232,80,60,0.03) 2px, rgba(232,80,60,0.03) 4px)",
           pointerEvents: "none",
         }}
       />
@@ -93,9 +93,9 @@ export function LoadingScreen({ isVisible }: LoadingScreenProps) {
             key={index}
             aria-hidden={!visibleLines.includes(index)}
             style={{
-              fontFamily: "monospace",
+              fontFamily: "var(--font-mono)",
               fontSize: "0.9rem",
-              color: index === BOOT_LINES.length - 1 ? "#00ffff" : "#00ff9f",
+              color: index === BOOT_LINES.length - 1 ? "#f2efe8" : "#e8503c",
               letterSpacing: "0.05em",
               lineHeight: "2",
               opacity: visibleLines.includes(index) ? 1 : 0,
@@ -117,7 +117,7 @@ export function LoadingScreen({ isVisible }: LoadingScreenProps) {
                   display: "inline-block",
                   width: "0.6em",
                   height: "1em",
-                  background: index === BOOT_LINES.length - 1 ? "#00ffff" : "#00ff9f",
+                  background: index === BOOT_LINES.length - 1 ? "#f2efe8" : "#e8503c",
                   marginLeft: "2px",
                   verticalAlign: "text-bottom",
                   animation: "blink-cursor 1s step-end infinite",

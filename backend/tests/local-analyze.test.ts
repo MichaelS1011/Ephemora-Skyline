@@ -4,8 +4,6 @@ import os from "os";
 import path from "path";
 import { safeRelativePath, handleLocalAnalyze } from "../src/server/routes/local-analyze.js";
 import { AnalysisOrchestrator } from "../src/services/analyzer/orchestrator.js";
-import { CloneManager } from "../src/services/github/clone-manager.js";
-import { GitHubClient } from "../src/services/github/client.js";
 import { SecurityScanner } from "../src/services/security/scanner.js";
 import pino from "pino";
 import type { AnalysisResult } from "../src/models/index.js";
@@ -152,11 +150,7 @@ describe("handleLocalAnalyze", () => {
 
   it("stores a completed result and clears progress for a real directory", async () => {
     const logger = pino({ level: "silent" });
-    const real = new AnalysisOrchestrator(
-      new CloneManager(logger),
-      new GitHubClient(logger),
-      new SecurityScanner(),
-    );
+    const real = new AnalysisOrchestrator(new SecurityScanner());
     const store = new Map<string, AnalysisResult>();
     const res = makeRes();
     await handleLocalAnalyze(
@@ -183,12 +177,13 @@ describe("handleLocalAnalyze", () => {
     const result = store.get(id);
     expect(result?.status).toBe("complete");
     expect(result?.summary.totalFiles).toBe(1);
-    // the route's own staged upload copy is removed after the run
+    // New contract: the staged copy SURVIVES the run — the test runner
+    // reuses it. It is swept later by the TTL (pruneStaleUploadDirs).
     const uploadDir = path.join(os.tmpdir(), "codecity-uploads", id);
-    const dirGone = await fs
+    const dirKept = await fs
       .access(uploadDir)
-      .then(() => false)
-      .catch(() => true);
-    expect(dirGone).toBe(true);
+      .then(() => true)
+      .catch(() => false);
+    expect(dirKept).toBe(true);
   }, 60000);
 });

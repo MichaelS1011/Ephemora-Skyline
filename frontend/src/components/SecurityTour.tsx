@@ -10,6 +10,23 @@ export function SecurityTour() {
   const prevTour = useStore((s) => s.prevTour);
   const endTour = useStore((s) => s.endTour);
   const cityData = useStore((s) => s.cityData);
+  const selectedUnit = useStore((s) => s.selectedUnit);
+
+  // Manual navigation ends the tour gracefully: if the selected building no
+  // longer matches the current tour stop (user drilled in/out, clicked
+  // another building, picked a search result…), a lingering HUD would point
+  // at a stop the camera left long ago. Tour's own next/prev/start all
+  // navigate to the stop's file synchronously, so a match here means the
+  // tour itself moved — only a genuine mismatch is the user taking over.
+  useEffect(() => {
+    if (!tourActive || !cityData) return;
+    const stops = tourStops(cityData);
+    if (stops.length === 0) return;
+    const expectedId = stops[Math.min(tourIndex, stops.length - 1)]!.file.id;
+    if (selectedUnit?.kind !== "file" || selectedUnit.id !== expectedId) {
+      endTour();
+    }
+  }, [tourActive, cityData, tourIndex, selectedUnit, endTour]);
 
   useEffect(() => {
     if (!tourActive) return;
@@ -45,7 +62,7 @@ export function SecurityTour() {
     <div
       className="absolute bottom-16 left-1/2 -translate-x-1/2 z-40 pointer-events-auto animate-toast-in"
       style={{
-        background: "rgba(6, 9, 20, 0.95)",
+        background: "rgba(18, 18, 16, 0.95)",
         border: `1px solid ${color}66`,
         borderRadius: 5,
         padding: "0.75rem 1rem",
@@ -94,7 +111,7 @@ export function SecurityTour() {
 
           {/* Worst finding preview */}
           {worst && (
-            <div className="font-jetbrains text-[10px] mt-1" style={{ color: "#8fa3c4" }}>
+            <div className="font-jetbrains text-[10px] mt-1" style={{ color: "#a8a49a" }}>
               <span style={{ color, fontWeight: 600 }}>{worst.severity}</span>
               {" · "}
               <span>{worst.type}</span>
@@ -123,7 +140,7 @@ export function SecurityTour() {
             onClick={prevTour}
             disabled={idx === 0}
             className="font-jetbrains text-[10px] w-7 h-7 flex items-center justify-center rounded-sm transition-all duration-150 disabled:opacity-25"
-            style={{ border: "1px solid rgba(90,120,170,0.4)", color: "#8fa3c4" }}
+            style={{ border: "1px solid rgba(150,142,128,0.4)", color: "#a8a49a" }}
             aria-label="Previous finding"
           >
             ←

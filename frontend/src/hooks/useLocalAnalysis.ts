@@ -28,7 +28,7 @@ const SUPPORTED_EXTENSIONS = new Set([
 
 /** Directory names that never contain relevant source code */
 const SKIP_DIRS =
-  /^(node_modules|\.git|dist|build|out|\.next|\.nuxt|coverage|\.turbo|\.vscode|\.idea|__pycache__|\.venv|venv|target|vendor|\.pytest_cache|\.mypy_cache|\.gradle|Pods|bin|obj)$/i;
+  /^(node_modules|dist|build|out|\.next|\.nuxt|coverage|\.turbo|\.vscode|\.idea|__pycache__|\.venv|venv|target|vendor|\.pytest_cache|\.mypy_cache|\.gradle|Pods|bin|obj)$/i;
 
 /** Dependency manifests are small text files the CVE layer (osv) needs —
  * always uploaded regardless of their extension (.txt, .lock, .toml) */
@@ -49,15 +49,52 @@ const MANIFEST_BASENAMES = new Set([
   "composer.lock",
 ]);
 
+const isGitPath = (rel: string): boolean => rel === ".git" || rel.startsWith(".git/");
+
+/** ArrayBuffer → base64 (binary-safe for .git packfiles) */
+async function fileToBase64(file: File): Promise<string> {
+  const bytes = new Uint8Array(await file.arrayBuffer());
+  let binary = "";
+  const chunk = 0x8000;
+  for (let i = 0; i < bytes.length; i += chunk) {
+    binary += String.fromCharCode(...bytes.subarray(i, i + chunk));
+  }
+  return btoa(binary);
+}
+
+/**
+ * Read one file as its upload payload: source files as utf-8 text, .git
+ * internals as base64 so git history survives the roundtrip byte-exact.
+ */
+async function readPayload(
+  file: File,
+  rel: string,
+): Promise<{ content: string; encoding?: "base64" }> {
+  if (isGitPath(rel)) {
+    return { content: await fileToBase64(file), encoding: "base64" };
+  }
+  return { content: await file.text() };
+}
+
 const MAX_FILES = 3000;
 const MAX_TOTAL_BYTES = 40 * 1024 * 1024;
 const MAX_FILE_BYTES = 1.5 * 1024 * 1024;
+/**
+ * The .git folder rides along (base64) so the backend can read real git
+ * history — churn hotspots, author districts, history secrets — from a
+ * purely local scan. Separate budget: git metadata must never crowd out
+ * source files.
+ */
+const GIT_MAX_TOTAL_BYTES = 15 * 1024 * 1024;
+const GIT_MAX_FILE_BYTES = 8 * 1024 * 1024;
 const POLL_INTERVAL_MS = 2000;
 const POLL_TIMEOUT_MS = 20 * 60 * 1000;
 
 interface LocalFile {
   path: string;
   content: string;
+  /** set for binary .git payloads (base64) — everything else is utf-8 text */
+  encoding?: "base64";
 }
 
 /** Thrown when folder collection itself fails (too large, unreadable) —
@@ -226,6 +263,7 @@ export function useLocalAnalysis() {
     async (fileList: File[], rootName: string) => {
       const files: LocalFile[] = [];
       let totalBytes = 0;
+      let gitBytes = 0;
       let skipped = 0;
       for (const file of fileList) {
         if (cancelledRef.current) {
@@ -239,23 +277,33 @@ export function useLocalAnalysis() {
         const ext = dot > rel.lastIndexOf("/") ? rel.slice(dot).toLowerCase() : "";
         const segments = rel.split("/");
         if (segments.some((s) => SKIP_DIRS.test(s))) continue;
+        const git = isGitPath(rel);
         const base = rel.split("/").pop() ?? "";
-        if (!SUPPORTED_EXTENSIONS.has(ext) && !MANIFEST_BASENAMES.has(base)) continue;
-        if (file.size > MAX_FILE_BYTES) {
-          skipped++;
-          continue;
-        }
-        totalBytes += file.size;
-        if (files.length >= MAX_FILES || totalBytes > MAX_TOTAL_BYTES) {
-          setErrorMessage(
-            `Analysis aborted — folder exceeds ${MAX_FILES} files / 40 MB. Exclude node_modules & build output and retry.`,
-          );
-          setState("error");
-          return;
+        if (!git && !SUPPORTED_EXTENSIONS.has(ext) && !MANIFEST_BASENAMES.has(base)) continue;
+        // .git metadata rides along in its own budget (git churn/blame need it)
+        if (git) {
+          if (file.size > GIT_MAX_FILE_BYTES || gitBytes + file.size > GIT_MAX_TOTAL_BYTES) {
+            skipped++;
+            continue;
+          }
+          gitBytes += file.size;
+        } else {
+          if (file.size > MAX_FILE_BYTES) {
+            skipped++;
+            continue;
+          }
+          totalBytes += file.size;
+          if (files.length >= MAX_FILES || totalBytes > MAX_TOTAL_BYTES) {
+            setErrorMessage(
+              `Analysis aborted — folder exceeds ${MAX_FILES} files / 40 MB. Exclude node_modules & build output and retry.`,
+            );
+            setState("error");
+            return;
+          }
         }
         try {
-          const content = await file.text();
-          files.push({ path: rel, content });
+          const payload = await readPayload(file, rel);
+          files.push({ path: rel, ...payload });
         } catch {
           skipped++; // unreadable (binary/permission) — the scanners don't need it
         }
@@ -307,6 +355,7 @@ export function useLocalAnalysis() {
     async (dir: DirHandle) => {
       const files: LocalFile[] = [];
       let totalBytes = 0;
+      let gitBytes = 0;
       let skipped = 0;
       const walk = async (handle: DirHandle, prefix: string): Promise<void> => {
         for await (const entry of handle.values()) {
@@ -320,21 +369,30 @@ export function useLocalAnalysis() {
           const dot = rel.lastIndexOf(".");
           const ext = dot > rel.lastIndexOf("/") ? rel.slice(dot).toLowerCase() : "";
           const base = entry.name;
-          if (!SUPPORTED_EXTENSIONS.has(ext) && !MANIFEST_BASENAMES.has(base)) continue;
-          if (files.length >= MAX_FILES || totalBytes > MAX_TOTAL_BYTES) {
+          const git = isGitPath(rel);
+          if (!git && !SUPPORTED_EXTENSIONS.has(ext) && !MANIFEST_BASENAMES.has(base)) continue;
+          if (!git && (files.length >= MAX_FILES || totalBytes > MAX_TOTAL_BYTES)) {
             throw new FolderCollectionError(
               `Analysis aborted — folder exceeds ${MAX_FILES} files / 40 MB. Exclude node_modules & build output and retry.`,
             );
           }
           try {
             const file = await entry.getFile!();
-            if (file.size > MAX_FILE_BYTES) {
-              skipped++;
-              continue;
+            if (git) {
+              if (file.size > GIT_MAX_FILE_BYTES || gitBytes + file.size > GIT_MAX_TOTAL_BYTES) {
+                skipped++;
+                continue;
+              }
+              gitBytes += file.size;
+            } else {
+              if (file.size > MAX_FILE_BYTES) {
+                skipped++;
+                continue;
+              }
+              totalBytes += file.size;
             }
-            totalBytes += file.size;
-            const content = await file.text();
-            files.push({ path: rel, content });
+            const payload = await readPayload(file, rel);
+            files.push({ path: rel, ...payload });
             if (files.length % 50 === 0) {
               setAnalysisStage(`Reading files… ${files.length}`);
               setCollected({ files: files.length, bytes: totalBytes });

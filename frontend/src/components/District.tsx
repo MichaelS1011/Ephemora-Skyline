@@ -1,13 +1,13 @@
-'use client';
+"use client";
 
-import { useMemo, useRef } from 'react';
-import { Html } from '@react-three/drei';
-import { useFrame } from '@react-three/fiber';
-import type * as THREE from 'three';
-import type { BlockPlacement } from '../city/layout';
-import { ENV, SEVERITY_COLOR } from '../city/palette';
-import { useStore } from '../stores/useStore';
-import { Building } from './Building';
+import { useMemo, useRef } from "react";
+import { Html } from "@react-three/drei";
+import { useFrame } from "@react-three/fiber";
+import type * as THREE from "three";
+import type { BlockPlacement } from "../city/layout";
+import { ENV, SEVERITY_COLOR } from "../city/palette";
+import { useStore } from "../stores/useStore";
+import { Building } from "./Building";
 
 /**
  * A district — a BUILT plot: curb, nameplate and a skyline of up to six
@@ -29,7 +29,7 @@ export function District({ placement, appearAt, constructing }: DistrictProps) {
   const { dir, x, z, w, d, skyline } = placement;
   const hasP0 = dir.findingsBySeverity.P0 > 0;
 
-  const curbColor = hasP0 ? ENV.windowAlarm : '#2c3852';
+  const curbColor = hasP0 ? ENV.windowAlarm : "#2c3852";
   const curbIntensity = useMemo(() => (hasP0 ? 1.1 : 0.3), [hasP0]);
 
   const handleClick = (e: { stopPropagation: () => void }): void => {
@@ -40,12 +40,12 @@ export function District({ placement, appearAt, constructing }: DistrictProps) {
   const handleOver = (e: { stopPropagation: () => void }): void => {
     e.stopPropagation();
     setHoveredId(`block:${dir.path}`);
-    document.body.style.cursor = 'pointer';
+    document.body.style.cursor = "pointer";
   };
 
   const handleOut = (): void => {
     setHoveredId(null);
-    document.body.style.cursor = 'auto';
+    document.body.style.cursor = "auto";
   };
 
   const groupRef = useRef<THREE.Group>(null);
@@ -73,21 +73,33 @@ export function District({ placement, appearAt, constructing }: DistrictProps) {
   return (
     <group ref={groupRef} position={[x, 0, z]}>
       {/* Plot — dark asphalt lot */}
-      <mesh position={[0, 0.09, 0]} onClick={handleClick} onPointerOver={handleOver} onPointerOut={handleOut}>
+      <mesh
+        position={[0, 0.09, 0]}
+        onClick={handleClick}
+        onPointerOver={handleOver}
+        onPointerOut={handleOut}
+      >
         <boxGeometry args={[w + 2.4, 0.18, d + 2.4]} />
         <meshStandardMaterial color="#161c29" roughness={0.95} />
       </mesh>
 
       {/* Curb — subtle frame; alarm-red when P0 lives inside */}
-      {([
-        [0, -d / 2 - 1.1, w + 2.8, 0],
-        [0, d / 2 + 1.1, w + 2.8, 0],
-        [-w / 2 - 1.1, 0, 0, d + 2.8],
-        [w / 2 + 1.1, 0, 0, d + 2.8],
-      ] as Array<[number, number, number, number]>).map(([ex, ez, ew, ed], i) => (
+      {(
+        [
+          [0, -d / 2 - 1.1, w + 2.8, 0],
+          [0, d / 2 + 1.1, w + 2.8, 0],
+          [-w / 2 - 1.1, 0, 0, d + 2.8],
+          [w / 2 + 1.1, 0, 0, d + 2.8],
+        ] as Array<[number, number, number, number]>
+      ).map(([ex, ez, ew, ed], i) => (
         <mesh key={i} position={[ex, 0.16, ez]}>
           <boxGeometry args={[ew || 0.3, 0.22, ed || 0.3]} />
-          <meshStandardMaterial color={curbColor} emissive={curbColor} emissiveIntensity={curbIntensity} roughness={0.7} />
+          <meshStandardMaterial
+            color={curbColor}
+            emissive={curbColor}
+            emissiveIntensity={curbIntensity}
+            roughness={0.7}
+          />
         </mesh>
       ))}
 
@@ -110,26 +122,35 @@ export function District({ placement, appearAt, constructing }: DistrictProps) {
       {/* Podium marker — files not individually rendered */}
       {dir.remainingFiles > 0 && (
         <group position={[w / 2 - 1.4, 0, d / 2 - 1.4]}>
-          <mesh position={[0, 0.5, 0]} onClick={handleClick} onPointerOver={handleOver} onPointerOut={handleOut}>
+          <mesh
+            position={[0, 0.5, 0]}
+            onClick={handleClick}
+            onPointerOver={handleOver}
+            onPointerOut={handleOut}
+          >
             <boxGeometry args={[2.2, 1, 2.2]} />
             <meshStandardMaterial color="#1c2434" roughness={0.9} />
           </mesh>
           <mesh position={[0, 1.06, 0]}>
             <boxGeometry args={[2.3, 0.08, 2.3]} />
-            <meshStandardMaterial color={ENV.plotEdge} emissive={ENV.plotEdge} emissiveIntensity={0.35} />
+            <meshStandardMaterial
+              color={ENV.plotEdge}
+              emissive={ENV.plotEdge}
+              emissiveIntensity={0.35}
+            />
           </mesh>
           <Html center distanceFactor={44} position={[0, 1.7, 0]} zIndexRange={[8, 0]}>
             <div
               style={{
                 fontFamily: "'JetBrains Mono', ui-monospace, Menlo, monospace",
                 fontSize: 9,
-                color: '#8fa3c4',
-                background: 'rgba(6, 9, 20, 0.75)',
-                border: '1px solid rgba(90,120,180,0.35)',
+                color: "#a8a49a",
+                background: "rgba(18, 18, 16, 0.75)",
+                border: "1px solid rgba(90,120,180,0.35)",
                 borderRadius: 3,
-                padding: '1px 5px',
-                whiteSpace: 'nowrap',
-                pointerEvents: 'none',
+                padding: "1px 5px",
+                whiteSpace: "nowrap",
+                pointerEvents: "none",
               }}
             >
               +{dir.remainingFiles}
@@ -144,14 +165,14 @@ export function District({ placement, appearAt, constructing }: DistrictProps) {
           style={{
             fontFamily: "'JetBrains Mono', ui-monospace, Menlo, monospace",
             fontSize: 10,
-            color: hasP0 ? '#ffb3bc' : '#a9bbdd',
-            background: 'rgba(6, 9, 20, 0.82)',
-            border: `1px solid ${hasP0 ? 'rgba(255,46,77,0.5)' : 'rgba(90,120,180,0.4)'}`,
+            color: hasP0 ? "#ffb3bc" : "#a9bbdd",
+            background: "rgba(18, 18, 16, 0.82)",
+            border: `1px solid ${hasP0 ? "rgba(255,46,77,0.5)" : "rgba(90,120,180,0.4)"}`,
             borderRadius: 3,
-            padding: '2px 7px',
-            whiteSpace: 'nowrap',
-            pointerEvents: 'none',
-            textAlign: 'center',
+            padding: "2px 7px",
+            whiteSpace: "nowrap",
+            pointerEvents: "none",
+            textAlign: "center",
           }}
         >
           {dir.name}

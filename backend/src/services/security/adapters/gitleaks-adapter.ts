@@ -79,11 +79,15 @@ export class GitleaksAdapter implements ScannerAdapter {
    */
   enableBatchMode(): void {
     this.batchMode = true;
+    void this.resolveBinary();
   }
 
   async scanFile(filePath: string, content: string): Promise<SecurityIssue[]> {
-    if (this.batchMode && this.binaryAvailable === true) return []; // covered by batch scan
-    if (this.batchMode && this.binaryAvailable === false) return this.fallbackScan(content);
+    if (this.batchMode) {
+      const bin = await this.resolveBinary();
+      if (bin) return []; // covered by batch scan
+      return this.fallbackScan(content);
+    }
     // Try real gitleaks binary first (if installed or via docker)
     const fromBinary = await this.tryBinary(filePath, content);
     if (fromBinary !== null) return fromBinary;

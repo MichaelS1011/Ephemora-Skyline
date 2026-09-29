@@ -39,7 +39,7 @@ export function Minimap({ show = true }: { show?: boolean }) {
       PADDING + ((z + extent) / (extent * 2)) * (MAP_SIZE - PADDING * 2);
 
     ctx.clearRect(0, 0, MAP_SIZE, MAP_SIZE);
-    ctx.fillStyle = "rgba(8, 11, 22, 0.85)";
+    ctx.fillStyle = "rgba(16, 16, 14, 0.85)";
     ctx.fillRect(0, 0, MAP_SIZE, MAP_SIZE);
 
     // blocks with their skyline towers
@@ -49,9 +49,9 @@ export function Minimap({ show = true }: { show?: boolean }) {
       const w = Math.max(3, (b.w / (extent * 2)) * (MAP_SIZE - PADDING * 2));
       const h = Math.max(3, (b.d / (extent * 2)) * (MAP_SIZE - PADDING * 2));
       const alarm = b.dir.findingsBySeverity.P0 > 0;
-      ctx.fillStyle = alarm ? "rgba(255,46,77,0.14)" : "rgba(90,120,180,0.16)";
+      ctx.fillStyle = alarm ? "rgba(255,46,77,0.14)" : "rgba(160,150,132,0.16)";
       ctx.fillRect(x, y, w, h);
-      ctx.strokeStyle = alarm ? SEVERITY_COLOR.P0 : "rgba(120,160,220,0.55)";
+      ctx.strokeStyle = alarm ? SEVERITY_COLOR.P0 : "rgba(165,158,144,0.55)";
       ctx.strokeRect(x, y, w, h);
       // representative skyline towers
       for (const t of b.skyline) {
@@ -82,7 +82,7 @@ export function Minimap({ show = true }: { show?: boolean }) {
     if (layout.podium) {
       const x = toX(layout.podium.x);
       const y = toY(layout.podium.z);
-      ctx.strokeStyle = "rgba(140,160,200,0.6)";
+      ctx.strokeStyle = "rgba(180,170,150,0.6)";
       ctx.strokeRect(x - 2.5, y - 2.5, 5, 5);
     }
 
@@ -124,15 +124,15 @@ export function Minimap({ show = true }: { show?: boolean }) {
     <div
       className="absolute bottom-4 right-4 z-10"
       style={{
-        background: "rgba(5, 8, 20, 0.85)",
-        border: "1px solid rgba(0,255,159,0.2)",
+        background: "rgba(16, 16, 14, 0.85)",
+        border: "1px solid rgba(232,80,60,0.2)",
         backdropFilter: "blur(4px)",
         padding: 4,
       }}
     >
       <div
         className="font-mono text-[9px] tracking-widest mb-1 px-0.5"
-        style={{ color: "rgba(0,255,159,0.5)" }}
+        style={{ color: "rgba(232,80,60,0.5)" }}
       >
         CITY MAP {focusPath.length > 0 ? `· /${focusPath.join("/")}` : "· OVERVIEW"}
       </div>

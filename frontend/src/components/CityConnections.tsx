@@ -1,10 +1,10 @@
-'use client';
+"use client";
 
-import { useEffect, useMemo, useRef } from 'react';
-import { useFrame } from '@react-three/fiber';
-import * as THREE from 'three';
-import type { DirLayout } from '../city/layout';
-import { ENV } from '../city/palette';
+import { useEffect, useMemo, useRef } from "react";
+import { useFrame } from "@react-three/fiber";
+import * as THREE from "three";
+import type { DirLayout } from "../city/layout";
+import { ENV } from "../city/palette";
 
 /**
  * Import relationships as glowing arcs:
@@ -19,6 +19,12 @@ interface ConnectionProps {
   dirConnections: Array<{ from: string; to: string; weight: number }>;
   showDirArcs: boolean;
   showFileArcs?: boolean;
+  /**
+   * When a building is selected, static file arcs collapse to ONLY that
+   * building's edges (idle cities show no file arcs at all — the
+   * DependencyFlows particles take over).
+   */
+  selectedFileId?: string | null;
 }
 
 const FILE_ARCS_MAX = 70;
@@ -42,7 +48,14 @@ function arcGeometry(
   return new THREE.TubeGeometry(curve, 20, radius, 5, false);
 }
 
-export function CityConnections({ layout, fileConnections, dirConnections, showDirArcs, showFileArcs = true }: ConnectionProps) {
+export function CityConnections({
+  layout,
+  fileConnections,
+  dirConnections,
+  showDirArcs,
+  showFileArcs = true,
+  selectedFileId = null,
+}: ConnectionProps) {
   const fileMatRef = useRef<THREE.MeshBasicMaterial>(null);
   const dirMatRef = useRef<THREE.MeshBasicMaterial>(null);
 
@@ -64,13 +77,14 @@ export function CityConnections({ layout, fileConnections, dirConnections, showD
     const geos: THREE.TubeGeometry[] = [];
     for (const conn of fileConnections) {
       if (geos.length >= FILE_ARCS_MAX) break;
+      if (selectedFileId && conn.from !== selectedFileId && conn.to !== selectedFileId) continue;
       const a = buildingPos.get(conn.from);
       const b = buildingPos.get(conn.to);
       if (!a || !b || (a.x === b.x && a.z === b.z)) continue;
       geos.push(arcGeometry(a.x, a.y, a.z, b.x, b.y, b.z, 0.05));
     }
     return geos;
-  }, [fileConnections, buildingPos, showFileArcs]);
+  }, [fileConnections, buildingPos, showFileArcs, selectedFileId]);
 
   // ── Dir → dir arcs (overview architecture map) ───────────────────────────
   const dirGeos = useMemo(() => {
@@ -78,8 +92,8 @@ export function CityConnections({ layout, fileConnections, dirConnections, showD
     const geos: THREE.TubeGeometry[] = [];
     for (const conn of dirConnections) {
       if (geos.length >= DIR_ARCS_MAX) break;
-      const a = conn.from === '' ? { x: 0, z: 0 } : blockPos.get(conn.from);
-      const b = conn.to === '' ? { x: 0, z: 0 } : blockPos.get(conn.to);
+      const a = conn.from === "" ? { x: 0, z: 0 } : blockPos.get(conn.from);
+      const b = conn.to === "" ? { x: 0, z: 0 } : blockPos.get(conn.to);
       if (!a || !b) continue;
       geos.push(arcGeometry(a.x, 3.2, a.z, b.x, 3.2, b.z, 0.1));
     }
@@ -118,7 +132,7 @@ export function CityConnections({ layout, fileConnections, dirConnections, showD
         <mesh key={`da-${i}`} geometry={geo}>
           <meshBasicMaterial
             ref={i === 0 ? dirMatRef : undefined}
-            color="#6fd4ff"
+            color="#e8b23c"
             transparent
             opacity={0.3}
             blending={THREE.AdditiveBlending}

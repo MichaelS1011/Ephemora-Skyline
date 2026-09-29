@@ -14,5 +14,4 @@ coverage
 .c8-config.json
 .eslintrc*
 .prettierrc*
-tsconfig*.json
 vitest*

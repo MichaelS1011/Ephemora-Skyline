@@ -218,18 +218,42 @@ export class RegexAdapter implements ScannerAdapter {
       });
     }
 
+    // Precompute line offsets for O(log L) zero-allocation line lookups
+    const lineOffsets = new Uint32Array(lines.length);
+    let offset = 0;
+    for (let i = 0; i < lines.length; i++) {
+      lineOffsets[i] = offset;
+      offset += lines[i]!.length + 1;
+    }
+
+    const findLineNum = (charIndex: number): number => {
+      let low = 0;
+      let high = lineOffsets.length - 1;
+      while (low <= high) {
+        const mid = (low + high) >>> 1;
+        if (lineOffsets[mid]! <= charIndex) {
+          low = mid + 1;
+        } else {
+          high = mid - 1;
+        }
+      }
+      return low;
+    };
+
     for (const pattern of this.patterns) {
       // Language gating: loose equality is a JavaScript-only pitfall — in
       // Python `==` is the correct operator (400+ false positives in real
       // Python projects otherwise)
       if (pattern.type === "LOOSE_EQUALITY" && !isJsFamily) continue;
+
+      // Local regex instance prevents race conditions across concurrent file scans
+      const regex = new RegExp(pattern.regex.source, pattern.regex.flags);
       let match: RegExpExecArray | null;
-      pattern.regex.lastIndex = 0;
-      while ((match = pattern.regex.exec(content)) !== null) {
-        const lineNum = content.slice(0, match.index).split("\n").length;
+      while ((match = regex.exec(content)) !== null) {
+        const lineNum = findLineNum(match.index);
         // Never flag prose: comments, docstrings
         if (suppressedLines.has(lineNum)) {
-          if (match[0].length === 0) pattern.regex.lastIndex++;
+          if (match[0].length === 0) regex.lastIndex++;
           continue;
         }
 
@@ -238,21 +262,21 @@ export class RegexAdapter implements ScannerAdapter {
           const win = content.slice(match.index, match.index + 400);
           const lineSlice = content.slice(match.index).split("\n")[0] ?? "";
           if (win.includes("?") || /\$\d/.test(win) || /:\w+/.test(lineSlice)) {
-            if (match[0].length === 0) pattern.regex.lastIndex++;
+            if (match[0].length === 0) regex.lastIndex++;
             continue;
           }
         }
 
         // PATH_TRAVERSAL: skip lines that are imports/requires or comments
         if (pattern.type === "PATH_TRAVERSAL") {
-          const lineIdx = content.slice(0, match.index).split("\n").length - 1;
+          const lineIdx = lineNum - 1;
           const lineText = (lines[lineIdx] ?? "").trim();
           const isImport =
             /^(?:import\b|export\b|const\s+\w+\s*=\s*require\s*\(|require\s*\(|\/\/|\/\*|\*\s)/.test(
               lineText,
             );
           if (isImport) {
-            if (match[0].length === 0) pattern.regex.lastIndex++;
+            if (match[0].length === 0) regex.lastIndex++;
             continue;
           }
         }
@@ -276,7 +300,7 @@ export class RegexAdapter implements ScannerAdapter {
           provenance: "regex",
           ruleId: `regex:${pattern.type}`,
         } as SecurityIssue & { provenance: string; ruleId: string });
-        if (match[0].length === 0) pattern.regex.lastIndex++;
+        if (match[0].length === 0) regex.lastIndex++;
       }
     }
     enrichIssues(issues, content);

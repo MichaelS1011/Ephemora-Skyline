@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { useStore } from "../stores/useStore";
 import { allFiles } from "../city/layout";
 import { SEVERITY_COLOR, languageColor } from "../city/palette";
@@ -46,6 +46,30 @@ export function FindingsPanel() {
 
   const totalFindings = groups.reduce((s, g) => s + g.count, 0);
 
+  // Keep the row for the currently selected building visible: selection can
+  // change from outside this panel (Tab-walking, tour, search) and the gold
+  // highlight is easy to miss if the row is scrolled out of view.
+  const rowRefs = useRef<Map<string, HTMLDivElement>>(new Map());
+  const selectedId = selectedUnit?.kind === "file" ? selectedUnit.id : null;
+  useEffect(() => {
+    if (!selectedId) return;
+    rowRefs.current.get(selectedId)?.scrollIntoView({ block: "nearest" });
+  }, [selectedId, showFindings]);
+
+  // Global Esc closes the report — the app-level Esc chain shouldn't have
+  // to know about this panel
+  useEffect(() => {
+    if (!showFindings) return;
+    const onKey = (e: KeyboardEvent): void => {
+      if (e.key === "Escape") {
+        e.stopPropagation();
+        useStore.getState().setShowFindings(false);
+      }
+    };
+    window.addEventListener("keydown", onKey, true);
+    return () => window.removeEventListener("keydown", onKey, true);
+  }, [showFindings]);
+
   if (!cityData || !showFindings) return null;
 
   return (
@@ -54,8 +78,8 @@ export function FindingsPanel() {
       aria-label="All security and quality findings"
       className="absolute top-[100px] right-4 bottom-[264px] z-30 w-[340px] panel-findings flex flex-col animate-fade-up pointer-events-auto"
       style={{
-        background: "rgba(5, 8, 20, 0.94)",
-        border: "1px solid rgba(90,130,200,0.25)",
+        background: "rgba(16, 16, 14, 0.94)",
+        border: "1px solid rgba(150,142,128,0.25)",
         borderRadius: 4,
         backdropFilter: "blur(12px)",
         boxShadow: "0 8px 32px rgba(0,0,0,0.5)",
@@ -64,9 +88,9 @@ export function FindingsPanel() {
       {/* Header */}
       <div
         className="flex items-center justify-between px-3 py-2.5 shrink-0"
-        style={{ borderBottom: "1px solid rgba(90,130,200,0.18)" }}
+        style={{ borderBottom: "1px solid rgba(150,142,128,0.18)" }}
       >
-        <div className="font-jetbrains text-[10px] tracking-[0.2em]" style={{ color: "#8fa3c4" }}>
+        <div className="font-jetbrains text-[10px] tracking-[0.2em]" style={{ color: "#a8a49a" }}>
           ⚠ ALL FINDINGS <span style={{ color: SEVERITY_COLOR.P0 }}>{totalFindings}</span>{" "}
           <span style={{ color: "var(--meta-faint)" }}>in {groups.length} files</span>
         </div>
@@ -97,10 +121,14 @@ export function FindingsPanel() {
           return (
             <div
               key={file.id}
+              ref={(el) => {
+                if (el) rowRefs.current.set(file.id, el);
+                else rowRefs.current.delete(file.id);
+              }}
               className="rounded-sm"
               style={{
                 borderLeft: `2px solid ${accent}`,
-                background: isSelected ? "rgba(0,212,255,0.08)" : "rgba(15,22,40,0.55)",
+                background: isSelected ? "rgba(232,178,60,0.08)" : "rgba(15,22,40,0.55)",
                 marginBottom: 4,
               }}
             >
@@ -108,12 +136,12 @@ export function FindingsPanel() {
               <button
                 onClick={() => navigateToFile(file.id)}
                 title={`Show ${file.name} in the city`}
-                className="w-full text-left px-2 py-1.5 transition-colors hover:bg-[rgba(0,212,255,0.05)] cursor-pointer"
+                className="w-full text-left px-2 py-1.5 transition-colors hover:bg-[rgba(232,178,60,0.05)] cursor-pointer"
               >
                 <div className="flex items-center justify-between gap-2">
                   <span
                     className="font-jetbrains text-[10.5px] truncate"
-                    style={{ color: isSelected ? "#4de3ff" : "#d8e4f8" }}
+                    style={{ color: isSelected ? "#f2d5a0" : "#d8e4f8" }}
                   >
                     {file.name}
                   </span>
@@ -166,7 +194,7 @@ export function FindingsPanel() {
                       </span>
                       <span
                         className="font-jetbrains text-[9px] leading-snug truncate group-hover:brightness-125"
-                        style={{ color: "#8fa3c4" }}
+                        style={{ color: "#a8a49a" }}
                         title={`${f.message} (${f.type} · line ${f.line})`}
                       >
                         {f.message}
@@ -183,7 +211,7 @@ export function FindingsPanel() {
       {/* Footer hint */}
       <div
         className="px-3 py-1.5 shrink-0 font-jetbrains text-[9px]"
-        style={{ color: "var(--meta-faint)", borderTop: "1px solid rgba(90,130,200,0.14)" }}
+        style={{ color: "var(--meta-faint)", borderTop: "1px solid rgba(150,142,128,0.14)" }}
       >
         click a file to fly there · details in the right panel
       </div>

@@ -5,6 +5,7 @@ import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import type { CityFile } from "../city/types";
 import { languageColor, ENV } from "../city/palette";
+import { materialState, erosionState } from "../city/mapping";
 import { useStore } from "../stores/useStore";
 
 // ── Facade textures (shared cache — window grids are expensive) ────────────
@@ -15,7 +16,7 @@ interface FacadeTextures {
 }
 
 const facadeCache = new Map<string, FacadeTextures>();
-const FACADE_CACHE_MAX = 500;
+const FACADE_CACHE_MAX = 2000;
 
 function mulberry32(seed: number): () => number {
   let a = seed >>> 0;
@@ -212,8 +213,26 @@ export function Building({
   const setHoveredId = useStore((s) => s.setHoveredId);
   const selected = selectedUnit?.kind === "file" && selectedUnit.id === file.id;
 
+  const cityMeta = useStore((s) => s.cityData?.meta);
   const facadeColor = languageColor(file.language);
   const alarm = file.threatLevel === "critical" || file.threatLevel === "high";
+  // Metric→visual mapping: graphite (healthy) / glass (dead code) / alarm
+  const matState = materialState(file);
+  const erosion = erosionState(file, cityMeta);
+  // Category 1 (structure): raw bytes — bloat LOC hides renders as a
+  // massive near-black monolith regardless of language
+  const monolith = (file.bytes ?? 0) >= 150_000;
+  // Category 6 (testing): a solid coverage report shields the building;
+  // live test results override it — failures crack the shield open
+  const testResult = useStore((s) => s.testResults[file.path]);
+  const shielded =
+    (cityMeta?.coverage ?? false) &&
+    (file.coveragePct ?? 0) >= 80 &&
+    testResult?.status !== "failed";
+  const testsFailing = testResult?.status === "failed";
+  const testsPassing = testResult?.status === "passed";
+  // Category 2 (statics): circular import — red warning ring at the base
+  const inCycle = (cityMeta?.cycles ?? false) && !!file.inCycle;
   const seed = useMemo(() => {
     let hash = 0;
     for (let i = 0; i < file.path.length; i++) hash = (hash * 31 + file.path.charCodeAt(i)) | 0;
@@ -259,30 +278,69 @@ export function Building({
   const annexX = (w + annexW) / 2 - 0.12;
   const annexZ = (vrng() - 0.5) * Math.max(0, d - annexD) * 0.8;
 
+  // Glass buildings (dead code) need no facade textures at all
   const facade = useMemo(
-    () => getFacadeTextures(facadeColor, w, bodyH, alarm, seed),
-    [facadeColor, w, bodyH, alarm, seed],
+    () => (matState === "glass" ? null : getFacadeTextures(facadeColor, w, bodyH, alarm, seed)),
+    [matState, facadeColor, w, bodyH, alarm, seed],
   );
 
   const materials = useMemo(() => {
+    if (monolith) {
+      // Bloat monolith: near-black, featureless slab — reads as wasted space
+      const side = new THREE.MeshStandardMaterial({
+        color: "#0c0c0b",
+        roughness: 0.35,
+        metalness: 0.55,
+        transparent: dimmed,
+        opacity: dimmed ? 0.12 : 1,
+      });
+      const roof = new THREE.MeshStandardMaterial({
+        color: "#0a0a09",
+        roughness: 0.3,
+        metalness: 0.6,
+        transparent: dimmed,
+        opacity: dimmed ? 0.1 : 1,
+      });
+      return [side, side, roof, roof, side, side];
+    }
+    if (matState === "glass") {
+      const side = new THREE.MeshPhysicalMaterial({
+        color: "#d8cdb4",
+        roughness: 0.12,
+        metalness: 0.05,
+        transparent: true,
+        opacity: dimmed ? 0.05 : 0.26,
+        transmission: 0.55,
+        thickness: 0.6,
+      });
+      const roof = new THREE.MeshStandardMaterial({
+        color: "#1a2530",
+        roughness: 0.4,
+        transparent: true,
+        opacity: dimmed ? 0.08 : 0.45,
+      });
+      return [side, side, roof, roof, side, side];
+    }
     const side = new THREE.MeshStandardMaterial({
-      map: facade.map,
-      emissiveMap: facade.emissive,
+      map: facade!.map,
+      emissiveMap: facade!.emissive,
       emissive: new THREE.Color(0xffffff),
-      emissiveIntensity: 0.85,
-      roughness: 0.75,
-      metalness: 0.1,
+      emissiveIntensity: matState === "alarm" ? 1.15 : 0.55,
+      // Eroded hotspots read as rough, coarse concrete; healthy code as
+      // smooth matte graphite. Language stays as the window-glow accent.
+      roughness: erosion === "eroded" ? 0.97 : erosion === "weathered" ? 0.94 : 0.82,
+      metalness: 0.06,
       transparent: dimmed,
       opacity: dimmed ? 0.12 : 1,
     });
     const roof = new THREE.MeshStandardMaterial({
-      color: "#11141d",
+      color: erosion === "stable" || erosion === "unknown" ? "#191917" : "#171310",
       roughness: 0.9,
       transparent: dimmed,
       opacity: dimmed ? 0.12 : 1,
     });
     return [side, side, roof, roof, side, side];
-  }, [facade, dimmed]);
+  }, [facade, dimmed, matState, erosion, monolith]);
 
   useEffect(() => {
     return () => {
@@ -294,6 +352,7 @@ export function Building({
   const beamRef = useRef<THREE.Mesh>(null);
   const ringRef = useRef<THREE.Mesh>(null);
   const glowRef = useRef<THREE.Mesh>(null);
+  const cycleRef = useRef<THREE.Mesh>(null);
   const groupRef = useRef<THREE.Group>(null);
   // Construction cinematic finished — stop touching scale every frame
   const buildDoneRef = useRef(false);
@@ -327,9 +386,10 @@ export function Building({
     }
 
     // Subtle window flicker — the city breathes. Hover eases in a warm boost
-    // on top of the flicker baseline instead of fighting it.
+    // on top of the flicker baseline instead of fighting it. Glass has no
+    // emissive map — nothing to flicker.
     const mat = materials[0] as THREE.MeshStandardMaterial;
-    if (!dimmed) {
+    if (!dimmed && matState !== "glass") {
       const target = hoverTargetRef.current;
       const cur = hoverGlowRef.current;
       const next = Math.abs(target - cur) < 0.005 ? target : cur + (target - cur) * 0.16;
@@ -346,6 +406,9 @@ export function Building({
     }
     if (ringRef.current) {
       ringRef.current.rotation.z = t * 0.6;
+    }
+    if (cycleRef.current) {
+      cycleRef.current.rotation.z = t * 1.4;
     }
     if (glowRef.current) {
       const gm = glowRef.current.material as THREE.MeshBasicMaterial;
@@ -371,6 +434,13 @@ export function Building({
     document.body.style.cursor = "auto";
   };
 
+  // Unmount while hovered would leak the pointer cursor
+  useEffect(() => {
+    return () => {
+      if (hoverTargetRef.current === 1) document.body.style.cursor = "auto";
+    };
+  }, []);
+
   const pointerProps = interactive
     ? { onClick: handleClick, onPointerOver: handleOver, onPointerOut: handleOut }
     : {};
@@ -384,7 +454,7 @@ export function Building({
       <mesh position={[0, 0.18, 0]}>
         <boxGeometry args={[w + 0.55, 0.36, d + 0.55]} />
         <meshStandardMaterial
-          color="#0e1219"
+          color="#141412"
           roughness={0.95}
           transparent={dimmed}
           opacity={dimmed ? 0.1 : 1}
@@ -407,6 +477,100 @@ export function Building({
       {hasAnnex && (
         <mesh position={[annexX, annexH / 2 + 0.3, annexZ]} material={materials} {...pointerProps}>
           <boxGeometry args={[annexW, annexH, annexD]} />
+        </mesh>
+      )}
+
+      {/* Git erosion: warning band + scaffolding on churn hotspots */}
+      {(erosion === "eroded" || erosion === "weathered") && (
+        <group>
+          <mesh position={[0, 0.62, 0]}>
+            <boxGeometry args={[w + 0.34, 0.44, d + 0.34]} />
+            <meshStandardMaterial
+              color="#ff9a3d"
+              emissive="#ff9a3d"
+              emissiveIntensity={0.32}
+              roughness={0.6}
+              transparent={dimmed}
+              opacity={dimmed ? 0.1 : 1}
+            />
+          </mesh>
+          {erosion === "eroded" &&
+            (
+              [
+                [-1, -1],
+                [1, -1],
+                [-1, 1],
+                [1, 1],
+              ] as const
+            ).map(([sx, sz]) => (
+              <mesh
+                key={`${sx}${sz}`}
+                position={[sx * (w / 2 + 0.24), (bodyH + 0.3) / 2 + 0.5, sz * (d / 2 + 0.24)]}
+              >
+                <cylinderGeometry args={[0.09, 0.09, bodyH + 0.9, 6]} />
+                <meshStandardMaterial
+                  color="#c7cdd8"
+                  roughness={0.5}
+                  metalness={0.4}
+                  transparent={dimmed}
+                  opacity={dimmed ? 0.1 : 0.85}
+                />
+              </mesh>
+            ))}
+        </group>
+      )}
+
+      {/* Live test result: failures crack the building (red wireframe), passes glow green at the base */}
+      {testsFailing && (
+        <mesh position={[0, (h + 0.3) / 2 + 0.4, 0]}>
+          <boxGeometry args={[w + 1.3, h + 1.6, d + 1.3]} />
+          <meshBasicMaterial
+            color="#ff2e4d"
+            wireframe
+            transparent
+            opacity={dimmed ? 0.1 : 0.55}
+            toneMapped={false}
+          />
+        </mesh>
+      )}
+      {testsPassing && (
+        <mesh position={[0, 0.32, 0]}>
+          <boxGeometry args={[w + 0.8, 0.3, d + 0.8]} />
+          <meshStandardMaterial
+            color="#29d398"
+            emissive="#29d398"
+            emissiveIntensity={0.4}
+            roughness={0.5}
+          />
+        </mesh>
+      )}
+
+      {/* Test coverage shield — well-tested code sits inside a light-blue field */}
+      {shielded && (
+        <mesh position={[0, (h + 0.3) / 2 + 0.4, 0]}>
+          <boxGeometry args={[w + 1.1, h + 1.4, d + 1.1]} />
+          <meshPhysicalMaterial
+            color="#d8c9a3"
+            transparent
+            opacity={dimmed ? 0.05 : 0.14}
+            roughness={0.05}
+            transmission={0.7}
+            thickness={0.4}
+            depthWrite={false}
+          />
+        </mesh>
+      )}
+
+      {/* Circular import warning: slowly rotating red ring at the base */}
+      {inCycle && (
+        <mesh ref={cycleRef} position={[0, 0.12, 0]} rotation={[Math.PI / 2, 0, 0]}>
+          <torusGeometry args={[Math.max(w, d) * 0.95, 0.09, 8, 40]} />
+          <meshStandardMaterial
+            color="#ff2e4d"
+            emissive="#ff2e4d"
+            emissiveIntensity={0.9}
+            toneMapped={false}
+          />
         </mesh>
       )}
 

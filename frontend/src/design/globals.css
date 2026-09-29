@@ -6,32 +6,36 @@
 
 /* ── CSS Custom Properties ───────────────────────────────────── */
 :root {
-  /* Brand */
-  --color-neon: #00ff9f;
-  --color-pink: #ff00aa;
-  --color-blue: #00d4ff;
-  --color-purple: #bf5af2;
+  /* Brand — EPHEMORA. corporate: charcoal / cream / vermilion */
+  --brand-ink: #f2efe8;
+  --brand-red: #e8503c;
+  --color-neon: #e8503c;
+  --color-pink: #e8503c;
+  --color-blue: #e8b23c;
+  --color-purple: #c9c4b8;
   /* Threat */
   --color-critical: #ff2e4d;
   --color-high: #ff7a1a;
   --color-medium: #ffd23f;
   --color-low: #29d398;
   --color-safe: #3b4a63;
-  /* Surfaces */
-  --color-bg: #0b1026;
-  --color-surface: #131b2e;
-  --color-surface2: #1a2540;
-  --color-border: #1e2d48;
-  --color-text: #c8d8f0;
-  --color-muted: #6b84a8;
-  /* Meta / secondary text — all ≥4.5:1 on --color-bg (#0b1026), WCAG AA */
-  --meta-strong: #7d95b8; /* 6.15:1 */
-  --meta: #8296b5; /* 6.25:1 */
-  --meta-faint: #76889f; /* 5.19:1 */
-  /* Glass */
-  --glass-bg: rgba(11, 16, 38, 0.82);
-  --glass-border: rgba(77, 227, 255, 0.18);
-  --glass-blur: blur(12px);
+  /* Surfaces — warm charcoal */
+  --color-bg: #161614;
+  --color-surface: #1c1c1a;
+  --color-surface2: #242422;
+  --color-border: #2c2c29;
+  --color-text: #e8e4da;
+  --color-muted: #8f8b82;
+  /* Meta / secondary text — warm grays on charcoal, WCAG AA (meta-faint ≥4.5:1 on glass) */
+  --meta-strong: #a8a49a;
+  --meta: #98948a;
+  --meta-faint: #8a867c;
+  /* Glass — dark warm panels, subtle cream edge */
+  --glass-bg: rgba(20, 20, 18, 0.82);
+  --glass-border: rgba(242, 239, 232, 0.14);
+  --glass-blur: blur(16px);
+  --glass-highlight: inset 0 1px 0 rgba(242, 239, 232, 0.09);
+  --glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
   /* Typography */
   --font-mono: "JetBrains Mono", ui-monospace, "Cascadia Code", "Fira Code", Menlo, monospace;
 }
@@ -210,12 +214,12 @@
   100% {
     box-shadow:
       0 0 4px var(--color-neon),
-      inset 0 0 4px rgba(0, 255, 159, 0.05);
+      inset 0 0 4px rgba(232, 80, 60, 0.05);
   }
   50% {
     box-shadow:
       0 0 14px var(--color-neon),
-      inset 0 0 10px rgba(0, 255, 159, 0.12);
+      inset 0 0 10px rgba(232, 80, 60, 0.12);
   }
 }
 
@@ -232,21 +236,22 @@
     border: 1px solid var(--glass-border);
     backdrop-filter: var(--glass-blur);
     -webkit-backdrop-filter: var(--glass-blur);
+    box-shadow: var(--glass-highlight), var(--glass-shadow);
   }
   .glass-dark {
-    background: rgba(6, 9, 20, 0.92);
-    border: 1px solid rgba(90, 130, 200, 0.28);
+    background: rgba(14, 14, 12, 0.92);
+    border: 1px solid rgba(242, 239, 232, 0.18);
     backdrop-filter: blur(16px);
     -webkit-backdrop-filter: blur(16px);
   }
   .glass-neon {
-    background: rgba(6, 9, 20, 0.9);
-    border: 1px solid rgba(0, 255, 159, 0.25);
+    background: rgba(18, 18, 16, 0.9);
+    border: 1px solid rgba(232, 80, 60, 0.25);
     backdrop-filter: blur(12px);
     -webkit-backdrop-filter: blur(12px);
     box-shadow:
-      0 0 20px rgba(0, 255, 159, 0.08),
-      inset 0 0 20px rgba(0, 255, 159, 0.03);
+      0 0 20px rgba(232, 80, 60, 0.08),
+      inset 0 0 20px rgba(232, 80, 60, 0.03);
   }
 
   /* Animations */
@@ -254,7 +259,9 @@
     animation: toast-in 0.3s cubic-bezier(0.34, 1.56, 0.64, 1) both;
   }
   .animate-fade-up {
-    animation: fade-up 0.25s ease-out both;
+    /* no `both` fill: a stalled animation (hidden tab) must never leave the
+       panel stuck at opacity 0 — worst case is no entry animation */
+    animation: fade-up 0.25s ease-out;
   }
   .animate-slide-right {
     animation: slide-in-right 0.25s ease-out both;
@@ -278,7 +285,7 @@
     background: linear-gradient(
       90deg,
       transparent 0%,
-      rgba(77, 227, 255, 0.12) 50%,
+      rgba(242, 239, 232, 0.1) 50%,
       transparent 100%
     );
     background-size: 200% 100%;
@@ -291,7 +298,7 @@
       0 0 7px var(--color-neon),
       0 0 10px var(--color-neon),
       0 0 21px var(--color-neon),
-      0 0 42px #00ff9f;
+      0 0 42px rgba(232, 80, 60, 0.55);
   }
   .pink-glow {
     text-shadow:
@@ -318,13 +325,13 @@
     border: 1px solid var(--color-pink);
     box-shadow:
       0 0 8px var(--color-pink),
-      inset 0 0 8px rgba(255, 0, 170, 0.05);
+      inset 0 0 8px rgba(232, 80, 60, 0.05);
   }
   .crt-border-blue {
     border: 1px solid var(--color-blue);
     box-shadow:
       0 0 8px var(--color-blue),
-      inset 0 0 8px rgba(0, 212, 255, 0.05);
+      inset 0 0 8px rgba(232, 178, 60, 0.05);
   }
 
   /* Scanline overlay */
@@ -336,8 +343,8 @@
       0deg,
       transparent 0px,
       transparent 3px,
-      rgba(0, 212, 255, 0.025) 3px,
-      rgba(0, 212, 255, 0.025) 4px
+      rgba(242, 239, 232, 0.025) 3px,
+      rgba(242, 239, 232, 0.025) 4px
     );
     pointer-events: none;
     z-index: 1;
@@ -350,8 +357,8 @@
       0deg,
       transparent 0px,
       transparent 2px,
-      rgba(0, 255, 159, 0.018) 2px,
-      rgba(0, 255, 159, 0.018) 4px
+      rgba(242, 239, 232, 0.018) 2px,
+      rgba(242, 239, 232, 0.018) 4px
     );
     pointer-events: none;
     z-index: 50;
@@ -380,29 +387,29 @@
     color: #29d398;
   }
 
-  /* Interactive buttons — base */
+  /* Interactive buttons — base (4px radius, 150ms transitions, warm neutral rest / vermilion hover) */
   .btn-ghost {
     font-family: var(--font-mono);
     font-size: 0.625rem;
     letter-spacing: 0.1em;
     padding: 0.25rem 0.65rem;
-    border: 1px solid rgba(120, 160, 220, 0.35);
-    color: #aebfe0;
-    background: rgba(5, 8, 20, 0.7);
+    border: 1px solid rgba(168, 164, 154, 0.35);
+    color: #cfcabe;
+    background: rgba(22, 22, 20, 0.7);
     backdrop-filter: blur(4px);
     transition:
       border-color 150ms ease,
       color 150ms ease,
       box-shadow 150ms ease,
       background 150ms ease;
-    border-radius: 3px;
+    border-radius: 4px;
     cursor: pointer;
   }
   .btn-ghost:hover:not(:disabled) {
-    border-color: rgba(77, 227, 255, 0.6);
-    color: #4de3ff;
-    box-shadow: 0 0 10px rgba(77, 227, 255, 0.15);
-    background: rgba(77, 227, 255, 0.06);
+    border-color: rgba(232, 80, 60, 0.6);
+    color: var(--brand-ink);
+    box-shadow: 0 0 10px rgba(232, 80, 60, 0.15);
+    background: rgba(232, 80, 60, 0.06);
   }
   .btn-ghost:disabled {
     opacity: 0.35;
@@ -414,52 +421,52 @@
     font-size: 0.625rem;
     letter-spacing: 0.1em;
     padding: 0.25rem 0.65rem;
-    border: 1px solid rgba(255, 106, 77, 0.45);
-    color: #ff8a6a;
-    background: rgba(5, 8, 20, 0.7);
+    border: 1px solid rgba(232, 80, 60, 0.5);
+    color: #f2866f;
+    background: rgba(22, 22, 20, 0.7);
     transition:
       border-color 150ms ease,
       color 150ms ease,
       box-shadow 150ms ease;
-    border-radius: 3px;
+    border-radius: 4px;
     cursor: pointer;
   }
   .btn-danger:hover:not(:disabled) {
-    border-color: rgba(255, 106, 77, 0.8);
-    box-shadow: 0 0 10px rgba(255, 106, 77, 0.18);
+    border-color: rgba(232, 80, 60, 0.85);
+    box-shadow: 0 0 10px rgba(232, 80, 60, 0.18);
   }
 
-  /* Scrollbars */
+  /* Scrollbars — warm neutrals with vermilion hover */
   .panel-scroll {
     scrollbar-width: thin;
-    scrollbar-color: rgba(0, 212, 255, 0.3) rgba(5, 8, 20, 0.6);
+    scrollbar-color: rgba(168, 164, 154, 0.3) rgba(22, 22, 20, 0.6);
   }
   .panel-scroll::-webkit-scrollbar {
     width: 4px;
   }
   .panel-scroll::-webkit-scrollbar-track {
-    background: rgba(5, 8, 20, 0.6);
+    background: rgba(22, 22, 20, 0.6);
   }
   .panel-scroll::-webkit-scrollbar-thumb {
-    background: linear-gradient(180deg, var(--color-neon), var(--color-blue));
+    background: rgba(168, 164, 154, 0.35);
     border-radius: 9999px;
   }
   .panel-scroll::-webkit-scrollbar-thumb:hover {
-    background: var(--color-pink);
+    background: var(--brand-red);
   }
 
   ::-webkit-scrollbar {
     width: 4px;
   }
   ::-webkit-scrollbar-track {
-    background: rgba(5, 5, 20, 0.8);
+    background: rgba(22, 22, 20, 0.8);
   }
   ::-webkit-scrollbar-thumb {
-    background: rgba(0, 212, 255, 0.28);
+    background: rgba(168, 164, 154, 0.28);
     border-radius: 9999px;
   }
   ::-webkit-scrollbar-thumb:hover {
-    background: rgba(0, 255, 159, 0.5);
+    background: rgba(232, 80, 60, 0.5);
   }
 }
 
@@ -482,7 +489,7 @@ canvas {
 
 /* ── Focus ring ──────────────────────────────────────────────── */
 :focus-visible {
-  outline: 1.5px solid rgba(77, 227, 255, 0.7);
+  outline: 1.5px solid rgba(232, 80, 60, 0.7);
   outline-offset: 2px;
 }
 

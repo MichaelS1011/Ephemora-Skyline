@@ -1,0 +1,151 @@
+import { describe, it, expect } from "vitest";
+import {
+  cyclomaticFactor,
+  astDepthProxyFactor,
+  locFactor,
+  syntheticComplexity,
+  buildingHeight,
+  buildingFootprint,
+  blockFootprint,
+  erosionState,
+  materialState,
+  COMPLEXITY_WEIGHTS,
+  NORM_REFERENCE,
+} from "../src/city/mapping";
+import type { CityFile } from "../src/city/types";
+
+function file(overrides: Partial<CityFile> = {}): CityFile {
+  return {
+    id: "f1",
+    name: "a.ts",
+    path: "src/a.ts",
+    language: "TypeScript",
+    linesOfCode: 100,
+    cyclomaticComplexity: 5,
+    threatLevel: "safe",
+    findings: [],
+    ...overrides,
+  };
+}
+
+describe("synthetic complexity", () => {
+  it("is a weighted blend of the three factors", () => {
+    const f = file({ cyclomaticComplexity: 10, importCount: 6, linesOfCode: 500 });
+    const expected =
+      COMPLEXITY_WEIGHTS.cyclomatic * (10 / NORM_REFERENCE.cyclomatic) +
+      COMPLEXITY_WEIGHTS.depthProxy * (6 / NORM_REFERENCE.imports) +
+      COMPLEXITY_WEIGHTS.loc * (Math.sqrt(500) / Math.sqrt(NORM_REFERENCE.loc));
+    expect(syntheticComplexity(f)).toBeCloseTo(expected, 8);
+  });
+
+  it("saturates at 1 for monster files", () => {
+    const f = file({
+      cyclomaticComplexity: 100,
+      importCount: 50,
+      linesOfCode: 50_000,
+    });
+    expect(syntheticComplexity(f)).toBe(1);
+  });
+
+  it("stays near zero for trivial files", () => {
+    const f = file({ cyclomaticComplexity: 1, linesOfCode: 10, importCount: 0 });
+    expect(syntheticComplexity(f)).toBeLessThan(0.1);
+  });
+});
+
+describe("shape scales", () => {
+  it("clamps height to the world range", () => {
+    expect(
+      buildingHeight(file({ cyclomaticComplexity: 1, linesOfCode: 1, importCount: 0 })),
+    ).toBeGreaterThanOrEqual(2.2);
+    expect(
+      buildingHeight(file({ cyclomaticComplexity: 99, linesOfCode: 99_000, importCount: 99 })),
+    ).toBe(34);
+  });
+
+  it("maps taller buildings for more complex files", () => {
+    const simple = buildingHeight(
+      file({ cyclomaticComplexity: 2, linesOfCode: 50, importCount: 1 }),
+    );
+    const complex = buildingHeight(
+      file({ cyclomaticComplexity: 20, linesOfCode: 900, importCount: 10 }),
+    );
+    expect(complex).toBeGreaterThan(simple * 2);
+  });
+
+  it("drives footprint from API surface when present", () => {
+    const noExports = buildingFootprint(file({ exportedSymbols: 0 }));
+    const bigApi = buildingFootprint(file({ exportedSymbols: 24 }));
+    expect(bigApi).toBeGreaterThan(noExports * 2);
+    expect(buildingFootprint(file({ exportedSymbols: 100 }))).toBe(6.5); // clamped
+  });
+
+  it("falls back to the legacy LOC scale without the dimension", () => {
+    expect(buildingFootprint(file())).toBeCloseTo(2.1 + Math.sqrt(100) * 0.12, 8);
+  });
+
+  it("keeps block footprint size-driven", () => {
+    expect(blockFootprint(1_000_000)).toBe(20);
+  });
+});
+
+describe("git erosion", () => {
+  it("reports unknown without churn data", () => {
+    expect(erosionState(file())).toBe("unknown");
+    expect(
+      erosionState(file({ churnScore: 0.9 }), {
+        churn: false,
+        deadCode: false,
+        duplicates: false,
+        cycles: false,
+        coverage: false,
+        blame: false,
+      }),
+    ).toBe("unknown");
+  });
+
+  it("classifies erosion thresholds", () => {
+    const meta = {
+      churn: true,
+      deadCode: true,
+      duplicates: false,
+      cycles: false,
+      coverage: false,
+      blame: true,
+    };
+    expect(erosionState(file({ churnScore: 0.9 }), meta)).toBe("eroded");
+    expect(erosionState(file({ churnScore: 0.4 }), meta)).toBe("weathered");
+    expect(erosionState(file({ churnScore: 0.1 }), meta)).toBe("stable");
+    expect(erosionState(file({ churnScore: 0.55 }), meta)).toBe("eroded");
+    expect(erosionState(file({ churnScore: 0.35 }), meta)).toBe("weathered");
+  });
+});
+
+describe("material state", () => {
+  it("findings pulse neon (alarm)", () => {
+    expect(materialState(file({ threatLevel: "critical" }))).toBe("alarm");
+    expect(materialState(file({ threatLevel: "high" }))).toBe("alarm");
+  });
+
+  it("dead code is glass", () => {
+    expect(materialState(file({ deadCodeCandidate: true }))).toBe("glass");
+  });
+
+  it("healthy code is matte graphite", () => {
+    expect(materialState(file())).toBe("graphite");
+  });
+
+  it("alarm wins over glass", () => {
+    expect(materialState(file({ deadCodeCandidate: true, threatLevel: "critical" }))).toBe("alarm");
+  });
+});
+
+describe("factor helpers", () => {
+  it("normalize to 0..1", () => {
+    expect(cyclomaticFactor(file({ cyclomaticComplexity: 0 }))).toBe(0);
+    expect(cyclomaticFactor(file({ cyclomaticComplexity: 999 }))).toBe(1);
+    expect(astDepthProxyFactor(file({ importCount: 999 }))).toBe(1);
+    expect(locFactor(file({ linesOfCode: 0 }))).toBeLessThan(0.05); // clamped to 1 LOC
+    expect(locFactor(file({ linesOfCode: 99_999 }))).toBe(1);
+  });
+});

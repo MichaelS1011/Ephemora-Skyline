@@ -3,6 +3,37 @@ import { useLocalAnalysis } from "../hooks/useLocalAnalysis";
 import { ProfileChips } from "./ProfileChips";
 import { SEVERITY_COLOR } from "../city/palette";
 
+/** Corporate brand tokens (EPHEMORA. wordmark) */
+export const BRAND = {
+  ink: "#F2EFE8",
+  red: "#E8503C",
+  bg: "#161614",
+  panel: "#1C1C1A",
+};
+
+/** The EPHEMORA. wordmark — cream letters, red dot. */
+export function BrandWordmark({ scale = 1 }: { scale?: number }) {
+  return (
+    <span
+      className="font-jetbrains font-bold inline-flex items-baseline"
+      style={{ fontSize: `${scale * 15}px`, letterSpacing: "0.08em", color: BRAND.ink }}
+    >
+      EPHEMORA
+      <span
+        aria-hidden="true"
+        style={{
+          color: BRAND.red,
+          marginLeft: scale * 2,
+          fontSize: `${scale * 17}px`,
+          lineHeight: 1,
+        }}
+      >
+        .
+      </span>
+    </span>
+  );
+}
+
 export function Landing() {
   const cityData = useStore((s) => s.cityData);
   const isLoading = useStore((s) => s.isLoading);
@@ -32,23 +63,24 @@ export function Landing() {
 
   const hasError = state === "error";
   const isCollecting = state === "collecting";
+  const red = BRAND.red;
 
   return (
     <div className="absolute inset-0 z-40 flex items-center justify-center pointer-events-auto overflow-hidden">
-      {/* Ambient grid background */}
+      {/* Ambient grid background — faint cream on charcoal */}
       <div
         aria-hidden="true"
         className="absolute inset-0 pointer-events-none"
         style={{
           backgroundImage:
-            "linear-gradient(rgba(77,227,255,0.04) 1px, transparent 1px)," +
-            "linear-gradient(90deg, rgba(77,227,255,0.04) 1px, transparent 1px)",
+            "linear-gradient(rgba(242,239,232,0.035) 1px, transparent 1px)," +
+            "linear-gradient(90deg, rgba(242,239,232,0.035) 1px, transparent 1px)",
           backgroundSize: "48px 48px",
           maskImage: "radial-gradient(ellipse 80% 70% at 50% 50%, black 30%, transparent 100%)",
         }}
       />
 
-      {/* Radial glow behind the card */}
+      {/* Radial red glow behind the card */}
       <div
         aria-hidden="true"
         className="absolute pointer-events-none"
@@ -56,7 +88,7 @@ export function Landing() {
           width: 640,
           height: 640,
           borderRadius: "50%",
-          background: "radial-gradient(circle, rgba(0,255,159,0.06) 0%, transparent 70%)",
+          background: `radial-gradient(circle, ${red}12 0%, transparent 70%)`,
           transform: "translate(-50%,-52%)",
           left: "50%",
           top: "50%",
@@ -68,67 +100,76 @@ export function Landing() {
         className="relative flex flex-col items-center text-center px-8 py-10 animate-fade-up"
         style={{ maxWidth: 580, width: "100%" }}
       >
-        {/* Logo */}
+        {/* Logo mark — the brand dot */}
         <div
-          className="w-16 h-16 flex items-center justify-center font-jetbrains text-xl font-bold mb-6"
+          className="w-16 h-16 flex items-center justify-center font-jetbrains text-2xl font-bold mb-6"
           style={{
-            border: "1px solid rgba(0,255,159,0.6)",
-            color: "#00ff9f",
-            background: "rgba(0,255,159,0.07)",
-            boxShadow: "0 0 32px rgba(0,255,159,0.22), inset 0 0 20px rgba(0,255,159,0.05)",
+            border: `1px solid rgba(242,239,232,0.18)`,
+            color: BRAND.ink,
+            background: "rgba(242,239,232,0.03)",
             borderRadius: 4,
-            letterSpacing: "0.1em",
+            letterSpacing: "0.02em",
           }}
+          aria-hidden="true"
         >
-          CC
+          E<span style={{ color: red }}>.</span>
         </div>
 
-        {/* Title */}
+        {/* Title — EPHEMORA in cream with the red dot, SKYLINE in brand red (padding balances trailing tracking) */}
         <h1
           className="font-jetbrains text-3xl font-bold tracking-[0.22em] mb-1"
-          style={{ color: "#e8f0ff" }}
+          style={{ color: BRAND.ink, paddingLeft: "0.22em" }}
         >
-          CODECITY
+          EPHEMORA<span style={{ color: red }}>.</span>
         </h1>
         <p
           className="font-jetbrains text-[11px] tracking-[0.5em] mb-6 font-medium"
-          style={{ color: "#ff00aa", textShadow: "0 0 12px rgba(255,0,170,0.5)" }}
+          style={{ color: red, textShadow: `0 0 14px ${red}66`, paddingLeft: "0.5em" }}
         >
-          CYBERDEFENSE
+          SKYLINE
         </p>
 
         <p
           className="font-jetbrains text-[13px] mb-9 leading-relaxed"
-          style={{ color: "#7f9bbf", maxWidth: 460 }}
+          style={{ color: "var(--meta)", maxWidth: 460 }}
         >
           Pick one of your local project folders — watch it rise as a living city. Folders become
           districts, files become buildings,
-          <span style={{ color: "#ff2e4d" }}> red beacons</span> are security findings. Everything
-          stays on your machine.
+          <span style={{ color: red }}> red beacons</span> are security findings. Everything stays
+          on your machine.
         </p>
 
         {/* Scan profile — opt-in layer below the fold, never a gate */}
         <ProfileChips variant="landing" />
 
-        {/* Folder picker — the one primary action */}
+        {/* Folder picker — the one primary action: solid vermilion, the strongest element on the page */}
         <button
           onClick={pickFolder}
           disabled={isAnalyzing}
           aria-busy={isAnalyzing}
           aria-describedby={hasError ? "landing-error" : undefined}
-          className="font-jetbrains text-[13px] tracking-[0.15em] font-medium px-9 py-3.5 rounded transition-all duration-200 disabled:opacity-60 disabled:cursor-not-allowed"
+          className="font-jetbrains text-[13px] tracking-[0.15em] font-semibold px-9 py-3.5 rounded transition-all duration-200 disabled:opacity-60 disabled:cursor-not-allowed"
           style={{
-            border: "1px solid rgba(0,255,159,0.55)",
-            color: isAnalyzing ? "#00aa66" : "#00ff9f",
-            background: isAnalyzing ? "rgba(0,255,159,0.04)" : "rgba(0,255,159,0.09)",
-            boxShadow: isAnalyzing ? "none" : "0 0 24px rgba(0,255,159,0.18)",
+            border: `1px solid ${isAnalyzing ? `${red}55` : red}`,
+            color: isAnalyzing ? "var(--meta-strong)" : "#161614",
+            background: isAnalyzing ? "rgba(232, 80, 60, 0.1)" : red,
+            boxShadow: isAnalyzing ? "none" : `0 0 28px ${red}40, 0 4px 16px rgba(0, 0, 0, 0.4)`,
+          }}
+          onMouseEnter={(e) => {
+            if (isAnalyzing) return;
+            e.currentTarget.style.background = "#f05a45";
+            e.currentTarget.style.boxShadow = `0 0 36px ${red}59, 0 4px 16px rgba(0, 0, 0, 0.4)`;
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.background = red;
+            e.currentTarget.style.boxShadow = `0 0 28px ${red}40, 0 4px 16px rgba(0, 0, 0, 0.4)`;
           }}
         >
           {isCollecting ? (
             <span className="flex items-center gap-2.5">
               <span
                 className="inline-block w-2 h-2 rounded-full animate-pulse-glow"
-                style={{ background: "#00ff9f" }}
+                style={{ background: red }}
               />
               READING FOLDER…
             </span>
@@ -136,7 +177,7 @@ export function Landing() {
             <span className="flex items-center gap-2.5">
               <span
                 className="inline-block w-2 h-2 rounded-full animate-pulse-glow"
-                style={{ background: "#00ff9f" }}
+                style={{ background: red }}
               />
               SCANNING…
             </span>
@@ -177,20 +218,20 @@ export function Landing() {
         {isCollecting && (
           <div className="mt-8 w-full animate-fade-up">
             <div className="flex justify-between font-jetbrains text-[10px] mb-1.5">
-              <span style={{ color: "#4de3ff" }}>Reading folder…</span>
-              <span style={{ color: "#00ff9f" }}>
+              <span style={{ color: BRAND.ink }}>Reading folder…</span>
+              <span style={{ color: red }}>
                 {collected.files > 0 ? `${collected.files} files` : "…"}
               </span>
             </div>
             <div
               className="w-full h-[3px] rounded-full overflow-hidden relative"
-              style={{ background: "rgba(20,32,56,0.9)" }}
+              style={{ background: "rgba(242,239,232,0.08)" }}
             >
               <div
                 className="h-full rounded-full absolute animate-pulse-glow"
                 style={{
                   width: "30%",
-                  background: "linear-gradient(90deg, transparent, #00d4ff, #00ff9f, transparent)",
+                  background: `linear-gradient(90deg, transparent, ${red}, transparent)`,
                 }}
               />
             </div>
@@ -207,8 +248,8 @@ export function Landing() {
         {isAnalyzing && !isCollecting && (
           <div className="mt-8 w-full animate-fade-up">
             <div className="flex justify-between font-jetbrains text-[10px] mb-1.5">
-              <span style={{ color: "#4de3ff" }}>{analysisStage || "PREPARING SITE…"}</span>
-              <span style={{ color: "#00ff9f" }}>{analysisProgress}%</span>
+              <span style={{ color: "#8f8b82" }}>{analysisStage || "PREPARING SITE…"}</span>
+              <span style={{ color: red }}>{analysisProgress}%</span>
             </div>
             <div
               className="w-full h-[3px] rounded-full overflow-hidden"
@@ -217,14 +258,14 @@ export function Landing() {
               aria-valuemin={0}
               aria-valuemax={100}
               aria-label={`Analysis progress: ${analysisProgress}%`}
-              style={{ background: "rgba(20,32,56,0.9)" }}
+              style={{ background: "rgba(242,239,232,0.08)" }}
             >
               <div
                 className="h-full rounded-full transition-all duration-300"
                 style={{
                   width: `${analysisProgress}%`,
-                  background: "linear-gradient(90deg, #00d4ff, #00ff9f)",
-                  boxShadow: "0 0 10px rgba(0,255,159,0.6)",
+                  background: `linear-gradient(90deg, ${red}88, ${red})`,
+                  boxShadow: `0 0 10px ${red}99`,
                 }}
               />
             </div>
@@ -235,7 +276,7 @@ export function Landing() {
                     key={i}
                     className="inline-block w-1 h-1 rounded-full"
                     style={{
-                      background: "#00ff9f",
+                      background: red,
                       opacity: analysisProgress > i * 33 ? 1 : 0.2,
                       transition: "opacity 0.3s",
                     }}
@@ -256,7 +297,7 @@ export function Landing() {
         {state === "success" && (
           <div
             className="mt-5 font-jetbrains text-[11px] tracking-widest animate-fade-up"
-            style={{ color: "#00ff9f", textShadow: "0 0 12px rgba(0,255,159,0.5)" }}
+            style={{ color: BRAND.ink, textShadow: `0 0 12px ${red}55` }}
           >
             ✓ SURVEY COMPLETE — raising the city…
           </div>
@@ -268,12 +309,20 @@ export function Landing() {
             onClick={loadDemo}
             className="mt-8 font-jetbrains text-[11px] tracking-wide transition-colors duration-150"
             style={{ color: "var(--meta)" }}
-            onMouseEnter={(e) => (e.currentTarget.style.color = "#7f9bbf")}
+            onMouseEnter={(e) => (e.currentTarget.style.color = "#c9c4b8")}
             onMouseLeave={(e) => (e.currentTarget.style.color = "var(--meta)")}
           >
             or explore a demo city first →
           </button>
         )}
+      </div>
+
+      {/* Corner watermark — the company logo, bottom right */}
+      <div
+        aria-hidden="true"
+        className="absolute bottom-5 right-6 pointer-events-none select-none opacity-90"
+      >
+        <BrandWordmark scale={1.2} />
       </div>
     </div>
   );

@@ -7,14 +7,30 @@ interface ShortcutEntry {
 }
 
 const SHORTCUTS: ShortcutEntry[] = [
-  { keys: ["/"], description: "Focus search", category: "Navigation" },
-  { keys: ["Tab"], description: "Next building", category: "Navigation" },
-  { keys: ["⇧", "Tab"], description: "Previous building", category: "Navigation" },
-  { keys: ["Esc"], description: "Deselect / go back", category: "Navigation" },
-  { keys: ["?"], description: "Toggle this panel", category: "Navigation" },
-  { keys: ["←", "→"], description: "Prev / next finding (Tour)", category: "Security Tour" },
+  {
+    keys: ["/"],
+    description: "Focus the search bar (file name or language)",
+    category: "Navigation",
+  },
+  {
+    keys: ["Tab"],
+    description: "Next building — when the 3D view has focus",
+    category: "Navigation",
+  },
+  {
+    keys: ["⇧", "Tab"],
+    description: "Previous building — when the 3D view has focus",
+    category: "Navigation",
+  },
+  {
+    keys: ["Esc"],
+    description: "Close panel → up one district → twice at the overview re-frames",
+    category: "Navigation",
+  },
+  { keys: ["?"], description: "Show or hide this panel", category: "Navigation" },
+  { keys: ["←", "→"], description: "Previous / next finding (Tour)", category: "Security Tour" },
   { keys: ["Enter"], description: "Next finding (Tour)", category: "Security Tour" },
-  { keys: ["Esc"], description: "Exit tour", category: "Security Tour" },
+  { keys: ["Esc"], description: "Exit the tour", category: "Security Tour" },
 ];
 
 interface KeyboardHintsProps {
@@ -63,19 +79,19 @@ export function KeyboardHints({ isOpen, onClose }: KeyboardHintsProps) {
       <div
         className="font-jetbrains animate-fade-up"
         style={{
-          background: "rgba(6, 9, 20, 0.96)",
-          border: "1px solid rgba(77,227,255,0.3)",
+          background: "rgba(18, 18, 16, 0.96)",
+          border: "1px solid rgba(232,178,60,0.3)",
           borderRadius: 5,
           padding: "0.9rem 1rem",
           width: 280,
-          boxShadow: "0 0 24px rgba(77,227,255,0.12), 0 8px 24px rgba(0,0,0,0.5)",
+          boxShadow: "0 0 24px rgba(232,178,60,0.12), 0 8px 24px rgba(0,0,0,0.5)",
           backdropFilter: "blur(14px)",
           marginBottom: "3.5rem",
         }}
       >
         {/* Header */}
         <div className="flex items-center justify-between mb-3">
-          <span className="font-jetbrains text-[10px] tracking-widest" style={{ color: "#4de3ff" }}>
+          <span className="font-jetbrains text-[10px] tracking-widest" style={{ color: "#f2d5a0" }}>
             ⌨ KEYBOARD SHORTCUTS
           </span>
           <button
@@ -95,7 +111,7 @@ export function KeyboardHints({ isOpen, onClose }: KeyboardHintsProps) {
               className="font-jetbrains text-[8px] tracking-[0.25em] uppercase mb-1.5 pb-1"
               style={{
                 color: "var(--meta-faint)",
-                borderBottom: "1px solid rgba(77,227,255,0.08)",
+                borderBottom: "1px solid rgba(232,178,60,0.08)",
               }}
             >
               {cat}
@@ -103,7 +119,7 @@ export function KeyboardHints({ isOpen, onClose }: KeyboardHintsProps) {
             <div className="flex flex-col gap-1">
               {SHORTCUTS.filter((s) => (s.category ?? "") === cat).map((sh) => (
                 <div key={sh.description} className="flex items-center justify-between gap-3">
-                  <span className="font-jetbrains text-[10px]" style={{ color: "#7f9bbf" }}>
+                  <span className="font-jetbrains text-[10px]" style={{ color: "#98948a" }}>
                     {sh.description}
                   </span>
                   <div className="flex items-center gap-1 shrink-0">
@@ -112,9 +128,9 @@ export function KeyboardHints({ isOpen, onClose }: KeyboardHintsProps) {
                         key={k}
                         className="font-jetbrains text-[9px] px-1.5 py-px rounded-sm"
                         style={{
-                          background: "rgba(77,227,255,0.08)",
-                          border: "1px solid rgba(77,227,255,0.22)",
-                          color: "#4de3ff",
+                          background: "rgba(232,178,60,0.08)",
+                          border: "1px solid rgba(232,178,60,0.22)",
+                          color: "#f2d5a0",
                           lineHeight: 1.4,
                         }}
                       >

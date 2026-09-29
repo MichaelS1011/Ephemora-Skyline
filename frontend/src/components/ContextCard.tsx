@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import { useStore } from "../stores/useStore";
 import { resolveDir, tourStops } from "../city/layout";
-import { topLanguages, languageColor, SEVERITY_COLOR } from "../city/palette";
+import { topLanguages, languageColor, SEVERITY_COLOR, authorColor } from "../city/palette";
+import { MarkerLegend } from "./CoachMarks";
 
 export function ContextCard() {
   const cityData = useStore((s) => s.cityData);
@@ -9,6 +10,7 @@ export function ContextCard() {
   const focusPath = useStore((s) => s.focusPath);
   const navigateToFile = useStore((s) => s.navigateToFile);
   const [dismissed, setDismissed] = useState(false);
+  const [legendOpen, setLegendOpen] = useState(false);
 
   useEffect(() => {
     setDismissed(false);
@@ -38,12 +40,14 @@ export function ContextCard() {
       style={{
         top: 84,
         width: 292,
-        background: "rgba(6, 9, 20, 0.92)",
-        border: "1px solid rgba(90,130,200,0.28)",
+        maxHeight: "calc(100vh - 260px)",
+        overflowY: "auto",
+        background: "rgba(18, 18, 16, 0.92)",
+        border: "1px solid rgba(150,142,128,0.28)",
         borderRadius: 5,
         padding: "0.85rem 0.95rem",
         fontFamily: "var(--font-mono)",
-        boxShadow: "0 8px 32px rgba(0,0,0,0.45), 0 0 0 1px rgba(77,227,255,0.05)",
+        boxShadow: "0 8px 32px rgba(0,0,0,0.45), 0 0 0 1px rgba(232,178,60,0.05)",
         backdropFilter: "blur(16px)",
       }}
       role="region"
@@ -54,7 +58,7 @@ export function ContextCard() {
         <div className="min-w-0 flex-1">
           <div
             className="font-jetbrains text-[9px] tracking-[0.25em] mb-0.5"
-            style={{ color: "rgba(0,255,159,0.55)" }}
+            style={{ color: "rgba(232,80,60,0.55)" }}
           >
             {isRoot ? "CITY DOSSIER" : "DISTRICT"}
           </div>
@@ -85,28 +89,37 @@ export function ContextCard() {
       {/* Stats row */}
       <div className="flex gap-3 mb-3 flex-wrap">
         {!isRoot && (
-          <div className="flex flex-col">
+          <div
+            className="flex flex-col"
+            title="Sub-folders inside this district — each is its own city block. Click one to zoom in."
+          >
             <span className="font-jetbrains text-[9px]" style={{ color: "var(--meta-strong)" }}>
               DISTRICTS
             </span>
-            <span className="font-jetbrains text-[13px] font-semibold" style={{ color: "#4de3ff" }}>
+            <span className="font-jetbrains text-[13px] font-semibold" style={{ color: "#f2d5a0" }}>
               {dir.children.length}
             </span>
           </div>
         )}
-        <div className="flex flex-col">
+        <div
+          className="flex flex-col"
+          title="Source files in this view — each file is one building. Click a building for its details."
+        >
           <span className="font-jetbrains text-[9px]" style={{ color: "var(--meta-strong)" }}>
             FILES
           </span>
-          <span className="font-jetbrains text-[13px] font-semibold" style={{ color: "#4de3ff" }}>
+          <span className="font-jetbrains text-[13px] font-semibold" style={{ color: "#f2d5a0" }}>
             {dir.fileCount.toLocaleString()}
           </span>
         </div>
-        <div className="flex flex-col">
+        <div
+          className="flex flex-col"
+          title="Lines of code (LOC) across all files in this view — not comments or blanks."
+        >
           <span className="font-jetbrains text-[9px]" style={{ color: "var(--meta-strong)" }}>
             LINES
           </span>
-          <span className="font-jetbrains text-[13px] font-semibold" style={{ color: "#4de3ff" }}>
+          <span className="font-jetbrains text-[13px] font-semibold" style={{ color: "#f2d5a0" }}>
             {dir.linesOfCode >= 1000
               ? `${(dir.linesOfCode / 1000).toFixed(1)}k`
               : dir.linesOfCode.toLocaleString()}
@@ -115,7 +128,7 @@ export function ContextCard() {
         {threatScore > 0 && (
           <div
             className="flex flex-col"
-            title="Risk score 0–100: every finding adds P0=10 / P1=7 / P2=3 points, weighted by file size. Below 10 is a good sign."
+            title="Risk 0–100: each finding adds points (critical P0 = 10 · high P1 = 7 · medium P2 = 3), scaled by file size. Below 10 is a good sign."
           >
             <span className="font-jetbrains text-[9px]" style={{ color: "var(--meta-strong)" }}>
               RISK
@@ -137,6 +150,28 @@ export function ContextCard() {
         )}
       </div>
 
+      {/* Author territory — who owns this district (git blame) */}
+      {dir.topAuthor && (
+        <div
+          className="flex items-center gap-1.5 mb-3"
+          title={`${dir.topAuthor} owns ${Math.round((dir.topAuthorShare ?? 0) * 100)}% of the authored files in this district`}
+        >
+          <span
+            className="w-2.5 h-2.5 rounded-full shrink-0"
+            style={{
+              background: authorColor(dir.topAuthor),
+              boxShadow: `0 0 5px ${authorColor(dir.topAuthor)}`,
+            }}
+          />
+          <span className="font-jetbrains text-[9.5px]" style={{ color: "#cfcabe" }}>
+            {dir.topAuthor}
+          </span>
+          <span className="font-jetbrains text-[9px]" style={{ color: "var(--meta-faint)" }}>
+            owns {Math.round((dir.topAuthorShare ?? 0) * 100)}%
+          </span>
+        </div>
+      )}
+
       {/* Findings */}
       {totalFindings > 0 ? (
         <div className="flex gap-1.5 mb-3 flex-wrap">
@@ -145,6 +180,13 @@ export function ContextCard() {
               <span
                 key={sev}
                 className={`chip-${sev.toLowerCase()} font-jetbrains text-[10px] px-1.5 py-px rounded-sm`}
+                title={
+                  sev === "P0"
+                    ? `Critical (${findings[sev]}) — exploitable now; fix these first`
+                    : sev === "P1"
+                      ? `High (${findings[sev]}) — real risk; fix soon`
+                      : `Medium (${findings[sev]}) — code hygiene; fix when convenient`
+                }
               >
                 {sev} · {findings[sev]}
               </span>
@@ -192,7 +234,7 @@ export function ContextCard() {
                 </div>
                 <span
                   className="font-jetbrains text-[9px] w-20 text-right"
-                  style={{ color: "#6b84a8" }}
+                  style={{ color: "#8f8b82" }}
                 >
                   {l.name}
                 </span>
@@ -226,7 +268,7 @@ export function ContextCard() {
             {inScope.file.name}
           </div>
           {inScope.file.findings[0] && (
-            <div className="font-jetbrains text-[9px] truncate mt-0.5" style={{ color: "#6b84a8" }}>
+            <div className="font-jetbrains text-[9px] truncate mt-0.5" style={{ color: "#8f8b82" }}>
               {inScope.file.findings[0].type} · {inScope.file.findings.length} finding
               {inScope.file.findings.length !== 1 ? "s" : ""}
             </div>
@@ -234,13 +276,34 @@ export function ContextCard() {
         </button>
       )}
 
+      {/* LEGEND — the always-available marker cheat sheet */}
+      <div className="mt-2.5">
+        <button
+          onClick={() => setLegendOpen((v) => !v)}
+          aria-expanded={legendOpen}
+          title="What every visual marker in the city means — click to show or hide"
+          className="w-full flex items-center gap-1.5 font-jetbrains text-[9px] tracking-[0.2em] py-1"
+          style={{ color: "var(--meta-strong)", textAlign: "left" }}
+        >
+          <span style={{ fontSize: 8, color: "#f2d5a0" }}>{legendOpen ? "▾" : "▸"}</span> LEGEND
+          <span style={{ color: "var(--meta-faint)", letterSpacing: "normal" }}>
+            — what am I looking at?
+          </span>
+        </button>
+        {legendOpen && (
+          <div className="pt-2 mt-1" style={{ borderTop: "1px solid rgba(232,178,60,0.1)" }}>
+            <MarkerLegend columns={1} />
+          </div>
+        )}
+      </div>
+
       <p
         className="font-jetbrains text-[9px] mt-2.5 leading-relaxed"
         style={{ color: "var(--meta)" }}
       >
         {isRoot
-          ? "Click a district to dive in · ⚑ Security Tour explains every finding"
-          : "Click a sub-district to dive deeper · ↑ or ⌂ to go back"}
+          ? "Click a district to zoom in · ⚑ Security Tour explains every finding"
+          : "Click a sub-district to zoom deeper · Esc goes back up · ⌂ for the overview"}
       </p>
     </div>
   );

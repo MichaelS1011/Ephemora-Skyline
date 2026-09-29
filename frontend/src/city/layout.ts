@@ -9,10 +9,27 @@
  *   skyscrapers in the middle of the plaza, suburbs at the rim).
  * - Everything is seeded by path, so the same repo always produces the
  *   same city — different repos produce different cities.
+ * - Block districts are ORGANIC: weighted Voronoi cells (Lloyd-relaxed)
+ *   replace the rigid block grid. The classic grid remains available via
+ *   setLayoutMode('grid').
+ *
+ * Metric→visual mapping (height, footprint, materials) lives in
+ * mapping.ts — renderer-agnostic and portable.
  */
 
-import type { CityData, CityDir, CityFile } from './types';
-import { threatRank } from './palette';
+import type { CityData, CityDir, CityFile } from "./types";
+import { threatRank } from "./palette";
+import {
+  blockFootprint as blockFootprintOf,
+  buildingHeight as heightOf,
+  buildingFootprint as footprintOf,
+} from "./mapping";
+import {
+  computeVoronoi,
+  cellBoundarySegments,
+  polygonMinRadius,
+  type VoronoiSite,
+} from "./voronoi";
 
 // ── Placement types ────────────────────────────────────────────────────────
 
@@ -65,24 +82,15 @@ function hashString(s: string): number {
 
 function jitter(seed: string, amplitude: number): number {
   const h = hashString(seed);
-  return (((h % 1000) / 1000) - 0.5) * 2 * amplitude;
+  return ((h % 1000) / 1000 - 0.5) * 2 * amplitude;
 }
 
-// ── Size scales (sqrt so monster files don't dwarf the city) ───────────────
+// ── Size scales ────────────────────────────────────────────────────────────
+// Height and footprint now come from the metric→visual mapping (mapping.ts):
+// height = synthetic complexity, footprint = API surface. Blocks stay
+// size-driven — a block IS the size class of its subtree.
 
-const clamp = (v: number, lo: number, hi: number): number => Math.max(lo, Math.min(hi, v));
-
-export function blockFootprint(loc: number): number {
-  return clamp(8 + Math.sqrt(Math.max(loc, 1)) * 0.3, 8, 20);
-}
-
-export function buildingFootprint(loc: number): number {
-  return clamp(2.1 + Math.sqrt(Math.max(loc, 1)) * 0.12, 2.1, 4.6);
-}
-
-export function buildingHeight(loc: number): number {
-  return clamp(2.2 + Math.sqrt(Math.max(loc, 1)) * 0.85, 2.2, 26);
-}
+export const blockFootprint = blockFootprintOf;
 
 // ── Cell ordering: spiral of cells sorted by distance to centre ────────────
 
@@ -105,9 +113,11 @@ function centerOutCells(cols: number, rows: number, cell: number): Array<{ x: nu
 
 const PLAZA_CELL = 6.4;
 const BLOCK_GRID_MIN = 30;
+const PLAZA_SITE_KEY = "__plaza__";
 
-function computeLayout(dir: CityDir): DirLayout {
-  const files = [...dir.detailFiles].sort((a, b) => buildingHeight(b.linesOfCode) - buildingHeight(a.linesOfCode));
+/** Legacy grid layout — retained as the deterministic fallback mode. */
+function computeGridLayout(dir: CityDir): DirLayout {
+  const files = [...dir.detailFiles].sort((a, b) => heightOf(b) - heightOf(a));
   const children = [...dir.children].sort((a, b) => b.linesOfCode - a.linesOfCode);
 
   // ── Central plaza: files of THIS directory as a compact grid ────────────
@@ -119,20 +129,21 @@ function computeLayout(dir: CityDir): DirLayout {
   let maxFoot = 0;
   files.forEach((file, i) => {
     const cell = cells[i] ?? { x: 0, z: 0 };
-    const w = buildingFootprint(file.linesOfCode);
-    const d = buildingFootprint(file.linesOfCode);
+    const w = footprintOf(file);
+    const d = footprintOf(file);
     maxFoot = Math.max(maxFoot, w, d);
     buildings.push({
       file,
       x: cell.x + jitter(file.path, 0.7),
-      z: cell.z + jitter(file.path + '|z', 0.7),
+      z: cell.z + jitter(file.path + "|z", 0.7),
       w,
       d,
-      h: buildingHeight(file.linesOfCode),
+      h: heightOf(file),
     });
   });
 
-  const plazaExtent = files.length === 0 ? 0 : ((Math.max(cols, rows) - 1) * PLAZA_CELL) / 2 + maxFoot / 2 + 4;
+  const plazaExtent =
+    files.length === 0 ? 0 : ((Math.max(cols, rows) - 1) * PLAZA_CELL) / 2 + maxFoot / 2 + 4;
 
   // ── Podium: aggregated honesty for files not rendered ────────────────────
   const podium =
@@ -152,50 +163,12 @@ function computeLayout(dir: CityDir): DirLayout {
   children.forEach((child, i) => {
     const cell = blockCells[i] ?? { x: 0, z: 0 };
     const w = blockFootprint(child.linesOfCode);
-
-    // ── District skyline: representative towers of the whole subtree ──────
-    let reps = child.districtFiles ?? [];
-    if (reps.length === 0) {
-      // Fallback for older payloads: walk the subtree's detail files
-      const walked: CityFile[] = [];
-      const walk = (d: CityDir): void => {
-        walked.push(...d.detailFiles);
-        d.children.forEach(walk);
-      };
-      walk(child);
-      reps = walked;
-    }
-    const skylineFiles = [...reps]
-      .sort((a, b) => {
-        const ra = riskScore(a);
-        const rb = riskScore(b);
-        if (rb !== ra) return rb - ra;
-        return b.linesOfCode - a.linesOfCode;
-      })
-      .slice(0, 6);
-    const innerCols = Math.max(1, Math.ceil(Math.sqrt(skylineFiles.length)));
-    const innerRows = Math.ceil(skylineFiles.length / innerCols);
-    const innerSpacing = Math.min(Math.max(w * 0.3, 5.4), 8.5);
-    const innerCells = centerOutCells(innerCols, innerRows, innerSpacing);
-    const skyline: BuildingPlacement[] = [...skylineFiles]
-      .sort((a, b) => buildingHeight(b.linesOfCode) - buildingHeight(a.linesOfCode))
-      .map((file, k) => {
-        const cell2 = innerCells[k] ?? { x: 0, z: 0 };
-        const fw = buildingFootprint(file.linesOfCode);
-        return {
-          file,
-          x: cell2.x + jitter(file.path, 0.35),
-          z: cell2.z + jitter(file.path + '|z', 0.35),
-          w: fw,
-          d: fw,
-          h: buildingHeight(file.linesOfCode),
-        };
-      });
+    const skyline = buildSkyline(child, w);
 
     blockPlacements.push({
       dir: child,
       x: cell.x + jitter(child.path, 1.1),
-      z: cell.z + jitter(child.path + '|z', 1.1),
+      z: cell.z + jitter(child.path + "|z", 1.1),
       w,
       d: w,
       skyline,
@@ -235,6 +208,170 @@ function computeLayout(dir: CityDir): DirLayout {
   return { dir, blocks: blockPlacements, buildings, podium, streets, bounds, plazaExtent };
 }
 
+/** Representative towers of a district's subtree (up to 6, risk-ordered). */
+function buildSkyline(child: CityDir, blockW: number): BuildingPlacement[] {
+  let reps = child.districtFiles ?? [];
+  if (reps.length === 0) {
+    // Fallback for older payloads: walk the subtree's detail files
+    const walked: CityFile[] = [];
+    const walk = (d: CityDir): void => {
+      walked.push(...d.detailFiles);
+      d.children.forEach(walk);
+    };
+    walk(child);
+    reps = walked;
+  }
+  const skylineFiles = [...reps]
+    .sort((a, b) => {
+      const ra = riskScore(a);
+      const rb = riskScore(b);
+      if (rb !== ra) return rb - ra;
+      return b.linesOfCode - a.linesOfCode;
+    })
+    .slice(0, 6);
+  const innerCols = Math.max(1, Math.ceil(Math.sqrt(skylineFiles.length)));
+  const innerRows = Math.ceil(skylineFiles.length / innerCols);
+  const innerSpacing = Math.min(Math.max(blockW * 0.3, 5.4), 8.5);
+  const innerCells = centerOutCells(innerCols, innerRows, innerSpacing);
+  return [...skylineFiles]
+    .sort((a, b) => heightOf(b) - heightOf(a))
+    .map((file, k) => {
+      const cell = innerCells[k] ?? { x: 0, z: 0 };
+      const fw = footprintOf(file);
+      return {
+        file,
+        x: cell.x + jitter(file.path, 0.35),
+        z: cell.z + jitter(file.path + "|z", 0.35),
+        w: fw,
+        d: fw,
+        h: heightOf(file),
+      };
+    });
+}
+
+/**
+ * Voronoi layout — districts as organic, Lloyd-relaxed cells weighted by
+ * subtree size. Same DirLayout contract as the grid: blocks at cell
+ * centroids, plaza in the central cell, cell boundaries as streets.
+ */
+function computeVoronoiLayout(dir: CityDir): DirLayout {
+  const files = [...dir.detailFiles].sort((a, b) => heightOf(b) - heightOf(a));
+  const children = [...dir.children].sort((a, b) => b.linesOfCode - a.linesOfCode);
+
+  const buildings: BuildingPlacement[] = [];
+  const blockPlacements: BlockPlacement[] = [];
+
+  // Needed plaza extent from the center-out grid (same packing as grid mode)
+  const cols = Math.max(1, Math.ceil(Math.sqrt(files.length)));
+  const rows = Math.ceil(files.length / cols);
+  const cells = centerOutCells(cols, rows, PLAZA_CELL);
+  let maxFoot = 0;
+  files.forEach((file) => {
+    const w = footprintOf(file);
+    maxFoot = Math.max(maxFoot, w, w);
+  });
+  const neededPlazaExtent =
+    files.length === 0 ? 0 : ((Math.max(cols, rows) - 1) * PLAZA_CELL) / 2 + maxFoot / 2 + 4;
+
+  const maxBlockW =
+    children.length > 0 ? Math.max(...children.map((c) => blockFootprint(c.linesOfCode))) : 0;
+
+  // Scene half-extent so every block's plot fits inside its cell
+  const halfExtent = Math.max(
+    38,
+    Math.sqrt(children.length + 1) * maxBlockW * 0.9 + neededPlazaExtent,
+  );
+  const plazaWeight = Math.max(
+    files.reduce((s, f) => s + f.linesOfCode, 0),
+    1,
+  );
+  const sites: VoronoiSite[] = [
+    { key: PLAZA_SITE_KEY, weight: plazaWeight },
+    ...children.map((c) => ({ key: c.path || c.name, weight: Math.max(c.linesOfCode, 1) })),
+  ];
+  const vCells = computeVoronoi(sites, halfExtent, 4);
+  const plazaCell = vCells.find((c) => c.key === PLAZA_SITE_KEY);
+  const plazaRadius = plazaCell
+    ? polygonMinRadius(plazaCell.polygon, plazaCell.centroid)
+    : halfExtent;
+
+  // Compress the plaza grid if its cell is tighter than the grid wants
+  const compression =
+    neededPlazaExtent > 0 ? Math.min(1, (plazaRadius * 0.82) / neededPlazaExtent) : 1;
+  const plazaExtent = neededPlazaExtent * compression;
+  const plazaCenter = plazaCell?.centroid ?? { x: 0, z: 0 };
+
+  files.forEach((file, i) => {
+    const cell = cells[i] ?? { x: 0, z: 0 };
+    const w = footprintOf(file);
+    buildings.push({
+      file,
+      x: plazaCenter.x + cell.x * compression + jitter(file.path, 0.7 * compression),
+      z: plazaCenter.z + cell.z * compression + jitter(file.path + "|z", 0.7 * compression),
+      w,
+      d: w,
+      h: heightOf(file),
+    });
+  });
+
+  const podium =
+    dir.remainingFiles > 0
+      ? {
+          count: dir.remainingFiles,
+          x: plazaCenter.x + plazaExtent + 4.5,
+          z: plazaCenter.z + plazaExtent + 4.5,
+        }
+      : null;
+
+  for (const vCell of vCells) {
+    if (vCell.key === PLAZA_SITE_KEY) continue;
+    const child = children.find((c) => (c.path || c.name) === vCell.key);
+    if (!child) continue;
+    const cellRadius = polygonMinRadius(vCell.polygon, vCell.centroid);
+    // The plot must sit comfortably inside its organic cell
+    const w = Math.min(blockFootprint(child.linesOfCode), Math.max(cellRadius * 1.35, 8));
+    const skyline = buildSkyline(child, w);
+    blockPlacements.push({
+      dir: child,
+      x: vCell.centroid.x + jitter(child.path, 0.8),
+      z: vCell.centroid.z + jitter(child.path + "|z", 0.8),
+      w,
+      d: w,
+      skyline,
+    });
+  }
+
+  // Streets = the organic cell boundaries (shared edges drawn once)
+  const streets = cellBoundarySegments(vCells);
+
+  let bounds = plazaExtent + 12;
+  for (const vCell of vCells) {
+    for (const v of vCell.polygon) {
+      bounds = Math.max(bounds, Math.abs(v.x) + 12, Math.abs(v.z) + 12);
+    }
+  }
+  for (const b of blockPlacements) {
+    bounds = Math.max(bounds, Math.abs(b.x) + b.w / 2 + 10, Math.abs(b.z) + b.d / 2 + 10);
+  }
+
+  return { dir, blocks: blockPlacements, buildings, podium, streets, bounds, plazaExtent };
+}
+
+// ── Layout mode ────────────────────────────────────────────────────────────
+
+export type LayoutMode = "voronoi" | "grid";
+
+let activeLayoutMode: LayoutMode = "voronoi";
+
+/** Switch the placement algorithm; caches are keyed per mode, no stale hits. */
+export function setLayoutMode(mode: LayoutMode): void {
+  activeLayoutMode = mode;
+}
+
+export function getLayoutMode(): LayoutMode {
+  return activeLayoutMode;
+}
+
 // ── Memoised access ────────────────────────────────────────────────────────
 
 const layoutCache = new WeakMap<CityData, Map<string, DirLayout>>();
@@ -255,10 +392,12 @@ export function getDirLayout(city: CityData, focusPath: string[]): DirLayout {
     perCity = new Map();
     layoutCache.set(city, perCity);
   }
-  const key = focusPath.join('/');
+  const key = `${activeLayoutMode}:${focusPath.join("/")}`;
   const hit = perCity.get(key);
   if (hit) return hit;
-  const layout = computeLayout(resolveDir(city.tree, focusPath));
+  const target = resolveDir(city.tree, focusPath);
+  const layout =
+    activeLayoutMode === "voronoi" ? computeVoronoiLayout(target) : computeGridLayout(target);
   perCity.set(key, layout);
   return layout;
 }
@@ -312,7 +451,10 @@ export function searchFiles(city: CityData, query: string, limit = 7): FileHit[]
 
 /** Weighted risk of a file (P0 dominates) — used for landmark + tour order. */
 export function riskScore(file: CityFile): number {
-  return file.findings.reduce((s, f) => s + (f.severity === 'P0' ? 10 : f.severity === 'P1' ? 7 : 3), 0);
+  return file.findings.reduce(
+    (s, f) => s + (f.severity === "P0" ? 10 : f.severity === "P1" ? 7 : 3),
+    0,
+  );
 }
 
 /** Files with findings, most risky first — the Security Tour itinerary. */
@@ -323,7 +465,11 @@ export function tourStops(city: CityData): FileHit[] {
   if (cached) return cached;
   const stops = allFiles(city)
     .filter(({ file }) => file.findings.length > 0)
-    .sort((a, b) => riskScore(b.file) - riskScore(a.file) || threatRank(b.file.threatLevel) - threatRank(a.file.threatLevel));
+    .sort(
+      (a, b) =>
+        riskScore(b.file) - riskScore(a.file) ||
+        threatRank(b.file.threatLevel) - threatRank(a.file.threatLevel),
+    );
   tourStopsCache.set(city, stops);
   return stops;
 }

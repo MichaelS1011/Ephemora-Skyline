@@ -1,4 +1,4 @@
-# CodeCity CyberDefense
+# Ephemora Skyline
 
 Eine interaktive 3D-City-Visualisierung deines lokalen Projekts als lebendige Stadt in der Dämmerung.
 
@@ -12,10 +12,10 @@ Dein Code bleibt auf deinem Rechner.
 - **Orientierung:** Brotkrumen, Minimap mit echter Kameraposition, Landmark-Turm für die gefährlichste Datei, Search-to-Fly.
 - **Teilen:** Jede Stadt hat einen Permalink (`?city=<id>`) plus PNG-Export.
 
-![CodeCity CyberDefense](https://img.shields.io/badge/status-beta-orange)
+![Ephemora Skyline](https://img.shields.io/badge/status-beta-orange)
 ![Node.js](https://img.shields.io/badge/node-%3E%3D20-brightgreen)
 ![TypeScript](https://img.shields.io/badge/typescript-5.8-blue)
-![License](https://img.shields.io/badge/license-MIT-green)
+![License](https://img.shields.io/badge/license-BSL--1.1-informational)
 
 ## 🏗️ Tech Stack
 
@@ -291,4 +291,20 @@ npm run test:watch
 
 ## 📝 Lizenz
 
-MIT
+**Business Source License 1.1** (BSL-1.1) — siehe [LICENSE](./LICENSE).
+
+Ephemora Skyline ist _source-available_, nicht OSI-Open-Source. Das heißt konkret:
+
+- ✅ **Erlaubt:** Code lesen, modifizieren, laufen lassen und weitergeben — für
+  persönliche, Bildungszwecke, interne Geschäftsnutzung und alle
+  Nicht-Produktionszwecke (Entwicklung, Tests, Evaluation, Forschung).
+- ❌ **Nicht erlaubt (ohne separate kommerzielle Lizenz):** die Software selbst
+  oder Ableitungen davon Dritten als gehosteter/verwalteter Service (SaaS)
+  anzubieten.
+- 🔄 **Automatische Konvertierung:** Mit dem _Change Date_ (**2030-09-29**)
+  wechselt die Lizenz automatisch zu **Apache License 2.0**.
+
+Kopien müssen diese Lizenz, das „Ephemora Skyline"-Branding und alle
+Copyright-Hinweise enthalten. Kommerzielle Lizenzen (u. a. für
+Hosted-Service-Rechte, White-Labeling, Enterprise-Redistribution) über
+Ephemora.

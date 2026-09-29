@@ -1,13 +1,14 @@
 {
   "name": "codecity-cyberdefense",
   "private": true,
+  "license": "BSL-1.1",
   "type": "module",
   "version": "0.1.0",
   "packageManager": "npm@10.0.0",
   "description": "Eine interaktive 3D-City-Visualisierung von GitHub-Repositories als lebendige Cyberpunk-Stadt",
   "repository": {
     "type": "git",
-    "url": "https://github.com/username/codecity-cyberdefense.git"
+    "url": "https://github.com/MichaelS1011/Ephemora-Skyline.git"
   },
   "scripts": {
     "dev": "turbo run dev",

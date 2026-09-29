@@ -61,7 +61,7 @@ export function SearchBar() {
     return (
       <>
         {text.slice(0, idx)}
-        <span style={{ color: "#4de3ff", fontWeight: 600 }}>
+        <span style={{ color: "#f2d5a0", fontWeight: 600 }}>
           {text.slice(idx, idx + query.length)}
         </span>
         {text.slice(idx + query.length)}
@@ -94,16 +94,17 @@ export function SearchBar() {
           onKeyDown={handleKeyDown}
           placeholder="Search files, paths, languages…"
           aria-label="Search buildings"
+          title="Search files by name, path or language — picking a result flies the camera to its building"
           aria-expanded={showResults}
           aria-controls="search-results"
           aria-autocomplete="list"
           className="w-full font-jetbrains text-xs pl-8 pr-8 py-1.5 rounded-sm outline-none transition-all duration-150"
           style={{
-            background: "rgba(6, 9, 20, 0.88)",
-            border: `1px solid ${open && value ? "rgba(77,227,255,0.45)" : "rgba(90,120,170,0.3)"}`,
-            color: "#c8d8f0",
+            background: "rgba(18, 18, 16, 0.88)",
+            border: `1px solid ${open && value ? "rgba(232,178,60,0.45)" : "rgba(150,142,128,0.3)"}`,
+            color: "#e8e4da",
             backdropFilter: "blur(8px)",
-            boxShadow: open && value ? "0 0 0 2px rgba(77,227,255,0.08)" : "none",
+            boxShadow: open && value ? "0 0 0 2px rgba(232,178,60,0.08)" : "none",
           }}
         />
         {value && (
@@ -130,8 +131,8 @@ export function SearchBar() {
           id="search-results"
           className="absolute top-full left-0 right-0 mt-1 z-30 rounded-sm overflow-hidden animate-fade-up"
           style={{
-            background: "rgba(6, 9, 20, 0.97)",
-            border: "1px solid rgba(77,227,255,0.22)",
+            background: "rgba(18, 18, 16, 0.97)",
+            border: "1px solid rgba(232,178,60,0.22)",
             boxShadow: "0 8px 24px rgba(0,0,0,0.55)",
             backdropFilter: "blur(12px)",
           }}
@@ -154,9 +155,9 @@ export function SearchBar() {
                     onMouseEnter={() => setActiveIdx(i)}
                     className="w-full text-left px-3 py-2 transition-colors duration-100 flex items-center justify-between gap-2"
                     style={{
-                      background: isActive ? "rgba(77,227,255,0.07)" : "transparent",
+                      background: isActive ? "rgba(232,178,60,0.07)" : "transparent",
                       borderBottom:
-                        i < results.length - 1 ? "1px solid rgba(77,227,255,0.07)" : "none",
+                        i < results.length - 1 ? "1px solid rgba(232,178,60,0.07)" : "none",
                     }}
                     role="option"
                     aria-selected={isActive}
@@ -170,7 +171,7 @@ export function SearchBar() {
                       <div className="min-w-0">
                         <span
                           className="block font-jetbrains text-[11px] truncate"
-                          style={{ color: "#c8d8f0" }}
+                          style={{ color: "#e8e4da" }}
                         >
                           {highlight(file.name, value)}
                         </span>
@@ -205,13 +206,13 @@ export function SearchBar() {
                 className="px-3 py-1.5 font-jetbrains text-[9px] flex items-center gap-2"
                 style={{
                   color: "var(--meta-faint)",
-                  borderTop: "1px solid rgba(77,227,255,0.08)",
-                  background: "rgba(6,9,20,0.6)",
+                  borderTop: "1px solid rgba(232,178,60,0.08)",
+                  background: "rgba(18,18,16,0.6)",
                 }}
               >
                 <kbd
                   style={{
-                    border: "1px solid rgba(77,227,255,0.2)",
+                    border: "1px solid rgba(232,178,60,0.2)",
                     color: "var(--meta)",
                     padding: "0 3px",
                     borderRadius: 2,
@@ -222,7 +223,7 @@ export function SearchBar() {
                 navigate
                 <kbd
                   style={{
-                    border: "1px solid rgba(77,227,255,0.2)",
+                    border: "1px solid rgba(232,178,60,0.2)",
                     color: "var(--meta)",
                     padding: "0 3px",
                     borderRadius: 2,

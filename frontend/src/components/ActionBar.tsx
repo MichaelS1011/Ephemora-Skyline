@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useStore } from "../stores/useStore";
+import { useTestRunner } from "../hooks/useTestRunner";
 import { SEVERITY_COLOR } from "../city/palette";
 
 interface ActionButtonProps {
@@ -20,7 +21,7 @@ function ActionButton({
   title,
   icon,
   active,
-  accentColor = "rgba(120,160,220,0.55)",
+  accentColor = "rgba(165,158,144,0.55)",
   danger,
 }: ActionButtonProps) {
   const [hov, setHov] = useState(false);
@@ -30,8 +31,8 @@ function ActionButton({
     : active
       ? accentColor
       : hov
-        ? "rgba(77,227,255,0.5)"
-        : "rgba(90,120,170,0.35)";
+        ? "rgba(232,178,60,0.5)"
+        : "rgba(150,142,128,0.35)";
 
   const color = danger
     ? hov
@@ -40,8 +41,8 @@ function ActionButton({
     : active
       ? accentColor
       : hov
-        ? "#4de3ff"
-        : "#8fa3c4";
+        ? "#f2d5a0"
+        : "#a8a49a";
 
   return (
     <button
@@ -59,10 +60,10 @@ function ActionButton({
           hov && !disabled
             ? danger
               ? "rgba(255,46,77,0.08)"
-              : "rgba(77,227,255,0.06)"
+              : "rgba(232,178,60,0.06)"
             : active
               ? `${accentColor}14`
-              : "rgba(5,8,20,0.75)",
+              : "rgba(16,16,14,0.75)",
         backdropFilter: "blur(6px)",
         boxShadow: hov && !disabled ? `0 0 12px ${color}22` : "none",
       }}
@@ -84,7 +85,11 @@ export function ActionBar() {
   const resetFocus = useStore((s) => s.resetFocus);
   const showFindings = useStore((s) => s.showFindings);
   const setShowFindings = useStore((s) => s.setShowFindings);
+  const analysisId = useStore((s) => s.analysisId);
+  const testRun = useStore((s) => s.testRun);
+  const { runTests } = useTestRunner();
   const [copied, setCopied] = useState(false);
+  const [pngSaved, setPngSaved] = useState(false);
 
   if (!cityData) return null;
 
@@ -108,10 +113,14 @@ export function ActionBar() {
     if (!canvas) return;
     try {
       const url = canvas.toDataURL("image/png");
+      // Timestamp keeps repeated exports from overwriting each other
+      const stamp = new Date().toISOString().slice(0, 19).replace("T", "-").replaceAll(":", "");
       const a = document.createElement("a");
       a.href = url;
-      a.download = `codecity-${cityData.repo.name}.png`;
+      a.download = `ephemora-${cityData.repo.name}-${stamp}.png`;
       a.click();
+      setPngSaved(true);
+      setTimeout(() => setPngSaved(false), 1600);
     } catch {
       /* canvas export blocked */
     }
@@ -124,18 +133,18 @@ export function ActionBar() {
         <div
           className="px-4 py-1.5 rounded-sm font-jetbrains animate-fade-up"
           style={{
-            background: "rgba(6, 9, 20, 0.88)",
-            border: "1px solid rgba(0,255,159,0.3)",
+            background: "rgba(18, 18, 16, 0.88)",
+            border: "1px solid rgba(232,80,60,0.3)",
             backdropFilter: "blur(8px)",
           }}
           role="status"
           aria-live="polite"
         >
           <div className="flex items-center justify-between gap-4 mb-1">
-            <span className="text-[10px] tracking-widest" style={{ color: "#00ff9f" }}>
+            <span className="text-[10px] tracking-widest" style={{ color: "#e8503c" }}>
               ⚒ RAISING {focusPath.length > 0 ? `/${focusPath.join("/")}` : "CITY"}
             </span>
-            <span className="text-[10px]" style={{ color: "#4de3ff" }}>
+            <span className="text-[10px]" style={{ color: "#f2d5a0" }}>
               {constructionDone}/{constructionTotal}
             </span>
           </div>
@@ -147,8 +156,8 @@ export function ActionBar() {
               className="h-full rounded-full transition-all duration-300"
               style={{
                 width: `${pct}%`,
-                background: "linear-gradient(90deg, #00d4ff, #00ff9f)",
-                boxShadow: "0 0 6px rgba(0,255,159,0.5)",
+                background: "linear-gradient(90deg, #e8b23c, #e8503c)",
+                boxShadow: "0 0 6px rgba(232,80,60,0.5)",
               }}
             />
           </div>
@@ -159,8 +168,8 @@ export function ActionBar() {
       <div
         className="flex items-center gap-1.5 px-2 py-1.5 rounded-sm"
         style={{
-          background: "rgba(6, 9, 20, 0.82)",
-          border: "1px solid rgba(90,120,170,0.22)",
+          background: "rgba(18, 18, 16, 0.82)",
+          border: "1px solid rgba(150,142,128,0.22)",
           backdropFilter: "blur(10px)",
           boxShadow: "0 4px 20px rgba(0,0,0,0.4)",
         }}
@@ -175,7 +184,7 @@ export function ActionBar() {
               ? "No findings to tour"
               : "Fly through every security finding, most risky first (←→)"
           }
-          active={!tourActive && totalFindings > 0}
+          active={tourActive}
           accentColor={SEVERITY_COLOR.P0}
         />
 
@@ -193,7 +202,7 @@ export function ActionBar() {
           style={{
             width: 1,
             height: 18,
-            background: "rgba(90,120,170,0.25)",
+            background: "rgba(150,142,128,0.25)",
             display: "inline-block",
           }}
         />
@@ -205,16 +214,38 @@ export function ActionBar() {
           title="Back to the city overview (double-Esc)"
         />
         <ActionButton
+          onClick={() => void runTests()}
+          disabled={testRun.status === "installing" || testRun.status === "running" || !analysisId}
+          label={
+            testRun.status === "installing" || testRun.status === "running"
+              ? "TESTING…"
+              : testRun.status === "failed"
+                ? "TESTS FAILED"
+                : testRun.status === "complete"
+                  ? "TESTS DONE"
+                  : "RUN TESTS"
+          }
+          icon="▶"
+          title="Run the project's own test suite (vitest/jest) on your machine — results land on the buildings"
+        />
+        <ActionButton
           onClick={handleScreenshot}
-          label="PNG"
-          icon="⎙"
+          label={pngSaved ? "SAVED!" : "PNG"}
+          icon={pngSaved ? "✓" : "⎙"}
           title="Export the current view as a PNG image"
+          active={pngSaved}
+          accentColor="#29d398"
         />
         <ActionButton
           onClick={handleShare}
+          disabled={!analysisId}
           label={copied ? "COPIED!" : "SHARE"}
           icon={copied ? "✓" : "⎘"}
-          title="Copy a permalink to this city"
+          title={
+            analysisId
+              ? "Copy a permalink to this city"
+              : "Permalinks need a saved scan — demo cities and unsaved views can't be shared"
+          }
           active={copied}
           accentColor="#29d398"
         />

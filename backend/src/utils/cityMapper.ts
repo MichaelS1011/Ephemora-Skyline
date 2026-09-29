@@ -54,6 +54,30 @@ export interface CityFile {
   cyclomaticComplexity: number;
   threatLevel: ThreatLevel;
   findings: CityFinding[];
+  /** Raw file size in bytes — bloat LOC hides */
+  bytes?: number;
+  /** 0..1 git change-frequency hotspot score (absent without git history) */
+  churnScore?: number;
+  commitCount?: number;
+  daysSinceLastCommit?: number;
+  /** Developer with the most commits touching this file */
+  topAuthor?: string;
+  /** Number of exported symbols — the file's public API surface */
+  exportedSymbols?: number;
+  /** Number of import statements — coupling proxy until the AST core lands */
+  importCount?: number;
+  /**
+   * Exports exist but nothing in the repo imports this file, and it is not
+   * an entry point. Conservative heuristic — real dead-code analysis comes
+   * with the AST core.
+   */
+  deadCodeCandidate?: boolean;
+  /** Part of at least one circular import chain */
+  inCycle?: boolean;
+  /** Line coverage 0..100 parsed from a lcov-style report, if present */
+  coveragePct?: number;
+  /** Files sharing ≥6 normalized duplicated lines with this one (top 3) */
+  clonePartners?: Array<{ id: string; path: string; lines: number }>;
 }
 
 export interface CityDir {
@@ -73,6 +97,9 @@ export interface CityDir {
    * largest) — rendered as the district's skyline while zoomed out.
    */
   districtFiles: CityFile[];
+  /** Author owning the most files in this subtree ("Anna's district") */
+  topAuthor?: string;
+  topAuthorShare?: number; // 0..1 — share of subtree files owned by them
 }
 
 export interface FileConnection {
@@ -97,6 +124,19 @@ export interface CityData {
   tree: CityDir;
   fileConnections: FileConnection[];
   dirConnections: DirConnection[];
+  /**
+   * Which optional visualization dimensions are present — the client
+   * degrades gracefully (graphite instead of erosion, no glass) when a
+   * dimension is missing rather than inventing data.
+   */
+  meta: {
+    churn: boolean;
+    deadCode: boolean;
+    duplicates: boolean;
+    cycles: boolean;
+    coverage: boolean;
+    blame: boolean;
+  };
 }
 
 // ── Budgets ────────────────────────────────────────────────────────────────
@@ -116,6 +156,50 @@ const SEVERITY_ORDER: Severity[] = ["P0", "P1", "P2"];
 
 /** Representative towers per district skyline (rendered while zoomed out). */
 const DISTRICT_FILES_MAX = 6;
+
+/**
+ * Circular import detection over the resolved edge graph (DFS, three
+ * colors). Files on ANY back edge are flagged — the frontend renders
+ * them with a rotating red warning ring.
+ */
+function findCircularFiles(files: FileAnalysis[], pathSet: Set<string>): Set<string> {
+  const edges = new Map<string, string[]>();
+  for (const f of files) {
+    for (const imp of f.imports ?? []) {
+      if (imp.isExternal) continue;
+      const target = resolveImportPath(f.path, imp.source, pathSet);
+      if (!target || target === f.path) continue;
+      const list = edges.get(f.path) ?? [];
+      list.push(target);
+      edges.set(f.path, list);
+    }
+  }
+
+  const WHITE = 0;
+  const GRAY = 1;
+  const BLACK = 2;
+  const color = new Map<string, number>();
+  const inCycle = new Set<string>();
+
+  const visit = (node: string): void => {
+    color.set(node, GRAY);
+    for (const next of edges.get(node) ?? []) {
+      const c = color.get(next) ?? WHITE;
+      if (c === GRAY) {
+        // Back edge → node and its target sit on a cycle
+        inCycle.add(node);
+        inCycle.add(next);
+      } else if (c === WHITE) {
+        visit(next);
+      }
+    }
+    color.set(node, BLACK);
+  };
+  for (const f of files) {
+    if ((color.get(f.path) ?? WHITE) === WHITE) visit(f.path);
+  }
+  return inCycle;
+}
 
 /** Weight a subtree file for skyline selection: risk dominates, size breaks ties. */
 function skylineWeight(f: FileAnalysis): number {
@@ -246,12 +330,48 @@ function topLevelDirOf(filePath: string): string {
   return i === -1 ? "" : filePath.slice(0, i);
 }
 
+// ── Dead-code heuristic ────────────────────────────────────────────────────
+
+const ENTRY_BASENAMES = /^(index|main|app|mod|lib|server|client|__init__|wsgi|manage)\./i;
+const TEST_PATH = /(^|\/)(tests?|__tests__|spec)\//i;
+const TEST_SUFFIX = /\.(test|spec|stories)\.[a-z]+$/i;
+
+/**
+ * Files whose exports are never imported anywhere and which cannot be
+ * entry points. Only files WITH exports qualify — no exports means we
+ * can't tell, and flagging those would drown the signal.
+ */
+function isDeadCodeCandidate(f: FileAnalysis, importedPaths: Set<string>): boolean {
+  if (f.exports.length === 0) return false;
+  if (importedPaths.has(f.path)) return false;
+  const base = path.posix.basename(f.path);
+  if (ENTRY_BASENAMES.test(base)) return false;
+  if (TEST_PATH.test(f.path) || TEST_SUFFIX.test(base)) return false;
+  return true;
+}
+
 // ── Main mapping ───────────────────────────────────────────────────────────
 
 export function mapResultToCityData(result: AnalysisResult): CityData {
   const files = result.files ?? [];
   const pathSet = new Set(files.map((f) => f.path));
   const rawByPath = new Map(files.map((f) => [f.path, f]));
+
+  // Pre-pass over ALL files: which paths are imported by anyone? Needed
+  // before the tree is built so per-file dead-code flags can be attached.
+  const importedPaths = new Set<string>();
+  for (const file of files) {
+    for (const imp of file.imports ?? []) {
+      if (imp.isExternal) continue;
+      const target = resolveImportPath(file.path, imp.source, pathSet);
+      if (target && target !== file.path) importedPaths.add(target);
+    }
+  }
+  const deadCodeCandidates = new Set(
+    files.filter((f) => isDeadCodeCandidate(f, importedPaths)).map((f) => f.path),
+  );
+  const hasChurn = files.some((f) => f.churn);
+  const circular = findCircularFiles(files, pathSet);
 
   // Stable ids for every analyzed file (detail or not — dir-level
   // aggregation uses ALL resolved edges, not just rendered buildings).
@@ -328,7 +448,9 @@ export function mapResultToCityData(result: AnalysisResult): CityData {
     const detail = [...node.files]
       .sort((a, b) => fileSortKey(b) - fileSortKey(a))
       .slice(0, perDirCap)
-      .map((f) => mapCityFile(f, allIds.get(f.path) ?? `f-${f.path}`));
+      .map((f) =>
+        mapCityFile(f, allIds.get(f.path) ?? `f-${f.path}`, deadCodeCandidates, circular, allIds),
+      );
     dirNode.detailFiles = detail;
     renderedFiles += detail.length;
 
@@ -354,7 +476,30 @@ export function mapResultToCityData(result: AnalysisResult): CityData {
     dirNode.districtFiles = skylineCandidates
       .sort((a, b) => skylineWeight(b) - skylineWeight(a))
       .slice(0, DISTRICT_FILES_MAX)
-      .map((f) => mapCityFile(f, allIds.get(f.path) ?? `f-${f.path}`));
+      .map((f) =>
+        mapCityFile(f, allIds.get(f.path) ?? `f-${f.path}`, deadCodeCandidates, circular, allIds),
+      );
+
+    // Author territory: who owns most of THIS directory's files (blame)
+    const authorCounts = new Map<string, number>();
+    let authoredFiles = 0;
+    for (const f of node.files) {
+      if (!f.churn?.topAuthor) continue;
+      authoredFiles++;
+      authorCounts.set(f.churn.topAuthor, (authorCounts.get(f.churn.topAuthor) ?? 0) + 1);
+    }
+    let dirTopAuthor: string | undefined;
+    let dirTopCount = 0;
+    for (const [author, n] of authorCounts) {
+      if (n > dirTopCount) {
+        dirTopCount = n;
+        dirTopAuthor = author;
+      }
+    }
+    if (dirTopAuthor && authoredFiles > 0) {
+      dirNode.topAuthor = dirTopAuthor;
+      dirNode.topAuthorShare = Math.round((dirTopCount / authoredFiles) * 100) / 100;
+    }
 
     return dirNode;
   };
@@ -427,14 +572,34 @@ export function mapResultToCityData(result: AnalysisResult): CityData {
     dirConnections: [...dirEdgeMap.values()]
       .sort((a, b) => b.weight - a.weight)
       .slice(0, DIR_CONNECTIONS_MAX),
+    meta: {
+      churn: hasChurn,
+      deadCode: deadCodeCandidates.size > 0,
+      duplicates: files.some((f) => f.clonePartners && f.clonePartners.length > 0),
+      cycles: circular.size > 0,
+      coverage: files.some((f) => f.coveragePct !== undefined),
+      blame: files.some((f) => f.churn?.topAuthor),
+    },
   };
 }
 
-function mapCityFile(f: FileAnalysis, id: string): CityFile {
+function mapCityFile(
+  f: FileAnalysis,
+  id: string,
+  deadCodeCandidates: Set<string>,
+  circular: Set<string>,
+  idByPath?: Map<string, string>,
+): CityFile {
   const findings = [...f.vulnerabilities]
     .sort((a, b) => (SEVERITY_SCORE[b.severity] ?? 0) - (SEVERITY_SCORE[a.severity] ?? 0))
     .slice(0, FINDINGS_PER_FILE)
     .map(toCityFinding);
+  const churn = f.churn;
+  const clonePartners = f.clonePartners?.map((p) => ({
+    id: idByPath?.get(p.path) ?? p.path,
+    path: p.path,
+    lines: p.lines,
+  }));
   return {
     id,
     name: path.posix.basename(f.path),
@@ -444,5 +609,16 @@ function mapCityFile(f: FileAnalysis, id: string): CityFile {
     cyclomaticComplexity: f.complexity?.cyclomatic ?? 1,
     threatLevel: threatLevelOf(f.vulnerabilities),
     findings,
+    bytes: f.bytes,
+    churnScore: churn?.score,
+    commitCount: churn?.commits,
+    daysSinceLastCommit: churn?.daysSinceLastCommit,
+    topAuthor: churn?.topAuthor,
+    exportedSymbols: f.exports.length,
+    importCount: f.imports.length,
+    deadCodeCandidate: deadCodeCandidates.has(f.path) || undefined,
+    inCycle: circular.has(f.path) || undefined,
+    coveragePct: f.coveragePct,
+    clonePartners: clonePartners && clonePartners.length > 0 ? clonePartners : undefined,
   };
 }

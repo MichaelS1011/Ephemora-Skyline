@@ -12,6 +12,26 @@ const SEV_MEANING: Record<string, string> = {
   P2: "P2 = hygiene — style/log issues that can hide real problems",
 };
 
+function ResetButton() {
+  const resetToLanding = useStore((s) => s.resetToLanding);
+  return (
+    <button
+      onClick={resetToLanding}
+      title="Start over — back to the start screen"
+      aria-label="Start over — back to the start screen"
+      className="font-jetbrains text-[9px] tracking-widest px-1.5 py-0.5 rounded cursor-pointer
+                 transition-all duration-150 hover:brightness-125 focus:outline-none focus:ring-1 focus:ring-[#e8503c]"
+      style={{
+        border: "1px solid rgba(150,145,132,0.28)",
+        color: "#a8a49a",
+        background: "rgba(22,22,20,0.6)",
+      }}
+    >
+      ⏻ NEW
+    </button>
+  );
+}
+
 export function HudOverlay({ apiStatus }: HudOverlayProps) {
   const cityData = useStore((s) => s.cityData);
   const resetFocus = useStore((s) => s.resetFocus);
@@ -20,7 +40,7 @@ export function HudOverlay({ apiStatus }: HudOverlayProps) {
 
   const dotColor =
     apiStatus === "live"
-      ? "var(--color-neon, #00ff9f)"
+      ? "var(--color-neon, #e8503c)"
       : apiStatus === "demo"
         ? "#ffd23f"
         : "var(--meta)";
@@ -31,10 +51,10 @@ export function HudOverlay({ apiStatus }: HudOverlayProps) {
   if (!cityData) {
     return (
       <header
-        className="absolute top-0 left-0 right-0 z-20 pointer-events-auto scanline-static"
+        className="absolute top-0 left-0 right-0 z-[45] pointer-events-auto scanline-static"
         style={{
-          background: "rgba(5, 8, 20, 0.88)",
-          borderBottom: "1px solid rgba(0,255,159,0.15)",
+          background: "rgba(16, 16, 14, 0.88)",
+          borderBottom: "1px solid rgba(232,80,60,0.15)",
           backdropFilter: "blur(8px)",
         }}
       >
@@ -43,33 +63,37 @@ export function HudOverlay({ apiStatus }: HudOverlayProps) {
             <div
               className="w-7 h-7 flex items-center justify-center font-jetbrains text-xs font-bold"
               style={{
-                border: "1px solid rgba(0,255,159,0.5)",
-                color: "#00ff9f",
-                background: "rgba(0,255,159,0.06)",
-                boxShadow: "0 0 10px rgba(0,255,159,0.18)",
-                borderRadius: 3,
+                border: "1px solid rgba(242,239,232,0.2)",
+                color: "#f2efe8",
+                background: "rgba(242,239,232,0.04)",
+                borderRadius: 4,
               }}
             >
-              CC
+              E<span style={{ color: "#e8503c" }}>.</span>
             </div>
             <span
               className="font-jetbrains text-sm font-bold tracking-[0.2em]"
-              style={{ color: "#00ff9f" }}
+              style={{ color: "#f2efe8" }}
             >
-              CODECITY <span style={{ color: "#ff00aa" }}>CYBERDEFENSE</span>
+              EPHEMORA<span style={{ color: "#e8503c" }}>.</span>{" "}
+              <span style={{ color: "#e8503c" }}>SKYLINE</span>
             </span>
           </div>
           <div className="flex items-center gap-1.5">
-            <span
-              className="inline-block w-1.5 h-1.5 rounded-full animate-dot-blink"
-              style={{ background: dotColor }}
-            />
-            <span
-              className="font-jetbrains text-[10px] tracking-widest"
-              style={{ color: "var(--meta)" }}
-            >
-              {dotLabel}
-            </span>
+            {apiStatus === "demo" && (
+              <>
+                <span
+                  className="inline-block w-1.5 h-1.5 rounded-full animate-dot-blink"
+                  style={{ background: dotColor }}
+                />
+                <span
+                  className="font-jetbrains text-[10px] tracking-widest"
+                  style={{ color: "var(--meta)" }}
+                >
+                  {dotLabel}
+                </span>
+              </>
+            )}
           </div>
         </div>
       </header>
@@ -78,21 +102,15 @@ export function HudOverlay({ apiStatus }: HudOverlayProps) {
 
   const findings = cityData.findingsBySeverity;
   const totalFindings = findings.P0 + findings.P1 + findings.P2;
-  const langs = topLanguages(cityData.languages, 3);
-  // Local-folder analyses have no GitHub counterpart — render a plain chip
-  const isLocal = cityData.repo.owner === "local";
-  const repoUrl = isLocal
-    ? null
-    : `https://github.com/${cityData.repo.owner}/${cityData.repo.name}`;
 
   return (
     <>
       {/* ── Top status bar ─────────────────────────────────────────────── */}
       <header
-        className="absolute top-0 left-0 right-0 z-20 pointer-events-auto scanline-static"
+        className="absolute top-0 left-0 right-0 z-[45] pointer-events-auto scanline-static"
         style={{
-          background: "rgba(5, 8, 20, 0.90)",
-          borderBottom: "1px solid rgba(0,255,159,0.15)",
+          background: "rgba(16, 16, 14, 0.90)",
+          borderBottom: "1px solid rgba(232,80,60,0.15)",
           backdropFilter: "blur(10px)",
         }}
       >
@@ -104,80 +122,53 @@ export function HudOverlay({ apiStatus }: HudOverlayProps) {
               title="Back to overview"
               className="w-7 h-7 shrink-0 flex items-center justify-center font-jetbrains text-xs font-bold transition-all duration-150"
               style={{
-                border: "1px solid rgba(0,255,159,0.45)",
-                color: "#00ff9f",
-                background: "rgba(0,255,159,0.06)",
-                borderRadius: 3,
+                border: "1px solid rgba(232,80,60,0.45)",
+                color: "#e8503c",
+                background: "rgba(232,80,60,0.06)",
+                borderRadius: 4,
               }}
               onMouseEnter={(e) => {
-                e.currentTarget.style.boxShadow = "0 0 12px rgba(0,255,159,0.3)";
-                e.currentTarget.style.background = "rgba(0,255,159,0.12)";
+                e.currentTarget.style.boxShadow = "0 0 12px rgba(232,80,60,0.3)";
+                e.currentTarget.style.background = "rgba(232,80,60,0.12)";
               }}
               onMouseLeave={(e) => {
                 e.currentTarget.style.boxShadow = "none";
-                e.currentTarget.style.background = "rgba(0,255,159,0.06)";
+                e.currentTarget.style.background = "rgba(232,80,60,0.06)";
               }}
               aria-label="Go to city overview"
             >
-              CC
+              E<span style={{ color: "#e8503c" }}>.</span>
             </button>
 
             <div className="flex flex-col shrink-0">
               <span
                 className="font-jetbrains text-[11px] font-bold tracking-[0.18em] leading-none"
-                style={{ color: "#00ff9f" }}
+                style={{ color: "#f2efe8" }}
               >
-                CODECITY
+                EPHEMORA<span style={{ color: "#e8503c" }}>.</span>
               </span>
               <span
-                className="font-jetbrains text-[8px] tracking-[0.3em] leading-tight"
-                style={{ color: "#ff00aa" }}
+                className="font-jetbrains text-[9px] tracking-[0.3em] leading-tight"
+                style={{ color: "#e8503c" }}
               >
-                CYBERDEFENSE
+                SKYLINE
               </span>
             </div>
 
-            {/* Repo chip — links to GitHub for remote repos, plain label for local folders */}
-            {isLocal ? (
-              <span
-                className="font-jetbrains text-[10px] px-2 py-0.5 truncate max-w-[200px]"
-                style={{
-                  border: "1px solid rgba(100,140,200,0.28)",
-                  color: "#8fa3c4",
-                  background: "rgba(20,30,52,0.55)",
-                  borderRadius: 3,
-                }}
-                title={`Local folder: ${cityData.repo.name}`}
-              >
-                📂 {cityData.repo.name}
-                <span style={{ opacity: 0.5 }}> · local</span>
-              </span>
-            ) : (
-              <a
-                href={repoUrl ?? "#"}
-                target="_blank"
-                rel="noreferrer"
-                className="font-jetbrains text-[10px] px-2 py-0.5 truncate max-w-[200px] transition-all duration-150"
-                style={{
-                  border: "1px solid rgba(100,140,200,0.28)",
-                  color: "#8fa3c4",
-                  background: "rgba(20,30,52,0.55)",
-                  borderRadius: 3,
-                }}
-                title={`${cityData.repo.owner}/${cityData.repo.name} @${cityData.repo.branch}`}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.borderColor = "rgba(77,227,255,0.45)";
-                  e.currentTarget.style.color = "#4de3ff";
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.borderColor = "rgba(100,140,200,0.28)";
-                  e.currentTarget.style.color = "#8fa3c4";
-                }}
-              >
-                {cityData.repo.owner}/{cityData.repo.name}
-                <span style={{ opacity: 0.5 }}> @{cityData.repo.branch}</span>
-              </a>
-            )}
+            {/* Repo chip — every scan is a local folder */}
+            <span
+              className="font-jetbrains text-[10px] px-2 py-0.5 truncate max-w-[220px]"
+              style={{
+                border: "1px solid rgba(150,145,132,0.28)",
+                color: "#a8a49a",
+                background: "rgba(22,22,20,0.55)",
+                borderRadius: 3,
+              }}
+              title={`Local folder: ${cityData.repo.name} — scanned entirely on this machine`}
+            >
+              📂 {cityData.repo.name}
+              <span style={{ opacity: 0.5 }}> · local</span>
+            </span>
           </div>
 
           {/* Right: stats */}
@@ -185,30 +176,15 @@ export function HudOverlay({ apiStatus }: HudOverlayProps) {
             {/* File count */}
             <span
               className="font-jetbrains text-[10px]"
-              style={{ color: "#6b84a8" }}
+              style={{ color: "#8f8b82" }}
               title={`${cityData.renderedFiles} of ${cityData.totalFiles} files rendered`}
             >
-              <span style={{ color: "#aebfe0" }}>{cityData.renderedFiles}</span>
+              <span style={{ color: "#cfcabe" }}>{cityData.renderedFiles}</span>
               <span style={{ opacity: 0.5 }}>/{cityData.totalFiles}</span>
               <span style={{ opacity: 0.5 }}> files</span>
             </span>
 
-            {/* Top 3 languages */}
-            <div className="hidden sm:flex items-center gap-1.5">
-              {langs.map((l) => (
-                <span
-                  key={l.name}
-                  className="flex items-center gap-1 font-jetbrains text-[9px]"
-                  style={{ color: "#6b84a8" }}
-                >
-                  <span
-                    className="w-2 h-2 rounded-sm"
-                    style={{ background: languageColor(l.name) }}
-                  />
-                  {l.name}
-                </span>
-              ))}
-            </div>
+            {/* Top 3 languages: only in the bottom legend (declutter the bar) */}
 
             {/* Findings chips — click to dim every file without that severity */}
             {totalFindings > 0 ? (
@@ -224,7 +200,7 @@ export function HudOverlay({ apiStatus }: HudOverlayProps) {
                           : `${SEV_MEANING[sev]} (click to dim all files without ${sev} findings)`
                       }
                       aria-pressed={threatFilter === sev}
-                      className={`chip-${sev.toLowerCase()} font-jetbrains text-[9px] px-1.5 py-px rounded-sm cursor-pointer transition-all hover:brightness-125`}
+                      className={`chip-${sev.toLowerCase()} font-jetbrains text-[9px] px-1.5 py-px rounded cursor-pointer transition-all duration-150 hover:brightness-125`}
                       style={
                         threatFilter === sev
                           ? { outline: `1px solid ${SEVERITY_COLOR[sev]}`, outlineOffset: "1px" }
@@ -241,7 +217,7 @@ export function HudOverlay({ apiStatus }: HudOverlayProps) {
                   <button
                     onClick={() => setThreatFilter("all")}
                     title="Clear severity filter"
-                    className="font-jetbrains text-[9px] px-1 rounded-sm cursor-pointer"
+                    className="font-jetbrains text-[9px] px-1 rounded cursor-pointer"
                     style={{ color: "var(--meta-strong)" }}
                   >
                     ✕
@@ -249,15 +225,18 @@ export function HudOverlay({ apiStatus }: HudOverlayProps) {
                 )}
               </div>
             ) : (
-              <span className="chip-ok font-jetbrains text-[9px] px-1.5 py-px rounded-sm">
+              <span className="chip-ok font-jetbrains text-[9px] px-1.5 py-px rounded">
                 ✓ CLEAN
               </span>
             )}
 
+            {/* Start over — back to the Landing screen */}
+            <ResetButton />
+
             {/* Live / demo status */}
             <div
               className="flex items-center gap-1 pl-2"
-              style={{ borderLeft: "1px solid rgba(90,120,170,0.25)" }}
+              style={{ borderLeft: "1px solid rgba(150,142,128,0.25)" }}
             >
               <span
                 className="inline-block w-1.5 h-1.5 rounded-full animate-dot-blink"
@@ -265,7 +244,7 @@ export function HudOverlay({ apiStatus }: HudOverlayProps) {
               />
               <span
                 className="font-jetbrains text-[9px] tracking-widest"
-                style={{ color: "#6b84a8" }}
+                style={{ color: "#8f8b82" }}
               >
                 {dotLabel}
               </span>
@@ -278,10 +257,10 @@ export function HudOverlay({ apiStatus }: HudOverlayProps) {
       <div
         className="absolute bottom-4 left-4 z-10 pointer-events-none"
         style={{
-          background: "rgba(5, 8, 20, 0.82)",
-          border: "1px solid rgba(90,130,200,0.22)",
+          background: "rgba(16, 16, 14, 0.82)",
+          border: "1px solid rgba(150,142,128,0.22)",
           backdropFilter: "blur(10px)",
-          padding: "0.45rem 0.7rem",
+          padding: "0.5rem 0.75rem",
           borderRadius: 4,
         }}
       >
@@ -290,7 +269,7 @@ export function HudOverlay({ apiStatus }: HudOverlayProps) {
             <span
               key={l.name}
               className="flex items-center gap-1 font-jetbrains text-[9px]"
-              style={{ color: "#6b84a8" }}
+              style={{ color: "#8f8b82" }}
             >
               <span
                 className="w-2 h-2 rounded-sm inline-block"
@@ -301,21 +280,21 @@ export function HudOverlay({ apiStatus }: HudOverlayProps) {
           ))}
           <span
             className="flex items-center gap-1 font-jetbrains text-[9px]"
-            style={{ color: "#6b84a8" }}
-            title="Building height = lines of code"
+            style={{ color: "#8f8b82" }}
+            title="Building height = synthetic complexity (cyclomatic + depth + size)"
           >
-            ⬍ LOC
+            ⬍ CX·LOC
           </span>
           <span
             className="flex items-center gap-1 font-jetbrains text-[9px]"
-            style={{ color: "#6b84a8" }}
+            style={{ color: "#8f8b82" }}
             title="Each city block is one folder — click to enter it"
           >
             ▦ folder
           </span>
           <span
             className="flex items-center gap-1 font-jetbrains text-[9px]"
-            style={{ color: "#6b84a8" }}
+            style={{ color: "#8f8b82" }}
             title="Red curb: this district contains critical (P0) findings"
           >
             <span
@@ -326,7 +305,7 @@ export function HudOverlay({ apiStatus }: HudOverlayProps) {
           </span>
           <span
             className="flex items-center gap-1 font-jetbrains text-[9px]"
-            style={{ color: "#6b84a8" }}
+            style={{ color: "#8f8b82" }}
             title="The light beam marks the most at-risk file in view"
           >
             <span

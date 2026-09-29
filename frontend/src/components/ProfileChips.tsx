@@ -1,16 +1,27 @@
 "use client";
 
+import { useState } from "react";
 import { useStore } from "../stores/useStore";
-import { SCAN_PROFILES, configPayload, loadSavedProfile } from "../config/scanProfiles";
+import {
+  SCAN_PROFILES,
+  configPayload,
+  loadSavedProfile,
+  type ScanProfile,
+} from "../config/scanProfiles";
+import { ProfileConfirmDialog } from "./ProfileConfirmDialog";
 
 /**
  * Shared scan-profile chip row — rendered on the Landing (before the pick)
- * and inside the AnalyzePanel (for the next in-city scan). Configuration is
- * deliberately one opt-in layer below the primary action, never a gate.
+ * and inside the AnalyzePanel (for the next in-city scan). Clicking a chip
+ * does NOT silently switch: it opens a "what exactly will be scanned?"
+ * dialog and the user confirms yes/no. Configuration is deliberately one
+ * opt-in layer below the primary action, never a gate.
  */
 export function ProfileChips({ variant }: { variant: "landing" | "analyze-panel" }) {
   const scanProfile = useStore((s) => s.scanProfile);
   const setScanProfile = useStore((s) => s.setScanProfile);
+  // Which profile's details are open (null = closed)
+  const [detailFor, setDetailFor] = useState<ScanProfile | null>(null);
 
   const active = scanProfile ?? loadSavedProfile();
   const meta = SCAN_PROFILES.find((p) => p.id === active) ?? SCAN_PROFILES[1]!;
@@ -25,14 +36,14 @@ export function ProfileChips({ variant }: { variant: "landing" | "analyze-panel"
           return (
             <button
               key={p.id}
-              onClick={() => setScanProfile(p.id)}
+              onClick={() => setDetailFor(p.id)}
               aria-pressed={isActive}
-              title={`${p.label}: ${p.summary}`}
+              title={`${p.label}: ${p.summary} — click to see exactly what gets scanned`}
               className="font-jetbrains text-[9.5px] px-2 py-1 rounded-sm cursor-pointer transition-all duration-150 hover:brightness-125"
               style={{
-                border: `1px solid ${isActive ? "rgba(0,255,159,0.6)" : "rgba(90,130,200,0.25)"}`,
-                color: isActive ? "#00ff9f" : "#7d95b8",
-                background: isActive ? "rgba(0,255,159,0.07)" : "rgba(6,10,24,0.6)",
+                border: `1px solid ${isActive ? "rgba(232,80,60,0.6)" : "rgba(150,142,128,0.25)"}`,
+                color: isActive ? "#e8503c" : "#a8a49a",
+                background: isActive ? "rgba(232,80,60,0.07)" : "rgba(18,18,16,0.6)",
               }}
             >
               {p.icon} {p.label}
@@ -43,14 +54,30 @@ export function ProfileChips({ variant }: { variant: "landing" | "analyze-panel"
       <div
         className="font-jetbrains text-[9px] text-center"
         style={{ color: "var(--meta, #8296b5)" }}
+        title="What gets analyzed and how long it takes — click any profile chip for the exact list of checks before choosing it"
       >
-        {meta.summary} · scans{" "}
+        {meta.summary} · takes{" "}
         {configPayload(active).profile === "quick"
-          ? "≤30s"
+          ? "under 30s"
           : configPayload(active).profile === "deep"
             ? "1-3 min"
-            : "~40s"}
+            : "~40s"}{" "}
+        ·{" "}
+        <span style={{ color: "var(--meta-strong)" }}>
+          click a profile to see exactly what it scans
+        </span>
       </div>
+
+      {detailFor && (
+        <ProfileConfirmDialog
+          profile={detailFor}
+          onConfirm={() => {
+            setScanProfile(detailFor);
+            setDetailFor(null);
+          }}
+          onCancel={() => setDetailFor(null)}
+        />
+      )}
     </div>
   );
 }

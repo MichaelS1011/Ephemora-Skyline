@@ -56,7 +56,11 @@ export function CameraRig() {
       }
       return;
     }
-    tweenRef.current = { fromPos, toPos, fromTarget, toTarget, t: 0, dur: 1.3 };
+    // Long flights get proportionally more time — a short hop stays snappy,
+    // a city-spanning glide feels cinematic rather than rushed.
+    const flight = Math.hypot(toPos.x - fromPos.x, toPos.y - fromPos.y, toPos.z - fromPos.z);
+    const dur = Math.min(1.9, Math.max(0.9, 0.45 + flight / 260));
+    tweenRef.current = { fromPos, toPos, fromTarget, toTarget, t: 0, dur };
   }, [flyRequest, camera]);
 
   // ── Per-frame tween + camera reporting ───────────────────────────────────
@@ -83,6 +87,7 @@ export function CameraRig() {
         angle: controls
           ? Math.atan2(camera.position.x - controls.target.x, camera.position.z - controls.target.z)
           : 0,
+        dist: controls ? camera.position.distanceTo(controls.target) : camera.position.length(),
       });
     }
   });
@@ -95,7 +100,10 @@ export function CameraRig() {
       minDistance={9}
       maxDistance={520}
       enableDamping
-      dampingFactor={0.09}
+      dampingFactor={0.11}
+      rotateSpeed={0.85}
+      zoomSpeed={0.85}
+      panSpeed={0.9}
     />
   );
 }
