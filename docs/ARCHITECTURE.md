@@ -1,17 +1,17 @@
 # Architecture
 
-CodeCity CyberDefense ist ein **Turborepo-Monorepo** mit zwei Workspaces: `frontend` und `backend`.
+Ephemora Skyline is a **Turborepo monorepo** with two workspaces: `frontend` and `backend`.
 
-## Monorepo-Struktur
+## Monorepo Structure
 
 ```
-codecity-cyberdefense/
-├── package.json            # Root: Workspaces, devDeps, Scripts
-├── turbo.json              # Turborepo: Task-Definitionen
-├── tsconfig.base.json      # Geteilter TypeScript-Config
+codecity-cyberdefense/          # internal package name (owner-locked)
+├── package.json            # Root: workspaces, devDeps, scripts
+├── turbo.json              # Turborepo: task definitions
+├── tsconfig.base.json      # Shared TypeScript config
 ├── eslint.config.js        # Root ESLint (Flat Config v9)
-├── .prettierrc             # Prettier-Regeln
-├── frontend/               # Workspace: React 3D-Frontend
+├── .prettierrc             # Prettier rules
+├── frontend/               # Workspace: React 3D frontend
 │   ├── package.json
 │   ├── tsconfig.json
 │   ├── vite.config.ts
@@ -21,208 +21,208 @@ codecity-cyberdefense/
 │   ├── tsconfig.json
 │   └── src/
 ├── docker/                 # Dockerfile.backend + Dockerfile.frontend
-├── .github/workflows/      # CI Pipeline
-└── render.yaml             # Render Deployment
+├── .github/workflows/      # CI pipeline
+└── render.yaml             # Render deployment
 ```
 
-**Turborepo Tasks:**
+**Turborepo tasks:**
 
-- `dev`: Cache=false, persistent — startet beide Workspaces gleichzeitig
-- `build`: `^build` — baut Backend zuerst, dann Frontend
-- `lint`: `^lint` — Lint mit Dependency-Tracking
-- `type-check`: `^build` — baut zuerst, dann Typ-Check
-- `test`: `^build` — baut zuerst, dann Tests
+- `dev`: cache=false, persistent — starts both workspaces simultaneously
+- `build`: `^build` — builds the backend first, then the frontend
+- `lint`: `^lint` — lint with dependency tracking
+- `type-check`: `^build` — builds first, then type check
+- `test`: `^build` — builds first, then tests
 
-## Backend-Architektur
+## Backend Architecture
 
 ```
 backend/src/
 ├── server/
-│   ├── index.ts            # Express App + HTTP + WebSocket Server
+│   ├── index.ts            # Express app + HTTP + WebSocket server
 │   └── routes/
-│       ├── analyze.ts      # POST /api/analyze Handler
-│       ├── demo.ts         # GET /api/demo — Demo-Daten
-│       └── health.ts       # GET /api/health Handler
+│       ├── analyze.ts      # POST /api/analyze handler
+│       ├── demo.ts         # GET /api/demo — demo data
+│       └── health.ts       # GET /api/health handler
 ├── services/
 │   ├── github/
-│   │   ├── client.ts       # GitHub API Client (node-fetch)
-│   │   └── clone-manager.ts # Repository Cloning (system git via execFile)
+│   │   ├── client.ts       # GitHub API client (node-fetch)
+│   │   └── clone-manager.ts # Repository cloning (system git via execFile)
 │   ├── analyzer/
-│   │   └── orchestrator.ts # Analyse-Orchestrator (koordiniert Pipeline)
+│   │   └── orchestrator.ts # Analysis orchestrator (coordinates the pipeline)
 │   └── security/
-│       └── scanner.ts      # Security Issue Scanner
+│       └── scanner.ts      # Security issue scanner
 ├── models/
-│   └── index.ts            # TypeScript Interfaces
+│   └── index.ts            # TypeScript interfaces
 │       ├── GitHubRepo
 │       ├── FileAnalysis
 │       ├── SecurityIssue
 │       ├── AnalysisResult
 │       ├── ProjectSummary
 │       └── WebSocketEvent
-├── parser/                 # Code-Parser: Lines, Complexity, Functions
-├── scanner/                # Security-Pattern-Matching
-├── ai/                     # AI-Integration (未来)
-└── utils/                  # Hilfsfunktionen
+├── parser/                 # Code parser: lines, complexity, functions
+├── scanner/                # Security pattern matching
+├── ai/                     # AI integration (future)
+└── utils/                  # Helper functions
 ```
 
-### Analyse-Pipeline
+### Analysis Pipeline
 
 ```
-1. CloneManager → Repository clonen (system git, shallow per Default; fullHistory-Option für History-Secret-Scan)
-2. File Parser → Jede Datei: Lines, Languages, Cyclomatic/Cognitive Complexity
-3. SecurityScanner → Pattern-Matching für Vulnerabilities (P0/P1/P2)
-4. Analyzer Orchestrator → Ergebnis aggregieren → AnalysisResult
-5. WebSocket / Polling → Fortschritt an Frontend senden
+1. CloneManager → clone the repository (system git, shallow by default; fullHistory option for history secret scan)
+2. File Parser → per file: lines, languages, cyclomatic/cognitive complexity
+3. SecurityScanner → pattern matching for vulnerabilities (P0/P1/P2)
+4. Analyzer Orchestrator → aggregate the result → AnalysisResult
+5. WebSocket / polling → send progress to the frontend
 ```
 
-### API-Design
+### API Design
 
-- **Asynchron**: `POST /api/analyze` startet Analyse im Hintergrund, gibt sofort `analysisId` zurück
-- **Polling**: `GET /api/result/:id` und `GET /api/status/:id` für Status-Abfrage
-- **WebSocket**: `/ws` für Echtzeit-Updates während der Analyse
-- **In-Memory Store**: `Map<string, AnalysisResult>` — keine持久性 (für PoC/Entwicklung)
+- **Asynchronous**: `POST /api/analyze` starts the analysis in the background and returns an `analysisId` immediately
+- **Polling**: `GET /api/result/:id/city` and `GET /api/status/:id` for status queries
+- **WebSocket**: `/ws` for real-time updates during analysis
+- **In-memory store**: `Map<string, AnalysisResult>` — no persistence (for PoC/development)
 
-### Sicherheits-Middleware
+### Security Middleware
 
-- `helmet` — HTTP-Security-Headers
-- `cors` — CORS mit allowlist (`http://localhost:3000`)
-- `express-rate-limit` — Rate Limiting gegen Abuse
-- Pino Logger strukturiertes Logging
+- `helmet` — HTTP security headers
+- `cors` — CORS with an allowlist (`http://localhost:3010`)
+- `express-rate-limit` — rate limiting against abuse
+- Pino logger for structured logging
 
-## Frontend-Architektur
+## Frontend Architecture
 
 ```
 frontend/src/
-├── main.tsx                # React Entry Point
-├── App.tsx                 # Root-Komponente + State-Integration
+├── main.tsx                # React entry point
+├── App.tsx                 # Root component + state integration
 ├── components/
-│   ├── CityScene.tsx       # Three.js-Szene (Ort, Camera, Lights)
-│   ├── Building.tsx        # Einzelne Gebäude-Visualisierung
-│   ├── InfoPanel.tsx       # Side Panel: File/Directory/Vuln-Details
-│   ├── Minimap.tsx         # Übersichtskarte der Stadt
-│   ├── RoadSystem.tsx      # Verbindungsstraßen zwischen Buildings
-│   ├── ParticleField.tsx   # Partikel-Effekte (Cyberpunk-Atmosphäre)
-│   └── SearchBar.tsx       # Repository-URL-Eingabe
-├── renderer/               # 3D-Renderer-Komponenten
+│   ├── CityScene.tsx       # Three.js scene (scene, camera, lights)
+│   ├── Building.tsx        # Individual building visualization
+│   ├── InfoPanel.tsx       # Side panel: file/directory/vuln details
+│   ├── Minimap.tsx         # Overview map of the city
+│   ├── RoadSystem.tsx      # Connecting roads between buildings
+│   ├── ParticleField.tsx   # Particle effects (cyberpunk atmosphere)
+│   └── SearchBar.tsx       # Repository URL input
+├── renderer/               # 3D renderer components
 ├── hooks/
-│   └── useAnalysis.ts      # WebSocket-Analyse-Flow (Progress, Fallback-Polling)
+│   └── useAnalysis.ts      # WebSocket analysis flow (progress, fallback polling)
 ├── stores/
-│   └── useStore.ts         # Zustand-Store (globaler State)
-├── design/                 # Design-System: Farben, Cyberpunk-Theme
-└── vite-env.d.ts           # Vite-Type-Declarations
+│   └── useStore.ts         # Zustand store (global state)
+├── design/                 # Design system: colors, cyberpunk theme
+└── vite-env.d.ts           # Vite type declarations
 ```
 
-### Tech-Stack-Entscheidungen
+### Tech-Stack Decisions
 
-| Technologie              | Grund                                                       |
-| ------------------------ | ----------------------------------------------------------- |
-| **React Three Fiber**    | Declarative Three.js — besser für React Integration         |
-| **React Three Drei**     | Helper-Komponenten (OrbitControls, Text, etc.)              |
-| **Zustand**              | Minimaler State-Manager — kein Boilerplate wie Redux        |
-| **TailwindCSS**          | Utility-First CSS — schnelles Styling ohne CSS-Dateien      |
-| **Vite**                 | Blitzschnelles HMR — besser als Create React App            |
-| **react-three-fiber v9** | Building-Entry-Kinematik via useFrame, CSS-Keyframes für UI |
+| Technology               | Rationale                                                    |
+| ------------------------ | ------------------------------------------------------------ |
+| **React Three Fiber**    | Declarative Three.js — better for React integration          |
+| **React Three Drei**     | Helper components (OrbitControls, Text, etc.)                |
+| **Zustand**              | Minimal state manager — no Redux-style boilerplate           |
+| **TailwindCSS**          | Utility-first CSS — fast styling without CSS files           |
+| **Vite**                 | Blazing-fast HMR — better than Create React App              |
+| **react-three-fiber v9** | Building-entry kinematics via useFrame, CSS keyframes for UI |
 
-### State-Flow
+### State Flow
 
 ```
-User gibt GitHub URL ein
+User enters a GitHub URL
   → Zustand: setAnalysisUrl(url)
   → Backend: POST /api/analyze
   → Zustand: polling /api/status/:id
   → Zustand: setAnalysisResult(result)
-  → React Three Fiber: Buildings basierend auf DirectorySummary rendern
-  → InfoPanel: Details bei Building-Click
+  → React Three Fiber: render buildings based on DirectorySummary
+  → InfoPanel: details on building click
 ```
 
-## Deployment-Architektur
+## Deployment Architecture
 
 ### Docker Compose (Local)
 
 ```
-Dockerfile.backend → Express App auf Port 4000
-Dockerfile.frontend  → Nginx serving Vite Build auf Port 3000
-docker-compose.yml   → Bridge Network, Backend first
+Dockerfile.backend   → Express app on port 4000
+Dockerfile.frontend  → Nginx serving the Vite build on port 3010
+docker-compose.yml   → Bridge network, backend first
 ```
 
 ### Render (Production)
 
 ```
-render.yaml → Zwei Services:
-  1. codecity-backend (Node.js Web-Service)
+render.yaml → Two services:
+  1. codecity-backend (Node.js web service)
      - Build: npm ci && npm run build
      - Start: npm start
-     - Health Check: /api/health
-  2. codecity-frontend (Static Site)
+     - Health check: /api/health
+  2. codecity-frontend (Static site)
      - Build: cd frontend && npm ci && npm run build
      - Publish: ./frontend/dist
-     - Routes: /api/* → Backend-URL, /* → index.html (SPA Fallback)
+     - Routes: /api/* → backend URL, /* → index.html (SPA fallback)
 ```
 
-## Abhängigkeiten
+## Dependencies
 
 ### Root
 
-- **Turborepo** — Monorepo-Orchestrator
-- **TypeScript 5.8** — Typisierung
+- **Turborepo** — monorepo orchestrator
+- **TypeScript 5.8** — typing
 - **ESLint 9 + @typescript-eslint v8** — Flat Config
-- **Prettier** — Code Formatting
-- **Husky + lint-staged** — Git Hooks (auto-lint on commit)
+- **Prettier** — code formatting
+- **Husky + lint-staged** — git hooks (auto-lint on commit)
 
 ### Frontend
 
-- **React 19** — UI Framework (StrictMode-safe mit R3F v9)
-- **Three.js r186 + React Three Fiber 9** — 3D-Rendering
-- **@react-three/postprocessing 3** — Bloom
-- **Zustand 5** — State Management
-- **Vite 8** — Build Tool (Rolldown)
-- **TailwindCSS** — CSS Framework
+- **React 19** — UI framework (StrictMode-safe with R3F v9)
+- **Three.js r186 + React Three Fiber 9** — 3D rendering
+- **@react-three/postprocessing 3** — bloom
+- **Zustand 5** — state management
+- **Vite 8** — build tool (Rolldown)
+- **TailwindCSS** — CSS framework
 
 ### Backend
 
-- **Express** — Web Framework
-- **system git** via execFile-Argument-Array (keine Shell, Token via askpass)
-- **Pino** — Logging
-- **Helmet + CORS + Rate Limit** — Security
-- **WebSocket (ws)** — Echtzeit-Kommunikation
+- **Express** — web framework
+- **system git** via execFile argument array (no shell, token via askpass)
+- **Pino** — logging
+- **Helmet + CORS + Rate Limit** — security
+- **WebSocket (ws)** — real-time communication
 
 ---
 
-## City Layer (v2 — semantischer Zoom & Bau-Film)
+## City Layer (v2 — semantic zoom & build film)
 
-> Dieser Abschnitt beschreibt den aktuellen Stand der Stadt-Darstellung und
-> korrigiert die älteren Frontend-Abschnitte oben.
+> This section describes the current state of the city rendering and
+> supersedes the older frontend sections above.
 
-### Datenfluss
+### Data Flow
 
 ```
-GitHub Repo ──clone──▶ Orchestrator ──FileAnalysis[]──▶ cityMapper ──CityData──▶ Store ──▶ 3D-Szene
+GitHub Repo ──clone──▶ Orchestrator ──FileAnalysis[]──▶ cityMapper ──CityData──▶ Store ──▶ 3D scene
 ```
 
-- **`backend/src/utils/cityMapper.ts`** baut aus der vollen Dateiliste einen
-  hierarchischen Verzeichnisbaum (`CityDir`-Baum) mit Aggregaten pro Ordner
-  (fileCount, LOC, Sprachen, Findings, threatScore, topFindings). Pro Ordner
-  werden nur die Top-K Dateien (`detailFiles`, gewichtet Threat×√LOC) einzeln
-  gerendert; der Rest wird ehrlich als `remainingFiles` gezählt (Podium).
-  Import-Beziehungen werden aufgelöst (relative Pfade, Extensions, `index.*`,
-  `@/`-Alias) und auf Datei- **und** Ordnerebene aggregiert.
-- **`frontend/src/city/layout.ts`** layoutet deterministisch (path-gehashtes
-  Jitter): ein Block pro Kind-Ordner + zentrale Plaza mit den Detail-Dateien,
-  Center-out (schwere Einheiten innen), Straßenraster als StreetLines.
-- **Semantischer Zoom:** `focusPath` im Store wählt die sichtbare Ebene.
-  Übersicht = 1 Block pro Top-Level-Ordner — unabhängig von der Repo-Größe.
-  Klick auf einen Block (`drillIn`) fliegt die Kamera hinein und öffnet den
-  Block als eigenes Viertel. Brotkrumen + Minimap geben Orientierung,
-  die Minimap zeigt die echte Kameraposition.
-- **Bau-Film:** `buildPhase` (empty → constructing → built). Nach dem Laden
-  steigen Blöcke und Gebäude zeitversetzt aus dem Boden (Straßen zuerst),
-  getaktet über `buildStartedAt` + pro-Einzel-Delays; `BuildStatus` zeigt den
-  Fortschritt, danach erscheint das City-Dossier (Größe, Sprachen, Findings,
-  riskanteste Datei) und die Import-Arcs verbinden sich.
-- **Security Tour:** risikogewichtete Fly-through aller Findings
-  (`tourStops`), InfoPanel erklärt Typ, Zeile und Fix-Vorschlag.
-- **Ehrlichkeit:** HUD zeigt „rendered/total files"; Findings sind als
-  heuristischer Regex-Scan gekennzeichnet (SARIF-Import als Erweiterungspunkt —
-  das CityData-Findings-Format ist scanner-agnostisch gehalten).
-- **Share:** Jede analysierte Stadt hat einen Permalink `?city=<id>`
-  (In-Memory-Store, lebt bis zum Backend-Restart) und PNG-Export.
+- **`backend/src/utils/cityMapper.ts`** builds a hierarchical directory tree
+  (`CityDir` tree) from the full file list, with per-directory aggregates
+  (fileCount, LOC, languages, findings, threatScore, topFindings). Per directory
+  only the top-K files (`detailFiles`, weighted Threat×√LOC) are rendered
+  individually; the rest are counted honestly as `remainingFiles` (podium).
+  Import relationships are resolved (relative paths, extensions, `index.*`,
+  `@/` alias) and aggregated at both the file **and** directory level.
+- **`frontend/src/city/layout.ts`** lays out deterministically (path-hashed
+  jitter): one block per child directory + a central plaza holding the detail
+  files, center-out (heavy units inside), a road grid as StreetLines.
+- **Semantic zoom:** `focusPath` in the store selects the visible level.
+  Overview = 1 block per top-level directory — independent of repository size.
+  Clicking a block (`drillIn`) flies the camera in and opens the block as its
+  own district. Breadcrumbs + minimap provide orientation; the minimap shows the
+  real camera position.
+- **Build film:** `buildPhase` (empty → constructing → built). After loading,
+  blocks and buildings rise out of the ground staggered in time (roads first),
+  driven by `buildStartedAt` + per-item delays; `BuildStatus` shows the
+  progress, after which the City Dossier (size, languages, findings, most
+  risky file) appears and the import arcs connect.
+- **Security Tour:** risk-weighted fly-through of all findings
+  (`tourStops`); InfoPanel explains type, line, and a fix suggestion.
+- **Honesty:** the HUD shows "rendered/total files"; findings are labeled as a
+  heuristic regex scan (SARIF import as an extension point — the CityData
+  findings format is kept scanner-agnostic).
+- **Share:** every analyzed city has a permalink `?city=<id>` (in-memory
+  store, lives until the backend restarts) and PNG export.
