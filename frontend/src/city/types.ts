@@ -98,6 +98,19 @@ export interface DirConnection {
   weight: number;
 }
 
+/** Which scanners actually contributed — "complete" alone says nothing about depth. */
+export interface ScanProvenance {
+  regex: boolean;
+  gitleaks: boolean;
+  semgrep: boolean;
+  dependencies?: boolean;
+  osv?: boolean;
+  ruff?: boolean;
+  churn?: boolean;
+  duplicates?: boolean;
+  coverage?: boolean;
+}
+
 export interface CityData {
   repo: { owner: string; name: string; branch: string };
   totalFiles: number;
@@ -117,6 +130,7 @@ export interface CityData {
     coverage: boolean;
     blame: boolean;
   };
+  scanProvenance?: ScanProvenance;
 }
 
 /** Which unit is currently selected (a rendered file building or a block). */

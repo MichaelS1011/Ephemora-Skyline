@@ -201,4 +201,25 @@ describe("mapResultToCityData", () => {
     const appView = result.tree.children[0]!;
     expect(appView.districtFiles[0]!.threatLevel).toBe("critical");
   });
+
+  it("carries scanProvenance through to the city", () => {
+    // ScanSummary decides "clear" or "unlooked" from the city payload alone,
+    // so the truth the orchestrator wrote has to survive the mapping.
+    const provenance = {
+      regex: true,
+      gitleaks: true,
+      semgrep: false,
+      dependencies: false,
+      osv: false,
+      ruff: false,
+    };
+    const analysis = makeResult([makeFile({ path: "src/app.ts" })]);
+    analysis.summary.scanProvenance = provenance;
+    expect(mapResultToCityData(analysis).scanProvenance).toEqual(provenance);
+  });
+
+  it("leaves provenance absent for a result that never scanned", () => {
+    const city = mapResultToCityData(makeResult([makeFile({ path: "src/app.ts" })]));
+    expect(city.scanProvenance).toBeUndefined();
+  });
 });

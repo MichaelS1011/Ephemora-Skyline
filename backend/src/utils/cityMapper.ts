@@ -14,7 +14,7 @@
  */
 
 import path from "path";
-import type { AnalysisResult, FileAnalysis } from "../models/index.js";
+import type { AnalysisResult, FileAnalysis, ProjectSummary } from "../models/index.js";
 
 export type Severity = "P0" | "P1" | "P2";
 
@@ -152,6 +152,12 @@ export interface CityData {
     coverage: boolean;
     blame: boolean;
   };
+  /**
+   * Which scanners actually contributed, copied from the summary. The UI
+   * needs it to decide whether "no findings" means "clean" or "unlooked";
+   * absent for results that never ran a scan (the demo city).
+   */
+  scanProvenance?: ProjectSummary["scanProvenance"];
 }
 
 // ── Budgets ────────────────────────────────────────────────────────────────
@@ -595,6 +601,7 @@ export function mapResultToCityData(result: AnalysisResult): CityData {
       coverage: files.some((f) => f.coveragePct !== undefined),
       blame: files.some((f) => f.churn?.topAuthor),
     },
+    scanProvenance: result.summary.scanProvenance,
   };
 }
 

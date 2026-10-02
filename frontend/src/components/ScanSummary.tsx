@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useStore } from "../stores/useStore";
 import { SEVERITY_COLOR } from "../city/palette";
+import { scanVerdict } from "../city/provenance";
 
 /* Tiny CSS-only confetti burst (3 squares, purely decorative) */
 function ConfettiBurst() {
@@ -48,17 +49,32 @@ export function ScanSummary() {
 
   const f = cityData.findingsBySeverity;
   const total = f.P0 + f.P1 + f.P2;
-  const clean = total === 0;
+  const verdict = scanVerdict(cityData.scanProvenance, total, cityData.languages);
+  const clean = verdict.kind === "clear";
+  // "no findings" is only a result if something looked. An unverified scan
+  // must not wear the green of a clean one.
+  const unverified = verdict.kind === "shallow" || verdict.kind === "unknown";
   // Spec §15 color hierarchy: red MEANS critical — a toast with only
   // medium findings must not scream in P0 red. Grade the accent by the
   // worst severity actually present.
   const accent = clean
     ? "#29d398"
-    : f.P0 > 0
-      ? SEVERITY_COLOR.P0
-      : f.P1 > 0
-        ? SEVERITY_COLOR.P1
-        : SEVERITY_COLOR.P2;
+    : unverified
+      ? SEVERITY_COLOR.P2
+      : f.P0 > 0
+        ? SEVERITY_COLOR.P0
+        : f.P1 > 0
+          ? SEVERITY_COLOR.P1
+          : SEVERITY_COLOR.P2;
+
+  const status =
+    verdict.kind === "clear"
+      ? "✓ All clear — no issues found"
+      : verdict.kind === "shallow"
+        ? `◈ No findings — ${verdict.missing.join(", ")} did not run`
+        : verdict.kind === "unknown"
+          ? "◈ No findings — scan depth unknown"
+          : "◈ Scan complete";
 
   return (
     <div
@@ -84,7 +100,7 @@ export function ScanSummary() {
           style={{ color: accent }}
         >
           {clean && <ConfettiBurst />}
-          {clean ? "✓ All clear — no issues found" : "◈ Scan complete"}
+          {status}
         </span>
 
         {/* File count */}
@@ -93,7 +109,7 @@ export function ScanSummary() {
         </span>
 
         {/* Severity badges */}
-        {!clean && (
+        {total > 0 && (
           <div className="flex items-center gap-1.5">
             {(
               [
