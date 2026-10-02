@@ -49,7 +49,16 @@ export function ScanSummary() {
   const f = cityData.findingsBySeverity;
   const total = f.P0 + f.P1 + f.P2;
   const clean = total === 0;
-  const accent = clean ? "#29d398" : SEVERITY_COLOR.P0;
+  // Spec §15 color hierarchy: red MEANS critical — a toast with only
+  // medium findings must not scream in P0 red. Grade the accent by the
+  // worst severity actually present.
+  const accent = clean
+    ? "#29d398"
+    : f.P0 > 0
+      ? SEVERITY_COLOR.P0
+      : f.P1 > 0
+        ? SEVERITY_COLOR.P1
+        : SEVERITY_COLOR.P2;
 
   return (
     <div
@@ -79,7 +88,7 @@ export function ScanSummary() {
         </span>
 
         {/* File count */}
-        <span className="font-jetbrains text-[10px]" style={{ color: "#8f8b82" }}>
+        <span className="font-jetbrains text-[11px]" style={{ color: "#8f8b82" }}>
           {cityData.totalFiles.toLocaleString()} files analyzed
         </span>
 
@@ -97,7 +106,7 @@ export function ScanSummary() {
                 <span
                   key={sev}
                   title={`${label} security risk`}
-                  className={`chip-${sev.toLowerCase()} font-jetbrains text-[9px] px-1.5 py-px rounded`}
+                  className={`chip-${sev.toLowerCase()} font-jetbrains text-[11px] px-1.5 py-px rounded`}
                 >
                   {label}: {f[sev]}
                 </span>
@@ -108,7 +117,7 @@ export function ScanSummary() {
 
         <button
           onClick={() => setVisible(false)}
-          className="btn-ghost w-7 h-7 flex items-center justify-center !p-0 text-[10px] pointer-events-auto"
+          className="btn-ghost w-7 h-7 flex items-center justify-center !p-0 text-[11px] pointer-events-auto"
           aria-label="Dismiss scan summary"
         >
           ✕

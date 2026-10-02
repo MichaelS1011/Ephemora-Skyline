@@ -1,61 +1,132 @@
-import { useRef, useState, useEffect, useCallback } from "react";
+import { useRef, useState, useEffect, useCallback, useId } from "react";
 import { useStore } from "../stores/useStore";
-import { searchFiles } from "../city/layout";
-import { languageColor, THREAT_COLOR } from "../city/palette";
-import type { ThreatLevel } from "../city/types";
+import { searchFiles, searchFindings } from "../city/layout";
+import { languageColor, SEVERITY_COLOR, THREAT_COLOR } from "../city/palette";
+import type { CityFile, CityFinding } from "../city/types";
+import { findingKey } from "../reviews";
+import { t } from "../i18n";
+
+/** One entry of the flat, keyboard-navigable option list. */
+type FlatHit =
+  | { kind: "file"; file: CityFile; optionId: string }
+  | {
+      kind: "finding";
+      file: CityFile;
+      finding: CityFinding;
+      index: number;
+      optionId: string;
+    };
 
 export function SearchBar() {
+  const lang = useStore((s) => s.prefs.lang);
   const cityData = useStore((s) => s.cityData);
   const navigateToFile = useStore((s) => s.navigateToFile);
+  const setFocusedFindingKey = useStore((s) => s.setFocusedFindingKey);
   const [value, setValue] = useState("");
   const [open, setOpen] = useState(false);
   const [activeIdx, setActiveIdx] = useState(0);
   const inputRef = useRef<HTMLInputElement | null>(null);
   const wrapperRef = useRef<HTMLDivElement | null>(null);
-  const results = cityData ? searchFiles(cityData, value, 8) : [];
+  const searchId = useId();
+  const resultsId = `${searchId}-results`;
+  const statusId = `${searchId}-status`;
+  const query = value.trim();
+  const fileHits = cityData ? searchFiles(cityData, value, 8) : [];
+  // Findings only add options once there is something to search for
+  const findingHits = cityData && query ? searchFindings(cityData, query, 5) : [];
+  // Flat option list: files first (unchanged indices), findings after —
+  // arrows walk across both groups, activedescendant stays gapless
+  const flatHits: FlatHit[] = [
+    ...fileHits.map(({ file }, i): FlatHit => ({
+      kind: "file",
+      file,
+      optionId: `${searchId}-option-${i}`,
+    })),
+    ...findingHits.map((hit, i): FlatHit => ({
+      kind: "finding",
+      file: hit.file,
+      finding: hit.finding,
+      index: hit.index,
+      optionId: `${searchId}-finding-${i}`,
+    })),
+  ];
+  const activeHit = open ? flatHits[activeIdx] : undefined;
+  const activeOptionId = activeHit?.optionId;
 
   /* Close on outside click */
   useEffect(() => {
     const onDocClick = (e: MouseEvent): void => {
       if (wrapperRef.current && !wrapperRef.current.contains(e.target as Node)) setOpen(false);
     };
-    document.addEventListener("mousedown", onDocClick);
-    return () => document.removeEventListener("mousedown", onDocClick);
+    document.addEventListener("pointerdown", onDocClick);
+    return () => document.removeEventListener("pointerdown", onDocClick);
   }, []);
 
   /* Reset active index on new results */
   useEffect(() => {
     setActiveIdx(0);
-  }, [value]);
+  }, [value, cityData]);
+
+  useEffect(() => {
+    if (activeOptionId) {
+      document.getElementById(activeOptionId)?.scrollIntoView?.({ block: "nearest" });
+    }
+  }, [activeOptionId]);
+
+  const closeAndReset = useCallback((): void => {
+    inputRef.current?.focus();
+    setOpen(false);
+    setValue("");
+  }, []);
 
   const handleSelect = useCallback(
     (fileId: string): void => {
       navigateToFile(fileId);
-      setOpen(false);
-      setValue("");
-      inputRef.current?.blur();
+      closeAndReset();
     },
-    [navigateToFile],
+    [navigateToFile, closeAndReset],
+  );
+
+  // V3 contract: the key uses the index in the file's FULL findings list,
+  // so the camera flight, source auto-load and pulsing voxel take over.
+  const handleFindingSelect = useCallback(
+    (fileId: string, index: number): void => {
+      navigateToFile(fileId);
+      setFocusedFindingKey(findingKey(fileId, index));
+      closeAndReset();
+    },
+    [navigateToFile, setFocusedFindingKey, closeAndReset],
   );
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>): void => {
     if (e.key === "Enter") {
-      if (results[activeIdx]) handleSelect(results[activeIdx]!.file.id);
+      const hit = open ? flatHits[activeIdx] : undefined;
+      if (hit) {
+        e.preventDefault();
+        e.stopPropagation();
+        if (hit.kind === "file") handleSelect(hit.file.id);
+        else handleFindingSelect(hit.file.id, hit.index);
+      }
     } else if (e.key === "ArrowDown") {
       e.preventDefault();
-      setActiveIdx((i) => Math.min(i + 1, results.length - 1));
+      e.stopPropagation();
+      setOpen(true);
+      setActiveIdx((i) => (open ? Math.min(i + 1, Math.max(0, flatHits.length - 1)) : 0));
     } else if (e.key === "ArrowUp") {
       e.preventDefault();
-      setActiveIdx((i) => Math.max(i - 1, 0));
+      e.stopPropagation();
+      setOpen(true);
+      setActiveIdx((i) => (open ? Math.max(i - 1, 0) : Math.max(0, flatHits.length - 1)));
     } else if (e.key === "Escape") {
+      e.preventDefault();
+      e.stopPropagation();
       setOpen(false);
-      inputRef.current?.blur();
     }
   };
 
   /* Highlight matching chars in a string */
   const highlight = (text: string, query: string): React.ReactNode => {
-    if (!query.trim()) return text;
+    if (!query) return text;
     const idx = text.toLowerCase().indexOf(query.toLowerCase());
     if (idx === -1) return text;
     return (
@@ -69,10 +140,30 @@ export function SearchBar() {
     );
   };
 
-  const showResults = open && value.trim().length > 0;
+  // Byte-stable EN pluralization: "First 8" rides the {count} var of the
+  // plural variant (8 results always render the plural wording).
+  const totalHits = flatHits.length;
+  const resultStatus = !query
+    ? t(lang, "search.statusIdle")
+    : totalHits === 0
+      ? t(lang, "search.statusNoMatch", { query })
+      : t(lang, totalHits === 1 ? "search.statusResultOne" : "search.statusResultMany", {
+          count: totalHits === 8 ? "First 8" : totalHits,
+        });
+
+  const groupHeaderStyle = {
+    color: "var(--meta)",
+    borderBottom: "1px solid rgba(232,178,60,0.1)",
+  } as const;
 
   return (
-    <div ref={wrapperRef} className="relative w-80">
+    <div
+      ref={wrapperRef}
+      className="search-control relative w-80 max-w-full"
+      onBlur={(e) => {
+        if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setOpen(false);
+      }}
+    >
       {/* Input */}
       <div className="relative">
         <span
@@ -85,6 +176,9 @@ export function SearchBar() {
         <input
           ref={inputRef}
           type="text"
+          role="combobox"
+          autoComplete="off"
+          spellCheck={false}
           value={value}
           onChange={(e) => {
             setValue(e.target.value);
@@ -92,31 +186,34 @@ export function SearchBar() {
           }}
           onFocus={() => setOpen(true)}
           onKeyDown={handleKeyDown}
-          placeholder="Search files, paths, languages…"
-          aria-label="Search buildings"
-          title="Search files by name, path or language — picking a result flies the camera to its building"
-          aria-expanded={showResults}
-          aria-controls="search-results"
+          placeholder={t(lang, "search.placeholder")}
+          aria-label={t(lang, "search.inputAria")}
+          data-search-input="true"
+          title={t(lang, "search.inputTitle")}
+          aria-expanded={open}
+          aria-controls={open ? resultsId : undefined}
           aria-autocomplete="list"
-          className="w-full font-jetbrains text-xs pl-8 pr-8 py-2 rounded-sm outline-none transition-all duration-150"
+          aria-activedescendant={activeOptionId}
+          aria-describedby={open ? statusId : undefined}
+          className="w-full font-jetbrains text-xs pl-10 pr-10 py-3 rounded-lg outline-none transition-all duration-150"
           style={{
             background: "rgba(18, 18, 16, 0.88)",
-            border: `1px solid ${open && value ? "rgba(232,178,60,0.45)" : "rgba(150,142,128,0.3)"}`,
+            border: `1px solid ${open ? "rgba(232,178,60,0.6)" : "rgba(150,142,128,0.3)"}`,
             color: "#e8e4da",
             backdropFilter: "blur(8px)",
-            boxShadow: open && value ? "0 0 0 2px rgba(232,178,60,0.08)" : "none",
+            boxShadow: open ? "0 0 0 3px rgba(232,178,60,0.1)" : "none",
           }}
         />
         {value && (
           <button
             onClick={() => {
               setValue("");
-              setOpen(false);
+              setOpen(true);
               inputRef.current?.focus();
             }}
-            className="absolute right-2 top-1/2 -translate-y-1/2 font-jetbrains text-[10px] transition-colors"
+            className="absolute right-1 top-1/2 -translate-y-1/2 w-9 h-9 rounded font-jetbrains text-xs transition-colors"
             style={{ color: "var(--meta)" }}
-            aria-label="Clear search"
+            aria-label={t(lang, "search.clearAria")}
             onMouseEnter={(e) => (e.currentTarget.style.color = "#ff6477")}
             onMouseLeave={(e) => (e.currentTarget.style.color = "var(--meta)")}
           >
@@ -126,118 +223,180 @@ export function SearchBar() {
       </div>
 
       {/* Dropdown */}
-      {showResults && (
+      {open && (
         <div
-          id="search-results"
-          className="absolute top-full left-0 right-0 mt-1 z-30 rounded-sm overflow-hidden animate-fade-up"
+          className="absolute top-full left-0 right-0 mt-2 z-30 rounded-lg overflow-hidden animate-fade-up"
           style={{
             background: "rgba(18, 18, 16, 0.97)",
             border: "1px solid rgba(232,178,60,0.22)",
             boxShadow: "0 8px 24px rgba(0,0,0,0.55)",
             backdropFilter: "blur(12px)",
           }}
-          role="listbox"
-          aria-label="Search results"
         >
-          {results.length === 0 ? (
-            <div
-              className="px-4 py-3 font-jetbrains text-[10px]"
-              style={{ color: "var(--meta-strong)" }}
-            >
-              No matching files in this city
-            </div>
-          ) : (
-            <>
-              {results.map(({ file, chain }, i) => {
-                const isActive = i === activeIdx;
-                const threatColor = THREAT_COLOR[file.threatLevel as ThreatLevel];
-                return (
-                  <button
-                    key={file.id}
-                    onClick={() => handleSelect(file.id)}
-                    onMouseEnter={() => setActiveIdx(i)}
-                    className="w-full text-left px-3 py-2 transition-colors duration-100 flex items-center justify-between gap-2"
-                    style={{
-                      background: isActive ? "rgba(232,178,60,0.1)" : "transparent",
-                      borderBottom:
-                        i < results.length - 1 ? "1px solid rgba(232,178,60,0.07)" : "none",
-                    }}
-                    role="option"
-                    aria-selected={isActive}
-                  >
-                    <div className="min-w-0 flex items-start gap-2">
-                      {/* Language dot */}
-                      <span
-                        className="w-1.5 h-1.5 rounded-full shrink-0 mt-1"
-                        style={{ background: languageColor(file.language) }}
-                      />
-                      <div className="min-w-0">
-                        <span
-                          className="block font-jetbrains text-[11px] truncate"
-                          style={{ color: "#e8e4da" }}
-                        >
-                          {highlight(file.name, value)}
-                        </span>
-                        <span
-                          className="block font-jetbrains text-[9px] truncate mt-0.5"
-                          style={{ color: "var(--meta-strong)" }}
-                        >
-                          {chain.length > 0 ? `${chain.join("/")} · ` : ""}
-                          {file.language} · {file.linesOfCode.toLocaleString()} LOC
-                        </span>
-                      </div>
-                    </div>
-
-                    {file.findings.length > 0 && (
-                      <span
-                        className="font-jetbrains text-[9px] px-1.5 py-px rounded-sm shrink-0"
-                        style={{
-                          color: threatColor,
-                          border: `1px solid ${threatColor}55`,
-                          background: `${threatColor}12`,
-                        }}
-                      >
-                        {file.findings.length} {file.findings[0]!.severity}
-                      </span>
-                    )}
-                  </button>
-                );
-              })}
-
-              {/* Footer hint */}
+          <div
+            id={statusId}
+            role="status"
+            aria-live="polite"
+            className="px-4 py-3 text-xs leading-relaxed"
+            style={{
+              color: "var(--meta-strong)",
+              borderBottom: totalHits ? "1px solid rgba(232,178,60,0.1)" : undefined,
+            }}
+          >
+            {resultStatus}
+          </div>
+          <div
+            id={resultsId}
+            role="listbox"
+            aria-label={t(lang, "search.listboxAria")}
+            className="max-h-[min(55vh,400px)] overflow-y-auto"
+          >
+            {/* Group: files (as before) */}
+            {fileHits.length > 0 && (
               <div
-                className="px-3 py-1.5 font-jetbrains text-[9px] flex items-center gap-2"
-                style={{
-                  color: "var(--meta-faint)",
-                  borderTop: "1px solid rgba(232,178,60,0.08)",
-                  background: "rgba(18,18,16,0.6)",
-                }}
+                role="presentation"
+                className="px-4 py-1.5 font-jetbrains text-[10px] uppercase tracking-widest"
+                style={groupHeaderStyle}
               >
-                <kbd
-                  style={{
-                    border: "1px solid rgba(232,178,60,0.2)",
-                    color: "var(--meta)",
-                    padding: "0 3px",
-                    borderRadius: 2,
-                  }}
-                >
-                  ↑↓
-                </kbd>
-                navigate
-                <kbd
-                  style={{
-                    border: "1px solid rgba(232,178,60,0.2)",
-                    color: "var(--meta)",
-                    padding: "0 3px",
-                    borderRadius: 2,
-                  }}
-                >
-                  ↵
-                </kbd>
-                fly to
+                {t(lang, "search.filesGroup")}
               </div>
-            </>
-          )}
+            )}
+            {fileHits.map(({ file }, i) => {
+              const isActive = activeIdx === i && activeHit?.kind === "file";
+              const threatColor = THREAT_COLOR[file.threatLevel];
+              return (
+                <button
+                  key={file.id}
+                  id={`${searchId}-option-${i}`}
+                  tabIndex={-1}
+                  onClick={() => handleSelect(file.id)}
+                  onMouseDown={(e) => e.preventDefault()}
+                  onMouseEnter={() => setActiveIdx(i)}
+                  className="w-full text-left px-4 py-3 transition-colors duration-100 flex items-center justify-between gap-3"
+                  style={{
+                    background: isActive ? "rgba(232,178,60,0.1)" : "transparent",
+                    borderBottom:
+                      i < fileHits.length - 1 || findingHits.length > 0
+                        ? "1px solid rgba(232,178,60,0.07)"
+                        : "none",
+                  }}
+                  role="option"
+                  aria-selected={isActive}
+                >
+                  <div className="min-w-0 flex items-start gap-2">
+                    {/* Language dot */}
+                    <span
+                      className="w-1.5 h-1.5 rounded-full shrink-0 mt-1"
+                      style={{ background: languageColor(file.language) }}
+                    />
+                    <div className="min-w-0">
+                      <span
+                        className="block font-jetbrains text-xs break-all leading-relaxed"
+                        style={{ color: "#e8e4da" }}
+                      >
+                        {highlight(file.name, query)}
+                      </span>
+                      <span
+                        className="block font-jetbrains text-[11px] break-all leading-relaxed mt-0.5"
+                        style={{ color: "var(--meta-strong)" }}
+                      >
+                        {highlight(file.path, query)}
+                      </span>
+                      <span className="block text-[11px] mt-1" style={{ color: "var(--meta)" }}>
+                        {file.language} · {file.linesOfCode.toLocaleString()} LOC
+                      </span>
+                    </div>
+                  </div>
+
+                  {file.findings.length > 0 && (
+                    <span
+                      className="font-jetbrains text-[11px] px-2 py-1 rounded shrink-0"
+                      style={{
+                        color: threatColor,
+                        border: `1px solid ${threatColor}55`,
+                        background: `${threatColor}12`,
+                      }}
+                    >
+                      {t(
+                        lang,
+                        file.findings.length === 1 ? "search.issuesOne" : "search.issuesMany",
+                        { count: file.findings.length },
+                      )}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+
+            {/* Group: findings (only for a non-empty query) */}
+            {findingHits.length > 0 && (
+              <div
+                role="presentation"
+                className="px-4 py-1.5 font-jetbrains text-[10px] uppercase tracking-widest"
+                style={groupHeaderStyle}
+              >
+                {t(lang, "search.findingsGroup")}
+              </div>
+            )}
+            {findingHits.map((hit, i) => {
+              const isActive = activeIdx === fileHits.length + i;
+              const sevColor = SEVERITY_COLOR[hit.finding.severity];
+              const label = hit.finding.ruleId ?? hit.finding.type;
+              return (
+                <button
+                  key={`${hit.file.id}#${hit.index}`}
+                  id={`${searchId}-finding-${i}`}
+                  tabIndex={-1}
+                  onClick={() => handleFindingSelect(hit.file.id, hit.index)}
+                  onMouseDown={(e) => e.preventDefault()}
+                  onMouseEnter={() => setActiveIdx(fileHits.length + i)}
+                  className="w-full text-left px-4 py-3 transition-colors duration-100 flex items-start justify-between gap-3"
+                  style={{
+                    background: isActive ? "rgba(232,178,60,0.1)" : "transparent",
+                    borderBottom:
+                      i < findingHits.length - 1 ? "1px solid rgba(232,178,60,0.07)" : "none",
+                  }}
+                  role="option"
+                  aria-selected={isActive}
+                >
+                  <div className="min-w-0 flex items-start gap-2">
+                    {/* Severity chip */}
+                    <span
+                      className="font-jetbrains text-[10px] px-1.5 py-0.5 rounded shrink-0 mt-0.5"
+                      style={{
+                        color: sevColor,
+                        border: `1px solid ${sevColor}55`,
+                        background: `${sevColor}12`,
+                      }}
+                    >
+                      {hit.finding.severity}
+                    </span>
+                    <div className="min-w-0">
+                      <span
+                        className="block font-jetbrains text-xs leading-relaxed truncate"
+                        style={{ color: "#e8e4da" }}
+                      >
+                        {highlight(label, query)}
+                        <span style={{ color: "var(--meta)" }}> :{hit.finding.line}</span>
+                      </span>
+                      <span
+                        className="block text-[11px] leading-relaxed mt-0.5 truncate"
+                        style={{ color: "var(--meta-strong)" }}
+                      >
+                        {highlight(hit.finding.message, query)}
+                      </span>
+                      <span
+                        className="block font-jetbrains text-[11px] truncate mt-0.5"
+                        style={{ color: "var(--meta)" }}
+                      >
+                        {hit.file.path}
+                      </span>
+                    </div>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
         </div>
       )}
     </div>

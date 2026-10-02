@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import { createPortal } from "react-dom";
 import {
   ENGINES,
   PROFILE_DURATION,
@@ -31,6 +32,7 @@ export function ProfileConfirmDialog({ profile, onConfirm, onCancel }: ProfileCo
   const custom = profile === "custom";
 
   useEffect(() => {
+    const previousFocus = document.activeElement as HTMLElement | null;
     confirmRef.current?.focus();
     const onKey = (e: KeyboardEvent): void => {
       if (e.key === "Escape") {
@@ -58,10 +60,13 @@ export function ProfileConfirmDialog({ profile, onConfirm, onCancel }: ProfileCo
       }
     };
     window.addEventListener("keydown", onKey, true);
-    return () => window.removeEventListener("keydown", onKey, true);
+    return () => {
+      window.removeEventListener("keydown", onKey, true);
+      if (previousFocus?.isConnected) previousFocus.focus();
+    };
   }, [onCancel]);
 
-  return (
+  return createPortal(
     <div
       className="fixed inset-0 z-[60] flex items-center justify-center p-4"
       style={{ background: "rgba(10, 10, 9, 0.7)", backdropFilter: "blur(4px)" }}
@@ -99,7 +104,10 @@ export function ProfileConfirmDialog({ profile, onConfirm, onCancel }: ProfileCo
             ✕
           </button>
         </div>
-        <p className="font-jetbrains text-[11px] leading-relaxed mb-3" style={{ color: "#a8a49a" }}>
+        <p
+          className="font-jetbrains text-[11px] leading-relaxed mb-3"
+          style={{ color: "var(--meta-strong)" }}
+        >
           Here is exactly what will be checked. Nothing is uploaded anywhere else — files stay on
           your machine.
         </p>
@@ -127,7 +135,7 @@ export function ProfileConfirmDialog({ profile, onConfirm, onCancel }: ProfileCo
                 </span>
                 <div className="min-w-0">
                   <div
-                    className="font-jetbrains text-[10px] font-semibold"
+                    className="font-jetbrains text-[11px] font-semibold"
                     style={{ color: on ? "#e8e4da" : "var(--meta)" }}
                   >
                     <span aria-hidden="true" className="mr-1">
@@ -142,7 +150,7 @@ export function ProfileConfirmDialog({ profile, onConfirm, onCancel }: ProfileCo
                     </span>
                   </div>
                   <div
-                    className="font-jetbrains text-[10px] leading-snug"
+                    className="font-jetbrains text-[11px] leading-snug"
                     style={{ color: "var(--meta)" }}
                   >
                     {engine.what}
@@ -155,7 +163,7 @@ export function ProfileConfirmDialog({ profile, onConfirm, onCancel }: ProfileCo
 
         {/* Scope + duration */}
         <div
-          className="px-2.5 py-2 rounded mb-3 font-jetbrains text-[10px] leading-relaxed"
+          className="px-2.5 py-2 rounded mb-3 font-jetbrains text-[11px] leading-relaxed"
           style={{
             background: "rgba(242,239,232,0.04)",
             border: "1px solid rgba(242,239,232,0.12)",
@@ -172,7 +180,7 @@ export function ProfileConfirmDialog({ profile, onConfirm, onCancel }: ProfileCo
         </div>
 
         {custom && (
-          <p className="font-jetbrains text-[10px] mb-3" style={{ color: "#ffd23f" }} role="note">
+          <p className="font-jetbrains text-[11px] mb-3" style={{ color: "#ffd23f" }} role="note">
             ⚠ The custom pattern editor is coming soon — choosing it for now runs the standard
             profile.
           </p>
@@ -210,6 +218,7 @@ export function ProfileConfirmDialog({ profile, onConfirm, onCancel }: ProfileCo
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }

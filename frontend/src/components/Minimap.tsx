@@ -137,7 +137,7 @@ export function Minimap({ show = true }: { show?: boolean }) {
 
   return (
     <div
-      className="absolute bottom-4 right-4 z-10"
+      className="city-minimap absolute bottom-4 right-4 z-10 pointer-events-auto"
       style={{
         background: "rgba(16, 16, 14, 0.85)",
         border: "1px solid rgba(232,80,60,0.2)",
@@ -146,7 +146,7 @@ export function Minimap({ show = true }: { show?: boolean }) {
       }}
     >
       <div
-        className="font-mono text-[9px] tracking-widest mb-1 px-0.5"
+        className="font-mono text-[11px] tracking-widest mb-1 px-0.5"
         style={{ color: "rgba(232,80,60,0.5)" }}
       >
         CITY MAP {focusPath.length > 0 ? `· /${focusPath.join("/")}` : "· OVERVIEW"}

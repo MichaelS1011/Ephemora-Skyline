@@ -3,11 +3,13 @@ import { useStore } from "../stores/useStore";
 import { getDirLayout } from "../city/layout";
 import { languageColor, SEVERITY_COLOR, THREAT_COLOR } from "../city/palette";
 import type { ThreatLevel } from "../city/types";
+import { t } from "../i18n";
 
 const TOOLTIP_W = 230;
 const OFFSET = 16;
 
 export function Tooltip() {
+  const lang = useStore((s) => s.prefs.lang);
   const cityData = useStore((s) => s.cityData);
   const focusPath = useStore((s) => s.focusPath);
   const hoveredId = useStore((s) => s.hoveredId);
@@ -72,24 +74,33 @@ export function Tooltip() {
     const block = layout.blocks.find((b) => b.dir.path === blockPath);
     if (!block) return null;
     title = block.dir.name;
-    subtitle = `folder · ${block.dir.fileCount} files · ${block.dir.linesOfCode.toLocaleString()} LOC`;
+    subtitle = t(lang, "tooltip.folderSubtitle", {
+      files: block.dir.fileCount,
+      loc: block.dir.linesOfCode.toLocaleString(),
+    });
     if (block.dir.findingsBySeverity.P0 > 0) {
       accent = SEVERITY_COLOR.P0;
-      badge = `${block.dir.findingsBySeverity.P0} critical finding${
-        block.dir.findingsBySeverity.P0 !== 1 ? "s" : ""
-      }`;
+      badge = t(
+        lang,
+        block.dir.findingsBySeverity.P0 === 1
+          ? "tooltip.badgeCriticalOne"
+          : "tooltip.badgeCriticalMany",
+        { count: block.dir.findingsBySeverity.P0 },
+      );
       badgeColor = SEVERITY_COLOR.P0;
     } else if (block.dir.findingsBySeverity.P1 > 0) {
       accent = SEVERITY_COLOR.P1;
-      badge = `${block.dir.findingsBySeverity.P1} high finding${
-        block.dir.findingsBySeverity.P1 !== 1 ? "s" : ""
-      }`;
+      badge = t(
+        lang,
+        block.dir.findingsBySeverity.P1 === 1 ? "tooltip.badgeHighOne" : "tooltip.badgeHighMany",
+        { count: block.dir.findingsBySeverity.P1 },
+      );
       badgeColor = SEVERITY_COLOR.P1;
     } else {
-      badge = "no findings";
+      badge = t(lang, "tooltip.badgeNone");
       badgeColor = "#29d398";
     }
-    hint = "click to zoom into this district";
+    hint = t(lang, "tooltip.zoomHint");
   } else {
     const b = layout.buildings.find((x) => x.file.id === hoveredId);
     if (!b) return null;
@@ -99,15 +110,20 @@ export function Tooltip() {
     accent = languageColor(b.file.language);
     if (b.file.findings.length > 0) {
       accent = THREAT_COLOR[b.file.threatLevel as ThreatLevel] ?? accent;
-      badge = `${loc} LOC · ${b.file.findings.length} finding${
-        b.file.findings.length !== 1 ? "s" : ""
-      }`;
+      badge = t(
+        lang,
+        b.file.findings.length === 1 ? "tooltip.fileFindingsOne" : "tooltip.fileFindingsMany",
+        { loc, count: b.file.findings.length },
+      );
       badgeColor = THREAT_COLOR[b.file.threatLevel as ThreatLevel] ?? SEVERITY_COLOR.P0;
-      hint = "click for details";
+      // Selecting happens on click (no camera move); double-click starts the
+      // orbit-inspect mode — teach that gesture for EVERY building, findings
+      // or not.
+      hint = t(lang, "tooltip.orbitHint");
     } else {
-      badge = `${loc} LOC · no findings`;
+      badge = t(lang, "tooltip.fileBadgeNone", { loc });
       badgeColor = "#29d398";
-      hint = `${b.file.language} · click for details`;
+      hint = t(lang, "tooltip.noFindingsOrbitHint", { language: b.file.language });
     }
   }
 
@@ -142,10 +158,10 @@ export function Tooltip() {
           className="font-jetbrains text-[8px] px-1 py-px rounded-sm uppercase tracking-wide"
           style={{ color: accent, background: `${accent}18`, border: `1px solid ${accent}33` }}
         >
-          {isBlock ? "district" : "file"}
+          {isBlock ? t(lang, "tooltip.typeDistrict") : t(lang, "tooltip.typeFile")}
         </span>
         {hint && (
-          <span className="font-jetbrains text-[9px]" style={{ color: "var(--meta-strong)" }}>
+          <span className="font-jetbrains text-[11px]" style={{ color: "var(--meta-strong)" }}>
             {hint}
           </span>
         )}
@@ -155,7 +171,7 @@ export function Tooltip() {
         {title}
       </div>
       <div
-        className="font-jetbrains text-[9px] mt-0.5 truncate"
+        className="font-jetbrains text-[11px] mt-0.5 truncate"
         style={{ color: "var(--meta-strong)" }}
       >
         {subtitle}
@@ -164,7 +180,7 @@ export function Tooltip() {
       {/* Badge row */}
       <div className="flex items-center gap-1.5 mt-1.5">
         <span
-          className="font-jetbrains text-[9px] px-1.5 py-px rounded-sm"
+          className="font-jetbrains text-[11px] px-1.5 py-px rounded-sm"
           style={{
             color: badgeColor,
             background: `${badgeColor}15`,

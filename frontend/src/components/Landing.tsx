@@ -1,36 +1,158 @@
+import { Fragment, useEffect, useState } from "react";
 import { useStore } from "../stores/useStore";
 import { useLocalAnalysis } from "../hooks/useLocalAnalysis";
 import { ProfileChips } from "./ProfileChips";
-import { SEVERITY_COLOR } from "../city/palette";
+import { SCAN_PROFILES } from "../config/scanProfiles";
+import { t, type Lang } from "../i18n";
 
-/** Corporate brand tokens (EPHEMORA. wordmark) */
-export const BRAND = {
-  ink: "#F2EFE8",
-  red: "#E8503C",
-  bg: "#161614",
-  panel: "#1C1C1A",
-};
+export const BRAND = { ink: "#F2EFE8", red: "#E8503C", bg: "#161614", panel: "#1C1C1A" };
 
-/** The EPHEMORA. wordmark — cream letters, red dot. */
 export function BrandWordmark({ scale = 1 }: { scale?: number }) {
   return (
     <span
       className="font-jetbrains font-bold inline-flex items-baseline"
-      style={{ fontSize: `${scale * 15}px`, letterSpacing: "0.08em", color: BRAND.ink }}
+      style={{ fontSize: scale * 15, letterSpacing: "0.04em", color: BRAND.ink }}
     >
       EPHEMORA
-      <span
-        aria-hidden="true"
-        style={{
-          color: BRAND.red,
-          marginLeft: scale * 2,
-          fontSize: `${scale * 17}px`,
-          lineHeight: 1,
-        }}
-      >
+      <span aria-hidden="true" style={{ color: BRAND.red }}>
         .
       </span>
     </span>
+  );
+}
+
+/** Two-letter language switcher — deliberately quiet, next to the local badge. */
+function LangSwitch({ lang, onPick }: { lang: Lang; onPick: (lang: Lang) => void }) {
+  return (
+    <div
+      role="group"
+      aria-label={t(lang, "landing.langAria")}
+      className="flex items-center gap-1 font-jetbrains text-[11px] tracking-wider"
+    >
+      {(["en", "de"] as const).map((code, index) => (
+        <Fragment key={code}>
+          {index > 0 && (
+            <span aria-hidden="true" style={{ color: "var(--meta-faint)" }}>
+              |
+            </span>
+          )}
+          <button
+            type="button"
+            onClick={() => onPick(code)}
+            aria-pressed={lang === code}
+            className="rounded px-1.5 py-0.5 transition-colors hover:text-[#f2efe8] focus:outline-none focus:ring-1 focus:ring-[#e8b23c]"
+            style={{ color: lang === code ? BRAND.ink : "var(--meta-strong)" }}
+          >
+            {code.toUpperCase()}
+          </button>
+        </Fragment>
+      ))}
+    </div>
+  );
+}
+
+/** A schematic, not scan data: explains the visual language before the first scan. */
+function CityIllustration({ lang }: { lang: Lang }) {
+  const buildings = [
+    { x: 242, y: 302, h: 78, w: 40, color: "#7e99af" },
+    { x: 303, y: 332, h: 120, w: 42, color: "#b3a589" },
+    { x: 363, y: 362, h: 178, w: 46, color: "#dc7660" },
+    { x: 179, y: 334, h: 48, w: 38, color: "#718b9b" },
+    { x: 240, y: 365, h: 90, w: 40, color: "#9c9f98" },
+    { x: 301, y: 396, h: 58, w: 40, color: "#879bab" },
+  ];
+  return (
+    <figure className="city-illustration">
+      <svg viewBox="0 0 560 490" role="img" aria-labelledby="city-diagram-title city-diagram-desc">
+        <title id="city-diagram-title">{t(lang, "landing.illuTitle")}</title>
+        <desc id="city-diagram-desc">{t(lang, "landing.illuDesc")}</desc>
+        <defs>
+          <pattern
+            id="diagram-grid"
+            width="48"
+            height="24"
+            patternUnits="userSpaceOnUse"
+            patternTransform="matrix(1 .5 -1 .5 280 60)"
+          >
+            <path d="M 48 0 L 0 0 0 24" fill="none" stroke="#b4afa2" strokeOpacity=".12" />
+          </pattern>
+          <linearGradient id="beacon-beam" x1="0" x2="0" y1="0" y2="1">
+            <stop stopColor="#e8503c" stopOpacity="0" />
+            <stop offset="1" stopColor="#e8503c" stopOpacity=".3" />
+          </linearGradient>
+        </defs>
+        <path d="M24 298 280 170 536 298 280 426Z" fill="url(#diagram-grid)" />
+        <path d="m105 310 176-89 199 99v18l-176 89-199-99Z" fill="#292b29" stroke="#494b44" />
+        <path d="m105 310 176-89 199 99-176 89Z" fill="#242624" stroke="#6c6a5d" />
+        <path
+          d="m78 339 221 111 207-104M132 277l148-74 231 116"
+          fill="none"
+          stroke="#a99771"
+          strokeDasharray="5 7"
+          strokeOpacity=".48"
+        />
+        {buildings.map(({ x, y, h, w, color }) => (
+          <g key={`${x}-${y}`}>
+            <path
+              d={`M${x} ${y}v-${h}l${w} 20v${h}Z`}
+              fill={color}
+              fillOpacity=".36"
+              stroke={color}
+              strokeOpacity=".65"
+            />
+            <path
+              d={`M${x + w} ${y + 20}v-${h}l${w} -20v${h}Z`}
+              fill={color}
+              fillOpacity=".16"
+              stroke={color}
+              strokeOpacity=".4"
+            />
+            <path
+              d={`M${x} ${y - h}l${w} -20 ${w} 20-${w} 20Z`}
+              fill={color}
+              fillOpacity=".65"
+              stroke={color}
+            />
+            {Array.from({ length: Math.floor(h / 20) }, (_, i) => (
+              <path
+                key={i}
+                d={`M${x + 9} ${y - h + 19 + i * 18}l${w - 18} 11m19 0 22-11`}
+                stroke={color}
+                strokeOpacity=".55"
+                strokeWidth="3"
+              />
+            ))}
+          </g>
+        ))}
+        <path d="M386 72h45l-5 115h-35Z" fill="url(#beacon-beam)" />
+        <circle cx="409" cy="173" r="5" fill="#ff8770" />
+        <circle cx="409" cy="173" r="13" stroke="#e8503c" fill="none" strokeOpacity=".4" />
+        <path d="M409 154v-53h-73" className="diagram-line" />
+        <text x="334" y="96" textAnchor="end" className="diagram-label">
+          {t(lang, "landing.illuRisk")}
+        </text>
+        <text x="334" y="115" textAnchor="end" className="diagram-caption">
+          {t(lang, "landing.illuRiskCaption")}
+        </text>
+        <path d="M242 224h-97v-44" className="diagram-line" />
+        <text x="70" y="151" className="diagram-label">
+          {t(lang, "landing.illuComplexity")}
+        </text>
+        <text x="70" y="170" className="diagram-caption">
+          {t(lang, "landing.illuComplexityCaption")}
+        </text>
+        <path d="M181 355h-56v65" className="diagram-line" />
+        <text x="72" y="444" className="diagram-label">
+          {t(lang, "landing.illuDistrict")}
+        </text>
+        <text x="72" y="463" className="diagram-caption">
+          {t(lang, "landing.illuDistrictCaption")}
+        </text>
+      </svg>
+      <figcaption>
+        {t(lang, "landing.illuFigcaption")} <span>{t(lang, "landing.illuFigcaptionNote")}</span>
+      </figcaption>
+    </figure>
   );
 }
 
@@ -38,6 +160,31 @@ export function Landing() {
   const cityData = useStore((s) => s.cityData);
   const isLoading = useStore((s) => s.isLoading);
   const setCityData = useStore((s) => s.setCityData);
+  const scanProfile = useStore((s) => s.scanProfile);
+  const lang = useStore((s) => s.prefs.lang);
+  const setPref = useStore((s) => s.setPref);
+  const [demoLoading, setDemoLoading] = useState(false);
+  const [demoError, setDemoError] = useState("");
+  const prefs = useStore((s) => s.prefs);
+  // Passive update note: the BACKEND queries public GitHub releases (cached,
+  // anonymous) — the client sends nothing about itself. Dismissal is per
+  // version, so the next release notes come through again.
+  const [update, setUpdate] = useState<{ latest: string; url: string | null } | null>(null);
+  useEffect(() => {
+    if (!prefs.updateCheck) return;
+    fetch("/api/update/check")
+      .then((r) => r.json())
+      .then((d: { updateAvailable?: boolean; latest?: string; releaseUrl?: string | null }) => {
+        if (
+          d.updateAvailable &&
+          d.latest &&
+          d.latest !== localStorage.getItem("codecity-update-dismissed")
+        ) {
+          setUpdate({ latest: d.latest, url: d.releaseUrl ?? null });
+        }
+      })
+      .catch(() => {}); // offline: no note, no noise
+  }, [prefs.updateCheck]);
   const {
     state,
     errorMessage,
@@ -48,282 +195,172 @@ export function Landing() {
     cancel,
     isAnalyzing,
   } = useLocalAnalysis();
-
   if (cityData || isLoading) return null;
 
   const loadDemo = async (): Promise<void> => {
+    setDemoLoading(true);
+    setDemoError("");
     try {
       const res = await fetch("/api/cities/default");
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       setCityData(await res.json());
     } catch {
-      /* demo unavailable */
+      setDemoError(t(lang, "landing.demoError"));
+    } finally {
+      setDemoLoading(false);
     }
   };
-
-  const hasError = state === "error";
   const isCollecting = state === "collecting";
-  const red = BRAND.red;
+  const profileName =
+    SCAN_PROFILES.find((profile) => profile.id === scanProfile)?.label ?? "Standard";
+  const error = demoError || (state === "error" ? errorMessage : "");
 
   return (
-    <div className="absolute inset-0 z-40 flex items-center justify-center pointer-events-auto overflow-hidden">
-      {/* Ambient grid background — faint cream on charcoal */}
-      <div
-        aria-hidden="true"
-        className="absolute inset-0 pointer-events-none"
-        style={{
-          backgroundImage:
-            "linear-gradient(rgba(242,239,232,0.035) 1px, transparent 1px)," +
-            "linear-gradient(90deg, rgba(242,239,232,0.035) 1px, transparent 1px)",
-          backgroundSize: "48px 48px",
-          maskImage: "radial-gradient(ellipse 80% 70% at 50% 50%, black 30%, transparent 100%)",
-        }}
-      />
-
-      {/* Radial red glow behind the card */}
-      <div
-        aria-hidden="true"
-        className="absolute pointer-events-none"
-        style={{
-          width: 640,
-          height: 640,
-          borderRadius: "50%",
-          background: `radial-gradient(circle, ${red}12 0%, transparent 70%)`,
-          transform: "translate(-50%,-52%)",
-          left: "50%",
-          top: "50%",
-        }}
-      />
-
-      {/* Card */}
-      <div
-        className="relative flex flex-col items-center text-center px-8 py-10 animate-fade-up"
-        style={{ maxWidth: 580, width: "100%" }}
-      >
-        {/* Logo mark — the brand dot */}
-        <div
-          className="w-16 h-16 flex items-center justify-center font-jetbrains text-2xl font-bold mb-6"
-          style={{
-            border: `1px solid rgba(242,239,232,0.18)`,
-            color: BRAND.ink,
-            background: "rgba(242,239,232,0.03)",
-            borderRadius: 4,
-            letterSpacing: "0.02em",
-          }}
-          aria-hidden="true"
-        >
-          E<span style={{ color: red }}>.</span>
+    <main className="landing-shell">
+      <header className="landing-header">
+        <a href="/" className="landing-brand" aria-label={t(lang, "landing.homeAria")}>
+          <BrandWordmark />
+          <span>Skyline</span>
+        </a>
+        <div className="flex items-center gap-4">
+          <span className="local-badge">
+            <span aria-hidden="true" />
+            {t(lang, "landing.localBadge")}
+          </span>
+          <LangSwitch lang={lang} onPick={(next) => setPref("lang", next)} />
         </div>
-
-        {/* Title — EPHEMORA in cream with the red dot, SKYLINE in brand red (padding balances trailing tracking) */}
-        <h1
-          className="font-jetbrains text-3xl font-bold tracking-[0.22em] mb-1"
-          style={{ color: BRAND.ink, paddingLeft: "0.22em" }}
-        >
-          EPHEMORA<span style={{ color: red }}>.</span>
-        </h1>
-        <p
-          className="font-jetbrains text-[11px] tracking-[0.5em] mb-6 font-medium"
-          style={{ color: red, textShadow: `0 0 14px ${red}66`, paddingLeft: "0.5em" }}
-        >
-          SKYLINE
-        </p>
-
-        <p
-          className="font-jetbrains text-[13px] mb-9 leading-relaxed"
-          style={{ color: "var(--meta)", maxWidth: 460 }}
-        >
-          Choose any folder on this computer and it rises as a 3D city: each folder becomes a
-          district, each file a building. Taller buildings hold the most tangled code;
-          <span style={{ color: red }}> red beacons</span> mark files with security risks. Nothing
-          ever leaves this machine.
-        </p>
-
-        {/* Scan profile — opt-in layer below the fold, never a gate */}
-        <ProfileChips variant="landing" />
-
-        {/* Folder picker — the one primary action: solid vermilion, the strongest element on the page */}
-        <button
-          onClick={pickFolder}
-          disabled={isAnalyzing}
-          aria-busy={isAnalyzing}
-          aria-describedby={hasError ? "landing-error" : undefined}
-          className="font-jetbrains text-[13px] tracking-[0.15em] font-semibold px-9 py-3.5 rounded transition-all duration-200 disabled:opacity-60 disabled:cursor-not-allowed"
-          style={{
-            border: `1px solid ${isAnalyzing ? `${red}55` : red}`,
-            color: isAnalyzing ? "var(--meta-strong)" : "#161614",
-            background: isAnalyzing ? "rgba(232, 80, 60, 0.1)" : red,
-            boxShadow: isAnalyzing ? "none" : `0 0 28px ${red}40, 0 4px 16px rgba(0, 0, 0, 0.4)`,
-          }}
-          onMouseEnter={(e) => {
-            if (isAnalyzing) return;
-            e.currentTarget.style.background = "#f05a45";
-            e.currentTarget.style.boxShadow = `0 0 36px ${red}59, 0 4px 16px rgba(0, 0, 0, 0.4)`;
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.background = red;
-            e.currentTarget.style.boxShadow = `0 0 28px ${red}40, 0 4px 16px rgba(0, 0, 0, 0.4)`;
-          }}
-        >
-          {isCollecting ? (
-            <span className="flex items-center gap-2.5">
-              <span
-                className="inline-block w-2 h-2 rounded-full animate-pulse-glow"
-                style={{ background: red }}
-              />
-              Reading your files…
-            </span>
-          ) : isAnalyzing ? (
-            <span className="flex items-center gap-2.5">
-              <span
-                className="inline-block w-2 h-2 rounded-full animate-pulse-glow"
-                style={{ background: red }}
-              />
-              Analyzing code…
-            </span>
-          ) : (
-            "Choose project folder"
+      </header>
+      {update && (
+        <div role="status" className="landing-update-banner">
+          <span>{t(lang, "update.available", { version: update.latest })}</span>
+          {update.url && (
+            <a href={update.url} target="_blank" rel="noreferrer">
+              {t(lang, "update.whatsNew")} ↗
+            </a>
           )}
-        </button>
-
-        {/* Collection counter while walking the folder */}
-        {isCollecting && collected.files > 0 && (
-          <div
-            className="mt-3 font-jetbrains text-[10px] tracking-wide"
-            style={{ color: "var(--meta-strong)" }}
-          >
-            {collected.files} files · {(collected.bytes / 1024).toFixed(0)} KB collected
-          </div>
-        )}
-
-        {/* Error */}
-        {hasError && errorMessage && (
-          <div
-            id="landing-error"
-            role="alert"
-            className="mt-6 w-full px-4 py-2.5 rounded font-jetbrains text-[11px] flex items-start gap-2 animate-fade-up"
-            style={{
-              borderColor: SEVERITY_COLOR.P0,
-              color: "#ff9aa5",
-              background: "rgba(255,46,77,0.08)",
-              border: `1px solid ${SEVERITY_COLOR.P0}55`,
-            }}
-          >
-            <span style={{ color: SEVERITY_COLOR.P0, fontSize: "1rem", lineHeight: 1 }}>⚠</span>
-            <span>{errorMessage}</span>
-          </div>
-        )}
-
-        {/* Progress bar — collection phase gets an indeterminate bar + cancel */}
-        {isCollecting && (
-          <div className="mt-8 w-full animate-fade-up">
-            <div className="flex justify-between font-jetbrains text-[10px] mb-1.5">
-              <span style={{ color: BRAND.ink }}>Reading your files…</span>
-              <span style={{ color: red }}>
-                {collected.files > 0 ? `${collected.files} files` : "…"}
-              </span>
-            </div>
-            <div
-              className="w-full h-[3px] rounded-full overflow-hidden relative"
-              style={{ background: "rgba(242,239,232,0.08)" }}
-            >
-              <div
-                className="h-full rounded-full absolute animate-pulse-glow"
-                style={{
-                  width: "30%",
-                  background: `linear-gradient(90deg, transparent, ${red}, transparent)`,
-                }}
-              />
-            </div>
-            <div className="flex justify-end mt-2.5">
-              <button
-                onClick={cancel}
-                className="font-jetbrains text-[10px] tracking-widest px-2 py-1 btn-danger"
-              >
-                CANCEL
-              </button>
-            </div>
-          </div>
-        )}
-        {isAnalyzing && !isCollecting && (
-          <div className="mt-8 w-full animate-fade-up">
-            <div className="flex justify-between font-jetbrains text-[10px] mb-1.5">
-              <span style={{ color: "#8f8b82" }}>{analysisStage || "Getting ready…"}</span>
-              <span style={{ color: red }}>{analysisProgress}%</span>
-            </div>
-            <div
-              className="w-full h-[3px] rounded-full overflow-hidden"
-              role="progressbar"
-              aria-valuenow={analysisProgress}
-              aria-valuemin={0}
-              aria-valuemax={100}
-              aria-label={`Analysis progress: ${analysisProgress}%`}
-              style={{ background: "rgba(242,239,232,0.08)" }}
-            >
-              <div
-                className="h-full rounded-full transition-all duration-300"
-                style={{
-                  width: `${analysisProgress}%`,
-                  background: `linear-gradient(90deg, ${red}88, ${red})`,
-                  boxShadow: `0 0 10px ${red}99`,
-                }}
-              />
-            </div>
-            <div className="flex justify-between items-center mt-2.5">
-              <div className="flex gap-1">
-                {[0, 1, 2].map((i) => (
-                  <span
-                    key={i}
-                    className="inline-block w-1 h-1 rounded-full"
-                    style={{
-                      background: red,
-                      opacity: analysisProgress > i * 33 ? 1 : 0.2,
-                      transition: "opacity 0.3s",
-                    }}
-                  />
-                ))}
-              </div>
-              <button
-                onClick={cancel}
-                className="font-jetbrains text-[10px] tracking-widest px-2 py-1 btn-danger"
-              >
-                CANCEL
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* Success */}
-        {state === "success" && (
-          <div
-            className="mt-5 font-jetbrains text-[11px] tracking-widest animate-fade-up"
-            style={{ color: BRAND.ink, textShadow: `0 0 12px ${red}55` }}
-          >
-            ✓ Scan complete — building your city…
-          </div>
-        )}
-
-        {/* Demo link */}
-        {!isAnalyzing && state !== "success" && (
           <button
-            onClick={loadDemo}
-            className="mt-8 font-jetbrains text-[11px] tracking-wide transition-colors duration-150"
-            style={{ color: "var(--meta)" }}
-            onMouseEnter={(e) => (e.currentTarget.style.color = "#c9c4b8")}
-            onMouseLeave={(e) => (e.currentTarget.style.color = "var(--meta)")}
+            onClick={() => {
+              localStorage.setItem("codecity-update-dismissed", update.latest);
+              setUpdate(null);
+            }}
+            aria-label="Dismiss update note"
           >
-            or explore a demo city first →
+            ✕
           </button>
-        )}
+        </div>
+      )}
+      <div className="landing-main">
+        <section className="landing-intro" aria-labelledby="landing-title">
+          <p className="landing-category">{t(lang, "landing.category")}</p>
+          <h1 id="landing-title">
+            {t(lang, "landing.h1a")}
+            <br />
+            {t(lang, "landing.h1b")}
+          </h1>
+          <p className="landing-description">{t(lang, "landing.description")}</p>
+          <div className="landing-actions">
+            <button
+              onClick={pickFolder}
+              disabled={isAnalyzing || demoLoading}
+              aria-busy={isAnalyzing}
+              aria-describedby={error ? "landing-error" : "local-note"}
+              className="primary-button"
+            >
+              <svg
+                width="19"
+                height="19"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.7"
+                aria-hidden="true"
+              >
+                <path d="M3 7V5a1 1 0 0 1 1-1h5l2 3h9a1 1 0 0 1 1 1v11H3Z" />
+                <path d="M3 10h18" />
+              </svg>
+              {isCollecting
+                ? t(lang, "landing.primaryCollecting")
+                : isAnalyzing
+                  ? t(lang, "landing.primaryAnalyzing")
+                  : t(lang, "landing.primary")}
+            </button>
+            <button
+              onClick={loadDemo}
+              disabled={demoLoading || isAnalyzing}
+              aria-busy={demoLoading}
+              className="secondary-button"
+            >
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 20 20"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.5"
+                aria-hidden="true"
+              >
+                <path d="m7 4 9 6-9 6Z" />
+              </svg>
+              {demoLoading ? t(lang, "landing.secondaryLoading") : t(lang, "landing.secondary")}
+            </button>
+          </div>
+          <p id="local-note" className="landing-privacy">
+            {t(lang, "landing.privacy")}
+          </p>
+          {error && (
+            <div id="landing-error" role="alert" className="landing-error">
+              {error}
+            </div>
+          )}
+          {isAnalyzing && (
+            <div className="landing-progress">
+              <div role="status">
+                <span>
+                  {isCollecting
+                    ? t(lang, "landing.progressCollecting", { count: collected.files })
+                    : analysisStage || t(lang, "landing.progressReady")}
+                </span>
+                <span>{!isCollecting && `${analysisProgress}%`}</span>
+              </div>
+              <div
+                className="progress-track"
+                role="progressbar"
+                aria-label={t(lang, "landing.progressAria")}
+                aria-valuenow={isCollecting ? undefined : analysisProgress}
+                aria-valuemin={0}
+                aria-valuemax={100}
+              >
+                <span style={{ width: isCollecting ? "30%" : `${analysisProgress}%` }} />
+              </div>
+              <button onClick={cancel} className="text-button">
+                {t(lang, "landing.cancel")}
+              </button>
+            </div>
+          )}
+          {!isAnalyzing && (
+            <details className="scan-settings">
+              <summary>
+                <span>
+                  {t(lang, "landing.scanSettings")} <strong>{profileName}</strong>
+                  <span className="sr-only"> {t(lang, "landing.scanSettingsHint")}</span>
+                </span>
+                <span className="settings-chevron" aria-hidden="true">
+                  ⌄
+                </span>
+              </summary>
+              <div className="scan-settings-content">
+                <p>{t(lang, "landing.scanDepth")}</p>
+                <ProfileChips variant="landing" />
+              </div>
+            </details>
+          )}
+        </section>
+        <CityIllustration lang={lang} />
       </div>
-
-      {/* Corner watermark — the company logo, bottom right */}
-      <div
-        aria-hidden="true"
-        className="absolute bottom-5 right-6 pointer-events-none select-none opacity-90"
-      >
-        <BrandWordmark scale={1.2} />
-      </div>
-    </div>
+      <footer className="landing-footer">
+        <span>{t(lang, "landing.footer1")}</span>
+        <span>{t(lang, "landing.footer2")}</span>
+      </footer>
+    </main>
   );
 }

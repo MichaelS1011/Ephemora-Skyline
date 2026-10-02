@@ -3,6 +3,7 @@
 import { useStore, type HeatChannel } from "../stores/useStore";
 import { getDirLayout } from "../city/layout";
 import { useLodFar, LOD_THRESHOLDS } from "../hooks/useLodFar";
+import { t, type DictKey } from "../i18n";
 
 /**
  * Far-zoom heatmap channel switch — what the LOD heat cells are colored by.
@@ -10,15 +11,19 @@ import { useLodFar, LOD_THRESHOLDS } from "../hooks/useLodFar";
  * so the click always has a visible effect. The churn channel is disabled
  * (aria-disabled — hover must still work) with an honest tooltip when the
  * scan carried no git history (local upload / shallow clone).
+ *
+ * The compact channel monikers (HEAT, THREAT, CX, CHURN) stay language-neutral
+ * by design — they act as technical channel IDs, like "Security-Tour" does.
  */
 
-const CHANNELS: Array<{ id: HeatChannel; label: string; what: string }> = [
-  { id: "threat", label: "THREAT", what: "P0 red, P1 orange, P2 yellow, clean dark blue" },
-  { id: "complexity", label: "CX", what: "cyan (simple) → amber → magenta (complex)" },
-  { id: "churn", label: "CHURN", what: "green (stable) → orange (constantly churning)" },
+const CHANNELS: Array<{ id: HeatChannel; label: string; tipKey: DictKey }> = [
+  { id: "threat", label: "THREAT", tipKey: "heat.threatTip" },
+  { id: "complexity", label: "CX", tipKey: "heat.complexityTip" },
+  { id: "churn", label: "CHURN", tipKey: "heat.churnTip" },
 ];
 
 export function HeatmapToggle() {
+  const lang = useStore((s) => s.prefs.lang);
   const heatChannel = useStore((s) => s.heatChannel);
   const setHeatChannel = useStore((s) => s.setHeatChannel);
   const churnAvailable = useStore((s) => s.cityData?.meta.churn ?? false);
@@ -46,11 +51,11 @@ export function HeatmapToggle() {
     <div
       className="glass flex items-center gap-1 rounded px-2 py-1.5"
       role="radiogroup"
-      aria-label="Heatmap color channel"
-      data-tip="Far-zoom heatmap: pick what the city grid shows when you zoom out. Clicking a channel zooms out to the heat view."
+      aria-label={t(lang, "heat.groupAria")}
+      data-tip={t(lang, "heat.groupTip")}
     >
-      <span className="font-mono text-[9px] tracking-wider text-[#98948a] mr-1">HEAT</span>
-      {CHANNELS.map(({ id, label, what }) => {
+      <span className="font-mono text-[11px] tracking-wider text-[#98948a] mr-1">HEAT</span>
+      {CHANNELS.map(({ id, label, tipKey }) => {
         const unavailable = id === "churn" && !churnAvailable;
         const active = heatChannel === id;
         return (
@@ -59,17 +64,13 @@ export function HeatmapToggle() {
             role="radio"
             aria-checked={active}
             aria-disabled={unavailable || undefined}
-            data-tip={
-              unavailable
-                ? "No .git folder in this upload — churn and author districts need the project\u2019s git metadata"
-                : `${label}: color heat cells by ${what}. Click to zoom out into the heat view.`
-            }
+            data-tip={unavailable ? t(lang, "heat.churnUnavailableTip") : t(lang, tipKey)}
             onClick={() => pick(id)}
-            className="font-mono text-[9px] tracking-wider px-1.5 py-0.5 rounded transition-all duration-150
+            className="font-mono text-[11px] tracking-wider px-1.5 py-0.5 rounded transition-all duration-150
                        focus:outline-none focus:ring-1 focus:ring-[#e8503c] cursor-pointer
                        hover:brightness-125 active:scale-[0.96]"
             style={{
-              color: unavailable ? "#8a867c" : active ? "#e8503c" : "#a8a49a",
+              color: unavailable ? "var(--meta-faint)" : active ? "#e8503c" : "var(--meta-strong)",
               background: active ? "rgba(232, 80, 60, 0.12)" : "transparent",
               border: `1px solid ${
                 active

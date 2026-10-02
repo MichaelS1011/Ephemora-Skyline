@@ -1,8 +1,11 @@
 import { useEffect, useState } from "react";
 import { useLocalAnalysis } from "../hooks/useLocalAnalysis";
 import { ProfileChips } from "./ProfileChips";
+import { useStore } from "../stores/useStore";
+import { t } from "../i18n";
 
 function ProgressBar({ progress, stage }: { progress: number; stage: string }) {
+  const lang = useStore((s) => s.prefs.lang);
   return (
     <div
       className="mt-3"
@@ -10,13 +13,13 @@ function ProgressBar({ progress, stage }: { progress: number; stage: string }) {
       aria-valuenow={progress}
       aria-valuemin={0}
       aria-valuemax={100}
-      aria-label={`Analysis progress: ${progress}%`}
+      aria-label={t(lang, "analyze.progressAria", { progress })}
     >
       <div className="flex justify-between items-center mb-1">
-        <span className="font-mono text-[10px] text-[#e8b23c] tracking-widest truncate max-w-[200px]">
-          {stage || "INITIALIZING..."}
+        <span className="font-mono text-[11px] text-[#e8b23c] tracking-widest truncate max-w-[200px]">
+          {stage || t(lang, "analyze.initializing")}
         </span>
-        <span className="font-mono text-[10px] text-[#e8503c] ml-2 shrink-0">{progress}%</span>
+        <span className="font-mono text-[11px] text-[#e8503c] ml-2 shrink-0">{progress}%</span>
       </div>
       <div className="w-full h-[3px] bg-[#1c1c1a] border border-[#1a2a3a] rounded-sm overflow-hidden">
         <div
@@ -41,6 +44,7 @@ function ProgressBar({ progress, stage }: { progress: number; stage: string }) {
  * current one. Pick a local folder — the same flow as the landing page.
  */
 export function AnalyzePanel({ className = "" }: { className?: string }) {
+  const lang = useStore((s) => s.prefs.lang);
   const [isOpen, setIsOpen] = useState(false);
   const {
     state,
@@ -58,7 +62,10 @@ export function AnalyzePanel({ className = "" }: { className?: string }) {
   useEffect(() => {
     if (!isOpen) return;
     const onKey = (e: KeyboardEvent): void => {
-      if (e.key === "Escape") {
+      if (
+        e.key === "Escape" &&
+        !(e.target instanceof Element && e.target.closest('[aria-modal="true"]'))
+      ) {
         e.stopPropagation();
         setIsOpen(false);
       }
@@ -77,36 +84,34 @@ export function AnalyzePanel({ className = "" }: { className?: string }) {
   const borderColor = state === "error" ? "#ff0044" : state === "success" ? "#e8503c" : "#e8b23c";
 
   return (
-    <div className={`relative ${className}`}>
+    <div className={`analyze-control relative ${className}`}>
       <button
         onClick={() => setIsOpen((v) => !v)}
         aria-expanded={isOpen}
         aria-controls="analyze-panel"
         aria-label={
           isAnalyzing
-            ? `Toggle analyze panel — analyzing, ${analysisProgress}% done`
-            : "Toggle analyze panel"
+            ? t(lang, "analyze.toggleAriaAnalyzing", { progress: analysisProgress })
+            : t(lang, "analyze.toggleAria")
         }
-        title="Build another city: pick a local folder and scan it — the current city stays open until the new one is ready"
-        className="font-mono text-xs px-3 py-1.5 rounded-sm border transition-all duration-150
-                   bg-[rgba(16,16,14,0.85)] hover:bg-[rgba(232,178,60,0.1)]"
-        style={{ borderColor, color: borderColor }}
+        title={t(lang, "analyze.toggleTitle")}
+        className="analyze-trigger"
       >
         {/* Progress leaks onto the toggle: with the panel closed the running
             analysis would otherwise be invisible to the user */}
         {isAnalyzing
           ? `${isOpen ? "▲" : "▼"} ${analysisProgress}%`
           : isOpen
-            ? "▲ ANALYZE"
-            : "▼ ANALYZE"}
+            ? t(lang, "analyze.close")
+            : t(lang, "analyze.open")}
       </button>
 
       {isOpen && (
         <div
           id="analyze-panel"
           role="dialog"
-          aria-label="Folder analyze panel"
-          className="absolute top-full right-0 mt-2 w-80 z-50"
+          aria-label={t(lang, "analyze.dialogAria")}
+          className="analyze-popover absolute top-full right-0 mt-2 w-80 z-50"
           style={{
             background: "rgba(16, 16, 14, 0.96)",
             border: `1px solid ${borderColor}`,
@@ -120,7 +125,7 @@ export function AnalyzePanel({ className = "" }: { className?: string }) {
         >
           <div className="font-mono text-xs text-[#e8b23c] tracking-widest mb-3 flex items-center gap-2">
             <span>◈</span>
-            <span>BUILD ANOTHER CITY</span>
+            <span>{t(lang, "analyze.header")}</span>
           </div>
 
           <ProfileChips variant="analyze-panel" />
@@ -129,7 +134,7 @@ export function AnalyzePanel({ className = "" }: { className?: string }) {
             onClick={pickFolder}
             disabled={isAnalyzing}
             aria-busy={isAnalyzing}
-            aria-label={isAnalyzing ? "Analysis in progress" : "Pick a local project folder"}
+            aria-label={isAnalyzing ? t(lang, "analyze.pickAriaBusy") : t(lang, "analyze.pickAria")}
             className="w-full mt-2 py-2 font-mono text-xs tracking-widest rounded-sm border transition-all duration-150
                        disabled:opacity-50 disabled:cursor-not-allowed"
             style={{
@@ -141,21 +146,24 @@ export function AnalyzePanel({ className = "" }: { className?: string }) {
             {state === "collecting" ? (
               <span className="flex items-center justify-center gap-2">
                 <span className="inline-block w-2 h-2 rounded-full bg-[#e8503c] animate-pulse" />
-                READING FOLDER…
+                {t(lang, "analyze.reading")}
               </span>
             ) : isAnalyzing ? (
               <span className="flex items-center justify-center gap-2">
                 <span className="inline-block w-2 h-2 rounded-full bg-[#e8503c] animate-pulse" />
-                ANALYZING...
+                {t(lang, "analyze.analyzing")}
               </span>
             ) : (
-              "📂  PICK LOCAL FOLDER"
+              t(lang, "landing.primary")
             )}
           </button>
 
           {state === "collecting" && collected.files > 0 && (
-            <div className="mt-2 font-mono text-[10px] text-[#7d796f] text-center">
-              {collected.files} files · {(collected.bytes / 1024).toFixed(0)} KB
+            <div className="mt-2 font-mono text-[11px] text-[color:var(--meta-strong)] text-center">
+              {t(lang, "analyze.filesBytes", {
+                files: collected.files,
+                kb: (collected.bytes / 1024).toFixed(0),
+              })}
             </div>
           )}
 
@@ -164,7 +172,7 @@ export function AnalyzePanel({ className = "" }: { className?: string }) {
               id="analyze-error"
               role="alert"
               aria-live="assertive"
-              className="mt-3 px-2 py-1.5 border border-[#ff0044] rounded font-mono text-[10px] text-[#ff6688]"
+              className="mt-3 px-2 py-1.5 border border-[#ff0044] rounded font-mono text-[11px] text-[#ff6688]"
               style={{ background: "rgba(255,0,68,0.08)" }}
             >
               ⚠ {errorMessage}
@@ -177,21 +185,21 @@ export function AnalyzePanel({ className = "" }: { className?: string }) {
             <div
               role="status"
               aria-live="polite"
-              className="mt-3 px-2 py-1.5 border border-[#e8503c] rounded font-mono text-[10px] text-[#e8503c]"
+              className="mt-3 px-2 py-1.5 border border-[#e8503c] rounded font-mono text-[11px] text-[#e8503c]"
               style={{ background: "rgba(232,80,60,0.08)" }}
             >
-              ✓ CITY BUILT — explore it below
+              {t(lang, "analyze.success")}
             </div>
           )}
           {isAnalyzing && (
             <button
               onClick={cancel}
-              className="w-full mt-2 py-1 rounded-sm font-mono text-[10px] tracking-widest border border-[#ff0044]
+              className="w-full mt-2 py-1 rounded-sm font-mono text-[11px] tracking-widest border border-[#ff0044]
                          text-[#ff0044] bg-transparent hover:bg-[rgba(255,0,68,0.08)]
                          transition-all duration-150"
-              aria-label="Cancel analysis"
+              aria-label={t(lang, "landing.cancel")}
             >
-              CANCEL
+              {t(lang, "analyze.cancel")}
             </button>
           )}
         </div>

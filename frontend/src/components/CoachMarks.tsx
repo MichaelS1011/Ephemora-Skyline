@@ -4,12 +4,11 @@ import { useStore } from "../stores/useStore";
 
 const COACH_KEY = "codecity-coach-v2";
 
-/* The core loop, in four lines */
 const HINTS = [
-  { step: "1", icon: "⊕", text: "Drag to orbit · scroll to zoom" },
-  { step: "2", icon: "▦", text: "Click a district block (a folder) to zoom into it" },
-  { step: "3", icon: "▣", text: "Click a building (a file) for its details" },
-  { step: "4", icon: "?", text: "Press ? anytime for all shortcuts" },
+  { icon: "↔", text: "Drag to orbit", detail: "Scroll to zoom" },
+  { icon: "▦", text: "Open a district", detail: "Click a folder block" },
+  { icon: "▣", text: "Inspect a file", detail: "Click a building" },
+  { icon: "?", text: "Keyboard shortcuts", detail: "Press ? for the full guide" },
 ];
 
 /* ── Marker legend — "What am I looking at?" ───────────────────────────────
@@ -33,39 +32,39 @@ const sw = (background: string, extra?: CSSProperties): CSSProperties => ({
 export const MARKER_LEGEND: LegendMarker[] = [
   {
     label: "Building height",
-    meaning: "complexity — branching + size",
+    meaning: "Code complexity and file size",
     swatch: sw("rgba(232,178,60,0.1)", { border: "1px solid rgba(232,178,60,0.3)" }),
     glyph: "⬍",
   },
   {
     label: "Footprint size",
-    meaning: "API surface — exported symbols",
+    meaning: "Number of exported symbols",
     swatch: sw("rgba(167,139,250,0.1)", { border: "1px solid rgba(167,139,250,0.35)" }),
     glyph: "▭",
   },
   {
-    label: "Black windowless monolith",
-    meaning: "huge file — 150 KB or more",
+    label: "Windowless monolith",
+    meaning: "Large file, 150 KB or more",
     swatch: sw("#17171a", { border: "1px solid #3a3a40" }),
   },
   {
     label: "Glass building",
-    meaning: "dead-code candidate — never imported",
+    meaning: "Never imported; may be unused",
     swatch: sw("rgba(216,205,180,0.22)", { border: "1px solid rgba(216,205,180,0.55)" }),
   },
   {
     label: "Red pulsing windows",
-    meaning: "security findings (P0 / P1)",
+    meaning: "Critical or high security findings",
     swatch: sw("#ff2e4d", { boxShadow: "0 0 5px rgba(255,46,77,0.7)" }),
   },
   {
-    label: "Orange band + scaffolding",
-    meaning: "git churn — changes often",
+    label: "Orange scaffolding",
+    meaning: "Frequently changed in Git",
     swatch: sw("#ff9a3d"),
   },
   {
     label: "Translucent shield",
-    meaning: "80%+ test coverage",
+    meaning: "At least 80% test coverage",
     swatch: sw("rgba(216,201,163,0.08)", {
       border: "1px dashed rgba(216,201,163,0.6)",
       borderRadius: 4,
@@ -73,34 +72,34 @@ export const MARKER_LEGEND: LegendMarker[] = [
   },
   {
     label: "Red ring at the base",
-    meaning: "circular import (A → B → A)",
+    meaning: "Circular import: A → B → A",
     swatch: sw("transparent", { border: "2px solid #ff2e4d", borderRadius: "50%" }),
   },
   {
     label: "Yellow flickering laser",
-    meaning: "copy-paste clone between files",
+    meaning: "Duplicated code across files",
     swatch: sw("#ffe14d", { height: 4, marginTop: 4 }),
   },
   {
     label: "Cyan / violet streams",
-    meaning: "imports in / out (red = circular)",
+    meaning: "Incoming / outgoing imports",
     swatch: sw("#37e6ff"),
     secondSwatch: sw("#b06bff"),
   },
   {
     label: "Heat cells (zoomed out)",
-    meaning: "THREAT / CX / CHURN channels",
+    meaning: "Risk, complexity or change frequency",
     swatch: sw("linear-gradient(90deg, #3dd6c4, #ffd23f, #ff2ea6)"),
   },
   {
     label: "Author colors",
-    meaning: "git blame territory",
+    meaning: "Main contributor to each area",
     swatch: sw("#ff6b9d", { borderRadius: "50%" }),
     secondSwatch: sw("#4de3ff", { borderRadius: "50%" }),
   },
   {
     label: "Citizens, taxi, bus",
-    meaning: "ambient life — decoration, not data",
+    meaning: "Ambient city life",
     swatch: sw("rgba(150,142,128,0.15)", { border: "1px solid rgba(150,142,128,0.35)" }),
     glyph: "···",
   },
@@ -108,11 +107,11 @@ export const MARKER_LEGEND: LegendMarker[] = [
 
 export function LegendRow({ marker }: { marker: LegendMarker }) {
   let swatches: ReactNode = (
-    <span className="w-3 h-3 shrink-0 inline-block" style={marker.swatch}>
+    <span className="w-4 h-4 shrink-0 inline-block" style={marker.swatch}>
       {marker.glyph && (
         <span
           className="flex items-center justify-center w-full h-full"
-          style={{ fontSize: 8, lineHeight: 1, color: "#cfcabe" }}
+          style={{ fontSize: 12, lineHeight: 1, color: "#cfcabe" }}
         >
           {marker.glyph}
         </span>
@@ -128,14 +127,19 @@ export function LegendRow({ marker }: { marker: LegendMarker }) {
     );
   }
   return (
-    <div className="flex items-start gap-1.5" title={`${marker.label} = ${marker.meaning}`}>
+    <div className="flex items-start gap-2.5" title={`${marker.label} = ${marker.meaning}`}>
       <span className="mt-0.5 shrink-0 inline-flex">{swatches}</span>
       <span
-        className="font-jetbrains text-[9px] leading-snug flex-1 min-w-0"
-        style={{ color: "#a8a49a" }}
+        className="text-[12px] leading-relaxed flex-1 min-w-0"
+        style={{
+          color: "#aaa69c",
+          fontFamily: "var(--font-sans, ui-sans-serif, system-ui, sans-serif)",
+        }}
       >
-        <span style={{ color: "#cfcabe" }}>{marker.label}</span>
-        <span style={{ color: "var(--meta-faint)" }}> — {marker.meaning}</span>
+        <span className="block" style={{ color: "#e0dbcf" }}>
+          {marker.label}
+        </span>
+        <span>{marker.meaning}</span>
       </span>
     </div>
   );
@@ -145,7 +149,7 @@ export function MarkerLegend({ columns = 2 }: { columns?: 1 | 2 }) {
   return (
     <div
       className={
-        columns === 2 ? "grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1" : "flex flex-col gap-1"
+        columns === 2 ? "grid grid-cols-1 sm:grid-cols-2 gap-x-5 gap-y-3" : "flex flex-col gap-3"
       }
     >
       {MARKER_LEGEND.map((m) => (
@@ -192,97 +196,77 @@ export function CoachMarks() {
   if (!visible || tourActive || buildPhase === "constructing") return null;
 
   return (
-    <div className="absolute bottom-16 left-0 right-0 z-40 flex justify-center pointer-events-none">
+    <div className="absolute left-0 right-0 z-40 flex justify-center pointer-events-none city-coach">
       <div
         className="pointer-events-auto animate-fade-up"
         style={{
-          background: "rgba(18, 18, 16, 0.92)",
-          border: "1px solid rgba(232,178,60,0.28)",
-          borderRadius: 5,
-          padding: "0.65rem 0.9rem",
-          boxShadow: "0 0 24px rgba(232,178,60,0.1), 0 8px 24px rgba(0,0,0,0.4)",
-          backdropFilter: "blur(12px)",
-          maxWidth: "min(90vw, 560px)",
+          background: "rgba(24, 24, 22, 0.94)",
+          border: "1px solid rgba(150,142,128,0.26)",
+          borderRadius: 12,
+          padding: "14px 18px",
+          boxShadow: "0 12px 36px rgba(0,0,0,0.3)",
+          backdropFilter: "blur(20px)",
+          width: "min(90vw, 520px)",
           maxHeight: "60vh",
           overflowY: "auto",
+          fontFamily: "var(--font-sans, ui-sans-serif, system-ui, sans-serif)",
         }}
-        role="status"
+        role="region"
+        aria-label="Getting started"
       >
-        <div className="flex items-start justify-between gap-3 mb-2">
-          <div
-            className="font-jetbrains text-[9px] tracking-[0.25em]"
-            style={{ color: "var(--meta-strong)" }}
-          >
-            FIRST-RUN GUIDE <span style={{ color: "var(--meta-faint)" }}>· 4 STEPS</span>
-          </div>
-          {/* Dismiss */}
+        <div className="flex items-center justify-between gap-3 mb-3">
+          <h2 className="text-[14px] font-semibold" style={{ color: "#f2efe8" }}>
+            Explore your codebase
+          </h2>
           <button
             onClick={dismiss}
-            className="btn-ghost shrink-0 w-6 h-6 flex items-center justify-center !p-0"
-            aria-label="Dismiss hints"
-            title="Hide this guide — it only shows once. The LEGEND in the left dossier always explains the markers."
+            className="btn-ghost shrink-0 w-8 h-8 flex items-center justify-center !p-0"
+            aria-label="Dismiss getting started guide"
+            title="Hide guide. The city legend remains available in Project overview."
           >
-            ✕
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
+              <path
+                d="m3 3 8 8M11 3l-8 8"
+                stroke="currentColor"
+                strokeWidth="1.5"
+                strokeLinecap="round"
+              />
+            </svg>
           </button>
         </div>
-        <div className="flex items-start gap-4">
-          {/* Hints grid — the core loop */}
-          <div className="grid grid-cols-2 gap-x-5 gap-y-1.5">
-            {HINTS.map((h) => (
-              <div key={h.icon} className="flex items-center gap-2">
-                {/* step number — the dominant element: reads as an ordered story, not a list of tips */}
-                <span
-                  className="font-jetbrains font-semibold text-[13px] leading-none tabular-nums shrink-0"
-                  style={{ color: "#f2d5a0" }}
-                  aria-hidden
-                >
-                  {h.step}
-                </span>
-                <span
-                  className="w-5 h-5 flex items-center justify-center shrink-0 font-jetbrains text-[11px]"
-                  style={{
-                    color: "var(--meta-strong)",
-                    background: "rgba(232,178,60,0.07)",
-                    border: "1px solid rgba(232,178,60,0.18)",
-                    borderRadius: 3,
-                  }}
-                  aria-hidden
-                >
-                  {h.icon}
-                </span>
-                <span
-                  className="font-jetbrains text-[10px] leading-snug"
-                  style={{ color: "#cfcabe" }}
-                >
-                  {h.text}
-                </span>
+        <div className="grid grid-cols-2 gap-x-6 gap-y-3">
+          {HINTS.map((hint) => (
+            <div key={hint.icon} className="flex items-start gap-2.5">
+              <span
+                className="w-7 h-7 flex items-center justify-center shrink-0 text-[15px]"
+                style={{ color: "#c5c0b5", background: "rgba(232,228,218,0.05)", borderRadius: 5 }}
+                aria-hidden
+              >
+                {hint.icon}
+              </span>
+              <div className="text-[12px] leading-snug">
+                <div className="font-medium" style={{ color: "#e8e4da" }}>
+                  {hint.text}
+                </div>
+                <div className="mt-0.5" style={{ color: "#aaa69c" }}>
+                  {hint.detail}
+                </div>
               </div>
-            ))}
-          </div>
+            </div>
+          ))}
         </div>
-
-        {/* What am I looking at? — marker primer */}
         <button
-          onClick={() => setPrimerOpen((v) => !v)}
+          onClick={() => setPrimerOpen((open) => !open)}
           aria-expanded={primerOpen}
-          title="What every visual marker in the city means — click to collapse or expand"
-          className="w-full flex items-center gap-1.5 mt-2.5 pt-2 font-jetbrains text-[9px] tracking-[0.2em]"
-          style={{
-            color: "#f2d5a0",
-            borderTop: "1px solid rgba(232,178,60,0.12)",
-            textAlign: "left",
-          }}
+          aria-controls="coach-city-legend"
+          className="w-full flex items-center justify-between gap-2 mt-3 pt-3 text-[12px] text-left"
+          style={{ color: "#c5c0b5", borderTop: "1px solid rgba(150,142,128,0.18)" }}
         >
-          <span style={{ fontSize: 8 }}>{primerOpen ? "▾" : "▸"}</span> WHAT AM I LOOKING AT?
-          <span style={{ color: "var(--meta-faint)", letterSpacing: "normal" }}>
-            — {MARKER_LEGEND.length} marker meanings
-          </span>
+          What do the city markers mean?
+          <span aria-hidden>{primerOpen ? "−" : "+"}</span>
         </button>
         {primerOpen && (
-          <div className="mt-2">
-            <p className="font-jetbrains text-[9px] mb-1.5" style={{ color: "var(--meta-faint)" }}>
-              Folders are districts · files are buildings · every decoration means something:
-            </p>
+          <div id="coach-city-legend" className="mt-4">
             <MarkerLegend columns={2} />
           </div>
         )}
