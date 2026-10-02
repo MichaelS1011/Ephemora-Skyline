@@ -3,6 +3,9 @@ import {
   approachFromCurrentDirection,
   flightDuration,
   turntableStep,
+  clampToCity,
+  GROUND_Y,
+  PIVOT_Y,
   TURN_MAX_PHI,
   TURN_MIN_PHI,
 } from "../src/components/CameraRig";
@@ -166,5 +169,56 @@ describe("turntableStep", () => {
 
   it("refuses to turn when the camera sits exactly on the axis", () => {
     expect(turntableStep(pivot, pivot, 0.3, 0.3)).toBeNull();
+  });
+});
+
+describe("clampToCity", () => {
+  // The fog far plane is the outer limit: CityScene hazes everything out
+  // there, so nothing the user could still see is ever cut off.
+  const maxR = (bounds: number) => bounds * 4 + 220;
+  const fromAxis = (p: { x: number; y: number; z: number }) => Math.hypot(p.x, p.y - PIVOT_Y, p.z);
+
+  it("leaves a position inside the world untouched", () => {
+    const pos = { x: 40, y: 100, z: 150 };
+    expect(clampToCity(pos, 100)).toEqual(pos);
+  });
+
+  it("pulls a camera driven under the street back up to it", () => {
+    // The measured escape: dollying toward the ground went THROUGH it.
+    const out = clampToCity({ x: 10, y: -80, z: 20 }, 100);
+    expect(out.y).toBe(GROUND_Y);
+  });
+
+  it("caps the distance at the fog far plane, along the same bearing", () => {
+    const out = clampToCity({ x: 0, y: PIVOT_Y, z: 5000 }, 100);
+    expect(fromAxis(out)).toBeCloseTo(maxR(100), 6);
+    expect(out.z).toBeCloseTo(maxR(100), 6);
+    expect(out.x).toBeCloseTo(0, 6);
+  });
+
+  it("scales with the level being viewed", () => {
+    expect(fromAxis(clampToCity({ x: 0, y: PIVOT_Y, z: 5000 }, 40))).toBeCloseTo(maxR(40), 6);
+    expect(fromAxis(clampToCity({ x: 0, y: PIVOT_Y, z: 5000 }, 400))).toBeCloseTo(maxR(400), 6);
+  });
+
+  it("still floors at street level with no city loaded", () => {
+    const out = clampToCity({ x: 1e6, y: -5, z: 0 }, null);
+    expect(out.y).toBe(GROUND_Y);
+    expect(out.x).toBe(1e6); // no radial cap without a known level
+  });
+
+  it("never touches a legitimate overview framing", () => {
+    // Guards the coupling between three formulas that live apart: the height
+    // rail (mapping.ts 34, voxels.ts x1.4), the framing distance
+    // (useStore.flyToDirOverview) and this ceiling. If any of them moves and
+    // this fails, the first wheel notch after an overview would yank the user
+    // inward.
+    const overviewDist = (bounds: number, tallest: number) =>
+      Math.max(bounds * 1.65, tallest * 2.2 + 24);
+    const TALLEST_POSSIBLE = 34 * 1.4;
+    for (const bounds of [12, 40, 100, 400, 2000]) {
+      const pos = { x: 0, y: PIVOT_Y, z: overviewDist(bounds, TALLEST_POSSIBLE) };
+      expect(clampToCity(pos, bounds)).toEqual(pos);
+    }
   });
 });

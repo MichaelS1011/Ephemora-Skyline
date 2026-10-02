@@ -1,9 +1,10 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { useThree, useFrame } from "@react-three/fiber";
 import { OrbitControls } from "@react-three/drei";
 import type { OrbitControls as OrbitControlsImpl } from "three-stdlib";
 import * as THREE from "three";
 import { useStore } from "../stores/useStore";
+import { getDirLayout } from "../city/layout";
 
 /**
  * Camera rig — the user is the pilot, in two modes:
@@ -137,7 +138,52 @@ const _euler = new THREE.Euler(0, 0, 0, "YXZ");
 const _pivot = new THREE.Vector3();
 
 /** Height of the turntable axis — matches the y a flight aims at. */
-const PIVOT_Y = 1.5;
+export const PIVOT_Y = 1.5;
+/** Street level — nothing the pilot flies through goes below it. */
+export const GROUND_Y = 1;
+
+/**
+ * Keep the pilot inside the world.
+ *
+ * The free-fly dolly had no bound at all while the walk always floored at
+ * GROUND_Y — which is exactly why WASD could never lose the city and the
+ * wheel could: dollying toward the ground drove the camera under the ground
+ * plane, and from below the frame is nothing but the clear colour (measured:
+ * the world collapses to a single colour after ~10 notches of inward scroll).
+ * The outer limit is the fog far plane (CityScene hazes everything out at
+ * `bounds * 4 + 220`), so clamping there cuts nothing the user could still
+ * see — and no overview flight can reach it, since the tallest possible
+ * framing is 129 units (mapping.ts caps a building at 34, voxels at 1.4x)
+ * while the ceiling is never below 220.
+ */
+export function clampToCity(pos: XYZ, bounds: number | null): XYZ {
+  let { x, y, z } = pos;
+  if (bounds !== null) {
+    const maxR = bounds * 4 + 220;
+    const dy = pos.y - PIVOT_Y;
+    const r = Math.hypot(pos.x, dy, pos.z);
+    if (r > maxR) {
+      const s = maxR / r;
+      x = pos.x * s;
+      y = PIVOT_Y + dy * s;
+      z = pos.z * s;
+    }
+  }
+  if (y < GROUND_Y) y = GROUND_Y;
+  return { x, y, z };
+}
+
+/** Half-extent of the level the pilot is in, or null with no city loaded. */
+function useCityBounds(): number | null {
+  const cityData = useStore((s) => s.cityData);
+  const focusPath = useStore((s) => s.focusPath);
+  // Memoised: the frame loop reads this every frame and drilling into a
+  // district is what changes it.
+  return useMemo(
+    () => (cityData ? getDirLayout(cityData, focusPath).bounds : null),
+    [cityData, focusPath],
+  );
+}
 
 function isTypingTarget(t: EventTarget | null): boolean {
   const el = t as HTMLElement | null;
@@ -157,6 +203,11 @@ export function CameraRig() {
   const cityData = useStore((s) => s.cityData);
   const cameraMode = useStore((s) => s.cameraMode);
   const tourActive = useStore((s) => s.tourActive);
+  // Read through a ref so the wheel listener and the frame loop never close
+  // over a stale level.
+  const cityBounds = useCityBounds();
+  const boundsRef = useRef(cityBounds);
+  boundsRef.current = cityBounds;
 
   const tweenRef = useRef<Tween | null>(null);
   const lastNonce = useRef(-1);
@@ -252,6 +303,8 @@ export function CameraRig() {
       camera.getWorldDirection(_dir);
       const step = -e.deltaY * 0.012 * Math.max(2, camera.position.y * 0.15 + 4);
       camera.position.addScaledVector(_dir, step);
+      const kept = clampToCity(camera.position, boundsRef.current);
+      camera.position.set(kept.x, kept.y, kept.z);
     };
     el.addEventListener("pointerdown", onPointerDown);
     window.addEventListener("pointermove", onPointerMove);
@@ -389,10 +442,23 @@ export function CameraRig() {
         _move.y = dy;
         if (_move.lengthSq() > 0) {
           _move.normalize().multiplyScalar(speed * delta);
-          // Never walk below the ground.
-          const nextY = camera.position.y + _move.y;
-          if (nextY < 1) _move.y = 1 - camera.position.y;
-          camera.position.add(_move);
+          // The walk shares one boundary with the dolly — same street floor,
+          // same fog ceiling. The orbit target follows the delta the clamp
+          // actually allowed, so the two never drift apart.
+          const kept = clampToCity(
+            {
+              x: camera.position.x + _move.x,
+              y: camera.position.y + _move.y,
+              z: camera.position.z + _move.z,
+            },
+            boundsRef.current,
+          );
+          _move.set(
+            kept.x - camera.position.x,
+            kept.y - camera.position.y,
+            kept.z - camera.position.z,
+          );
+          camera.position.set(kept.x, kept.y, kept.z);
           if (!free) {
             controls.target.add(_move);
             controls.update();
