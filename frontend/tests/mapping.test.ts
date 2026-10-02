@@ -12,6 +12,8 @@ import {
   COMPLEXITY_WEIGHTS,
   NORM_REFERENCE,
 } from "../src/city/mapping";
+import { allSubtreeFiles } from "../src/components/HeatCells";
+import { complexityColor } from "../src/city/palette";
 import type { CityFile } from "../src/city/types";
 
 function file(overrides: Partial<CityFile> = {}): CityFile {
@@ -147,5 +149,60 @@ describe("factor helpers", () => {
     expect(astDepthProxyFactor(file({ importCount: 999 }))).toBe(1);
     expect(locFactor(file({ linesOfCode: 0 }))).toBeLessThan(0.05); // clamped to 1 LOC
     expect(locFactor(file({ linesOfCode: 99_999 }))).toBe(1);
+  });
+});
+
+describe("the heat channel reads the measure the skyline reads", () => {
+  function dirOf(files: CityFile[]) {
+    return {
+      name: "d",
+      path: "d",
+      fileCount: files.length,
+      linesOfCode: 0,
+      languages: {},
+      findingsBySeverity: { P0: 0, P1: 0, P2: 0 },
+      threatScore: 0,
+      topFindings: [],
+      children: [],
+      detailFiles: files,
+    } as never;
+  }
+
+  it("is the mean of the very values a zoomed-in cell colours itself with", () => {
+    const a = file({ id: "a", cyclomaticComplexity: 40, importCount: 12, linesOfCode: 4000 });
+    const b = file({ id: "b", cyclomaticComplexity: 20, importCount: 6, linesOfCode: 1000 });
+    expect(allSubtreeFiles(dirOf([a, b])).avgComplexity).toBe(
+      (syntheticComplexity(a) + syntheticComplexity(b)) / 2,
+    );
+  });
+
+  it("saturates a district exactly where it saturates a file", () => {
+    const maxed = file({ cyclomaticComplexity: 999, importCount: 999, linesOfCode: 99_999 });
+    expect(syntheticComplexity(maxed)).toBe(1);
+    expect(allSubtreeFiles(dirOf([maxed, maxed])).avgComplexity).toBe(1);
+  });
+
+  it("no longer pins a median real-world district at the end of the ramp", () => {
+    // 33 / 200 LOC / 5 imports is the median district measured over this
+    // project's own 93 first-party files. The old `mean(cyclomatic) / 25`
+    // clamped that to 1.0 — and every district above the median with it, so
+    // half the city wore one indistinguishable magenta.
+    const median = file({ cyclomaticComplexity: 33, importCount: 5, linesOfCode: 200 });
+    const t = allSubtreeFiles(dirOf([median, median])).avgComplexity;
+    expect(t).toBeGreaterThan(0.5); // still reads hot, as a median district should
+    expect(t).toBeLessThan(1);
+    expect(complexityColor(t)).not.toBe(complexityColor(1));
+  });
+
+  it("ignores the finding count, which is the threat channel's business", () => {
+    const base = { cyclomaticComplexity: 30, importCount: 8, linesOfCode: 900 };
+    const noisy = file({
+      ...base,
+      threatLevel: "critical",
+      findings: [{ type: "CMD_INJECTION", severity: "P0", line: 1, message: "x" }],
+    });
+    expect(allSubtreeFiles(dirOf([file(base)])).avgComplexity).toBe(
+      allSubtreeFiles(dirOf([noisy])).avgComplexity,
+    );
   });
 });

@@ -129,7 +129,19 @@ export function HeatCells({ layout }: { layout: DirLayout }) {
   );
 }
 
-function allSubtreeFiles(dir: CityData["tree"]): {
+/**
+ * The values a far-zoom district cell is painted with.
+ *
+ * `avgComplexity` is the mean of `syntheticComplexity` — the exact quantity
+ * that sets a building's height and a zoomed-in cell's colour — so the same
+ * code cannot read hot at one zoom and tame at another. It used to be a
+ * private `mean(cyclomatic) / 25`: a different measure again, on a rail from
+ * before the counter learned to see `&&`, `||`, ternaries and bare `else`.
+ * Measured over this project's 93 first-party files, the mean cyclomatic of a
+ * district is 33.1 at the median — so `/25` pinned half the city at the last
+ * colour of the ramp, and the channel discriminated between nothing.
+ */
+export function allSubtreeFiles(dir: CityData["tree"]): {
   findingsBySeverity: Record<string, number>;
   avgComplexity: number;
   maxChurn: number | null;
@@ -140,7 +152,7 @@ function allSubtreeFiles(dir: CityData["tree"]): {
   const findingsBySeverity: Record<string, number> = { P0: 0, P1: 0, P2: 0 };
   const walk = (d: CityData["tree"]): void => {
     for (const f of d.detailFiles) {
-      complexitySum += f.cyclomaticComplexity;
+      complexitySum += syntheticComplexity(f);
       complexityCount++;
       if (f.churnScore !== undefined) maxChurn = Math.max(maxChurn ?? 0, f.churnScore);
     }
@@ -152,7 +164,7 @@ function allSubtreeFiles(dir: CityData["tree"]): {
   walk(dir);
   return {
     findingsBySeverity,
-    avgComplexity: complexityCount > 0 ? complexitySum / complexityCount / 25 : 0,
+    avgComplexity: complexityCount > 0 ? complexitySum / complexityCount : 0,
     maxChurn,
   };
 }
