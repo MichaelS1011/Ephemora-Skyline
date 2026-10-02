@@ -45,11 +45,17 @@ function easeInOutCubic(t: number): number {
 }
 
 /**
- * Camera position for a flight to `target`, arriving at `distance` while
- * KEEPING the user's current viewing direction: the vector from the old
+ * Camera position for a flight to `target`, arriving at `distance`.
+ *
+ * By default it KEEPS the user's viewing direction: the vector from the old
  * orbit target to the camera (its azimuth + elevation) is reused around the
  * new target, so a flight never drags the camera to a fixed south-east
  * vantage the user never chose.
+ *
+ * A scripted shot (the construction crane) may pass `elevation`: the azimuth
+ * is still the live one — the camera stays on the side of the city it is on —
+ * but the height is the shot's own, because a crane that inherits a
+ * street-level eye line cannot show a plot and a tower in the same frame.
  *
  * Degenerate case (camPos == camTarget — no direction to preserve, e.g. the
  * very first flight of a freshly loaded city): falls back to the legacy
@@ -60,10 +66,11 @@ export function approachFromCurrentDirection(
   camTarget: XYZ,
   target: XYZ,
   distance: number,
+  elevation?: number,
 ): XYZ {
   const ox = camPos.x - camTarget.x;
-  const oy = camPos.y - camTarget.y;
   const oz = camPos.z - camTarget.z;
+  const oy = camPos.y - camTarget.y;
   const offsetLen = Math.hypot(ox, oy, oz);
   if (offsetLen < 1e-9) {
     // Legacy default approach — the pre-pilot fixed south-east vantage.
@@ -73,8 +80,17 @@ export function approachFromCurrentDirection(
       z: target.z + distance * 0.75,
     };
   }
-  const s = distance / offsetLen;
-  return { x: target.x + ox * s, y: target.y + oy * s, z: target.z + oz * s };
+  const horizRadius = Math.hypot(ox, oz);
+  // Only a straight-down view has no azimuth to carry; the legacy vantage
+  // supplies one so an elevation-carrying flight still has a side to sit on.
+  const azimuth = horizRadius < 1e-9 ? Math.atan2(0.75, 0.4) : Math.atan2(oz, ox);
+  const el = elevation ?? Math.atan2(oy, horizRadius);
+  const horiz = Math.cos(el) * distance;
+  return {
+    x: target.x + Math.cos(azimuth) * horiz,
+    y: target.y + Math.sin(el) * distance,
+    z: target.z + Math.sin(azimuth) * horiz,
+  };
 }
 
 /**
@@ -272,6 +288,8 @@ export function CameraRig() {
     if (!controls) return;
     const abortTween = () => {
       tweenRef.current = null;
+      // a hand is on the camera — the construction crane yields for good
+      useStore.getState().noteCameraManual();
     };
     controls.addEventListener("start", abortTween);
 
@@ -281,7 +299,7 @@ export function CameraRig() {
       lastPointer.current = { x: e.clientX, y: e.clientY };
       const { yaw, pitch } = deriveLookAngles(camera.quaternion);
       look.current = { yaw, pitch };
-      tweenRef.current = null; // the user takes over
+      abortTween(); // the user takes over
     };
     const onPointerMove = (e: PointerEvent) => {
       if (!dragging.current || modeRef.current !== "free") return;
@@ -297,7 +315,7 @@ export function CameraRig() {
       dragging.current = false;
     };
     const onWheel = (e: WheelEvent) => {
-      tweenRef.current = null;
+      abortTween();
       if (modeRef.current !== "free") return; // orbit mode: OrbitControls zooms
       // Dolly along the view direction — the wheel walks you into the city.
       camera.getWorldDirection(_dir);
@@ -376,6 +394,7 @@ export function CameraRig() {
       anchor,
       { x: toTarget.x, y: toTarget.y, z: toTarget.z },
       distance,
+      flyRequest.elevation,
     );
     const toPos = new THREE.Vector3(pos.x, pos.y, pos.z);
     firstFlightRef.current = false;
@@ -420,6 +439,7 @@ export function CameraRig() {
         keys.clear();
       } else {
         tweenRef.current = null;
+        useStore.getState().noteCameraManual();
         // Speed proportional to how deep the user is in the city: near =
         // slow (street level), far = fast (city overview).
         const speed = Math.min(40, Math.max(2.5, camera.position.length() * 0.25));

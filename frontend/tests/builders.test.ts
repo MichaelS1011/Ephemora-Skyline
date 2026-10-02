@@ -1,15 +1,16 @@
 import { describe, expect, it } from "vitest";
-import { planBuildSites } from "../src/city/sidewalks";
-import type { DirLayout } from "../src/city/layout";
+import { planConstruction } from "../src/city/layout";
+import type { BlockPlacement, BuildingPlacement, DirLayout } from "../src/city/layout";
 import type { CityDir, CityFile } from "../src/city/types";
+import { languageColor } from "../src/city/palette";
 
-function makeDir(name: string, path: string): CityDir {
+function makeDir(name: string, path: string, languages: Record<string, number> = {}): CityDir {
   return {
     name,
     path,
     fileCount: 0,
     linesOfCode: 100,
-    languages: {},
+    languages,
     findingsBySeverity: { P0: 0, P1: 0, P2: 0 },
     threatScore: 0,
     topFindings: [],
@@ -20,12 +21,12 @@ function makeDir(name: string, path: string): CityDir {
   };
 }
 
-function makeFile(id: string, path: string): CityFile {
+function makeFile(id: string, path: string, language = "TypeScript"): CityFile {
   return {
     id,
     name: `${id}.ts`,
     path,
-    language: "TypeScript",
+    language,
     linesOfCode: 120,
     cyclomaticComplexity: 3,
     threatLevel: "safe",
@@ -33,67 +34,120 @@ function makeFile(id: string, path: string): CityFile {
   };
 }
 
-/** 2 blocks + 3 plaza buildings, square footprints like the real layouts. */
+function tower(id: string, x: number, z: number, d: number, h: number): BuildingPlacement {
+  return { file: makeFile(id, `src/${id}.ts`), x, z, w: 2, d, h };
+}
+
+function block(name: string, x: number, z: number, d: number, skyline: BuildingPlacement[]) {
+  return {
+    dir: makeDir(name, `/${name}`, { Markdown: 40, TypeScript: 260 }),
+    x,
+    z,
+    w: 10,
+    d,
+    skyline,
+  };
+}
+
+/**
+ * 2 districts (one with two towers), 3 plaza buildings, podium present.
+ * Eight rising units — but only seven of them are places a builder stands.
+ */
 const LAYOUT: DirLayout = {
   dir: makeDir("root", ""),
   blocks: [
-    { dir: makeDir("api", "/api"), x: -20, z: -14, w: 10, d: 10, skyline: [] },
-    { dir: makeDir("web", "/web"), x: 18, z: 16, w: 6, d: 6, skyline: [] },
-  ],
+    block("api", -20, -14, 10, [tower("t1", -2, -2, 2.6, 9), tower("t2", 2.5, 1, 2, 4)]),
+    block("web", 18, 16, 6, []),
+  ] as BlockPlacement[],
   buildings: [
     { file: makeFile("f1", "src/a.ts"), x: 0, z: 0, w: 3, d: 3, h: 8 },
-    { file: makeFile("f2", "src/b.ts"), x: -6.4, z: 2, w: 2.6, d: 2.6, h: 5 },
-    { file: makeFile("f3", "src/c.ts"), x: 6.4, z: -2, w: 3.2, d: 3.2, h: 5 },
+    { file: makeFile("f2", "src/b.ts", "Python"), x: -6.4, z: 2, w: 2.6, d: 2.6, h: 5 },
+    { file: makeFile("f3", "src/c.ts", "Rust"), x: 6.4, z: -2, w: 3.2, d: 3.2, h: 5 },
   ],
-  // podium present on purpose: it must NOT receive a site
+  // podium on purpose: it lands as a floor slab, so it gets no work point
   podium: { count: 4, x: 12, z: 12 },
   streets: [],
   bounds: 40,
   plazaExtent: 10,
 };
 
-describe("planBuildSites", () => {
-  it("maps every block and building to a site — the podium gets none", () => {
-    const sites = planBuildSites(LAYOUT);
-    expect(sites).toHaveLength(5);
+const plan = planConstruction(LAYOUT, 1000);
+
+describe("planConstruction sites", () => {
+  it("counts every rising unit but staffs only the ones that stand somewhere", () => {
+    // 2 plots + 2 towers + 3 plaza buildings + 1 podium
+    expect(plan.total).toBe(8);
+    expect(plan.sites).toHaveLength(7);
+    expect(plan.sites.some((s) => s.kind === "district" && s.x === 12)).toBe(false);
   });
 
-  it("orders sites blocks first, then buildings — at the CityTree door points", () => {
-    const sites = planBuildSites(LAYOUT);
-    // blocks in layout.blocks order, door margin 1.1
-    expect(sites[0]!.x).toBe(-20);
-    expect(sites[0]!.doorZ).toBeCloseTo(-14 + 10 / 2 + 1.1, 10);
-    expect(sites[1]!.x).toBe(18);
-    expect(sites[1]!.doorZ).toBeCloseTo(16 + 6 / 2 + 1.1, 10);
-    // buildings in layout.buildings order, door margin 0.9
-    expect(sites[2]!.x).toBe(0);
-    expect(sites[2]!.doorZ).toBeCloseTo(0 + 3 / 2 + 0.9, 10);
-    expect(sites[3]!.x).toBe(-6.4);
-    expect(sites[3]!.doorZ).toBeCloseTo(2 + 2.6 / 2 + 0.9, 10);
-    expect(sites[4]!.x).toBe(6.4);
-    expect(sites[4]!.doorZ).toBeCloseTo(-2 + 3.2 / 2 + 0.9, 10);
+  it("orders sites in rise order, one slot per unit", () => {
+    expect(plan.sites.map((s) => s.kind)).toEqual([
+      "district",
+      "tower",
+      "tower",
+      "district",
+      "building",
+      "building",
+      "building",
+    ]);
+    const offsets = plan.sites.map((s) => s.offset);
+    expect([...offsets].sort((a, b) => a - b)).toEqual(offsets);
+    // the schedule and the work points are written by the same walk
+    expect(offsets[0]).toBeCloseTo(plan.blockAt[0]! - 1000, 6);
+    expect(offsets[1]).toBeCloseTo(plan.skylineAt[0]![0]! - 1000, 6);
+    expect(offsets[3]).toBeCloseTo(plan.blockAt[1]! - 1000, 6);
+    expect(offsets[4]).toBeCloseTo(plan.plazaAt[0]! - 1000, 6);
   });
 
-  it("places every work point outside its plot footprint", () => {
-    const placements: Array<{ x: number; z: number; w: number; d: number }> = [
-      ...LAYOUT.blocks,
-      ...LAYOUT.buildings,
+  it("puts a district tower's work point at the tower, not at the plot centre", () => {
+    const t = plan.sites[1]!; // api's first skyline tower, local (-2, -2)
+    expect(t.x).toBe(-22);
+    expect(t.z).toBe(-16);
+    expect(t.doorX).toBe(-22);
+    expect(t.doorZ).toBeCloseTo(-16 + 2.6 / 2 + 0.7, 10);
+  });
+
+  it("keeps every work point clear of the footprint it builds", () => {
+    const footprints = [
+      { x: -20, z: -14, d: 10 }, // api plot
+      { x: -22, z: -16, d: 2.6 }, // t1
+      { x: -17.5, z: -13, d: 2 }, // t2
+      { x: 18, z: 16, d: 6 }, // web plot
+      { x: 0, z: 0, d: 3 },
+      { x: -6.4, z: 2, d: 2.6 },
+      { x: 6.4, z: -2, d: 3.2 },
     ];
-    const sites = planBuildSites(LAYOUT);
-    expect(sites).toHaveLength(placements.length);
-    placements.forEach((p, i) => {
-      const s = sites[i]!;
-      // the work point sits at the plot edge, clear of the footprint
-      const outside =
-        Math.abs(s.doorX - p.x) >= p.w / 2 + 0.5 || Math.abs(s.doorZ - p.z) >= p.d / 2 + 0.5;
-      expect(outside).toBe(true);
-      // and at a straight-line distance clear of the half-extent + margin
-      const dist = Math.hypot(s.doorX - p.x, s.doorZ - p.z);
-      expect(dist).toBeGreaterThanOrEqual(Math.max(p.w, p.d) / 2 + 0.5);
+    expect(plan.sites).toHaveLength(footprints.length);
+    plan.sites.forEach((s, i) => {
+      const p = footprints[i]!;
+      expect(Math.hypot(s.doorX - p.x, s.doorZ - p.z)).toBeGreaterThanOrEqual(p.d / 2 + 0.5);
     });
   });
 
-  it("is deterministic — same layout, same sites", () => {
-    expect(planBuildSites(LAYOUT)).toEqual(planBuildSites(LAYOUT));
+  it("hands the builder the height the block lands at", () => {
+    expect(plan.sites[1]!.h).toBe(9); // t1
+    expect(plan.sites[4]!.h).toBe(8); // f1
+    // a district plot opens as a pad, not a tower
+    expect(plan.sites[0]!.h).toBeLessThan(1);
+  });
+
+  it("carries the unit's own footprint — that is what the crane frames", () => {
+    // A shot sized to the plot fills the frame for a three-file module and a
+    // forty-file package alike; sized to nothing it can only guess.
+    expect(plan.sites[0]!.span).toBe(10); // the api plot, 10×10
+    expect(plan.sites[1]!.span).toBe(2.6); // t1's own footprint
+    expect(plan.sites[4]!.span).toBe(3); // f1 on the plaza
+  });
+
+  it("colours the carried block with the language the unit is made of", () => {
+    expect(plan.sites[5]!.color).toBe(languageColor("Python"));
+    expect(plan.sites[6]!.color).toBe(languageColor("Rust"));
+    // a district is built from its own dominant language
+    expect(plan.sites[0]!.color).toBe(languageColor("TypeScript"));
+  });
+
+  it("is deterministic — same layout, same schedule", () => {
+    expect(planConstruction(LAYOUT, 1000)).toEqual(plan);
   });
 });

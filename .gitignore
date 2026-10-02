@@ -66,3 +66,4 @@ docker/*.local.yml
 # Local planning and agent scratch (kept on disk, never published)
 .hermes/
 **/.video_agent/
+.qoder-scratch/

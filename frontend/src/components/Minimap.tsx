@@ -113,7 +113,7 @@ export function Minimap({ show = true }: { show?: boolean }) {
       const extent = Math.max(layout.bounds + 8, 20);
       const worldX = ((px - PADDING) / (MAP_SIZE - PADDING * 2)) * extent * 2 - extent;
       const worldZ = ((py - PADDING) / (MAP_SIZE - PADDING * 2)) * extent * 2 - extent;
-      requestFly(worldX, worldZ, layout.bounds * 1.1);
+      requestFly({ x: worldX, z: worldZ, distance: layout.bounds * 1.1 });
     },
     [cityData, focusPath, requestFly],
   );
@@ -127,7 +127,7 @@ export function Minimap({ show = true }: { show?: boolean }) {
       if (e.key === "Enter" || e.key === " ") {
         e.preventDefault();
         const layout = getDirLayout(cityData, focusPath);
-        requestFly(0, 0, layout.bounds * 1.1);
+        requestFly({ x: 0, z: 0, distance: layout.bounds * 1.1 });
       }
     },
     [cityData, focusPath, requestFly],

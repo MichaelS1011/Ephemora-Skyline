@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef } from "react";
 import { Stars } from "@react-three/drei";
 import { useThree } from "@react-three/fiber";
 import { useStore } from "../stores/useStore";
-import { constructionStep, getDirLayout } from "../city/layout";
+import { getDirLayout } from "../city/layout";
 import { ENV } from "../city/palette";
 import { CameraRig } from "./CameraRig";
 import { CityTree } from "./CityTree";
@@ -20,6 +20,7 @@ export function CityScene() {
   const focusPath = useStore((s) => s.focusPath);
   const requestFly = useStore((s) => s.requestFly);
   const buildStartedAt = useStore((s) => s.buildStartedAt);
+  const buildPhase = useStore((s) => s.buildPhase);
   const { camera, gl } = useThree();
 
   // ACES has a toe steep enough to floor an entire dusk scene: measured on a
@@ -36,31 +37,44 @@ export function CityScene() {
   // CityScene mounted while the city pointer changes, so the flight is
   // coupled to buildStartedAt, not to a session-wide "ever had a city" flag.
   const craneBuildRef = useRef<number | null>(null);
+  const overviewRef = useRef<number | null>(null);
 
   // Empty world: an establishing shot close enough to SEE the Ephe's
   // strolling the ground — the world feels inhabited before it is built.
   useEffect(() => {
     if (cityData) {
-      // City just appeared (new build): start the crane at street level,
-      // then glide up to the overview in ONE flight timed to the build
+      // City just appeared (new build): the crane starts at street level and
+      // CityTree drives it district by district while they rise (the build is
+      // only legible at plot height — see CityTree's tour). Pulling out to the
+      // overview here would spend the whole construction flying away from the
+      // figures the user came to watch; that reveal is the 'built' effect below.
       if (craneBuildRef.current !== buildStartedAt) {
         craneBuildRef.current = buildStartedAt;
-        const layout = getDirLayout(cityData, []);
         camera.position.set(14, 2.2, 26);
         camera.lookAt(0, 1.5, 0);
-        const unitTotal = layout.blocks.length + layout.buildings.length + (layout.podium ? 1 : 0);
-        const flightSeconds = Math.min(
-          9,
-          Math.max(4, (unitTotal * constructionStep(unitTotal)) / 1000),
-        );
-        requestFly(0, 0, Math.max(layout.bounds * 1.75, 130), flightSeconds);
       }
       return;
     }
     craneBuildRef.current = null;
+    overviewRef.current = null;
     camera.position.set(17, 10, 34);
     camera.lookAt(0, 1, 0);
   }, [cityData, buildStartedAt, camera, requestFly]);
+
+  // City stands → rise out to the overview the user came for.
+  useEffect(() => {
+    if (!cityData || buildPhase !== "built") return;
+    // only for the build this crane is armed for, and only once
+    if (craneBuildRef.current !== buildStartedAt || overviewRef.current === buildStartedAt) return;
+    overviewRef.current = buildStartedAt;
+    const layout = getDirLayout(cityData, []);
+    requestFly({
+      x: 0,
+      z: 0,
+      distance: Math.max(layout.bounds * 1.75, 130),
+      duration: 2.6,
+    });
+  }, [cityData, buildPhase, buildStartedAt, requestFly]);
 
   const bounds = useMemo(() => {
     if (!cityData) return 60;

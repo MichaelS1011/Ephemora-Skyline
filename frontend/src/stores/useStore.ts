@@ -21,8 +21,18 @@ export interface FlyRequest {
    * when omitted the rig keeps its ground-level default (y = 1.5).
    */
   targetY?: number;
+  /**
+   * Elevation above the horizon at the destination, in radians. Optional —
+   * when omitted the flight keeps the direction the user is looking from.
+   * The construction crane sets it: a shot that inherits a street-level eye
+   * line can never hold a plot and its towers at once.
+   */
+  elevation?: number;
   nonce: number;
 }
+
+/** A scripted flight, as asked for by the caller (the rig adds the nonce). */
+export type FlyOptions = Omit<FlyRequest, "nonce" | "distance"> & { distance?: number };
 
 export interface CameraInfo {
   x: number;
@@ -117,9 +127,14 @@ interface AppState {
 
   // ── Camera command channel ─────────────────────────────────────────────
   flyRequest: FlyRequest | null;
-  requestFly: (x: number, z: number, distance?: number, duration?: number) => void;
+  requestFly: (req: FlyOptions) => void;
   cameraInfo: CameraInfo;
   setCameraInfo: (info: CameraInfo) => void;
+  /** epoch-ms of the last moment a hand took the camera. The construction crane
+   *  yields to a pilot: once the user drives during a build, the crane stops
+   *  flying for the rest of that build. */
+  cameraManualAt: number;
+  noteCameraManual: () => void;
 
   // ── Filters ────────────────────────────────────────────────────────────
   threatFilter: Severity | "all";
@@ -416,10 +431,17 @@ export const useStore = create<AppState>((set, get) => ({
   exitOrbit: () => set({ cameraMode: "free" }),
 
   flyRequest: null,
-  requestFly: (x, z, distance = 40, duration) =>
-    set({ flyRequest: { x, z, distance, duration, nonce: ++flyNonce } }),
+  requestFly: ({ distance = 40, ...rest }) =>
+    set({ flyRequest: { ...rest, distance, nonce: ++flyNonce } }),
   cameraInfo: { x: 0, z: 60, angle: 0, dist: 80 },
   setCameraInfo: (info) => set({ cameraInfo: info }),
+  cameraManualAt: 0,
+  // throttled: the walk path calls this every frame a key is held down
+  noteCameraManual: () => {
+    const now = Date.now();
+    if (now - get().cameraManualAt < 250) return;
+    set({ cameraManualAt: now });
+  },
 
   threatFilter: "all",
   setThreatFilter: (f) => set({ threatFilter: f }),

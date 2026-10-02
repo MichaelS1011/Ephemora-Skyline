@@ -3,7 +3,8 @@
 import { useLayoutEffect, useMemo, useRef } from "react";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
-import { graphPath, nearestNode, type BuildSite, type SidewalkNetwork } from "../city/sidewalks";
+import { graphPath, nearestNode, type SidewalkNetwork } from "../city/sidewalks";
+import type { BuildSite } from "../city/layout";
 
 /**
  * The Ephe's — the citizens of Ephemora Skyline.
@@ -18,12 +19,13 @@ import { graphPath, nearestNode, type BuildSite, type SidewalkNetwork } from "..
  * - a bus stops at the bus stop: waiting Ephe's board, others step out
  * - pairs stop and chat under tiny speech bubbles full of 0s and 1s
  * - bodies come in all shapes: small, tall, broad, slim
- * - when a build site is scheduled, walkers in yellow hats walk to the
- *   plot edge and "work" there while the building rises
+ * - while the city is being built, walkers in yellow hats carry a block
+ *   (coloured by the language the unit is made of) to the plot that is about
+ *   to rise, set it on the roof as the tower comes up, and stroll on
  *
- * Everything is instanced (2 draw calls for all walkers, +1 when the
- * builders' hats are in the scene) plus one taxi, one bus, one bus-stop
- * sign and a 3-sprite pool for the chat bubbles.
+ * Everything is instanced (2 draw calls for all walkers, +2 when the
+ * builders' hats and blocks are in the scene) plus one taxi, one bus, one
+ * bus-stop sign and a 3-sprite pool for the chat bubbles.
  */
 
 interface StreetLine {
@@ -80,7 +82,8 @@ interface Ephe {
   path: number[]; // planned node hops (route to a goal)
   finalX: number | null; // off-graph goal after the path ends (door, curb slot)
   finalZ: number;
-  siteIndex: number; // build site while toSite/work, -1 otherwise
+  siteIndex: number; // build site currently worked, -1 otherwise
+  hustle: number; // builders hurry; everyone else strolls
 }
 
 const WALKER_COLORS = [
@@ -98,6 +101,24 @@ const TURN_SPEED = 3.4;
 const ARRIVE = 0.55;
 /** Builder hat colour — brand amber, instanced on the hat mesh. */
 const HAT_COLOR = new THREE.Color("#e8b23c");
+/** One tower's rise — must stay in step with Building.tsx. */
+const RISE_MS = 700;
+/** A crew member is on a deadline; a stroller is not. */
+const BUILDER_HUSTLE = 2.1;
+/** How often the crew table is re-checked for work it can still reach. */
+const BUILD_DISPATCH_S = 0.15;
+/** Sidewalks follow the street grid: the route is a little longer than a
+ *  straight line, and a figure handed an impossible plot just walks off. */
+const GRID_ROUTE_FACTOR = 1.2;
+/** Within this distance a figure steps straight to its goal instead of being
+ *  routed through the street network (plot frontage, door approach). */
+const DIRECT_STEP_UNITS = 12;
+/** The block has to be in the air before the rise lands — arriving in the
+ *  last instants of it places nothing. */
+const PLACE_PAD_MS = 150;
+/** How far ahead a figure will commit to a plot. Longer than this and it
+ *  spends the wait standing at an empty foundation. */
+const BUILD_HORIZON_MS = 3500;
 
 function makeEphe(i: number, bounds: number, net: SidewalkNetwork | null, homes: HomeSpot[]): Ephe {
   const shape = ((i * 61) % 100) / 100;
@@ -126,6 +147,7 @@ function makeEphe(i: number, bounds: number, net: SidewalkNetwork | null, homes:
     finalX: null,
     finalZ: 0,
     siteIndex: -1,
+    hustle: 1,
   };
   if (net && net.nodes.length > 0) {
     // Spread the population across the whole sidewalk network
@@ -198,6 +220,7 @@ export function Pedestrians({
   const bodyRef = useRef<THREE.InstancedMesh>(null);
   const headRef = useRef<THREE.InstancedMesh>(null);
   const hatRef = useRef<THREE.InstancedMesh>(null);
+  const cargoRef = useRef<THREE.InstancedMesh>(null);
   const taxiRef = useRef<THREE.Group>(null);
   const busRef = useRef<THREE.Group>(null);
   const stopRef = useRef<THREE.Group>(null);
@@ -210,6 +233,10 @@ export function Pedestrians({
     () => Array.from({ length: count }, (_, i) => makeEphe(i, bounds, network, homes)),
     [count, bounds, network, homes],
   );
+
+  // Builders on the stage at once: most of the population, because the plots
+  // that rise in the same second are scattered all over the city.
+  const CREW_SIZE = Math.max(6, Math.ceil(count * 0.6));
 
   // ── Transit infrastructure (only with a city) ────────────────────────────
   const transit = useMemo(() => {
@@ -255,6 +282,12 @@ export function Pedestrians({
     };
   }, [cityLife, streets]);
 
+  // ── Crew jobs ────────────────────────────────────────────────────────────
+  // A work point goes to whichever free figure can cover the ground to its
+  // door before that unit's rise lands (dispatch block in the frame loop).
+  // layout.ts writes one site per rising unit, in rise order, from the same
+  // walk that writes the rise schedule.
+
   // Mutable simulation state lives in refs (no React re-renders per frame)
   const sim = useRef({
     walkers,
@@ -265,8 +298,14 @@ export function Pedestrians({
     tChat: 5,
     tStopRefill: 6,
     tTaxi: 8,
-    // build sites: claimed site index → walker index, finished sites
-    build: { claimed: new Map<number, number>(), done: new Set<number>(), timer: 1.2 },
+    // build crew: which sites are worked / retired, and the dispatch tick
+    build: {
+      sites: null as Array<BuildSite & { at: number }> | null,
+      claimed: new Map<number, number>(),
+      settled: new Set<number>(),
+      positioned: false,
+      timer: 0,
+    },
     // taxi state: 0 drive, 1 dwell, 2 drive-off pause
     taxi: { mode: 0, timer: 6, phase: 0, passenger: -1 },
     // bus state: 0 drive, 1 dwell
@@ -283,23 +322,38 @@ export function Pedestrians({
     textures: null as Array<THREE.CanvasTexture | null> | null,
     time: 0,
   });
-  // Fresh walkers carry no build claims — stale site bookings would block
-  // the scheduler forever
+  // Fresh walkers hold no claim — a stale index would point at the previous
+  // city's figures and leave a site claimed by someone who no longer exists
   if (sim.current.walkers !== walkers) {
     sim.current.build.claimed.clear();
-    sim.current.build.done.clear();
+    for (const e of walkers) {
+      e.siteIndex = -1;
+      e.hustle = 1;
+    }
   }
   sim.current.walkers = walkers;
   sim.current.transit = transit;
+  // A new build (or the empty world) restarts the crew table
+  if (sim.current.build.sites !== (buildSites ?? null)) {
+    sim.current.build.sites = buildSites ?? null;
+    sim.current.build.claimed.clear();
+    sim.current.build.settled.clear();
+    sim.current.build.positioned = false;
+    sim.current.build.timer = 0;
+  }
 
   // Keep walkers array in sync when streets change
   if (sim.current.busSeg === null && streets && streets.length > 0)
     sim.current.busSeg = streets[0]!;
 
   const dummy = useMemo(() => new THREE.Object3D(), []);
+  const scratchColor = useMemo(() => new THREE.Color(), []);
   const bodyGeo = useMemo(() => new THREE.CapsuleGeometry(0.17, 0.42, 3, 8), []);
   const headGeo = useMemo(() => new THREE.SphereGeometry(0.14, 8, 6), []);
   const hatGeo = useMemo(() => new THREE.ConeGeometry(0.16, 0.22, 8), []);
+  // One full-size building block, not a pebble: at the framing the build
+  // plays in, a 0.3-unit cube is three pixels and the choreography is lost.
+  const cargoGeo = useMemo(() => new THREE.BoxGeometry(0.82, 0.82, 0.82), []);
 
   const bubbleTextures = useMemo(() => {
     const make = (): THREE.CanvasTexture => {
@@ -321,20 +375,24 @@ export function Pedestrians({
     if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
   }, [walkers]);
 
-  // Hats start collapsed (scale 0) so nothing pokes out of the ground
-  // before the first frame positions them; every walker gets the amber
-  // instance colour up front — only builders ever scale the hat up.
+  // Hats and carried blocks start collapsed (scale 0) so nothing pokes out of
+  // the ground before the first frame positions them; every walker gets the
+  // amber instance colour up front — only builders ever scale the hat up.
   useLayoutEffect(() => {
-    const mesh = hatRef.current;
-    if (!mesh) return;
-    dummy.position.set(0, 0, 0);
-    dummy.rotation.set(0, 0, 0);
-    dummy.scale.setScalar(0);
-    dummy.updateMatrix();
-    for (let i = 0; i < count; i++) mesh.setMatrixAt(i, dummy.matrix);
-    mesh.instanceMatrix.needsUpdate = true;
-    walkers.forEach((_, i) => mesh.setColorAt(i, HAT_COLOR));
-    if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
+    for (const mesh of [hatRef.current, cargoRef.current]) {
+      if (!mesh) continue;
+      dummy.position.set(0, 0, 0);
+      dummy.rotation.set(0, 0, 0);
+      dummy.scale.setScalar(0);
+      dummy.updateMatrix();
+      for (let i = 0; i < count; i++) mesh.setMatrixAt(i, dummy.matrix);
+      mesh.instanceMatrix.needsUpdate = true;
+    }
+    const hats = hatRef.current;
+    if (hats) {
+      walkers.forEach((_, i) => hats.setColorAt(i, HAT_COLOR));
+      if (hats.instanceColor) hats.instanceColor.needsUpdate = true;
+    }
   }, [walkers, count, buildSites, dummy]);
 
   // ── helpers ──────────────────────────────────────────────────────────────
@@ -348,7 +406,7 @@ export function Pedestrians({
     while (diff > Math.PI) diff -= Math.PI * 2;
     while (diff < -Math.PI) diff += Math.PI * 2;
     e.angle += Math.max(-TURN_SPEED * dt, Math.min(TURN_SPEED * dt, diff));
-    const step = Math.min(e.speed * dt, dist);
+    const step = Math.min(e.speed * e.hustle * dt, dist);
     e.x += Math.sin(e.angle) * step;
     e.z += Math.cos(e.angle) * step;
     return false;
@@ -404,6 +462,15 @@ export function Pedestrians({
   // Route a walker to a point: graph hops to the nearest node, then a
   // short straight hop to the goal itself (door, curb slot)
   const routeTo = (e: Ephe, x: number, z: number): void => {
+    // A step across the frontage does not belong on the street network: routed
+    // through the grid it sends the figure down to a curb node and back, and it
+    // arrives long after its own plot rose.
+    if (Math.hypot(x - e.x, z - e.z) <= DIRECT_STEP_UNITS) {
+      e.path = [];
+      e.finalX = x;
+      e.finalZ = z;
+      return;
+    }
     if (!network || network.nodes.length === 0) {
       e.finalX = x;
       e.finalZ = z;
@@ -439,6 +506,43 @@ export function Pedestrians({
     return -1;
   };
 
+  /**
+   * Stand the crew on the plots they are about to build.
+   * The sidewalk network is the street grid, and a plot's work point is ~20
+   * units from the nearest curb node — no figure can cover that between two
+   * rises, so a crew drawn from the strolling population never arrives and the
+   * skyline goes up empty (measured on the demo: nearest free walker 18.6 units
+   * from plot 0). So the builders start where the work is: on the street side of
+   * their own plot, a few units off the door. The short walk in, the block up
+   * over the foundation and the set-down as the unit rises stay entirely theirs.
+   * Positions follow rise order, so every district gets its share. Called once
+   * per build while the ground is still bare, so nobody pops into shot.
+   */
+  const takePositions = (sites: Array<BuildSite & { at: number }>): void => {
+    const net = network;
+    for (let i = 0; i < walkers.length; i++) {
+      const e = walkers[i]!;
+      const site = sites[Math.floor((i * sites.length) / walkers.length)]!;
+      // street side of the door, spread so a shared plot is not one pile
+      const x = site.doorX + ((i % 5) - 2) * 0.7;
+      const z = site.doorZ + 2.5 + (i % 4) * 1.2;
+      e.x = x;
+      e.z = z;
+      e.tx = x;
+      e.tz = z;
+      e.angle = Math.atan2(site.x - x, site.z - z); // facing the plot
+      e.mode = "walk";
+      e.siteIndex = -1;
+      e.hustle = 1;
+      // stand fast until the work starts; staggered so they do not all set off
+      // on the same frame when the wait is over
+      e.pause = 3.2 + (i % 7) * 0.35;
+      e.path = [];
+      e.finalX = null;
+      if (net && net.nodes.length > 0) e.node = nearestNode(net, x, z);
+    }
+  };
+
   useFrame((state, delta) => {
     const dt = Math.min(delta, 0.1);
     const now = (sim.current.time += dt);
@@ -453,6 +557,7 @@ export function Pedestrians({
     const hasSites = !!buildSites && buildSites.length > 0;
     const epochNow = hasSites ? Date.now() : 0;
     const hats = hatRef.current;
+    const cargos = cargoRef.current;
 
     // Construction site: keep the vehicles OFF the stage. The blocks below
     // only ever turn them on, so an in-city re-scan (same mounted component)
@@ -742,48 +847,63 @@ export function Pedestrians({
     // ── build sites: walkers become builders for the rise choreography ─────
     // NEVER-STALL: the buildings rise on a pure clock (CityTree's appearAt
     // schedule) — this choreography is decorative and must NEVER delay the
-    // construction. Builders are dispatched 2.5 s before a rise starts and
-    // released the moment it is done; a site that went overdue is long
-    // finished, so its builder simply gives up and strolls on. Runs
-    // independently of vehiclesActive — builders are walkers, not traffic.
+    // construction. Runs independently of vehiclesActive — builders are
+    // walkers, not traffic.
     if (hasSites) {
+      // once per build, before the first rise: the crew takes the curbs
+      if (!S.build.positioned && epochNow < buildSites![0]!.at) {
+        S.build.positioned = true;
+        takePositions(buildSites!);
+      }
       S.build.timer -= dt;
       if (S.build.timer <= 0) {
-        S.build.timer = 0.6;
-        if (S.build.claimed.size < 8) {
-          // earliest site inside its assignment window, not claimed/done
-          let siteIdx = -1;
-          for (let i = 0; i < buildSites!.length; i++) {
-            if (S.build.claimed.has(i) || S.build.done.has(i)) continue;
-            const at = buildSites![i]!.at;
-            if (epochNow >= at - 2500 && epochNow <= at) {
-              siteIdx = i;
-              break;
+        S.build.timer = BUILD_DISPATCH_S;
+        const sites = buildSites!;
+        // Work is picked by PROXIMITY, not by rise order: consecutive sites are
+        // ~20 units apart (the rise walks district by district), so a crew that
+        // queued on the earliest open site would stare at a plot it can never
+        // reach while the rest of the city went up empty. Each free figure
+        // takes the nearest plot it can still get to before that rise lands,
+        // within the next few seconds — no figure stands waiting at a plot that
+        // rises in half a minute.
+        for (let b = 0; b < walkers.length && S.build.claimed.size < CREW_SIZE; b++) {
+          const w = walkers[b]!;
+          // A figure standing at a plot is exactly the one to use, so a paused
+          // walk is not a reason to skip it — only a chat or a ride is.
+          if (w.mode !== "walk" || w.chatPartner >= 0 || w.hidden) continue;
+          let best = -1;
+          let bestD = Infinity;
+          for (let i = 0; i < sites.length; i++) {
+            if (S.build.claimed.has(i) || S.build.settled.has(i)) continue;
+            const s = sites[i]!;
+            // time left to set the block on this unit's roof
+            const slackMs = s.at + RISE_MS - PLACE_PAD_MS - epochNow;
+            if (slackMs <= 0) {
+              S.build.settled.add(i); // rise has landed: it needs nobody
+              continue;
+            }
+            if (slackMs > BUILD_HORIZON_MS) continue;
+            // sidewalks follow the grid, so a long approach is routed further
+            // than a straight line; a frontage step is the straight line itself
+            const d = Math.hypot(w.x - s.doorX, w.z - s.doorZ);
+            const route = d <= DIRECT_STEP_UNITS ? d : d * GRID_ROUTE_FACTOR;
+            if (route > (w.speed * BUILDER_HUSTLE * slackMs) / 1000) continue;
+            if (d < bestD) {
+              bestD = d;
+              best = i;
             }
           }
-          if (siteIdx >= 0) {
-            const site = buildSites![siteIdx]!;
-            // nearest free walker becomes the builder for this site
-            let best = -1;
-            let bestD = Infinity;
-            for (let i = 0; i < walkers.length; i++) {
-              const e = walkers[i]!;
-              if (e.mode !== "walk" || e.pause > 0 || e.chatPartner >= 0 || e.hidden) continue;
-              const dx = e.x - site.doorX;
-              const dz = e.z - site.doorZ;
-              const d = dx * dx + dz * dz;
-              if (d < bestD) {
-                bestD = d;
-                best = i;
-              }
-            }
-            if (best >= 0) {
-              const e = walkers[best]!;
-              e.mode = "toSite";
-              e.siteIndex = siteIdx;
-              routeTo(e, site.doorX, site.doorZ);
-              S.build.claimed.set(siteIdx, best);
-            }
+          if (best < 0) continue;
+          const site = sites[best]!;
+          w.mode = "toSite";
+          w.siteIndex = best;
+          w.hustle = BUILDER_HUSTLE;
+          w.pause = 0;
+          routeTo(w, site.doorX, site.doorZ);
+          S.build.claimed.set(best, b);
+          if (cargos) {
+            cargos.setColorAt(b, scratchColor.set(site.color));
+            if (cargos.instanceColor) cargos.instanceColor.needsUpdate = true;
           }
         }
       }
@@ -843,6 +963,7 @@ export function Pedestrians({
         if (!site) {
           // site list changed under us — never stall, stroll on
           e.siteIndex = -1;
+          e.hustle = 1;
           resumeWalk(e);
           e.mode = "walk";
         } else {
@@ -855,22 +976,26 @@ export function Pedestrians({
           }
           // NEVER-STALL: the rise is pure clock — an overdue site is long
           // done, so the builder gives up instead of wasting time
-          if (epochNow > site.at + 700) {
+          if (epochNow > site.at + RISE_MS) {
             S.build.claimed.delete(e.siteIndex);
+            S.build.settled.add(e.siteIndex);
             e.siteIndex = -1;
+            e.hustle = 1;
             resumeWalk(e);
             e.mode = "walk";
           }
         }
       } else if (e.mode === "work") {
         const site = buildSites?.[e.siteIndex];
-        if (!site || epochNow > site.at + 700) {
-          // rise complete — mark the site done and rejoin everyday life
+        if (!site || epochNow > site.at + RISE_MS) {
+          // block set on the roof — rejoin everyday life, and be free for the
+          // next site the moment the dispatch tick comes round
           if (e.siteIndex >= 0) {
             S.build.claimed.delete(e.siteIndex);
-            S.build.done.add(e.siteIndex);
+            S.build.settled.add(e.siteIndex);
           }
           e.siteIndex = -1;
+          e.hustle = 1;
           resumeWalk(e);
           e.mode = "walk";
         }
@@ -893,6 +1018,7 @@ export function Pedestrians({
           ? Math.sin(now * 9) * 0.04
           : 0;
       const y = (0.44 + bob) * e.tall * grow;
+      const vScale = e.tall * grow * visibleScale;
 
       dummy.position.set(e.x, y, e.z);
       dummy.rotation.set(
@@ -924,12 +1050,50 @@ export function Pedestrians({
       if (hats) {
         // only builders wear the hat; everyone else collapses to scale 0
         const builder = (e.mode === "work" || e.mode === "toSite") && visibleScale > 0;
-        const vScale = e.tall * grow * visibleScale;
         dummy.position.set(e.x, y + 0.46 * e.tall * grow + 0.16 * vScale, e.z);
         dummy.rotation.set(0, 0, 0);
         dummy.scale.setScalar(builder ? vScale : 0);
         dummy.updateMatrix();
         hats.setMatrixAt(i, dummy.matrix);
+      }
+
+      if (cargos) {
+        // The block a builder carries: held out in front on the way to the
+        // plot, raised overhead once it stands at the pad, then it flies onto
+        // the roof and lands with the top of the rise — from there it is wall,
+        // no longer cargo, and the figure walks on to the next plot.
+        const site = e.siteIndex >= 0 ? buildSites?.[e.siteIndex] : undefined;
+        const carrying = !!site && (e.mode === "toSite" || e.mode === "work") && visibleScale > 0;
+        if (!site || !carrying) {
+          dummy.rotation.set(0, 0, 0);
+          dummy.scale.setScalar(0);
+        } else {
+          // every builder hauls the same block, so the crew reads as a crew
+          const s = grow * visibleScale;
+          const k = (epochNow - site.at) / RISE_MS;
+          const overhead = e.mode === "work" && k <= 0;
+          const reach = overhead ? 0.12 : 0.62;
+          const hand = {
+            x: e.x + Math.sin(e.angle) * reach,
+            y: overhead ? y + 1.05 * s : y + 0.18 * s,
+            z: e.z + Math.cos(e.angle) * reach,
+          };
+          if (k <= 0) {
+            dummy.position.set(hand.x, hand.y, hand.z);
+          } else {
+            const lift = Math.min(1, k * 2.2);
+            const ease = 1 - Math.pow(1 - Math.min(1, k), 3);
+            dummy.position.set(
+              THREE.MathUtils.lerp(hand.x, site.x, lift),
+              THREE.MathUtils.lerp(hand.y, site.h * ease + 0.45 * s, lift),
+              THREE.MathUtils.lerp(hand.z, site.z, lift),
+            );
+          }
+          dummy.rotation.set(0, e.angle + 0.5, 0);
+          dummy.scale.setScalar(s);
+        }
+        dummy.updateMatrix();
+        cargos.setMatrixAt(i, dummy.matrix);
       }
     });
     bodies.instanceMatrix.needsUpdate = true;
@@ -950,6 +1114,14 @@ export function Pedestrians({
       {buildSites && (
         <instancedMesh ref={hatRef} args={[hatGeo, undefined, count]} frustumCulled={false}>
           <meshStandardMaterial roughness={0.5} />
+        </instancedMesh>
+      )}
+
+      {/* The blocks in their hands — one per builder, tinted by the language
+          the unit it is placing is written in */}
+      {buildSites && (
+        <instancedMesh ref={cargoRef} args={[cargoGeo, undefined, count]} frustumCulled={false}>
+          <meshStandardMaterial roughness={0.75} metalness={0.05} />
         </instancedMesh>
       )}
 

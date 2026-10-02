@@ -12,7 +12,7 @@
  * walkers, the crosswalk stripes and the street furniture agree.
  */
 
-import type { DirLayout, StreetLine } from "./layout";
+import type { StreetLine } from "./layout";
 
 export interface SidewalkNode {
   x: number;
@@ -183,30 +183,4 @@ export function graphPath(net: SidewalkNetwork, from: number, to: number): numbe
     }
   }
   return [];
-}
-
-/** A plot a building will rise on: x/z plot centre, doorX/doorZ work point. */
-export interface BuildSite {
-  x: number;
-  z: number;
-  doorX: number;
-  doorZ: number;
-}
-
-/**
- * Work points for every rising plot, in the city's build order: the blocks
- * first (layout.blocks order), then the plaza buildings (layout.buildings
- * order). The podium never rises as a plot, so it gets no site. The door
- * points match the home doors CityTree hands to the walkers. Deterministic:
- * the same layout always produces the same sites.
- */
-export function planBuildSites(layout: DirLayout): BuildSite[] {
-  const sites: BuildSite[] = [];
-  for (const b of layout.blocks) {
-    sites.push({ x: b.x, z: b.z, doorX: b.x, doorZ: b.z + b.d / 2 + 1.1 });
-  }
-  for (const b of layout.buildings) {
-    sites.push({ x: b.x, z: b.z, doorX: b.x, doorZ: b.z + b.d / 2 + 0.9 });
-  }
-  return sites;
 }

@@ -37,14 +37,14 @@ export function HeatmapToggle() {
     setHeatChannel(id);
     // Make the click visibly matter: jump straight into the heat-grid view
     if (!lodFar)
-      requestFly(
-        0,
-        0,
-        Math.max(
+      requestFly({
+        x: 0,
+        z: 0,
+        distance: Math.max(
           bounds * (LOD_THRESHOLDS.RELATIVE_ENTER + 0.4),
           LOD_THRESHOLDS.ABSOLUTE_FLOOR + 60,
         ),
-      );
+      });
   };
 
   return (

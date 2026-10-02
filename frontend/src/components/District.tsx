@@ -17,12 +17,18 @@ import { Building } from "./Building";
 
 export interface DistrictProps {
   placement: BlockPlacement;
-  /** Epoch ms when this district starts to rise. */
+  /** Epoch ms when this district's plot opens. */
   appearAt: number;
+  /**
+   * Epoch ms per skyline tower, in `placement.skyline` order — the city-wide
+   * build schedule hands each tower its own slot, so a district fills up
+   * one building at a time instead of appearing as a finished clump.
+   */
+  skylineAt: number[];
   constructing: boolean;
 }
 
-export function District({ placement, appearAt, constructing }: DistrictProps) {
+export function District({ placement, appearAt, skylineAt, constructing }: DistrictProps) {
   const drillIn = useStore((s) => s.drillIn);
   const setHoveredId = useStore((s) => s.setHoveredId);
 
@@ -119,7 +125,7 @@ export function District({ placement, appearAt, constructing }: DistrictProps) {
           d={b.d}
           h={b.h}
           interactive={false}
-          appearAt={appearAt + 250 + i * 90}
+          appearAt={skylineAt[i] ?? appearAt}
           constructing={constructing}
         />
       ))}

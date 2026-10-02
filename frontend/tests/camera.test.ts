@@ -48,6 +48,19 @@ describe("approachFromCurrentDirection", () => {
     expect(len(newOffset)).toBeCloseTo(distance, 6);
   });
 
+  it("takes a scripted elevation but keeps the side of the city it is on", () => {
+    // The construction crane: its own eye line, the user's azimuth.
+    const camPos = { x: 40, y: 50, z: 100 };
+    const camTarget = { x: 0, y: 0, z: 0 };
+    const target = { x: -30, y: 1.5, z: 20 };
+    const pos = approachFromCurrentDirection(camPos, camTarget, target, 24, 0.36);
+
+    const off = { x: pos.x - target.x, y: pos.y - target.y, z: pos.z - target.z };
+    expect(azimuth(off)).toBeCloseTo(azimuth({ x: 40, z: 100 }), 6);
+    expect(elevation(off)).toBeCloseTo(0.36, 6);
+    expect(len(off)).toBeCloseTo(24, 6);
+  });
+
   it("lands exactly `distance` away and anchors on the new target", () => {
     const pos = approachFromCurrentDirection(
       { x: 0, y: 60, z: 60 },

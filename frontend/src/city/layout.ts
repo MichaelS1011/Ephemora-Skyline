@@ -18,7 +18,7 @@
  */
 
 import type { CityData, CityDir, CityFile, CityFinding, Severity } from "./types";
-import { threatRank } from "./palette";
+import { languageColor, threatRank } from "./palette";
 import {
   blockFootprint as blockFootprintOf,
   buildingHeight as heightOf,
@@ -400,14 +400,171 @@ export function getLayoutMode(): LayoutMode {
 
 // ── Construction pacing ────────────────────────────────────────────────────
 
+/** One tower per beat — a figure needs this long to walk over and place it. */
+const BUILD_BEAT_MS = 200;
+/** A handful of towers still gets a moment; the build never snaps shut. */
+const BUILD_MIN_MS = 4000;
+/** A monorepo must not hold the user hostage to an animation. */
+const BUILD_MAX_MS = 20_000;
+
 /**
- * Milliseconds between two raised construction units (districts, buildings,
- * podium). 6000/unitTotal keeps mid-size cities in the ~6 s band; the clamps
- * hold tiny builds at a perceivable 420 ms pace and cap huge ones at a 40 ms
- * stagger so the total never runs away unbounded.
+ * Total construction time. Proportional to the number of towers that rise,
+ * floored and capped — so the wait answers to the size of the project instead
+ * of normalising every city to the same six seconds.
  */
+export function constructionDuration(unitTotal: number): number {
+  const n = Math.max(unitTotal, 1);
+  return Math.min(BUILD_MAX_MS, Math.max(BUILD_MIN_MS, n * BUILD_BEAT_MS));
+}
+
+/** Milliseconds between two rising towers. */
 export function constructionStep(unitTotal: number): number {
-  return Math.max(40, Math.min(420, 6000 / Math.max(unitTotal, 1)));
+  return constructionDuration(unitTotal) / Math.max(unitTotal, 1);
+}
+
+export type BuildUnitKind = "district" | "tower" | "building";
+
+/** A district plot lands as a flat pad — its "roof" is the curb height. */
+const PLOT_ROOF_H = 0.3;
+
+/**
+ * One work point per rising unit: where a builder stands, and how high the
+ * block it places ends up. Emitted by the same walk that writes the rise
+ * offsets, so a site can never drift out of step with its animation.
+ */
+export interface BuildSite {
+  kind: BuildUnitKind;
+  /** the unit's centre, world XZ */
+  x: number;
+  z: number;
+  /** the builder's spot — just clear of the footprint */
+  doorX: number;
+  doorZ: number;
+  /** height the rising unit ends at; the carried block lands on its roof */
+  h: number;
+  /** the unit's own footprint size — how close a viewer must be to see it */
+  span: number;
+  /** the block's colour — the language the unit is actually made of */
+  color: string;
+  /** ms into the build when this unit starts to rise */
+  offset: number;
+}
+
+export interface BuildPlan {
+  /** epoch-ms each district plot opens, in `layout.blocks` order */
+  blockAt: number[];
+  /** epoch-ms each skyline tower rises, per block, in `skyline` order */
+  skylineAt: number[][];
+  /** epoch-ms each of this level's own plaza files rises */
+  plazaAt: number[];
+  /** epoch-ms the podium lands */
+  podiumAt: number;
+  /**
+   * Work points in rise order. The podium is absent: it is the plaza floor
+   * landing under everything already built, not a tower someone raises.
+   */
+  sites: BuildSite[];
+  /** rising units — the pacing input, counted by the same walk that schedules */
+  total: number;
+  /** ms between two units */
+  step: number;
+  /** wall-clock length of the construction */
+  durationMs: number;
+}
+
+/** The language a directory is mostly written in — its district's wall colour. */
+function dominantLanguage(languages: Record<string, number>): string {
+  let best = "";
+  let lines = -1;
+  for (const [name, n] of Object.entries(languages)) {
+    if (n > lines) {
+      lines = n;
+      best = name;
+    }
+  }
+  return best;
+}
+
+/**
+ * The construction schedule. One unit is one tower the eye can follow: a plot
+ * opens, its skyline fills tower by tower, and only the next district starts.
+ * Counting towers rather than districts is what makes a 40-file folder build
+ * in a breath and a 900-file one take its time — the districts alone would
+ * always be the same handful.
+ */
+export function planConstruction(
+  layout: Pick<DirLayout, "blocks" | "buildings" | "podium">,
+  baseMs: number,
+): BuildPlan {
+  const total =
+    layout.blocks.reduce((n, b) => n + 1 + b.skyline.length, 0) +
+    layout.buildings.length +
+    (layout.podium ? 1 : 0);
+  const step = constructionStep(total);
+  const blockAt: number[] = [];
+  const skylineAt: number[][] = [];
+  const plazaAt: number[] = [];
+  const sites: BuildSite[] = [];
+  let cursor = 0;
+  const slot = (): number => baseMs + cursor++ * step;
+  for (const b of layout.blocks) {
+    const at = slot();
+    blockAt.push(at);
+    sites.push({
+      kind: "district",
+      x: b.x,
+      z: b.z,
+      doorX: b.x,
+      doorZ: b.z + b.d / 2 + 1.1,
+      h: PLOT_ROOF_H,
+      span: Math.max(b.w, b.d),
+      color: languageColor(dominantLanguage(b.dir.languages)),
+      offset: at - baseMs,
+    });
+    const atPerTower: number[] = [];
+    for (const t of b.skyline) {
+      const towerAt = slot();
+      atPerTower.push(towerAt);
+      sites.push({
+        kind: "tower",
+        x: b.x + t.x,
+        z: b.z + t.z,
+        doorX: b.x + t.x,
+        doorZ: b.z + t.z + t.d / 2 + 0.7,
+        h: t.h,
+        span: Math.max(t.w, t.d),
+        color: languageColor(t.file.language),
+        offset: towerAt - baseMs,
+      });
+    }
+    skylineAt.push(atPerTower);
+  }
+  for (const b of layout.buildings) {
+    const at = slot();
+    plazaAt.push(at);
+    sites.push({
+      kind: "building",
+      x: b.x,
+      z: b.z,
+      doorX: b.x,
+      doorZ: b.z + b.d / 2 + 0.9,
+      h: b.h,
+      span: Math.max(b.w, b.d),
+      color: languageColor(b.file.language),
+      offset: at - baseMs,
+    });
+  }
+  const podiumAt = baseMs + cursor * step;
+  return {
+    blockAt,
+    skylineAt,
+    plazaAt,
+    podiumAt,
+    sites,
+    total,
+    step,
+    durationMs: total * step,
+  };
 }
 
 // ── Memoised access ────────────────────────────────────────────────────────
