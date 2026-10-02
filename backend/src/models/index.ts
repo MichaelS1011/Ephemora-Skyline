@@ -62,6 +62,19 @@ export interface FileAnalysis {
   clonePartners?: Array<{ path: string; lines: number }>;
   /** Part of at least one circular import chain */
   inCycle?: boolean;
+  /**
+   * Voxel sections (CodeBlocks design): functions/classes shape city
+   * blocks, 1 voxel = 1 code line, nesting forms terraces. Absent for
+   * demo/legacy results — always optional and backwards compatible.
+   */
+  sections?: Array<{
+    name: string;
+    kind: "function" | "class" | "module" | "imports";
+    start: number;
+    end: number;
+    codeLines: number;
+    depth: number;
+  }>;
   content?: string;
   vulnerabilities: SecurityIssue[];
 }

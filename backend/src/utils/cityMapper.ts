@@ -45,6 +45,19 @@ export interface CityFinding {
   snippet?: CitySnippet;
 }
 
+/**
+ * Voxel section (CodeBlocks design, frontend VoxelSectionSpec):
+ * one city block per function/class/module chunk, 1 voxel = 1 code line.
+ */
+export interface CitySection {
+  name: string;
+  kind: "function" | "class" | "module" | "imports";
+  start: number;
+  end: number;
+  codeLines: number;
+  depth: number;
+}
+
 export interface CityFile {
   id: string;
   name: string;
@@ -78,6 +91,8 @@ export interface CityFile {
   coveragePct?: number;
   /** Files sharing ≥6 normalized duplicated lines with this one (top 3) */
   clonePartners?: Array<{ id: string; path: string; lines: number }>;
+  /** Voxel sections (CodeBlocks) — capped at 24 in the analyzer, absent for demo data */
+  sections?: CitySection[];
 }
 
 export interface CityDir {
@@ -620,5 +635,6 @@ function mapCityFile(
     inCycle: circular.has(f.path) || undefined,
     coveragePct: f.coveragePct,
     clonePartners: clonePartners && clonePartners.length > 0 ? clonePartners : undefined,
+    sections: f.sections && f.sections.length > 0 ? f.sections : undefined,
   };
 }

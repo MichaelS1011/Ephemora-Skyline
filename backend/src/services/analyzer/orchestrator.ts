@@ -25,6 +25,7 @@ import {
   estimateCyclomaticComplexity,
   extractClasses,
   extractFunctions,
+  extractSections,
 } from "./metrics.js";
 import { languageOfPath, type ResolvedScanConfig } from "../security/scan-config.js";
 import { collectGitChurn, hasGitHistory } from "./git-churn.js";
@@ -161,6 +162,8 @@ export class AnalysisOrchestrator {
             // Extract functions (simple regex-based)
             const functions = extractFunctions(content);
             const classes = extractClasses(content);
+            // Voxel sections (CodeBlocks): blocks from the found structure
+            const sections = extractSections(relativePath, content, { functions, classes });
 
             const analysis: FileAnalysis = {
               path: relativePath,
@@ -170,6 +173,7 @@ export class AnalysisOrchestrator {
               complexity: { cyclomatic, cognitive: cyclomatic },
               functions,
               classes,
+              sections,
               imports,
               exports: fileExports.map((e) => ({
                 type: e.type as "named" | "default" | "reexport",
