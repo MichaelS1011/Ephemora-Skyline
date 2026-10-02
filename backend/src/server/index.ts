@@ -25,6 +25,8 @@ import { getHealth } from "./routes/health.js";
 import { getDemoResult } from "./routes/demo.js";
 import { getJobProgress } from "./routes/job-progress.js";
 import { handleLocalAnalyze, pruneStaleUploadDirs } from "./routes/local-analyze.js";
+import { handleSource } from "./routes/source.js";
+import { handleUpdateCheck } from "./routes/update-check.js";
 import { handleTestRun, handleTestStatus } from "./routes/tests.js";
 import { WebSocketServerManager } from "../services/streaming/websocket-server.js";
 import { mapResultToCityData } from "../utils/cityMapper.js";
@@ -232,6 +234,15 @@ app.get("/api/result/:id/sarif", (req: Request, res: Response): void => {
   }
   res.setHeader("Content-Type", "application/sarif+json");
   res.json(resultToSarif(result));
+});
+
+// GET /api/result/:id/source/:fileId — raw source of one analyzed file
+app.get("/api/update/check", readLimiter, (req: Request, res: Response): void => {
+  void handleUpdateCheck(req, res);
+});
+
+app.get("/api/result/:id/source/:fileId", readLimiter, (req: Request, res: Response): void => {
+  void handleSource(req, res, analysisStore);
 });
 
 // GET /api/status/:id — poll analysis progress
