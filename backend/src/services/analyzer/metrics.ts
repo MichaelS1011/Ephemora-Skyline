@@ -44,12 +44,57 @@ function isHashCommentLanguage(language?: string): boolean {
 }
 
 /**
- * Blank out comments and string/template contents so the decision counter only
- * ever sees code. Newlines survive; only the characters in between change.
+ * A `/` opens a regex literal when whatever precedes it cannot be the end of a
+ * value: an operator, an opening bracket, a line start, or a keyword such as
+ * `return`. Word characters, `)`, `]` and closing quotes mean division.
+ */
+const REGEX_CAN_START = new Set([
+  "",
+  "(",
+  ",",
+  "=",
+  ":",
+  "[",
+  "!",
+  "&",
+  "|",
+  "?",
+  "{",
+  "}",
+  ";",
+  "+",
+  "-",
+  "*",
+  "%",
+  "~",
+  "^",
+  "<",
+  ">",
+]);
+const REGEX_AFTER_KEYWORD = new Set([
+  "return",
+  "case",
+  "typeof",
+  "in",
+  "of",
+  "new",
+  "delete",
+  "void",
+  "yield",
+  "await",
+  "do",
+  "else",
+]);
+
+/**
+ * Blank out comments, string/template contents and regex literals so the
+ * decision counter only ever sees code. Newlines survive; only the characters
+ * in between change.
  *
- * Deliberately not handled: regex literals. Telling `/a|b/` from a division
- * needs real parsing, and a regex only disturbs the counter when it happens to
- * contain `&&`, `||` or a bare `?` — rarer than the parser it would cost.
+ * The regex test is a one-token lookahead, not a parse, and it fails safe: a
+ * `/` that does not pass the test is division, and a `/` that passes but finds
+ * no closing slash on its line is rewound and treated as division too. A
+ * misread can therefore never swallow real code — only leave a literal in.
  * Template `${…}` interpolations are code and get masked anyway, which
  * under-counts; masking the whole literal is the honest cheap side of that.
  */
@@ -58,6 +103,15 @@ function maskNonCode(code: string, hashComments: boolean): string {
   const n = code.length;
   const blank = (ch: string): string => (ch === "\n" ? "\n" : " ");
   let i = 0;
+  let prevSig = ""; // last significant character, for the regex lookahead
+  let lastWord = ""; // identifier right before the cursor (`return` above all)
+
+  const emit = (ch: string): void => {
+    out.push(ch);
+    if (ch === " " || ch === "\t" || ch === "\n" || ch === "\r") return;
+    prevSig = ch;
+    lastWord = /[\w$]/.test(ch) ? lastWord + ch : "";
+  };
 
   while (i < n) {
     const ch = code[i]!;
@@ -97,10 +151,49 @@ function maskNonCode(code: string, hashComments: boolean): string {
         out.push(blank(code[i]!));
         i++;
       }
+      // a closed literal is a value: the next `/` can only be division
+      prevSig = ch;
+      lastWord = "";
       continue;
     }
+    if (ch === "/" && !hashComments) {
+      const mayOpen =
+        REGEX_CAN_START.has(prevSig) || REGEX_AFTER_KEYWORD.has(lastWord.toLowerCase());
+      if (mayOpen) {
+        let j = i + 1;
+        let inClass = false;
+        let closed = -1;
+        while (j < n) {
+          const c = code[j]!;
+          if (c === "\n") break;
+          if (c === "\\") {
+            j += 2;
+            continue;
+          }
+          if (c === "[") inClass = true;
+          else if (c === "]") inClass = false;
+          else if (c === "/" && !inClass) {
+            closed = j;
+            break;
+          }
+          j++;
+        }
+        if (closed > i) {
+          for (let k = i; k <= closed; k++) out.push(blank(code[k]!));
+          let k = closed + 1;
+          while (k < n && /[a-z$]/i.test(code[k]!)) {
+            out.push(" ");
+            k++;
+          }
+          i = k;
+          prevSig = "/";
+          lastWord = "";
+          continue;
+        }
+      }
+    }
 
-    out.push(ch);
+    emit(ch);
     i++;
   }
   return out.join("");

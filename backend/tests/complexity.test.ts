@@ -84,6 +84,22 @@ describe("estimateCyclomaticComplexity", () => {
     expect(cx("# if a and b\nx = 'and or if'\n", "Python")).toBe(1);
   });
 
+  it("does not read a regex literal as branches", () => {
+    expect(cx("const re = /a?b|c/g;")).toBe(1);
+    expect(cx("const ok = /\\w+/.test(x) && /a?b/.test(y);")).toBe(2);
+    expect(cx('if (/x{2,}?/.test(s)) { return "a ? b : c" }')).toBe(2);
+    expect(cx("return /re/.test(x)")).toBe(1);
+  });
+
+  it("still reads a slash as division", () => {
+    expect(cx("const half = total / 2; const q = a / b / c;")).toBe(1);
+    expect(cx("const m = arr[i] / 2; const k = (a + b) / 2;")).toBe(1);
+    // a slash after `(` looks like a regex start; with no closing slash on the
+    // line it must fall back to division and not swallow the rest of the file
+    expect(cx("const bad = (a / b); if (x) {}")).toBe(2);
+    expect(cx("const also = (a / b) + (c / d);\nif (x) {}")).toBe(2);
+  });
+
   it("never scores below 1 whatever the input", () => {
     expect(cx("} } } else else else //", "Python")).toBeGreaterThanOrEqual(1);
   });
