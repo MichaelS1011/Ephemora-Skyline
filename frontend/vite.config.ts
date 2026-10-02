@@ -26,12 +26,14 @@ export default defineConfig({
   server: {
     port: 3010,
     proxy: {
+      // 127.0.0.1, not localhost: the backend binds loopback explicitly, and a
+      // name would let the resolver answer ::1 first — which nothing listens on.
       "/api": {
-        target: "http://localhost:4000",
+        target: "http://127.0.0.1:4000",
         changeOrigin: true,
       },
       "/ws": {
-        target: "ws://localhost:4000",
+        target: "ws://127.0.0.1:4000",
         ws: true,
       },
     },

@@ -24,6 +24,7 @@ import { SecurityScanner } from "../services/security/scanner.js";
 import { getHealth } from "./routes/health.js";
 import { getDemoResult } from "./routes/demo.js";
 import { getJobProgress } from "./routes/job-progress.js";
+import { bindHost, isLoopbackHost } from "./bind-address.js";
 import { handleLocalAnalyze, pruneStaleUploadDirs } from "./routes/local-analyze.js";
 import { handleSource } from "./routes/source.js";
 import { handleUpdateCheck } from "./routes/update-check.js";
@@ -341,8 +342,16 @@ process.on("SIGTERM", () => shutdown("SIGTERM"));
 process.on("SIGINT", () => shutdown("SIGINT"));
 
 const PORT = parseInt(process.env.PORT ?? "4000", 10);
-server.listen(PORT, () => {
-  logger.info({ port: PORT }, "CodeCity backend listening");
+const HOST = bindHost();
+server.listen(PORT, HOST, () => {
+  logger.info({ port: PORT, host: HOST }, "CodeCity backend listening");
+  if (!isLoopbackHost(HOST)) {
+    logger.warn(
+      { host: HOST },
+      "listening on a non-loopback address: this API can run the tests of any " +
+        "folder it is handed, and has no authentication. Only do this on a network you own.",
+    );
+  }
 });
 
 // Prune stale staged uploads (test-runner copies) every 6 hours
