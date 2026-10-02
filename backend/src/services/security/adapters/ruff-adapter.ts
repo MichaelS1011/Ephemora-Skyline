@@ -2,6 +2,7 @@ import { execFile } from "child_process";
 import { promisify } from "util";
 import pino from "pino";
 import type { SecurityIssue } from "../../../models/index.js";
+import { relativeToClone } from "../adapter.js";
 import type { ScannerAdapter } from "../adapter.js";
 import { knowledgeFor } from "../finding-knowledge.js";
 
@@ -122,11 +123,8 @@ export class RuffAdapter implements ScannerAdapter {
       }
       const diagnostics = JSON.parse(stdout) as RuffDiagnostic[];
       for (const d of diagnostics) {
-        const filename = (d.filename ?? "").replaceAll("\\", "/");
-        const rel = filename.startsWith(clonePath + "/")
-          ? filename.slice(clonePath.length + 1)
-          : filename;
-        if (!rel || rel === filename) continue; // outside the scan root
+        const rel = relativeToClone(clonePath, d.filename);
+        if (!rel) continue; // outside the scan root
         const mapped = mapRule(d.code ?? "UNKNOWN");
         const knowledge = knowledgeFor(mapped.type);
         const list = byFile.get(rel) ?? [];

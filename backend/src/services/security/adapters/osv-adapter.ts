@@ -4,6 +4,7 @@ import { access } from "fs/promises";
 import path from "path";
 import pino from "pino";
 import type { SecurityIssue } from "../../../models/index.js";
+import { relativeToClone } from "../adapter.js";
 import type { ScannerAdapter } from "../adapter.js";
 import { knowledgeFor } from "../finding-knowledge.js";
 
@@ -137,7 +138,7 @@ export class OsvAdapter implements ScannerAdapter {
         });
         const parsed = JSON.parse(stdout) as { results?: OsvResult[] };
         for (const result of parsed.results ?? []) {
-          const rel = this.relPath(clonePath, result.source?.path);
+          const rel = relativeToClone(clonePath, result.source?.path);
           if (!rel) continue;
           for (const pkg of result.packages ?? []) {
             const pkgName = pkg.package?.name ?? "dependency";
@@ -167,13 +168,6 @@ export class OsvAdapter implements ScannerAdapter {
       }
     }
     return byFile;
-  }
-
-  private relPath(clonePath: string, sourcePath: string | undefined): string | undefined {
-    if (!sourcePath) return undefined;
-    const norm = sourcePath.replaceAll("\\", "/");
-    if (norm.startsWith(clonePath + "/")) return norm.slice(clonePath.length + 1);
-    return norm;
   }
 
   private async hasAnyManifest(clonePath: string): Promise<boolean> {

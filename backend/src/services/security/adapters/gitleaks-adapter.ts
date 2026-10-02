@@ -5,6 +5,7 @@ import { tmpdir } from "os";
 import pino from "pino";
 import path from "path";
 import type { SecurityIssue } from "../../../models/index.js";
+import { relativeToClone } from "../adapter.js";
 import type { ScannerAdapter } from "../adapter.js";
 
 const execFileAsync = promisify(execFile);
@@ -164,7 +165,9 @@ export class GitleaksAdapter implements ScannerAdapter {
           Commit?: string;
         }>;
         for (const l of leaks) {
-          const rel = (l.File ?? "").replaceAll("\\", "/");
+          // gitleaks names files under --source, i.e. absolutely; the merge in
+          // scanner.ts looks findings up by repo-relative path (relativeToClone).
+          const rel = relativeToClone(clonePath, l.File);
           if (!rel) continue;
           // history findings can duplicate the working-tree finding on the same line
           if (pass.history && (byFile.get(rel) ?? []).some((i) => i.line === (l.StartLine ?? 1)))
