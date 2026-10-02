@@ -2,8 +2,10 @@ import { useEffect } from "react";
 import { useStore } from "../stores/useStore";
 import { tourStops } from "../city/layout";
 import { SEVERITY_COLOR } from "../city/palette";
+import { t } from "../i18n";
 
 export function SecurityTour() {
+  const lang = useStore((s) => s.prefs.lang);
   const tourActive = useStore((s) => s.tourActive);
   const tourIndex = useStore((s) => s.tourIndex);
   const nextTour = useStore((s) => s.nextTour);
@@ -32,8 +34,14 @@ export function SecurityTour() {
     if (!tourActive) return;
     const onKey = (e: KeyboardEvent): void => {
       const t = e.target as HTMLElement;
-      if (t.tagName === "INPUT" || t.tagName === "TEXTAREA") return;
-      if (e.key === "ArrowRight" || e.key === "Enter") nextTour();
+      if (
+        t.tagName === "INPUT" ||
+        t.tagName === "TEXTAREA" ||
+        t.isContentEditable ||
+        t.closest('[aria-modal="true"], [role="menu"], #analyze-panel')
+      )
+        return;
+      if (e.key === "ArrowRight" || (e.key === "Enter" && !t.closest("button, a"))) nextTour();
       if (e.key === "ArrowLeft") prevTour();
       if (e.key === "Escape") {
         // Capture phase + stopImmediatePropagation: the tour owns Escape
@@ -60,7 +68,7 @@ export function SecurityTour() {
 
   return (
     <div
-      className="absolute bottom-16 left-1/2 -translate-x-1/2 z-40 pointer-events-auto animate-toast-in"
+      className="security-tour absolute bottom-16 left-1/2 -translate-x-1/2 z-40 pointer-events-auto animate-toast-in"
       style={{
         background: "rgba(18, 18, 16, 0.95)",
         border: `1px solid ${color}66`,
@@ -72,12 +80,12 @@ export function SecurityTour() {
         backdropFilter: "blur(14px)",
       }}
       role="region"
-      aria-label="Security tour"
+      aria-label={t(lang, "tour.regionAria")}
     >
       {/* WCAG 4.1.3: announce each tour-step change to screen readers. The
           visible step count below is not aria-live, so SR users would miss it. */}
       <span className="sr-only" role="status" aria-live="polite">
-        Step {idx + 1} of {stops.length}: {stop.file.name}
+        {t(lang, "tour.stepAria", { index: idx + 1, total: stops.length, name: stop.file.name })}
       </span>
       {/* Progress bar */}
       <div
@@ -97,8 +105,8 @@ export function SecurityTour() {
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
           {/* Label */}
-          <div className="font-jetbrains text-[9px] tracking-widest mb-0.5" style={{ color }}>
-            ⚑ SECURITY TOUR · {idx + 1} of {stops.length}
+          <div className="font-jetbrains text-[11px] tracking-widest mb-0.5" style={{ color }}>
+            {t(lang, "tour.stepLabel", { index: idx + 1, total: stops.length })}
           </div>
 
           {/* File */}
@@ -116,18 +124,24 @@ export function SecurityTour() {
 
           {/* Worst finding preview */}
           {worst && (
-            <div className="font-jetbrains text-[10px] mt-1" style={{ color: "#a8a49a" }}>
+            <div
+              className="font-jetbrains text-[11px] mt-1"
+              style={{ color: "var(--meta-strong)" }}
+            >
               <span style={{ color, fontWeight: 600 }}>{worst.severity}</span>
               {" · "}
               <span>{worst.type}</span>
-              <span style={{ color: "var(--meta-strong)" }}> · line {worst.line}</span>
+              <span style={{ color: "var(--meta-strong)" }}>
+                {" "}
+                · {t(lang, "tour.line", { line: worst.line })}
+              </span>
             </div>
           )}
 
           {/* Fix preview */}
           {worst?.fix && (
             <div
-              className="font-jetbrains text-[9px] mt-1.5 px-2 py-1 rounded-sm truncate"
+              className="font-jetbrains text-[11px] mt-1.5 px-2 py-1 rounded-sm"
               style={{
                 color: "#29d398",
                 background: "rgba(41,211,152,0.07)",
@@ -144,33 +158,33 @@ export function SecurityTour() {
           <button
             onClick={prevTour}
             disabled={idx === 0}
-            className="font-jetbrains text-[10px] w-7 h-7 flex items-center justify-center rounded-sm transition-all duration-150 disabled:opacity-25"
-            style={{ border: "1px solid rgba(150,142,128,0.4)", color: "#a8a49a" }}
-            aria-label="Previous finding"
+            className="font-jetbrains text-[11px] w-7 h-7 flex items-center justify-center rounded-sm transition-all duration-150 disabled:opacity-25"
+            style={{ border: "1px solid rgba(150,142,128,0.4)", color: "var(--meta-strong)" }}
+            aria-label={t(lang, "tour.prevAria")}
           >
             ←
           </button>
           <button
             onClick={nextTour}
             disabled={idx >= stops.length - 1}
-            className="font-jetbrains text-[10px] px-3 py-1 rounded-sm transition-all duration-150 disabled:opacity-25"
+            className="font-jetbrains text-[11px] px-3 py-1 rounded-sm transition-all duration-150 disabled:opacity-25"
             style={{ border: `1px solid ${color}`, color, background: `${color}14` }}
-            aria-label="Next finding"
+            aria-label={t(lang, "tour.nextAria")}
           >
             →
           </button>
           <button
             onClick={endTour}
-            className="btn-danger font-jetbrains text-[10px] px-2 py-1 rounded-sm"
-            aria-label="Exit tour"
+            className="btn-danger font-jetbrains text-[11px] px-2 py-1 rounded-sm"
+            aria-label={t(lang, "tour.exitAria")}
           >
-            EXIT
+            {t(lang, "tour.exit")}
           </button>
         </div>
       </div>
 
-      <div className="font-jetbrains text-[9px] mt-2" style={{ color: "var(--meta-faint)" }}>
-        ← → navigate · Enter next · Esc exit
+      <div className="font-jetbrains text-[11px] mt-2" style={{ color: "var(--meta-faint)" }}>
+        {t(lang, "tour.hint")}
       </div>
     </div>
   );

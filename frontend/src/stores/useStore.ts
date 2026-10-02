@@ -1,13 +1,26 @@
 import { create } from "zustand";
-import type { CityData, SelectedUnit, Severity } from "../city/types";
-import { findFileById, getDirLayout, tourStops } from "../city/layout";
+import type { CityData, ReviewStatus, SelectedUnit, Severity } from "../city/types";
+import { allFiles, findFileById, getDirLayout, riskScore, tourStops } from "../city/layout";
+import { findVoxelForLine } from "../city/voxels";
 import { loadSavedProfile, saveProfile, type ScanProfile } from "../config/scanProfiles";
+import { findingKey, loadReviews, saveReviews } from "../reviews";
+import { loadPrefs, savePrefs, type Prefs } from "../prefs";
 
 export interface FlyRequest {
   x: number;
   z: number;
   /** Camera distance from the target (world units). */
   distance: number;
+  /**
+   * Flight duration in seconds. Optional — when omitted the rig derives the
+   * duration from the flight distance (previous behavior).
+   */
+  duration?: number;
+  /**
+   * Orbit-target height at the destination (voxel-focus V3). Optional —
+   * when omitted the rig keeps its ground-level default (y = 1.5).
+   */
+  targetY?: number;
   nonce: number;
 }
 
@@ -20,6 +33,12 @@ export interface CameraInfo {
 }
 
 export type HeatChannel = "threat" | "complexity" | "churn";
+
+/**
+ * City-wide view mode (spec §14): which information layer the skyline shows.
+ * One lens at a time — never all information simultaneously.
+ */
+export type ViewMode = "structure" | "security" | "dependencies";
 
 export interface TestFailureInfo {
   name: string;
@@ -52,10 +71,13 @@ interface AppState {
   buildDuration: number; // total ms of the construction sequence
   constructionTotal: number; // units to raise in the current level
   constructionDone: number;
+  /** Epoch ms when a build skip was requested (null = no skip requested). */
+  buildSkipAt: number | null;
   setCityData: (data: CityData | null) => void;
   resetToLanding: () => void;
   setBuildPhase: (phase: "empty" | "constructing" | "built") => void;
   setConstructionProgress: (done: number, total: number) => void;
+  requestBuildSkip: () => void;
 
   // ── Semantic zoom navigation ───────────────────────────────────────────
   focusPath: string[]; // directory names from the root, [] = overview
@@ -74,10 +96,28 @@ interface AppState {
 
   /** Navigate to a specific file: drill into its district, select + fly. */
   navigateToFile: (fileId: string) => void;
+  /**
+   * Select a building in place (click): drill into its district + select,
+   * but WITHOUT any camera flight — the user's camera stays where it is.
+   */
+  selectBuilding: (fileId: string) => void;
+
+  // ── Camera mode — free flight is the default, orbit on demand ──────────
+  /**
+   * free  — drag looks around freely, WASD/QE walks, wheel dollies;
+   *         selection never moves the camera.
+   * orbit — the classic inspect mode: double-click a building (or the
+   *         breadcrumb refocus) and the camera circles ITS viewpoint.
+   */
+  cameraMode: "free" | "orbit";
+  /** Select a building AND enter orbit mode around it (double-click). */
+  focusBuilding: (fileId: string) => void;
+  /** Leave orbit mode — the free-fly controller takes the live camera pose. */
+  exitOrbit: () => void;
 
   // ── Camera command channel ─────────────────────────────────────────────
   flyRequest: FlyRequest | null;
-  requestFly: (x: number, z: number, distance?: number) => void;
+  requestFly: (x: number, z: number, distance?: number, duration?: number) => void;
   cameraInfo: CameraInfo;
   setCameraInfo: (info: CameraInfo) => void;
 
@@ -85,9 +125,43 @@ interface AppState {
   threatFilter: Severity | "all";
   setThreatFilter: (f: Severity | "all") => void;
 
+  /** Rule-id filter (e.g. "CMD_INJECTION") — null shows every rule. */
+  ruleFilter: string | null;
+  setRuleFilter: (rule: string | null) => void;
+
   /** What the far-zoom heat cells are colored by. */
   heatChannel: HeatChannel;
   setHeatChannel: (c: HeatChannel) => void;
+
+  // ── View mode (spec §14) ─────────────────────────────────────────────────
+  /** Which layer the city shows: structure (default), security or dependencies. */
+  viewMode: ViewMode;
+  setViewMode: (m: ViewMode) => void;
+
+  // ── Triage — work the findings queue one finding at a time ─────────────
+  triageActive: boolean;
+  triageCursor: number; // index into the triage list (0-based)
+  triageTotal: number; // list length, fixed while a triage runs
+  focusedFindingKey: string | null; // findingKey of the triage target
+  startTriage: () => void;
+  nextTriage: () => void;
+  prevTriage: () => void;
+  endTriage: () => void;
+  setFocusedFindingKey: (key: string | null) => void;
+  /**
+   * Re-fly to the voxel of the currently focused finding (voxel-focus V3).
+   * No-op when no finding is focused, the city is absent, or the finding
+   * has no materialized voxel.
+   */
+  refocusVoxel: () => void;
+
+  // ── Review states (local-first, persisted per analysis id) ─────────────
+  reviews: Record<string, ReviewStatus>;
+  setReview: (key: string, status: ReviewStatus | null) => void;
+
+  // ── User preferences (lang, rendering effects, CVD palette) ────────────
+  prefs: Prefs;
+  setPref: <K extends keyof Prefs>(key: K, value: Prefs[K]) => void;
 
   // ── Test runner ──────────────────────────────────────────────────────────
   testRun: TestRunState;
@@ -139,6 +213,68 @@ function flyToDirOverview(
   set({ flyRequest: { x: 0, z: 0, distance: dist, nonce: ++flyNonce } });
 }
 
+interface TriageEntry {
+  file: ReturnType<typeof allFiles>[number]["file"];
+  index: number; // position within file.findings — stable per analysis
+}
+
+/**
+ * Voxel-focus V3: fly the camera close to the voxel that represents a
+ * source line. Composes placement + section base + cell (the renderer's
+ * transform, plus the 0.3 body lift Building applies to its voxel group).
+ * No-op when the file/placement/layout has no materialized cell for the
+ * line — the caller's previous flyRequest (building center) stays intact.
+ */
+function flyToVoxel(
+  set: (partial: Partial<AppState>) => void,
+  city: CityData,
+  fileId: string,
+  line: number,
+): void {
+  const hit = findFileById(city, fileId);
+  if (!hit) return;
+  const layout = getDirLayout(city, hit.chain);
+  const placement = layout.buildings.find((b) => b.file.id === fileId);
+  const voxels = placement?.voxels;
+  if (!placement || !voxels) return;
+  const found = findVoxelForLine(voxels, line);
+  if (!found) return;
+  const section = voxels.sections[found.sectionIndex]!;
+  const s = voxels.voxelSize;
+  const wx = placement.x + section.base.x + found.cell.x * s;
+  const wz = placement.z + section.base.z + found.cell.z * s;
+  const wy = 0.3 + (found.cell.y + 0.5) * s;
+  set({
+    flyRequest: { x: wx, z: wz, distance: 7, duration: 1.0, targetY: wy, nonce: ++flyNonce },
+  });
+}
+
+const SEVERITY_RANK: Record<Severity, number> = { P0: 0, P1: 1, P2: 2 };
+
+/**
+ * The triage queue: every finding in the city matching the current
+ * severity + rule filters, worst first (severity → risk → path → line).
+ */
+function triageList(city: CityData, threat: Severity | "all", rule: string | null): TriageEntry[] {
+  const out: TriageEntry[] = [];
+  for (const { file } of allFiles(city)) {
+    file.findings.forEach((f, index) => {
+      if (threat !== "all" && f.severity !== threat) return;
+      const ruleId = f.ruleId ?? f.type;
+      if (rule && ruleId !== rule) return;
+      out.push({ file, index });
+    });
+  }
+  return out.sort(
+    (a, b) =>
+      SEVERITY_RANK[a.file.findings[a.index]!.severity] -
+        SEVERITY_RANK[b.file.findings[b.index]!.severity] ||
+      riskScore(b.file) - riskScore(a.file) ||
+      a.file.path.localeCompare(b.file.path) ||
+      a.file.findings[a.index]!.line - b.file.findings[b.index]!.line,
+  );
+}
+
 export const useStore = create<AppState>((set, get) => ({
   cityData: null,
   buildPhase: "empty",
@@ -157,8 +293,20 @@ export const useStore = create<AppState>((set, get) => ({
       // (chips hide when a severity has 0 findings), and a running tour
       // would keep walking a city it was never started for.
       threatFilter: "all",
+      ruleFilter: null,
+      // A new city is a neutral stage: the previous repo's view mode must not
+      // dim or re-lighten the fresh skyline before the user has chosen a lens.
+      viewMode: "structure",
       tourActive: false,
       tourIndex: 0,
+      triageActive: false,
+      triageCursor: 0,
+      triageTotal: 0,
+      focusedFindingKey: null,
+      cameraMode: "free",
+      // The demo city has no analysis id — its review state persists under
+      // the stable "demo" key so triage progress survives reloads there too.
+      reviews: data ? (data.repo.name === "demo-city" ? loadReviews("demo") : {}) : {},
       testRun: { status: "idle", stage: "" },
       testResults: {},
       buildPhase: data ? "constructing" : "empty",
@@ -184,6 +332,8 @@ export const useStore = create<AppState>((set, get) => ({
   setBuildPhase: (phase) => set({ buildPhase: phase }),
   setConstructionProgress: (done, total) =>
     set({ constructionDone: done, constructionTotal: total }),
+  buildSkipAt: null,
+  requestBuildSkip: () => set({ buildSkipAt: Date.now() }),
 
   focusPath: [],
   selectedUnit: null,
@@ -232,16 +382,154 @@ export const useStore = create<AppState>((set, get) => ({
     }
   },
 
+  selectBuilding: (fileId) => {
+    // Click selection is pilot-only: focus + selection change, the camera
+    // never moves. (navigateToFile remains the fly-to variant for search,
+    // triage, tour and breadcrumbs.)
+    const { cityData } = get();
+    if (!cityData) return;
+    const hit = findFileById(cityData, fileId);
+    if (!hit) return;
+    set({ focusPath: hit.chain, selectedUnit: { kind: "file", id: fileId } });
+  },
+
+  cameraMode: "free",
+  focusBuilding: (fileId) => {
+    // Double-click: select, fly from the user's current direction, and hand
+    // the building to the orbit controller for inspection.
+    const { cityData } = get();
+    if (!cityData) return;
+    const hit = findFileById(cityData, fileId);
+    if (!hit) return;
+    set({
+      focusPath: hit.chain,
+      selectedUnit: { kind: "file", id: fileId },
+      cameraMode: "orbit",
+    });
+    const layout = getDirLayout(cityData, hit.chain);
+    const placement = layout.buildings.find((b) => b.file.id === fileId);
+    if (placement) {
+      const dist = Math.max(14, placement.h * 2.6 + 12);
+      set({ flyRequest: { x: placement.x, z: placement.z, distance: dist, nonce: ++flyNonce } });
+    }
+  },
+  exitOrbit: () => set({ cameraMode: "free" }),
+
   flyRequest: null,
-  requestFly: (x, z, distance = 40) => set({ flyRequest: { x, z, distance, nonce: ++flyNonce } }),
+  requestFly: (x, z, distance = 40, duration) =>
+    set({ flyRequest: { x, z, distance, duration, nonce: ++flyNonce } }),
   cameraInfo: { x: 0, z: 60, angle: 0, dist: 80 },
   setCameraInfo: (info) => set({ cameraInfo: info }),
 
   threatFilter: "all",
   setThreatFilter: (f) => set({ threatFilter: f }),
 
+  ruleFilter: null,
+  setRuleFilter: (rule) => set({ ruleFilter: rule }),
+
   heatChannel: "threat",
   setHeatChannel: (c) => set({ heatChannel: c }),
+
+  viewMode: "structure",
+  setViewMode: (m) => set({ viewMode: m }),
+
+  // ── Triage implementation ────────────────────────────────────────────────
+  triageActive: false,
+  triageCursor: 0,
+  triageTotal: 0,
+  focusedFindingKey: null,
+  startTriage: () => {
+    const { cityData } = get();
+    if (!cityData) return;
+    const list = triageList(cityData, get().threatFilter, get().ruleFilter);
+    if (list.length === 0) return;
+    const first = list[0]!;
+    set({
+      triageActive: true,
+      triageCursor: 0,
+      triageTotal: list.length,
+      focusedFindingKey: findingKey(first.file.id, first.index),
+    });
+    get().navigateToFile(first.file.id);
+    // Voxel-focus V3: besides the building-center flight, dive to the exact
+    // voxel. flyToVoxel overrides the flyRequest only when a cell exists —
+    // otherwise the previous behavior stays.
+    const line = first.file.findings[first.index]?.line;
+    if (line !== undefined) flyToVoxel(set, cityData, first.file.id, line);
+  },
+  nextTriage: () => {
+    const { cityData, triageActive, triageCursor } = get();
+    if (!cityData || !triageActive) return;
+    const list = triageList(cityData, get().threatFilter, get().ruleFilter);
+    if (list.length === 0) return;
+    const next = Math.min(list.length - 1, triageCursor + 1);
+    const target = list[next]!;
+    set({
+      triageCursor: next,
+      triageTotal: list.length,
+      focusedFindingKey: findingKey(target.file.id, target.index),
+    });
+    get().navigateToFile(target.file.id);
+    // Voxel-focus V3 — see startTriage.
+    const line = target.file.findings[target.index]?.line;
+    if (line !== undefined) flyToVoxel(set, cityData, target.file.id, line);
+  },
+  prevTriage: () => {
+    const { cityData, triageActive, triageCursor } = get();
+    if (!cityData || !triageActive) return;
+    const list = triageList(cityData, get().threatFilter, get().ruleFilter);
+    if (list.length === 0) return;
+    // Clamp against the CURRENT list length too: filters may have shrunk
+    // the queue while the triage was running — the stale cursor must not
+    // point past the end.
+    const prev = Math.min(list.length - 1, Math.max(0, triageCursor - 1));
+    const target = list[prev]!;
+    set({
+      triageCursor: prev,
+      triageTotal: list.length,
+      focusedFindingKey: findingKey(target.file.id, target.index),
+    });
+    get().navigateToFile(target.file.id);
+    // Voxel-focus V3 — see startTriage.
+    const line = target.file.findings[target.index]?.line;
+    if (line !== undefined) flyToVoxel(set, cityData, target.file.id, line);
+  },
+  endTriage: () =>
+    set({ triageActive: false, triageCursor: 0, triageTotal: 0, focusedFindingKey: null }),
+  setFocusedFindingKey: (key) => set({ focusedFindingKey: key }),
+  refocusVoxel: () => {
+    const { cityData, focusedFindingKey } = get();
+    if (!cityData || !focusedFindingKey) return;
+    // findingKey format: `${fileId}#${index}` — lastIndexOf keeps file ids
+    // that themselves contain '#' intact.
+    const sep = focusedFindingKey.lastIndexOf("#");
+    if (sep <= 0) return;
+    const fileId = focusedFindingKey.slice(0, sep);
+    const index = Number(focusedFindingKey.slice(sep + 1));
+    if (!Number.isInteger(index) || index < 0) return;
+    const hit = findFileById(cityData, fileId);
+    if (!hit) return;
+    const line = hit.file.findings[index]?.line;
+    if (line !== undefined) flyToVoxel(set, cityData, fileId, line);
+  },
+
+  reviews: {},
+  setReview: (key, status) => {
+    const { reviews, analysisId, cityData } = get();
+    const next = { ...reviews };
+    if (status === null) delete next[key];
+    else next[key] = status;
+    const storageId = analysisId ?? (cityData?.repo.name === "demo-city" ? "demo" : "");
+    saveReviews(storageId, next);
+    set({ reviews: next });
+  },
+
+  prefs: loadPrefs(),
+  setPref: (key, value) => {
+    const prefs = { ...get().prefs, [key]: value };
+    savePrefs(prefs);
+    set({ prefs });
+  },
 
   testRun: { status: "idle", stage: "" },
   testResults: {},
@@ -298,7 +586,12 @@ export const useStore = create<AppState>((set, get) => ({
   analysisStage: "",
   setAnalysisStage: (s) => set({ analysisStage: s }),
   analysisId: null,
-  setAnalysisId: (id) => set({ analysisId: id }),
+  setAnalysisId: (id) => {
+    // Reviews are per-analysis and local-first: swap the map when the id
+    // changes so a new scan starts unreviewed and a permalink reload
+    // restores the reviewer's previous progress.
+    set({ analysisId: id, reviews: id ? loadReviews(id) : {} });
+  },
 }));
 
 // Debug/testing hook: lets automated E2E checks drive navigation directly.
