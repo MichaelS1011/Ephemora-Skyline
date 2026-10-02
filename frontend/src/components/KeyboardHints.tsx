@@ -17,12 +17,12 @@ function buildShortcuts(lang: Lang): ShortcutEntry[] {
       category: t(lang, "hints.catNavigation"),
     },
     {
-      keys: ["→"],
+      keys: ["]"],
       description: t(lang, "hints.nextBuilding"),
       category: t(lang, "hints.catNavigation"),
     },
     {
-      keys: ["←"],
+      keys: ["["],
       description: t(lang, "hints.prevBuilding"),
       category: t(lang, "hints.catNavigation"),
     },
@@ -35,6 +35,16 @@ function buildShortcuts(lang: Lang): ShortcutEntry[] {
       keys: ["?"],
       description: t(lang, "hints.toggle"),
       category: t(lang, "hints.catNavigation"),
+    },
+    {
+      keys: ["←", "→"],
+      description: t(lang, "hints.camTurn"),
+      category: t(lang, "hints.catCamera"),
+    },
+    {
+      keys: ["↑", "↓"],
+      description: t(lang, "hints.camElevation"),
+      category: t(lang, "hints.catCamera"),
     },
     {
       keys: ["Drag"],

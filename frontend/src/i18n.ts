@@ -507,6 +507,14 @@ export const DICT = {
     en: "Camera",
     de: "Kamera",
   },
+  "hints.camTurn": {
+    en: "Turn around the city — the view stays framed",
+    de: "Um die Stadt herum — der Ausschnitt bleibt im Bild",
+  },
+  "hints.camElevation": {
+    en: "Raise / lower the viewpoint",
+    de: "Blickpunkt heben / senken",
+  },
   "hints.camPan": {
     en: "Pan through the city",
     de: "Durch die Stadt schwenken",

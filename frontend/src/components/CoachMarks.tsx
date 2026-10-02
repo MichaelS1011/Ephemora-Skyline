@@ -2,10 +2,12 @@ import { useEffect, useState } from "react";
 import type { CSSProperties, ReactNode } from "react";
 import { useStore } from "../stores/useStore";
 
-const COACH_KEY = "codecity-coach-v2";
+// v3: the arrow keys became the camera turntable, so the primer is shown
+// once more — otherwise nobody discovers the new binding.
+const COACH_KEY = "codecity-coach-v3";
 
 const HINTS = [
-  { icon: "↔", text: "Drag to orbit", detail: "Scroll to zoom" },
+  { icon: "↻", text: "Arrow keys turn the view", detail: "Drag to look, scroll to fly in" },
   { icon: "▦", text: "Open a district", detail: "Click a folder block" },
   { icon: "▣", text: "Inspect a file", detail: "Click a building" },
   { icon: "?", text: "Keyboard shortcuts", detail: "Press ? for the full guide" },

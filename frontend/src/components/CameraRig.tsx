@@ -13,10 +13,15 @@ import { useStore } from "../stores/useStore";
  * ORBIT           — double-click a building: the camera circles ITS viewpoint
  *                   for inspection. Esc returns to free flight.
  *
+ * The arrow keys turn the camera around the current level in BOTH modes:
+ * left/right sweep the azimuth, up/down raise and lower the viewpoint, and
+ * the distance to the city is preserved — so unlike a dolly, a turn can
+ * never lose the thing being looked at.
+ *
  * Flight requests set up short, gentle tweens toward a point of interest in
  * BOTH modes, but control is NEVER taken away: the tween is aborted the
- * instant the user drags, scrolls or walks, and the camera reports its real
- * position to the Minimap.
+ * instant the user drags, scrolls, walks or turns, and the camera reports its
+ * real position to the Minimap.
  */
 
 export interface XYZ {
@@ -87,14 +92,52 @@ export function deriveLookAngles(quat: THREE.Quaternion): { yaw: number; pitch: 
   return { yaw: e.y, pitch: e.x };
 }
 
-// ── WASD/QE walk — reusable module-level vectors (no per-frame allocation) ──
+/** Polar limits of the turntable: above the ground, off the zenith pole. */
+export const TURN_MIN_PHI = 0.12;
+export const TURN_MAX_PHI = Math.PI / 2 - 0.04;
+
+// Scratch for the turntable math — no per-frame allocation while turning.
+const _offset = new THREE.Vector3();
+const _sph = new THREE.Spherical();
+
+/**
+ * One turntable step: carry `pos` around `pivot` by `dTheta` (azimuth) and
+ * `dPhi` (polar) at UNCHANGED distance — which is what keeps the city in
+ * frame, unlike a dolly. Returns null when the camera sits exactly on the
+ * pivot (no radius to swing).
+ */
+export function turntableStep(
+  pos: XYZ,
+  pivot: XYZ,
+  dTheta: number,
+  dPhi: number,
+): { x: number; y: number; z: number } | null {
+  _offset.set(pos.x - pivot.x, pos.y - pivot.y, pos.z - pivot.z);
+  _sph.setFromVector3(_offset);
+  if (_sph.radius < 1e-3) return null;
+  _sph.theta += dTheta;
+  _sph.phi = Math.min(TURN_MAX_PHI, Math.max(TURN_MIN_PHI, _sph.phi + dPhi));
+  _offset.setFromSpherical(_sph);
+  return { x: pivot.x + _offset.x, y: pivot.y + _offset.y, z: pivot.z + _offset.z };
+}
+
+// ── Camera navigation — reusable module-level vectors (no per-frame alloc) ──
+// WASD/QE walk the camera along its own axes; the arrow keys turn it around
+// the city. Both are tracked in one set so the typing/dialog guard covers
+// both.
 const WALK_KEYS = new Set(["KeyW", "KeyA", "KeyS", "KeyD", "KeyQ", "KeyE"]);
+const TURN_KEYS = new Set(["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"]);
+const isNavKey = (code: string): boolean => WALK_KEYS.has(code) || TURN_KEYS.has(code);
 const _forward = new THREE.Vector3();
 const _right = new THREE.Vector3();
 const _move = new THREE.Vector3();
 const _dir = new THREE.Vector3();
 const _look = new THREE.Vector3();
 const _euler = new THREE.Euler(0, 0, 0, "YXZ");
+const _pivot = new THREE.Vector3();
+
+/** Height of the turntable axis — matches the y a flight aims at. */
+const PIVOT_Y = 1.5;
 
 function isTypingTarget(t: EventTarget | null): boolean {
   const el = t as HTMLElement | null;
@@ -113,6 +156,7 @@ export function CameraRig() {
   const setCameraInfo = useStore((s) => s.setCameraInfo);
   const cityData = useStore((s) => s.cityData);
   const cameraMode = useStore((s) => s.cameraMode);
+  const tourActive = useStore((s) => s.tourActive);
 
   const tweenRef = useRef<Tween | null>(null);
   const lastNonce = useRef(-1);
@@ -222,16 +266,18 @@ export function CameraRig() {
     };
   }, [gl, camera]);
 
-  // ── WASD/QE walk — key tracking (guarded against typing + dialogs) ───────
+  // ── Camera navigation keys — guarded against typing, dialogs and the tour ─
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
-      if (!WALK_KEYS.has(e.code)) return;
-      // Typing or an open modal dialog owns the keyboard — drop all walk
-      // keys so no stale held key keeps gliding behind the dialog.
+      if (!isNavKey(e.code)) return;
+      // Typing or an open modal dialog owns the keyboard — drop all held keys
+      // so no stale key keeps gliding behind the dialog.
       if (isTypingTarget(e.target) || dialogOpen()) {
         pressedKeys.current.clear();
         return;
       }
+      // The security tour navigates on the arrow keys; it keeps them.
+      if (TURN_KEYS.has(e.code) && useStore.getState().tourActive) return;
       pressedKeys.current.add(e.code);
     };
     const onKeyUp = (e: KeyboardEvent) => {
@@ -310,14 +356,14 @@ export function CameraRig() {
     const controls = controlsRef.current;
     if (!controls) return;
 
-    // Walk: WASD/QE. Any walk key also aborts a running tween — the user
-    // takes over. In ORBIT mode camera + target move together (the circle
-    // follows); in FREE mode only the camera moves along its own axes.
+    // Navigation: WASD/QE walk, arrow keys turn. Any nav key also aborts a
+    // running tween — the user takes over. In ORBIT mode camera + target move
+    // together (the circle follows); in FREE mode only the camera moves.
     const keys = pressedKeys.current;
     if (keys.size > 0) {
       // Re-check the guard per frame: a dialog may have opened (or focus
-      // moved into an input) while a key was already held down.
-      if (isTypingTarget(document.activeElement) || dialogOpen()) {
+      // moved into an input, or the tour started) while a key was held down.
+      if (isTypingTarget(document.activeElement) || dialogOpen() || tourActive) {
         keys.clear();
       } else {
         tweenRef.current = null;
@@ -350,6 +396,39 @@ export function CameraRig() {
           if (!free) {
             controls.target.add(_move);
             controls.update();
+          }
+        }
+
+        // Turntable: the arrow keys carry the camera around the current level,
+        // which always sits on the world origin (flyToDirOverview assumes it).
+        if (
+          keys.has("ArrowLeft") ||
+          keys.has("ArrowRight") ||
+          keys.has("ArrowUp") ||
+          keys.has("ArrowDown")
+        ) {
+          _pivot.set(0, PIVOT_Y, 0);
+          const dTheta = (keys.has("ArrowRight") ? 1 : 0) - (keys.has("ArrowLeft") ? 1 : 0);
+          const dPhi = (keys.has("ArrowDown") ? 1 : 0) - (keys.has("ArrowUp") ? 1 : 0);
+          const next = turntableStep(
+            camera.position,
+            _pivot,
+            dTheta * 1.15 * delta,
+            dPhi * 0.9 * delta,
+          );
+          if (next) {
+            camera.position.set(next.x, next.y, next.z);
+            if (free) {
+              camera.lookAt(_pivot);
+              // Keep the drag-look state honest: turning and dragging at the
+              // same time then compose instead of fighting over rotation.
+              _euler.setFromQuaternion(camera.quaternion, "YXZ");
+              look.current.yaw = _euler.y;
+              look.current.pitch = _euler.x;
+            } else {
+              controls.target.copy(_pivot);
+              controls.update();
+            }
           }
         }
       }

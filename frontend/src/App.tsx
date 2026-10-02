@@ -209,13 +209,13 @@ export default function App() {
         return;
       }
 
-      // Arrow keys navigate buildings only while the city has focus.
-      // Tab always follows the native focus order to the workspace controls.
-      const focusOnCanvas = document.activeElement === canvasWrapperRef.current;
+      // Step through the buildings of the current level. `[` and `]` rather
+      // than the arrow keys: the arrows now drive the camera, and a gate on
+      // DOM focus would hide this behind a click nobody thinks to make.
       if (
-        (e.key === "ArrowRight" || e.key === "ArrowLeft") &&
+        (e.key === "]" || e.key === "[") &&
         !isInput &&
-        focusOnCanvas &&
+        !modalOpen &&
         cityData &&
         !useStore.getState().tourActive
       ) {
@@ -227,7 +227,7 @@ export default function App() {
           ? layout.buildings.findIndex((b) => b.file.id === currentId)
           : -1;
         const nextIndex =
-          e.key === "ArrowLeft"
+          e.key === "["
             ? currentIndex <= 0
               ? layout.buildings.length - 1
               : currentIndex - 1
@@ -266,7 +266,7 @@ export default function App() {
       <div
         ref={canvasWrapperRef}
         tabIndex={inCity ? 0 : -1}
-        aria-label="3D city visualization. Use left and right arrows to select buildings, Tab to move to controls."
+        aria-label="3D city visualization. Arrow keys turn the camera around the city, W A S D and Q E walk it, bracket keys step through the buildings, Tab moves to the controls."
         role="application"
         className="city-canvas w-full h-full"
       >
