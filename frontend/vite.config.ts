@@ -5,6 +5,19 @@ import path from "path";
 // https://vitejs.dev/config/
 export default defineConfig({
   plugins: [react()],
+  // Pre-bundle the 3D stack: when these deps are discovered lazily after a
+  // city loads, Vite re-optimizes and forces a full page reload, kicking the
+  // user from the workspace back to the landing screen.
+  optimizeDeps: {
+    include: [
+      "three",
+      "three/examples/jsm/controls/OrbitControls.js",
+      "@react-three/fiber",
+      "@react-three/postprocessing",
+      "postprocessing",
+      "zustand",
+    ],
+  },
   resolve: {
     alias: {
       "@": path.resolve(import.meta.dirname, "./src"),
