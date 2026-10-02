@@ -141,7 +141,11 @@ export function countLines(content: string): {
   comments: number;
   blank: number;
 } {
-  const lines = content.split("\n");
+  if (content === "") return { total: 0, code: 0, comments: 0, blank: 0 };
+  // A file that ends in a newline — every normalised file does — splits into
+  // one element more than it has lines. Counting that phantom made every
+  // source file look a line longer than it is.
+  const lines = content.endsWith("\n") ? content.slice(0, -1).split("\n") : content.split("\n");
   let code = 0,
     comments = 0,
     blank = 0;
@@ -242,25 +246,69 @@ export function extractFunctions(content: string): Array<{
   return functions.slice(0, 100); // Limit to avoid memory issues
 }
 
-/** Extract class definitions (regex-based) */
+const CLASS_DECL = /(?:export\s+)?(?:default\s+)?class\s+(\w+)/;
+const MEMBER_MODIFIERS =
+  /^(?:static\s+|async\s+|get\s+|set\s+|readonly\s+|public\s+|private\s+|protected\s+|abstract\s+)*/;
+const MEMBER_HEAD = /^(\w+)\s*\(/;
+const NOT_A_MEMBER = new Set([
+  "if",
+  "for",
+  "while",
+  "switch",
+  "catch",
+  "return",
+  "else",
+  "do",
+  "try",
+  "class",
+  "function",
+]);
+
+/**
+ * Extract class definitions. The body is found by brace depth, not by
+ * indentation: counting "indented lines after the declaration" ran to the end
+ * of the file, so the first class collected every later class's methods too.
+ */
 export function extractClasses(
   content: string,
 ): Array<{ name: string; line: number; methods: number }> {
+  // Masked once, so a commented-out `class Foo` is not a class and a brace
+  // inside a string cannot move a class boundary.
+  const lines = maskNonCode(content, false).split("\n");
   const classes: Array<{ name: string; line: number; methods: number }> = [];
-  const classRegex = /(?:export\s+)?class\s+(\w+)/g;
-  let match: RegExpExecArray | null;
 
-  while ((match = classRegex.exec(content)) !== null) {
-    // Count methods in this class (simplified: count indented functions after class declaration)
-    const className = match[1]!;
-    const classLine = content.slice(0, match.index).split("\n").length;
-    const linesAfter = content.split("\n").slice(classLine - 1);
+  for (let i = 0; i < lines.length; i++) {
+    const decl = CLASS_DECL.exec(lines[i] ?? "");
+    const name = decl?.[1];
+    if (!name) continue;
+    const declLine = i + 1;
+
+    let depth = 0;
+    let opened = false;
     let methods = 0;
-    for (const line of linesAfter) {
-      if (/^\s+(?:async\s+)?\w+\s*\(/.test(line)) methods++;
+    for (let j = i; j < lines.length; j++) {
+      const raw = lines[j] ?? "";
+      if (opened && depth === 1) {
+        const head = raw.trim().replace(MEMBER_MODIFIERS, "");
+        const member = MEMBER_HEAD.exec(head);
+        if (member && !NOT_A_MEMBER.has(member[1]!.toLowerCase())) methods++;
+      }
+      for (const ch of raw) {
+        if (ch === "{") {
+          depth++;
+          opened = true;
+        } else if (ch === "}") depth--;
+      }
+      // A body that has not opened by the second line after the declaration is
+      // not a brace body at all (Python `class Foo:`) — stop, don't walk to EOF
+      if (opened && depth <= 0) {
+        i = j;
+        break;
+      }
+      if (!opened && j > i + 2) break;
     }
 
-    classes.push({ name: className, line: classLine, methods });
+    classes.push({ name, line: declLine, methods });
   }
 
   return classes;
