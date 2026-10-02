@@ -38,10 +38,99 @@ export function computeAvgComplexity(files: FileAnalysis[]): number {
   return Math.round((total / files.length) * 100) / 100;
 }
 
-// Estimate cyclomatic complexity from code (simple heuristic)
-export function estimateCyclomaticComplexity(code: string): number {
-  const decisions = (code.match(/\b(if|else\s+if|while|for|catch|case|&&|\|\||\?)\b/g) || [])
-    .length;
+/** Languages that comment with `#` instead of `//`. */
+function isHashCommentLanguage(language?: string): boolean {
+  return language === "Python" || language === "Ruby";
+}
+
+/**
+ * Blank out comments and string/template contents so the decision counter only
+ * ever sees code. Newlines survive; only the characters in between change.
+ *
+ * Deliberately not handled: regex literals. Telling `/a|b/` from a division
+ * needs real parsing, and a regex only disturbs the counter when it happens to
+ * contain `&&`, `||` or a bare `?` — rarer than the parser it would cost.
+ * Template `${…}` interpolations are code and get masked anyway, which
+ * under-counts; masking the whole literal is the honest cheap side of that.
+ */
+function maskNonCode(code: string, hashComments: boolean): string {
+  const out: string[] = [];
+  const n = code.length;
+  const blank = (ch: string): string => (ch === "\n" ? "\n" : " ");
+  let i = 0;
+
+  while (i < n) {
+    const ch = code[i]!;
+    const next = code[i + 1];
+
+    if (ch === "#" && hashComments) {
+      while (i < n && code[i] !== "\n") i++;
+      continue;
+    }
+    if (ch === "/" && next === "/" && !hashComments) {
+      while (i < n && code[i] !== "\n") i++;
+      continue;
+    }
+    if (ch === "/" && next === "*") {
+      i += 2;
+      while (i < n && !(code[i] === "*" && code[i + 1] === "/")) {
+        out.push(blank(code[i]!));
+        i++;
+      }
+      i += 2;
+      continue;
+    }
+    if (ch === '"' || ch === "'" || ch === "`") {
+      const triple = code[i + 1] === ch && code[i + 2] === ch;
+      const term = triple ? ch + ch + ch : ch;
+      i += term.length;
+      while (i < n) {
+        if (code[i] === "\\") {
+          out.push(blank(code[i]!), blank(code[i + 1] ?? " "));
+          i += 2;
+          continue;
+        }
+        if (code.slice(i, i + term.length) === term) {
+          i += term.length;
+          break;
+        }
+        out.push(blank(code[i]!));
+        i++;
+      }
+      continue;
+    }
+
+    out.push(ch);
+    i++;
+  }
+  return out.join("");
+}
+
+/**
+ * Cyclomatic complexity: 1 + one per decision point. The number ships as
+ * `cyclomaticComplexity` and becomes building height in the city, so it counts
+ * branches and nothing else — no comments, no string contents, no reformatting.
+ */
+export function estimateCyclomaticComplexity(code: string, language?: string): number {
+  const src = maskNonCode(code, isHashCommentLanguage(language));
+  const count = (re: RegExp): number => (src.match(re) ?? []).length;
+
+  let decisions =
+    count(/\bif\b/g) -
+    count(/\belse\s+if\b/g) + // `else if` is one branch, not two
+    count(/\belse\b/g) +
+    count(/\bwhile\b/g) +
+    count(/\bfor\b/g) +
+    count(/\bcase\b/g) +
+    count(/\bcatch\b/g) +
+    count(/&&|\|\||\?\?/g) +
+    // a real ternary `?`: not `??`, not `?.`, not a TS `x?: T` annotation
+    count(/(?<!\?)\?(?![?:.])/g);
+
+  if (isHashCommentLanguage(language)) {
+    decisions += count(/\belif\b/g) + count(/\bexcept\b/g) + count(/\band\b/g) + count(/\bor\b/g);
+  }
+
   return Math.max(1, decisions + 1);
 }
 
@@ -130,12 +219,24 @@ export function extractFunctions(content: string): Array<{
           name,
           line: i + 1,
           parameters: params,
-          complexity: estimateCyclomaticComplexity(lines[i] || ""),
+          complexity: 1, // replaced below with the real span
           isAsync: (lines[i] || "").includes("async"),
         });
         break; // One match per line
       }
     }
+  }
+
+  // A function's complexity is what happens inside it, not on its signature
+  // line. The span runs to the next detected function (or EOF) — the same
+  // line-range heuristic the voxel sections use, so the two never disagree
+  // about where a block ends.
+  for (let i = 0; i < functions.length; i++) {
+    const start = functions[i]!.line;
+    const end = functions[i + 1]?.line ?? lines.length + 1;
+    functions[i]!.complexity = estimateCyclomaticComplexity(
+      lines.slice(start - 1, end - 1).join("\n"),
+    );
   }
 
   return functions.slice(0, 100); // Limit to avoid memory issues

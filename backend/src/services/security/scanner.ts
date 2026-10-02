@@ -86,7 +86,7 @@ export class SecurityScanner {
           path: rel,
           language: "Config",
           lines: { total: 1, code: 1, comments: 0, blank: 0 },
-          complexity: { cyclomatic: 1, cognitive: 1 },
+          complexity: { cyclomatic: 1 },
           functions: [],
           classes: [],
           imports: [],

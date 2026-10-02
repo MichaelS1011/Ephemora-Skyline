@@ -21,7 +21,7 @@ export interface FileAnalysis {
   lines: { total: number; code: number; comments: number; blank: number };
   /** Raw file size in bytes — flags binary bloat that LOC hides */
   bytes?: number;
-  complexity: { cyclomatic: number; cognitive: number };
+  complexity: { cyclomatic: number };
   functions: Array<{
     name: string;
     line: number;

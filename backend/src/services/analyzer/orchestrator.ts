@@ -150,7 +150,7 @@ export class AnalysisOrchestrator {
 
             const lines = countLines(content);
             const language = detectLanguage(relativePath);
-            const cyclomatic = estimateCyclomaticComplexity(content);
+            const cyclomatic = estimateCyclomaticComplexity(content, language);
 
             const vulnerabilities = await this.scanner.scanFile(relativePath, content);
             const { imports: rawImports, exports: fileExports } = this.scanner.scanFileStructure(
@@ -170,7 +170,7 @@ export class AnalysisOrchestrator {
               language,
               lines,
               bytes: Buffer.byteLength(content, "utf-8"),
-              complexity: { cyclomatic, cognitive: cyclomatic },
+              complexity: { cyclomatic },
               functions,
               classes,
               sections,

@@ -13,7 +13,7 @@ function makeFile(overrides: Partial<FileAnalysis> & { path: string }): FileAnal
   return {
     language: "TypeScript",
     lines: { total: 2, code: 2, comments: 0, blank: 0 },
-    complexity: { cyclomatic: 1, cognitive: 1 },
+    complexity: { cyclomatic: 1 },
     functions: [],
     classes: [],
     imports: [],

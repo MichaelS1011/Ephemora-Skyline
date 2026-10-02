@@ -16,8 +16,15 @@ import type { CityData, CityFile } from "./types";
 // ── Normalization references (what counts as "maxed out") ─────────────────
 
 export const NORM_REFERENCE = {
-  /** Cyclomatic complexity ≥ this saturates the cyclomatic factor */
-  cyclomatic: 25,
+  /**
+   * Cyclomatic complexity ≥ this saturates the cyclomatic factor. Calibrated
+   * to the share of files that max out, not to the raw number: the counter
+   * behind this metric used to miss `&&`, `||`, ternaries and bare `else`
+   * while counting comments, so fixing it moved a real project's median from
+   * 12 to 22. 40 keeps the skyline's saturation rate where 25 had it (26 % vs
+   * 27 % of files) — the reference tracks the metric, not the taste.
+   */
+  cyclomatic: 40,
   /** Import count ≥ this saturates the depth proxy (coupling) */
   imports: 12,
   /** LOC ≥ this saturates the size factor */
