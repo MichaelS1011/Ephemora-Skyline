@@ -29,7 +29,7 @@ export function District({ placement, appearAt, constructing }: DistrictProps) {
   const { dir, x, z, w, d, skyline } = placement;
   const hasP0 = dir.findingsBySeverity.P0 > 0;
 
-  const curbColor = hasP0 ? ENV.windowAlarm : "#2c3852";
+  const curbColor = hasP0 ? ENV.windowAlarm : "#3a4a68";
   const curbIntensity = useMemo(() => (hasP0 ? 1.1 : 0.3), [hasP0]);
 
   // Etappe K review: single-click drill-in stays. Districts are large — the
@@ -85,7 +85,7 @@ export function District({ placement, appearAt, constructing }: DistrictProps) {
         onPointerOut={handleOut}
       >
         <boxGeometry args={[w + 2.4, 0.18, d + 2.4]} />
-        <meshStandardMaterial color="#161c29" roughness={0.95} />
+        <meshStandardMaterial color="#232a3a" roughness={0.95} />
       </mesh>
 
       {/* Curb — subtle frame; alarm-red when P0 lives inside */}
@@ -134,7 +134,7 @@ export function District({ placement, appearAt, constructing }: DistrictProps) {
             onPointerOut={handleOut}
           >
             <boxGeometry args={[2.2, 1, 2.2]} />
-            <meshStandardMaterial color="#1c2434" roughness={0.9} />
+            <meshStandardMaterial color="#2a3346" roughness={0.9} />
           </mesh>
           <mesh position={[0, 1.06, 0]}>
             <boxGeometry args={[2.3, 0.08, 2.3]} />

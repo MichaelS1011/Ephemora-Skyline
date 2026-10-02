@@ -320,7 +320,7 @@ export function CityTree() {
         <group position={[layout.podium.x, 0, layout.podium.z]}>
           <mesh position={[0, 0.5, 0]}>
             <boxGeometry args={[3.4, 1, 3.4]} />
-            <meshStandardMaterial color="#222220" roughness={0.9} />
+            <meshStandardMaterial color={ENV.plot} roughness={0.9} />
           </mesh>
           <mesh position={[0, 1.12, 0]}>
             <boxGeometry args={[3.4, 0.08, 3.4]} />

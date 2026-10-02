@@ -163,19 +163,19 @@ const UNIT_CYLINDER = new THREE.CylinderGeometry(0.5, 0.5, 1, 8);
 const PICK_MATERIAL = new THREE.MeshBasicMaterial({ colorWrite: false, depthWrite: false });
 
 const DETAIL_MATERIALS = {
-  metal: new THREE.MeshStandardMaterial({ color: "#2a3244", roughness: 0.6, metalness: 0.35 }),
-  dark: new THREE.MeshStandardMaterial({ color: "#161c29", roughness: 0.9 }),
+  metal: new THREE.MeshStandardMaterial({ color: "#38425a", roughness: 0.6, metalness: 0.35 }),
+  dark: new THREE.MeshStandardMaterial({ color: "#232a3a", roughness: 0.9 }),
 };
 const DETAIL_MATERIALS_DIMMED = {
   metal: new THREE.MeshStandardMaterial({
-    color: "#2a3244",
+    color: "#38425a",
     roughness: 0.6,
     metalness: 0.35,
     transparent: true,
     opacity: 0.12,
   }),
   dark: new THREE.MeshStandardMaterial({
-    color: "#161c29",
+    color: "#232a3a",
     roughness: 0.9,
     transparent: true,
     opacity: 0.12,
@@ -795,7 +795,7 @@ export function Building({
           <mesh position={[0, h + 0.3 + 0.09, 0]}>
             <boxGeometry args={[w + 0.16, 0.18, d + 0.16]} />
             <meshStandardMaterial
-              color="#171c29"
+              color="#242c3d"
               roughness={0.85}
               transparent={dimmed}
               opacity={dimmed ? 0.1 : 1}
@@ -1015,7 +1015,7 @@ export function Building({
             <mesh position={[0, bodyH + (stepped ? 0.3 : 0.55) + 0.12, 0]}>
               <boxGeometry args={[w + 0.25, 0.24, d + 0.25]} />
               <meshStandardMaterial
-                color="#171c29"
+                color="#242c3d"
                 roughness={0.85}
                 transparent={dimmed}
                 opacity={dimmed ? 0.1 : 1}

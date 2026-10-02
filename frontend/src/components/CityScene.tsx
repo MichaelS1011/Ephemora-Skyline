@@ -20,7 +20,18 @@ export function CityScene() {
   const focusPath = useStore((s) => s.focusPath);
   const requestFly = useStore((s) => s.requestFly);
   const buildStartedAt = useStore((s) => s.buildStartedAt);
-  const { camera } = useThree();
+  const { camera, gl } = useThree();
+
+  // ACES has a toe steep enough to floor an entire dusk scene: measured on a
+  // built city it left 78 % of all pixels under 20/255, so nothing had shape.
+  // The exposure lifts the mid-tones out of the toe while leaving the
+  // highlight rolloff that keeps the lit windows from clipping.
+  useEffect(() => {
+    gl.toneMappingExposure = 1.35;
+    return () => {
+      gl.toneMappingExposure = 1;
+    };
+  }, [gl]);
   // Which build the crane flight was armed for — the in-city re-scan keeps
   // CityScene mounted while the city pointer changes, so the flight is
   // coupled to buildStartedAt, not to a session-wide "ever had a city" flag.
@@ -61,10 +72,13 @@ export function CityScene() {
       <CameraRig />
 
       {/* Corporate dusk: warm charcoal sky, ember sun, vermilion city glow */}
-      <hemisphereLight args={["#4a463e", "#121210", 0.9]} />
-      <directionalLight position={[60, 55, 30]} intensity={0.6} color="#ffd9a8" />
-      <directionalLight position={[-45, 35, -35]} intensity={0.32} color="#e8c890" />
-      <ambientLight intensity={0.22} />
+      {/* The canvas has no clear colour of its own, so past the edge of the
+          ground plane the world dissolved into the HUD's page charcoal. */}
+      <color attach="background" args={[ENV.skyTop]} />
+      <hemisphereLight args={["#5d594d", "#2a2823", 1.2]} />
+      <directionalLight position={[60, 55, 30]} intensity={0.9} color="#ffd9a8" />
+      <directionalLight position={[-45, 35, -35]} intensity={0.5} color="#e8c890" />
+      <ambientLight intensity={0.5} />
       {/* Warm city glow pooling over the plaza — deepens the dusk, no shadows */}
       <pointLight
         position={[0, 16, 0]}
@@ -74,8 +88,9 @@ export function CityScene() {
         decay={2}
       />
 
-      {/* Atmosphere scales with the current district size */}
-      <fog attach="fog" args={[ENV.fog, bounds * 1.4, bounds * 4 + 220]} />
+      {/* Atmosphere scales with the current district size. `near` starts past
+          the far edge of the plaza, so the city itself is never hazed away. */}
+      <fog attach="fog" args={[ENV.fog, bounds * 2.2, bounds * 4 + 220]} />
       <Stars radius={260} depth={70} count={2600} factor={3.4} saturation={0} fade speed={0.6} />
 
       {/* Asphalt ground */}

@@ -151,21 +151,25 @@ export function authorColor(name: string): string {
 // ── Environment (corporate dusk: charcoal world, vermilion glow) ──────────
 
 export const ENV = {
-  skyTop: "#141412",
-  skyHorizon: "#2a2823",
-  fog: "#1b1b18",
-  ground: "#161614",
-  plot: "#222220",
-  plotEdge: "#4a463e",
-  road: "#161614",
-  curb: "#413f39",
-  crosswalk: "#8d887b",
-  laneDash: "#d9b45c",
+  skyTop: "#1f1e1b",
+  skyHorizon: "#3a372f",
+  // Fog sits ABOVE every surface it hides, or distance flattens into black
+  // instead of lifting into haze.
+  fog: "#3a382f",
+  ground: "#24231e",
+  plot: "#2d2c26",
+  plotEdge: "#5c574c",
+  road: "#1e1d1a",
+  curb: "#4a4840",
+  crosswalk: "#9d9889",
+  laneDash: "#e2c069",
   streetlight: "#ffd9a0",
   windowWarm: "#ffc470",
   windowCool: "#e8d8b0",
   windowAlarm: "#ff4d5e",
-  wallDark: "#1c1c1a",
+  // Facades catch the sky: a building darker than the ground it stands on
+  // reads as a cut-out instead of a volume.
+  wallDark: "#35342e",
   connection: "#e8b23c",
   selection: "#e8503c",
 } as const;

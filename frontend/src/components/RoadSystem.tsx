@@ -334,7 +334,7 @@ export function RoadSystem({
             rotation={[0, angle, 0]}
           >
             <boxGeometry args={[len + 3.4, 0.05, 3.8]} />
-            <meshStandardMaterial color="#1b1b18" roughness={0.96} />
+            <meshStandardMaterial color={ENV.road} roughness={0.96} />
           </mesh>
         );
       })}
@@ -431,7 +431,7 @@ export function RoadSystem({
         visible={active}
       >
         <boxGeometry args={[0.5, 0.2, 0.36]} />
-        <meshStandardMaterial color="#1c1c1a" roughness={0.3} metalness={0.4} />
+        <meshStandardMaterial color={ENV.road} roughness={0.3} metalness={0.4} />
       </instancedMesh>
     </group>
   );
