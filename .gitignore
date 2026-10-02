@@ -62,3 +62,7 @@ docker/*.local.yml
 
 # ZCode session artifacts
 .zcode/
+
+# Local planning and agent scratch (kept on disk, never published)
+.hermes/
+**/.video_agent/
