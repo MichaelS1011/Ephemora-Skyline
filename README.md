@@ -28,6 +28,8 @@ Most security tooling is a terminal of findings you scroll. Ephemora Skyline mak
 
 Local analysis reads file contents in-process on your own machine through the `localhost` backend and sends nothing to a third party. Git runs through `execFile` with an argument array (never a shell string), so file names cannot inject commands. Local analysis is bounded at **3000 files / 40 MB** and skips `node_modules`, `.git`, and build dirs. The remote path (`POST /api/analyze`, public-repo clone via the GitHub API) is an explicit, separate action. See [SECURITY.md](./SECURITY.md) for the reporting process.
 
+**Telemetry: none.** Ephemora Skyline ships no analytics and phones home for nothing except one anonymous check of the public GitHub releases API (cached, no data about you or your code — disable it with _More → Check for updates_ toggled off in a future release, or by blocking `/api/update/check`). Maintainers measure adoption through [GitHub's built-in traffic & clone statistics](https://docs.github.com/en/rest/metrics/traffic) (`GH_TOKEN=... node scripts/clone-stats.mjs`) — which count clones without ever identifying a user.
+
 ## Quick start
 
 Requires **Node >= 20** and **npm >= 10**.
