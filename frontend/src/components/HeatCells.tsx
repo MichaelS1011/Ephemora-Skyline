@@ -6,7 +6,7 @@ import type { DirLayout } from "../city/layout";
 import type { CityData } from "../city/types";
 import { useStore, type HeatChannel } from "../stores/useStore";
 import { useLodFar } from "../hooks/useLodFar";
-import { complexityColor, churnColor, SEVERITY_COLOR, THREAT_COLOR } from "../city/palette";
+import { complexityColor, churnColor, severityColor, THREAT_COLOR } from "../city/palette";
 import { syntheticComplexity } from "../city/mapping";
 
 /**
@@ -27,6 +27,7 @@ function fileHeatColor(
     importCount?: number;
     churnScore?: number;
   },
+  colorblind: boolean,
 ): THREE.Color {
   if (channel === "threat") {
     const worst = file.findings.reduce(
@@ -35,23 +36,31 @@ function fileHeatColor(
     );
     if (worst === 0) return new THREE.Color(THREAT_COLOR.safe);
     return new THREE.Color(
-      worst === 3 ? SEVERITY_COLOR.P0 : worst === 2 ? SEVERITY_COLOR.P1 : SEVERITY_COLOR.P2,
+      worst === 3
+        ? severityColor("P0", colorblind)
+        : worst === 2
+          ? severityColor("P1", colorblind)
+          : severityColor("P2", colorblind),
     );
   }
   if (channel === "complexity") {
     return new THREE.Color(
-      complexityColor(syntheticComplexity({ ...file, threatLevel: "safe", findings: [] } as never)),
+      complexityColor(
+        syntheticComplexity({ ...file, threatLevel: "safe", findings: [] } as never),
+        colorblind,
+      ),
     );
   }
   // churn — absent data reads as a calm, neutral dark cell
   if (file.churnScore === undefined) return new THREE.Color("#243247");
-  return new THREE.Color(churnColor(file.churnScore));
+  return new THREE.Color(churnColor(file.churnScore, colorblind));
 }
 
 export function HeatCells({ layout }: { layout: DirLayout }) {
   const lodFar = useLodFar(layout.bounds);
   const heatChannel = useStore((s) => s.heatChannel);
   const threatFilter = useStore((s) => s.threatFilter);
+  const colorblind = useStore((s) => s.prefs.colorblind);
   const meshRef = useRef<THREE.InstancedMesh>(null);
 
   const cellCount = layout.buildings.length + layout.blocks.length;
@@ -68,7 +77,7 @@ export function HeatCells({ layout }: { layout: DirLayout }) {
       dummy.rotation.set(0, 0, 0);
       dummy.updateMatrix();
       mesh.setMatrixAt(i, dummy.matrix);
-      mesh.setColorAt(i, fileHeatColor(heatChannel, b.file));
+      mesh.setColorAt(i, fileHeatColor(heatChannel, b.file, colorblind));
       i++;
     }
     for (const blk of layout.blocks) {
@@ -77,15 +86,15 @@ export function HeatCells({ layout }: { layout: DirLayout }) {
       const color =
         heatChannel === "threat"
           ? (subtree.findingsBySeverity.P0 ?? 0) > 0
-            ? SEVERITY_COLOR.P0
+            ? severityColor("P0", colorblind)
             : (subtree.findingsBySeverity.P1 ?? 0) > 0
-              ? SEVERITY_COLOR.P1
+              ? severityColor("P1", colorblind)
               : (subtree.findingsBySeverity.P2 ?? 0) > 0
-                ? SEVERITY_COLOR.P2
+                ? severityColor("P2", colorblind)
                 : THREAT_COLOR.safe
           : heatChannel === "complexity"
-            ? complexityColor(subtree.avgComplexity)
-            : churnColor(subtree.maxChurn ?? 0);
+            ? complexityColor(subtree.avgComplexity, colorblind)
+            : churnColor(subtree.maxChurn ?? 0, colorblind);
       dummy.position.set(blk.x, CELL_HEIGHT / 2, blk.z);
       dummy.scale.set(blk.w * 1.35, 1, blk.d * 1.35);
       dummy.updateMatrix();
@@ -95,7 +104,7 @@ export function HeatCells({ layout }: { layout: DirLayout }) {
     }
     mesh.instanceMatrix.needsUpdate = true;
     if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
-  }, [layout, heatChannel, cellCount, dummy]);
+  }, [layout, heatChannel, colorblind, cellCount, dummy]);
 
   // threatFilter dims safe cells by shifting them toward the background tone
   const dimNonMatching = threatFilter !== "all";

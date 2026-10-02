@@ -3,21 +3,27 @@
 import { useLayoutEffect, useMemo, useRef } from "react";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
+import { graphPath, nearestNode, type BuildSite, type SidewalkNetwork } from "../city/sidewalks";
 
 /**
  * The Ephe's — the citizens of Ephemora Skyline.
  *
  * They live on the EMPTY world already (wandering the ground), and once
  * the city stands they settle into full everyday life, Sims-style:
+ * - they WALK THE SIDEWALK GRAPH: along the curbs between the buildings,
+ *   crossing the streets only at crosswalks — never through plots
  * - some leave their buildings, some go inside (grow/shrink at the door)
  * - a taxi stops at the curb: someone walks up and gets in, someone steps
  *   out and walks away
  * - a bus stops at the bus stop: waiting Ephe's board, others step out
  * - pairs stop and chat under tiny speech bubbles full of 0s and 1s
  * - bodies come in all shapes: small, tall, broad, slim
+ * - when a build site is scheduled, walkers in yellow hats walk to the
+ *   plot edge and "work" there while the building rises
  *
- * Everything is instanced (2 draw calls for all walkers) plus one taxi,
- * one bus, one bus-stop sign and a 3-sprite pool for the chat bubbles.
+ * Everything is instanced (2 draw calls for all walkers, +1 when the
+ * builders' hats are in the scene) plus one taxi, one bus, one bus-stop
+ * sign and a 3-sprite pool for the chat bubbles.
  */
 
 interface StreetLine {
@@ -35,7 +41,17 @@ export interface HomeSpot {
 }
 
 type Mode =
-  "walk" | "enter" | "inside" | "exit" | "chat" | "waitBus" | "boarding" | "toTaxi" | "inTaxi";
+  | "walk"
+  | "enter"
+  | "inside"
+  | "exit"
+  | "chat"
+  | "waitBus"
+  | "boarding"
+  | "toTaxi"
+  | "inTaxi"
+  | "toSite"
+  | "work";
 
 interface Ephe {
   x: number;
@@ -58,6 +74,13 @@ interface Ephe {
   chatUntil: number;
   hidden: boolean; // inside a building / in a vehicle
   ride: "taxi" | "bus" | null;
+  // sidewalk graph state
+  node: number; // node currently heading for (or standing at)
+  prev: number; // node came from — avoids immediate backtracking
+  path: number[]; // planned node hops (route to a goal)
+  finalX: number | null; // off-graph goal after the path ends (door, curb slot)
+  finalZ: number;
+  siteIndex: number; // build site while toSite/work, -1 otherwise
 }
 
 const WALKER_COLORS = [
@@ -73,13 +96,10 @@ const WALKER_COLORS = [
 const WALK_SPEED = 2.3;
 const TURN_SPEED = 3.4;
 const ARRIVE = 0.55;
+/** Builder hat colour — brand amber, instanced on the hat mesh. */
+const HAT_COLOR = new THREE.Color("#e8b23c");
 
-function makeEphe(
-  i: number,
-  bounds: number,
-  streets: StreetLine[] | null,
-  homes: HomeSpot[],
-): Ephe {
+function makeEphe(i: number, bounds: number, net: SidewalkNetwork | null, homes: HomeSpot[]): Ephe {
   const shape = ((i * 61) % 100) / 100;
   const e: Ephe = {
     x: 0,
@@ -100,44 +120,36 @@ function makeEphe(
     chatUntil: 0,
     hidden: false,
     ride: null,
+    node: 0,
+    prev: -1,
+    path: [],
+    finalX: null,
+    finalZ: 0,
+    siteIndex: -1,
   };
-  if (streets && streets.length > 0) {
-    const s = streets[(i * 17) % streets.length]!;
-    const t = ((i * 29) % 100) / 100;
-    e.x = s.x1 + (s.x2 - s.x1) * t;
-    e.z = s.z1 + (s.z2 - s.z1) * t;
+  if (net && net.nodes.length > 0) {
+    // Spread the population across the whole sidewalk network
+    e.node = i % net.nodes.length;
+    const n = net.nodes[e.node]!;
+    e.x = n.x;
+    e.z = n.z;
   } else {
     const r = bounds * 0.5 * (((i * 41) % 100) / 100);
     const a = (i / 7) % (Math.PI * 2);
     e.x = Math.cos(a) * r;
     e.z = Math.sin(a) * r;
+    e.tx = e.x;
+    e.tz = e.z;
   }
-  pickTarget(e, bounds, streets);
   return e;
 }
 
-function pickTarget(e: Ephe, bounds: number, streets: StreetLine[] | null): void {
-  if (streets && streets.length > 0) {
-    const near = streets.filter(
-      (s) => Math.hypot(s.x1 - e.x, s.z1 - e.z) < 3 || Math.hypot(s.x2 - e.x, s.z2 - e.z) < 3,
-    );
-    const pool = near.length > 0 ? near : streets;
-    const s = pool[(Math.floor(Math.random() * 997) + Math.floor(e.phase * 13)) % pool.length]!;
-    const d1 = Math.hypot(s.x1 - e.x, s.z1 - e.z);
-    const d2 = Math.hypot(s.x2 - e.x, s.z2 - e.z);
-    const toFar = d1 < d2;
-    const side = e.phase > Math.PI ? 1 : -1;
-    const len = Math.max(Math.hypot(s.x2 - s.x1, s.z2 - s.z1), 0.001);
-    const nx = (-(s.z2 - s.z1) / len) * 1.3 * side;
-    const nz = ((s.x2 - s.x1) / len) * 1.3 * side;
-    e.tx = (toFar ? s.x2 : s.x1) + nx;
-    e.tz = (toFar ? s.z2 : s.z1) + nz;
-  } else {
-    const r = bounds * (0.15 + Math.random() * 0.85);
-    const a = Math.random() * Math.PI * 2;
-    e.tx = Math.cos(a) * r;
-    e.tz = Math.sin(a) * r;
-  }
+/** Ground wander — only for the empty world without a sidewalk network. */
+function pickGroundTarget(e: Ephe, bounds: number): void {
+  const r = bounds * (0.15 + Math.random() * 0.85);
+  const a = Math.random() * Math.PI * 2;
+  e.finalX = Math.cos(a) * r;
+  e.finalZ = Math.sin(a) * r;
 }
 
 /** Draw a tiny binary speech bubble onto a canvas texture. */
@@ -166,27 +178,37 @@ function drawBubble(ctx: CanvasRenderingContext2D, text: string): void {
 
 export function Pedestrians({
   streets = null,
+  network = null,
   homes = [],
   count = 72,
   bounds = 42,
+  buildSites = null,
+  vehiclesActive = true,
 }: {
   streets?: StreetLine[] | null;
+  network?: SidewalkNetwork | null;
   homes?: HomeSpot[];
   count?: number;
   bounds?: number;
+  /** Rising plots with their rise start (epoch-ms) — builders walk there. */
+  buildSites?: Array<BuildSite & { at: number }> | null;
+  /** false hides the taxi/bus/stop entirely (their walkers keep walking). */
+  vehiclesActive?: boolean;
 }) {
   const bodyRef = useRef<THREE.InstancedMesh>(null);
   const headRef = useRef<THREE.InstancedMesh>(null);
+  const hatRef = useRef<THREE.InstancedMesh>(null);
   const taxiRef = useRef<THREE.Group>(null);
   const busRef = useRef<THREE.Group>(null);
   const stopRef = useRef<THREE.Group>(null);
   const spriteRefs = useRef<Array<THREE.Sprite | null>>([null, null, null]);
 
-  const cityLife = homes.length > 0 && !!streets && streets.length > 0;
+  const onGraph = !!network && network.nodes.length > 0;
+  const cityLife = homes.length > 0 && onGraph;
 
   const walkers = useMemo<Ephe[]>(
-    () => Array.from({ length: count }, (_, i) => makeEphe(i, bounds, streets, homes)),
-    [count, bounds, streets, homes],
+    () => Array.from({ length: count }, (_, i) => makeEphe(i, bounds, network, homes)),
+    [count, bounds, network, homes],
   );
 
   // ── Transit infrastructure (only with a city) ────────────────────────────
@@ -243,6 +265,8 @@ export function Pedestrians({
     tChat: 5,
     tStopRefill: 6,
     tTaxi: 8,
+    // build sites: claimed site index → walker index, finished sites
+    build: { claimed: new Map<number, number>(), done: new Set<number>(), timer: 1.2 },
     // taxi state: 0 drive, 1 dwell, 2 drive-off pause
     taxi: { mode: 0, timer: 6, phase: 0, passenger: -1 },
     // bus state: 0 drive, 1 dwell
@@ -259,6 +283,12 @@ export function Pedestrians({
     textures: null as Array<THREE.CanvasTexture | null> | null,
     time: 0,
   });
+  // Fresh walkers carry no build claims — stale site bookings would block
+  // the scheduler forever
+  if (sim.current.walkers !== walkers) {
+    sim.current.build.claimed.clear();
+    sim.current.build.done.clear();
+  }
   sim.current.walkers = walkers;
   sim.current.transit = transit;
 
@@ -267,8 +297,9 @@ export function Pedestrians({
     sim.current.busSeg = streets[0]!;
 
   const dummy = useMemo(() => new THREE.Object3D(), []);
-  const bodyGeo = useMemo(() => new THREE.CapsuleGeometry(0.14, 0.34, 3, 8), []);
-  const headGeo = useMemo(() => new THREE.SphereGeometry(0.11, 8, 6), []);
+  const bodyGeo = useMemo(() => new THREE.CapsuleGeometry(0.17, 0.42, 3, 8), []);
+  const headGeo = useMemo(() => new THREE.SphereGeometry(0.14, 8, 6), []);
+  const hatGeo = useMemo(() => new THREE.ConeGeometry(0.16, 0.22, 8), []);
 
   const bubbleTextures = useMemo(() => {
     const make = (): THREE.CanvasTexture => {
@@ -290,6 +321,22 @@ export function Pedestrians({
     if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
   }, [walkers]);
 
+  // Hats start collapsed (scale 0) so nothing pokes out of the ground
+  // before the first frame positions them; every walker gets the amber
+  // instance colour up front — only builders ever scale the hat up.
+  useLayoutEffect(() => {
+    const mesh = hatRef.current;
+    if (!mesh) return;
+    dummy.position.set(0, 0, 0);
+    dummy.rotation.set(0, 0, 0);
+    dummy.scale.setScalar(0);
+    dummy.updateMatrix();
+    for (let i = 0; i < count; i++) mesh.setMatrixAt(i, dummy.matrix);
+    mesh.instanceMatrix.needsUpdate = true;
+    walkers.forEach((_, i) => mesh.setColorAt(i, HAT_COLOR));
+    if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
+  }, [walkers, count, buildSites, dummy]);
+
   // ── helpers ──────────────────────────────────────────────────────────────
   const walkToward = (e: Ephe, dt: number): boolean => {
     const dx = e.tx - e.x;
@@ -305,6 +352,82 @@ export function Pedestrians({
     e.x += Math.sin(e.angle) * step;
     e.z += Math.cos(e.angle) * step;
     return false;
+  };
+
+  // Follow the planned route (graph hops, then the off-graph goal).
+  // Returns true once the plan is exhausted and the goal is reached.
+  const planStep = (e: Ephe, dt: number): boolean => {
+    if (e.path.length > 0) {
+      const n = network!.nodes[e.path[0]!]!;
+      e.tx = n.x;
+      e.tz = n.z;
+      if (walkToward(e, dt)) {
+        e.node = e.path.shift()!;
+        if (e.path.length === 0 && e.finalX === null) return true;
+      }
+      return false;
+    }
+    if (e.finalX !== null) {
+      e.tx = e.finalX;
+      e.tz = e.finalZ;
+      if (walkToward(e, dt)) {
+        e.finalX = null;
+        return true;
+      }
+      return false;
+    }
+    return true;
+  };
+
+  // Pick the next curb to stroll to — a random neighbour on the graph
+  const graphWander = (e: Ephe): void => {
+    const net = network;
+    if (!net || net.nodes.length === 0) {
+      pickGroundTarget(e, bounds);
+      return;
+    }
+    const cur = net.nodes[e.node] ?? net.nodes[0]!;
+    const pool = cur.adj.filter((nb) => nb !== e.prev);
+    const options = pool.length > 0 ? pool : cur.adj;
+    if (options.length === 0) {
+      pickGroundTarget(e, bounds);
+      return;
+    }
+    const next = options[Math.floor(Math.random() * options.length)]!;
+    e.prev = e.node;
+    e.node = next;
+    const n = net.nodes[next]!;
+    e.tx = n.x;
+    e.tz = n.z;
+  };
+
+  // Route a walker to a point: graph hops to the nearest node, then a
+  // short straight hop to the goal itself (door, curb slot)
+  const routeTo = (e: Ephe, x: number, z: number): void => {
+    if (!network || network.nodes.length === 0) {
+      e.finalX = x;
+      e.finalZ = z;
+      return;
+    }
+    const from = nearestNode(network, e.x, e.z);
+    const to = nearestNode(network, x, z);
+    e.path = graphPath(network, from, to);
+    e.node = e.path.length > 0 ? e.path[e.path.length - 1]! : from;
+    e.finalX = x;
+    e.finalZ = z;
+  };
+
+  // Back on the graph after a spawn (exit, drop-off): hop to the nearest curb
+  const resumeWalk = (e: Ephe): void => {
+    if (!network || network.nodes.length === 0) {
+      pickGroundTarget(e, bounds);
+      return;
+    }
+    const from = nearestNode(network, e.x, e.z);
+    e.node = from;
+    e.prev = -1;
+    e.path = [from];
+    e.finalX = null;
   };
 
   const randomVisibleWalker = (pred: (e: Ephe) => boolean): number => {
@@ -324,6 +447,21 @@ export function Pedestrians({
     if (!bodies || !heads) return;
     const S = sim.current;
     const st = S.transit;
+    // Build choreography runs on the REAL clock (site `at` is epoch-ms,
+    // same clock CityTree schedules its rises on); only read while sites
+    // exist so the plain world stays untouched.
+    const hasSites = !!buildSites && buildSites.length > 0;
+    const epochNow = hasSites ? Date.now() : 0;
+    const hats = hatRef.current;
+
+    // Construction site: keep the vehicles OFF the stage. The blocks below
+    // only ever turn them on, so an in-city re-scan (same mounted component)
+    // would otherwise leave city A's frozen taxi/bus/stop in city B's shot.
+    if (!vehiclesActive) {
+      if (taxiRef.current) taxiRef.current.visible = false;
+      if (busRef.current) busRef.current.visible = false;
+      if (stopRef.current) stopRef.current.visible = false;
+    }
 
     // ── schedulers (city life only) ────────────────────────────────────────
     if (cityLife && homes.length > 0) {
@@ -348,9 +486,8 @@ export function Pedestrians({
         if (i >= 0) {
           const e = walkers[i]!;
           const h = homes[e.home % homes.length]!;
-          e.tx = h.doorX;
-          e.tz = h.doorZ;
           e.mode = "enter";
+          routeTo(e, h.doorX, h.doorZ);
         }
       }
     }
@@ -392,12 +529,12 @@ export function Pedestrians({
         if (ea.mode === "chat") {
           ea.mode = "walk";
           ea.chatPartner = -1;
-          pickTarget(ea, bounds, streets);
+          resumeWalk(ea);
         }
         if (eb.mode === "chat") {
           eb.mode = "walk";
           eb.chatPartner = -1;
-          pickTarget(eb, bounds, streets);
+          resumeWalk(eb);
         }
         S.chats[k] = null;
         continue;
@@ -430,7 +567,7 @@ export function Pedestrians({
 
     // ── taxi ───────────────────────────────────────────────────────────────
     const taxiG = taxiRef.current;
-    if (cityLife && st.taxiCurb && taxiG) {
+    if (cityLife && vehiclesActive && st.taxiCurb && taxiG) {
       taxiG.visible = true;
       const taxi = S.taxi;
       taxi.timer -= dt;
@@ -451,8 +588,7 @@ export function Pedestrians({
               const e = walkers[i]!;
               e.mode = "toTaxi";
               e.ride = "taxi";
-              e.tx = st.taxiCurb.x;
-              e.tz = st.taxiCurb.z;
+              routeTo(e, st.taxiCurb.x, st.taxiCurb.z);
               taxi.passenger = i;
             }
           } else {
@@ -497,7 +633,7 @@ export function Pedestrians({
     // ── bus ────────────────────────────────────────────────────────────────
     const busG = busRef.current;
     const stopG = stopRef.current;
-    if (cityLife && st.stopPoint && busG && stopG) {
+    if (cityLife && vehiclesActive && st.stopPoint && busG && stopG) {
       busG.visible = true;
       stopG.visible = true;
       const bus = S.bus;
@@ -528,7 +664,10 @@ export function Pedestrians({
           }
           const x = seg.x1 + (seg.x2 - seg.x1) * bus.t;
           const z = seg.z1 + (seg.z2 - seg.z1) * bus.t;
-          busG.position.set(x, 0, z);
+          // keep to the right lane of the travel direction
+          const ux = (seg.x2 - seg.x1) / len;
+          const uz = (seg.z2 - seg.z1) / len;
+          busG.position.set(x + uz * 1.0 * bus.dir, 0, z - ux * 1.0 * bus.dir);
           busG.rotation.y =
             Math.atan2(seg.x2 - seg.x1, seg.z2 - seg.z1) + (bus.dir > 0 ? 0 : Math.PI);
           // arrive at the stop?
@@ -579,7 +718,7 @@ export function Pedestrians({
     }
 
     // ── stop refill: send walkers to wait at the bus stop ──────────────────
-    if (cityLife && st.stopPoint) {
+    if (cityLife && vehiclesActive && st.stopPoint) {
       S.tStopRefill -= dt;
       const waiting = walkers.filter((e) => e.mode === "waitBus").length;
       if (S.tStopRefill <= 0 && waiting < 3) {
@@ -591,8 +730,61 @@ export function Pedestrians({
           const e = walkers[i]!;
           const slot = waiting % 3;
           e.mode = "waitBus";
-          e.tx = st.stopPoint.x + [0, 0.9, -0.9][slot]!;
-          e.tz = st.stopPoint.z + [0.5, -0.4, -0.4][slot]!;
+          routeTo(
+            e,
+            st.stopPoint.x + [0, 0.9, -0.9][slot]!,
+            st.stopPoint.z + [0.5, -0.4, -0.4][slot]!,
+          );
+        }
+      }
+    }
+
+    // ── build sites: walkers become builders for the rise choreography ─────
+    // NEVER-STALL: the buildings rise on a pure clock (CityTree's appearAt
+    // schedule) — this choreography is decorative and must NEVER delay the
+    // construction. Builders are dispatched 2.5 s before a rise starts and
+    // released the moment it is done; a site that went overdue is long
+    // finished, so its builder simply gives up and strolls on. Runs
+    // independently of vehiclesActive — builders are walkers, not traffic.
+    if (hasSites) {
+      S.build.timer -= dt;
+      if (S.build.timer <= 0) {
+        S.build.timer = 0.6;
+        if (S.build.claimed.size < 8) {
+          // earliest site inside its assignment window, not claimed/done
+          let siteIdx = -1;
+          for (let i = 0; i < buildSites!.length; i++) {
+            if (S.build.claimed.has(i) || S.build.done.has(i)) continue;
+            const at = buildSites![i]!.at;
+            if (epochNow >= at - 2500 && epochNow <= at) {
+              siteIdx = i;
+              break;
+            }
+          }
+          if (siteIdx >= 0) {
+            const site = buildSites![siteIdx]!;
+            // nearest free walker becomes the builder for this site
+            let best = -1;
+            let bestD = Infinity;
+            for (let i = 0; i < walkers.length; i++) {
+              const e = walkers[i]!;
+              if (e.mode !== "walk" || e.pause > 0 || e.chatPartner >= 0 || e.hidden) continue;
+              const dx = e.x - site.doorX;
+              const dz = e.z - site.doorZ;
+              const d = dx * dx + dz * dz;
+              if (d < bestD) {
+                bestD = d;
+                best = i;
+              }
+            }
+            if (best >= 0) {
+              const e = walkers[best]!;
+              e.mode = "toSite";
+              e.siteIndex = siteIdx;
+              routeTo(e, site.doorX, site.doorZ);
+              S.build.claimed.set(siteIdx, best);
+            }
+          }
         }
       }
     }
@@ -610,21 +802,17 @@ export function Pedestrians({
       if (e.mode === "walk" || e.mode === "waitBus" || e.mode === "toTaxi") {
         if (e.pause > 0) {
           e.pause -= dt;
-        } else {
-          const arrived = walkToward(e, dt);
-          if (arrived) {
-            if (e.mode === "waitBus") {
-              // stand and wait
-              e.pause = 1 + Math.random();
-            } else if (Math.random() < 0.22) {
-              e.pause = 0.7 + Math.random() * 2.2;
-            }
-            if (e.mode === "walk") pickTarget(e, bounds, streets);
+        } else if (planStep(e, dt)) {
+          // plan exhausted: waitBus stands at its slot, walkers stroll on
+          if (e.mode === "waitBus") {
+            e.pause = 1 + Math.random();
+          } else {
+            if (Math.random() < 0.22) e.pause = 0.7 + Math.random() * 2.2;
+            graphWander(e);
           }
         }
       } else if (e.mode === "enter") {
-        const arrived = walkToward(e, dt);
-        if (arrived) {
+        if (planStep(e, dt)) {
           e.anim -= dt * 1.5;
           if (e.anim <= 0) {
             e.mode = "inside";
@@ -635,7 +823,7 @@ export function Pedestrians({
         e.anim = Math.min(1, e.anim + dt * 1.6);
         if (e.anim >= 1) {
           e.mode = "walk";
-          pickTarget(e, bounds, streets);
+          resumeWalk(e);
         }
       } else if (e.mode === "chat") {
         // face the partner, gentle bob only
@@ -650,22 +838,69 @@ export function Pedestrians({
       } else if (e.mode === "boarding") {
         // handled in the bus block (shrink)
         e.anim = Math.max(0, e.anim - dt * 1.6);
+      } else if (e.mode === "toSite") {
+        const site = buildSites?.[e.siteIndex];
+        if (!site) {
+          // site list changed under us — never stall, stroll on
+          e.siteIndex = -1;
+          resumeWalk(e);
+          e.mode = "walk";
+        } else {
+          if (planStep(e, dt) && Math.hypot(e.x - site.doorX, e.z - site.doorZ) < 1.2) {
+            // at the plot edge: stand still and face the site once
+            e.mode = "work";
+            e.tx = e.x;
+            e.tz = e.z;
+            e.angle = Math.atan2(site.x - e.x, site.z - e.z);
+          }
+          // NEVER-STALL: the rise is pure clock — an overdue site is long
+          // done, so the builder gives up instead of wasting time
+          if (epochNow > site.at + 700) {
+            S.build.claimed.delete(e.siteIndex);
+            e.siteIndex = -1;
+            resumeWalk(e);
+            e.mode = "walk";
+          }
+        }
+      } else if (e.mode === "work") {
+        const site = buildSites?.[e.siteIndex];
+        if (!site || epochNow > site.at + 700) {
+          // rise complete — mark the site done and rejoin everyday life
+          if (e.siteIndex >= 0) {
+            S.build.claimed.delete(e.siteIndex);
+            S.build.done.add(e.siteIndex);
+          }
+          e.siteIndex = -1;
+          resumeWalk(e);
+          e.mode = "walk";
+        }
       }
 
       // ── render transform ─────────────────────────────────────────────────
-      const moving = (e.mode === "walk" || e.mode === "toTaxi") && e.pause <= 0;
+      const moving =
+        (e.mode === "walk" || e.mode === "toTaxi" || e.mode === "toSite") && e.pause <= 0;
       const grow =
         e.mode === "exit" || e.mode === "enter"
           ? Math.max(e.anim, 0)
           : e.mode === "boarding"
             ? Math.max(e.anim, 0)
             : 1;
-      const bob = moving ? Math.abs(Math.sin(now * 7 * e.tall + e.phase)) * 0.05 : 0;
-      const y = (0.36 + bob) * e.tall * grow;
+      // work bob: gentle up/down plus a small nod — same sin(now*9)*0.04
+      // pattern the chat idle uses
+      const bob = moving
+        ? Math.abs(Math.sin(now * 7 * e.tall + e.phase)) * 0.05
+        : e.mode === "work"
+          ? Math.sin(now * 9) * 0.04
+          : 0;
+      const y = (0.44 + bob) * e.tall * grow;
 
       dummy.position.set(e.x, y, e.z);
       dummy.rotation.set(
-        moving ? Math.sin(now * 7 + e.phase) * 0.06 : Math.sin(now * 1.6 + e.phase) * 0.02,
+        moving
+          ? Math.sin(now * 7 + e.phase) * 0.06
+          : e.mode === "work"
+            ? Math.sin(now * 9) * 0.04
+            : Math.sin(now * 1.6 + e.phase) * 0.02,
         e.angle,
         0,
       );
@@ -677,7 +912,7 @@ export function Pedestrians({
       dummy.updateMatrix();
       bodies.setMatrixAt(i, dummy.matrix);
 
-      dummy.position.set(e.x, y + 0.34 * e.tall * grow, e.z);
+      dummy.position.set(e.x, y + 0.46 * e.tall * grow, e.z);
       dummy.scale.set(
         e.fat * grow * visibleScale,
         e.tall * grow * visibleScale,
@@ -685,9 +920,21 @@ export function Pedestrians({
       );
       dummy.updateMatrix();
       heads.setMatrixAt(i, dummy.matrix);
+
+      if (hats) {
+        // only builders wear the hat; everyone else collapses to scale 0
+        const builder = (e.mode === "work" || e.mode === "toSite") && visibleScale > 0;
+        const vScale = e.tall * grow * visibleScale;
+        dummy.position.set(e.x, y + 0.46 * e.tall * grow + 0.16 * vScale, e.z);
+        dummy.rotation.set(0, 0, 0);
+        dummy.scale.setScalar(builder ? vScale : 0);
+        dummy.updateMatrix();
+        hats.setMatrixAt(i, dummy.matrix);
+      }
     });
     bodies.instanceMatrix.needsUpdate = true;
     heads.instanceMatrix.needsUpdate = true;
+    if (hats) hats.instanceMatrix.needsUpdate = true;
   });
 
   return (
@@ -698,6 +945,13 @@ export function Pedestrians({
       <instancedMesh ref={headRef} args={[headGeo, undefined, count]} frustumCulled={false}>
         <meshStandardMaterial color="#e8d8b0" roughness={0.7} />
       </instancedMesh>
+
+      {/* Builder hats — only in the scene while build sites are scheduled */}
+      {buildSites && (
+        <instancedMesh ref={hatRef} args={[hatGeo, undefined, count]} frustumCulled={false}>
+          <meshStandardMaterial roughness={0.5} />
+        </instancedMesh>
+      )}
 
       {/* Taxi — brand red, stops at the curb */}
       <group ref={taxiRef} position={[0, 0, -60]} visible={false}>

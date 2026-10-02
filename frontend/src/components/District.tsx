@@ -32,6 +32,11 @@ export function District({ placement, appearAt, constructing }: DistrictProps) {
   const curbColor = hasP0 ? ENV.windowAlarm : "#2c3852";
   const curbIntensity = useMemo(() => (hasP0 ? 1.1 : 0.3), [hasP0]);
 
+  // Etappe K review: single-click drill-in stays. Districts are large — the
+  // flight IS the point (unlike buildings, where a click only selects and a
+  // double-click flies). drillIn frames the district via flyToDirOverview;
+  // with the new camera duration logic that flight shortens automatically.
+  // No selectBuilding equivalent needed: the click never selected a file.
   const handleClick = (e: { stopPropagation: () => void }): void => {
     e.stopPropagation();
     drillIn(dir.name);
@@ -144,7 +149,7 @@ export function District({ placement, appearAt, constructing }: DistrictProps) {
               style={{
                 fontFamily: "'JetBrains Mono', ui-monospace, Menlo, monospace",
                 fontSize: 9,
-                color: "#a8a49a",
+                color: "var(--meta-strong)",
                 background: "rgba(18, 18, 16, 0.75)",
                 border: "1px solid rgba(90,120,180,0.35)",
                 borderRadius: 3,

@@ -56,6 +56,21 @@ export const SEVERITY_COLOR: Record<Severity, string> = {
   P2: "#ffd23f",
 };
 
+/** Okabe-Ito severity alarms — distinguishable under deuteranopia/protanopia. */
+export const SEVERITY_CVD_COLOR: Record<Severity, string> = {
+  P0: "#d55e00", // vermilion
+  P1: "#0072b2", // blue
+  P2: "#e69f00", // amber
+};
+
+/** Severity alarm colour, CVD-safe variant switchable per user preference. */
+export function severityColor(sev: Severity, colorblind: boolean): string {
+  return colorblind ? SEVERITY_CVD_COLOR[sev] : SEVERITY_COLOR[sev];
+}
+
+/** Calm beacon colour for fully reviewed files ("nothing left to do here"). */
+export const REVIEWED_BEACON_COLOR = "#29d398";
+
 export const THREAT_COLOR: Record<ThreatLevel, string> = {
   critical: SEVERITY_COLOR.P0,
   high: SEVERITY_COLOR.P1,
@@ -70,6 +85,13 @@ export function threatRank(level: ThreatLevel): number {
 
 // ── Heatmap channels (far-zoom LOD cells) ──────────────────────────────────
 
+/** Okabe-Ito anchors for the CVD-safe heat ramps (no red/green adjacency). */
+const OKABE_BLUE = "#0072b2";
+const OKABE_AMBER = "#e69f00";
+const OKABE_VERMILION = "#d55e00";
+/** Darkened vermilion — the "hot" end of the CVD complexity ramp. */
+const OKABE_VERMILION_DARK = "#753300";
+
 /** Two-stop gradient evaluation in sRGB hex space (good enough for heat). */
 function gradient(t: number, from: string, to: string): string {
   const p = Math.max(0, Math.min(1, t));
@@ -81,15 +103,27 @@ function gradient(t: number, from: string, to: string): string {
   return `#${((r << 16) | (g << 8) | b).toString(16).padStart(6, "0")}`;
 }
 
-/** Complexity gradient: cool cyan (simple) → amber → hot magenta */
-export function complexityColor(t: number): string {
+/**
+ * Complexity gradient: cool cyan (simple) → amber → hot magenta.
+ * CVD variant: blue → amber → dark vermilion (no red/green neighbours).
+ */
+export function complexityColor(t: number, colorblind = false): string {
+  if (colorblind) {
+    if (t < 0.5) return gradient(t * 2, OKABE_BLUE, OKABE_AMBER);
+    return gradient((t - 0.5) * 2, OKABE_AMBER, OKABE_VERMILION_DARK);
+  }
   if (t < 0.5) return gradient(t * 2, "#3dd6c4", "#ffd23f");
   return gradient((t - 0.5) * 2, "#ffd23f", "#ff2ea6");
 }
 
-/** Churn gradient: calm green (stable) → hot orange (eroding). */
-export function churnColor(score: number): string {
-  return gradient(score, "#29d398", "#ff7a1a");
+/**
+ * Churn gradient: calm green (stable) → hot orange (eroding).
+ * CVD variant: blue (stable) → vermilion (eroding).
+ */
+export function churnColor(score: number, colorblind = false): string {
+  return colorblind
+    ? gradient(score, OKABE_BLUE, OKABE_VERMILION)
+    : gradient(score, "#29d398", "#ff7a1a");
 }
 
 // ── Author territory colors (git blame districts) ─────────────────────────
@@ -124,6 +158,8 @@ export const ENV = {
   plot: "#222220",
   plotEdge: "#4a463e",
   road: "#161614",
+  curb: "#413f39",
+  crosswalk: "#8d887b",
   laneDash: "#d9b45c",
   streetlight: "#ffd9a0",
   windowWarm: "#ffc470",

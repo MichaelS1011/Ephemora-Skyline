@@ -1,10 +1,14 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useFrame, useThree } from "@react-three/fiber";
 import { Html } from "@react-three/drei";
 import { useStore } from "../stores/useStore";
-import { getDirLayout, landmarkFileId } from "../city/layout";
+import { constructionStep, getDirLayout, landmarkFileId } from "../city/layout";
+import { buildSidewalkNetwork, plazaLanes, planBuildSites } from "../city/sidewalks";
 import { ENV } from "../city/palette";
+import { findingKey } from "../reviews";
+import type { CityFile } from "../city/types";
 import { RoadSystem } from "./RoadSystem";
 import { District } from "./District";
 import { Building } from "./Building";
@@ -12,8 +16,10 @@ import { CityConnections } from "./CityConnections";
 import { DependencyFlows } from "./DependencyFlows";
 import { CloneLasers } from "./CloneLasers";
 import { HeatCells } from "./HeatCells";
+import { ModeBar } from "./ModeBar";
 import { Pedestrians } from "./Pedestrians";
-import { useLodFar } from "../hooks/useLodFar";
+import { useLodLevel } from "../hooks/useLodLevel";
+import { computeFocusTiers, type FocusTier } from "../city/focus";
 
 /**
  * Renders the visible semantic-zoom level. Every level is a REAL city:
@@ -21,23 +27,78 @@ import { useLodFar } from "../hooks/useLodFar";
  * level's own files are full buildings on the central plaza. Repo size
  * changes drill depth — never the amount on screen.
  */
+
+/** Phase 0 of the construction cinematic: empty terrain while the Ephe's move in. */
+export const PHASE_0_MS = 1600;
+
 export function CityTree() {
   const cityData = useStore((s) => s.cityData);
   const focusPath = useStore((s) => s.focusPath);
   const threatFilter = useStore((s) => s.threatFilter);
+  const ruleFilter = useStore((s) => s.ruleFilter);
+  const reviews = useStore((s) => s.reviews);
   const buildPhase = useStore((s) => s.buildPhase);
   const buildStartedAt = useStore((s) => s.buildStartedAt);
-  const setConstructionProgress = useStore((s) => s.setConstructionProgress);
   const selectedFileId = useStore((s) =>
     s.selectedUnit?.kind === "file" ? s.selectedUnit.id : null,
   );
+  const focusedFindingKey = useStore((s) => s.focusedFindingKey);
+  // View mode (spec §14): gates the dependency arcs + highlights them
+  const viewMode = useStore((s) => s.viewMode);
+  // Canvas size only — feeds the screen-fixed ModeBar anchor (no camera math)
+  const size = useThree((s) => s.size);
 
   const layout = useMemo(
     () => (cityData ? getDirLayout(cityData, focusPath) : null),
     [cityData, focusPath],
   );
+  // The sidewalk graph the Ephe's walk on: curbs along every street plus
+  // lanes between the plaza's file buildings. Shared with RoadSystem so
+  // the zebra stripes sit exactly where walkers cross.
+  const sidewalks = useMemo(
+    () => (layout ? buildSidewalkNetwork(layout.streets, plazaLanes(layout.buildings)) : null),
+    [layout],
+  );
   const landmarkId = useMemo(() => (cityData ? landmarkFileId(cityData) : null), [cityData]);
-  const lodFar = useLodFar(layout?.bounds ?? 100);
+  // Stepped semantic zoom: 0 = skyline heat grid, 1 = district, 2 = near.
+  // The old boolean far-LOD is exactly tier 0.
+  const lodLevel = useLodLevel(layout?.bounds ?? 100);
+  const lodFar = lodLevel === 0;
+
+  // Focus tiers — the depth of field around the selected building. All plaza
+  // files of the current level live in ONE district (the focusPath chain),
+  // so tier 2 is simply "everything else on this level"; without a selection
+  // the map stays empty and nothing dims. Recomputed only when the selection
+  // or the level changes — never per frame.
+  const tiers = useMemo(
+    () =>
+      cityData && layout
+        ? computeFocusTiers(
+            selectedFileId,
+            layout.buildings.map((b) => b.file),
+            cityData.fileConnections,
+            () => "plaza",
+          )
+        : new Map<string, FocusTier>(),
+    [cityData, layout, selectedFileId],
+  );
+
+  // Voxel-focus V3: the triage target's source line, parsed from
+  // focusedFindingKey (`${fileId}#${index}` — see reviews.findingKey). Only
+  // files on the current level can highlight: plaza buildings carry the
+  // voxel layouts; Building gates the rest on its voxel stage. A missing
+  // finding (stale key, filtered out) degrades to null — no highlight.
+  const voxelHighlight = useMemo(() => {
+    if (!focusedFindingKey || !layout) return null;
+    const sep = focusedFindingKey.lastIndexOf("#");
+    if (sep <= 0) return null;
+    const fileId = focusedFindingKey.slice(0, sep);
+    const index = Number(focusedFindingKey.slice(sep + 1));
+    if (!Number.isInteger(index) || index < 0) return null;
+    const placement = layout.buildings.find((b) => b.file.id === fileId);
+    const line = placement?.file.findings[index]?.line;
+    return placement && typeof line === "number" ? { fileId, line } : null;
+  }, [focusedFindingKey, layout]);
 
   // Short rise animation whenever a new level is entered (drill in/out)
   const [levelBornAt, setLevelBornAt] = useState(0);
@@ -55,30 +116,92 @@ export function CityTree() {
   const unitTotal = layout
     ? layout.blocks.length + layout.buildings.length + (layout.podium ? 1 : 0)
     : 0;
-  const step = constructing
-    ? Math.min(420, Math.max(110, 3400 / Math.max(unitTotal, 1)))
-    : entering
-      ? 55
-      : 0;
-  const animBase = constructing ? buildStartedAt + 700 : levelBornAt;
+  const step = constructing ? constructionStep(unitTotal) : entering ? 55 : 0;
 
-  // Build director: reports progress, flips to 'built' when done
+  // Skip (button or Escape): pull animBase into the past so every appearAt
+  // has already elapsed and the city appears complete at once. seenSkipRef
+  // keeps skip stamps of earlier builds from re-firing a fresh construction.
+  const [skipOffsetMs, setSkipOffsetMs] = useState(0);
+  const seenSkipRef = useRef<number | null>(useStore.getState().buildSkipAt);
+  const buildSkipAt = useStore((s) => s.buildSkipAt);
+  const offsetBuildRef = useRef<number | null>(buildStartedAt);
+
+  // A new build always starts unskipped. Reset synchronously during render
+  // (adjust-state-during-render) so no frame — and no useFrame — ever sees
+  // the previous build's offset: a stale offset would pre-latch the rise
+  // animations and skip the next city's construction entirely.
+  if (offsetBuildRef.current !== buildStartedAt) {
+    offsetBuildRef.current = buildStartedAt;
+    setSkipOffsetMs(0);
+  }
+
   useEffect(() => {
-    if (!constructing || step === 0) return;
-    setConstructionProgress(0, unitTotal);
-    const interval = setInterval(() => {
-      const done = Math.min(
-        unitTotal,
-        Math.max(0, Math.floor((Date.now() - buildStartedAt) / step)),
-      );
-      useStore.getState().setConstructionProgress(done, unitTotal);
-      if (done >= unitTotal) {
-        clearInterval(interval);
-        setTimeout(() => useStore.getState().setBuildPhase("built"), 450);
+    if (!constructing) {
+      seenSkipRef.current = buildSkipAt;
+      return;
+    }
+    if (!buildSkipAt || buildSkipAt === seenSkipRef.current) return;
+    seenSkipRef.current = buildSkipAt;
+    setSkipOffsetMs(unitTotal * step + 1200);
+    // Don't let a pending drill-in rise replay after the skip
+    setEntering(false);
+    const myStart = buildStartedAt;
+    const t = setTimeout(() => {
+      // Only flip if this is still the build the skip was fired for
+      if (useStore.getState().buildStartedAt === myStart)
+        useStore.getState().setBuildPhase("built");
+    }, 250);
+    return () => clearTimeout(t);
+  }, [buildSkipAt, constructing, step, unitTotal, buildStartedAt]);
+
+  const animBase = constructing ? buildStartedAt + PHASE_0_MS - skipOffsetMs : levelBornAt;
+
+  // Build sites in rise order; `at` = epoch-ms the tower starts rising.
+  // Builders walk there ahead of time, but the rise itself is pure clock —
+  // a late builder never holds up the skyline (Never-Stall).
+  const buildSites = useMemo(() => (layout ? planBuildSites(layout) : []), [layout]);
+  const sitesWithAt = useMemo(
+    () => buildSites.map((s, i) => ({ ...s, at: animBase + i * step })),
+    [buildSites, animBase, step],
+  );
+  // Walker homes come from the same plan (single source for the door points)
+  // and are memoised so HUD re-renders never recreate the walker population
+  const homes = useMemo(
+    () =>
+      buildSites
+        .slice(layout ? layout.blocks.length : 0)
+        .map((s) => ({ x: s.x, z: s.z, doorX: s.doorX, doorZ: s.doorZ })),
+    [buildSites, layout],
+  );
+
+  // Build director: reports progress and flips to 'built', riding the
+  // render loop instead of setInterval — background/mobile webviews
+  // throttle page timers to ~1 Hz while rAF keeps ticking, and the counter
+  // must run on the same clock as the rise animations. Anchored to animBase
+  // (not buildStartedAt) so the counter stays at 0 through Phase 0. done
+  // counts STARTED rises (ceil): it flips 0 → 1 exactly when the first
+  // tower begins to rise, which is also what switches the HUD status line
+  // from "moving in…" to the build counter.
+  const lastReportRef = useRef(0);
+  useFrame(() => {
+    if (!constructing || step === 0) {
+      lastReportRef.current = 0;
+      return;
+    }
+    const nowMs = Date.now();
+    if (nowMs - lastReportRef.current < 100) return; // ~10 Hz reporting
+    lastReportRef.current = nowMs;
+    const elapsed = Date.now() - animBase;
+    const done = elapsed < 0 ? 0 : Math.min(unitTotal, Math.max(1, Math.ceil(elapsed / step)));
+    useStore.getState().setConstructionProgress(done, unitTotal);
+    // Final rise + 700 ms settle → city stands. Guarded against a build
+    // that was replaced by a re-scan while this frame was in flight.
+    if (done >= unitTotal && elapsed >= unitTotal * step + 700) {
+      if (useStore.getState().buildStartedAt === buildStartedAt) {
+        useStore.getState().setBuildPhase("built");
       }
-    }, 110);
-    return () => clearInterval(interval);
-  }, [constructing, step, unitTotal, buildStartedAt, setConstructionProgress]);
+    }
+  });
 
   if (!cityData || !layout) return null;
 
@@ -87,33 +210,73 @@ export function CityTree() {
   const buildingAppear = (i: number): number => animBase + (layout.blocks.length + i) * step;
   const podiumAppear = animBase + unitTotal * step;
 
+  // Filters combine with AND: a building stays bright only when it matches
+  // EVERY active filter (threat + rule); anything else dims to a backdrop.
   const fileDimmed = (fileId: string): boolean => {
-    if (threatFilter === "all") return false;
     const b = layout.buildings.find((x) => x.file.id === fileId);
     if (!b) return false;
-    return !b.file.findings.some((v) => v.severity === threatFilter);
+    const threatDimmed =
+      threatFilter !== "all" && !b.file.findings.some((v) => v.severity === threatFilter);
+    const ruleDimmed =
+      ruleFilter !== null && !b.file.findings.some((f) => (f.ruleId ?? f.type) === ruleFilter);
+    return threatDimmed || ruleDimmed;
   };
+
+  // A file whose findings ALL carry a review status calms its beacons down.
+  // Per-file cost is trivial — findings arrays are small.
+  const fullyReviewed = (file: CityFile): boolean =>
+    file.findings.every((_, i) => reviews[findingKey(file.id, i)] !== undefined);
 
   const podiumVisible = !animating || Date.now() >= podiumAppear;
 
   return (
     <group>
-      <RoadSystem layout={layout} />
+      <RoadSystem layout={layout} sidewalks={sidewalks} active={buildPhase === "built"} />
 
       {/* Far zoom: the city as one instanced heat-grid (single draw call) */}
       {lodFar && <HeatCells layout={layout} />}
 
-      {/* The Ephe's live here: walk the streets, go in and out of their
-          buildings, take the taxi and the bus, chat in binary */}
+      {/* Far-zoom district labels — only for small levels, beyond that the
+          labels would flood the heat grid */}
+      {lodFar &&
+        layout.blocks.length <= 24 &&
+        layout.blocks.map((b) => (
+          <Html
+            key={`district-label-${b.dir.path}`}
+            center
+            distanceFactor={layout.bounds}
+            position={[b.x, 1.2, b.z]}
+            zIndexRange={[8, 0]}
+          >
+            <div
+              style={{
+                fontFamily: "'JetBrains Mono', ui-monospace, Menlo, monospace",
+                fontSize: 10,
+                color: "var(--meta-strong)",
+                background: "rgba(18, 18, 16, 0.75)",
+                border: "1px solid rgba(242, 239, 232, 0.14)",
+                borderRadius: 3,
+                padding: "2px 6px",
+                whiteSpace: "nowrap",
+                pointerEvents: "none",
+              }}
+            >
+              {b.dir.name}
+            </div>
+          </Html>
+        ))}
+
+      {/* The Ephe's live here: walk the sidewalks between the buildings,
+          go in and out of their offices, take the taxi and the bus, chat
+          in binary. During the construction cinematic they report to build
+          sites and the traffic stays off until the city stands. */}
       {!lodFar && (
         <Pedestrians
           streets={layout.streets}
-          homes={layout.buildings.map((b) => ({
-            x: b.x,
-            z: b.z,
-            doorX: b.x,
-            doorZ: b.z + b.d / 2 + 0.9,
-          }))}
+          network={sidewalks}
+          homes={homes}
+          buildSites={constructing ? sitesWithAt : null}
+          vehiclesActive={buildPhase === "built"}
           count={72}
           bounds={layout.bounds}
         />
@@ -141,8 +304,12 @@ export function CityTree() {
             w={b.w}
             d={b.d}
             h={b.h}
+            voxels={b.voxels}
+            highlightLine={voxelHighlight?.fileId === b.file.id ? voxelHighlight.line : null}
             isLandmark={b.file.id === landmarkId}
             dimmed={fileDimmed(b.file.id)}
+            focusTier={tiers.get(b.file.id) ?? null}
+            fullyReviewed={fullyReviewed(b.file)}
             appearAt={buildingAppear(i)}
             constructing={animating}
           />
@@ -168,7 +335,7 @@ export function CityTree() {
               style={{
                 fontFamily: "'JetBrains Mono', ui-monospace, Menlo, monospace",
                 fontSize: 10,
-                color: "#a8a49a",
+                color: "var(--meta-strong)",
                 background: "rgba(18, 18, 16, 0.75)",
                 border: "1px solid rgba(90,120,180,0.35)",
                 borderRadius: 3,
@@ -184,15 +351,34 @@ export function CityTree() {
       )}
 
       {/* Import arcs connect once the district stands; static file arcs
-          collapse to the selection's edges — idle cities stay clean */}
+          collapse to the selection's edges — idle cities stay clean.
+          DEPENDENCIES mode (spec §14): dir arcs stay on in every district
+          (the whole point of the lens) and glow as the active layer. */}
       <CityConnections
         layout={layout}
         fileConnections={cityData.fileConnections}
         dirConnections={cityData.dirConnections}
-        showDirArcs={isRoot && buildPhase === "built"}
+        showDirArcs={(viewMode === "dependencies" || isRoot) && buildPhase === "built"}
         showFileArcs={buildPhase === "built" && selectedFileId !== null}
         selectedFileId={selectedFileId}
+        highlight={viewMode === "dependencies"}
       />
+
+      {/* Mode bar (spec §14) — screen-fixed top center, on the same row as
+          the workspace search. Only once the city stands: during the
+          construction cinematic there is no mode to choose yet. The constant
+          calculatePosition pins the Html overlay to the viewport (top-center
+          row of the canvas) instead of projecting a world point, so it never
+          drifts while the camera orbits. */}
+      {buildPhase === "built" && (
+        <Html
+          calculatePosition={() => [size.width / 2, 0]}
+          zIndexRange={[35, 10]}
+          style={{ top: 78, left: 0, transform: "translateX(-50%)" }}
+        >
+          <ModeBar />
+        </Html>
+      )}
 
       {/* Directed particle streams for the selected building */}
       <DependencyFlows layout={layout} fileConnections={cityData.fileConnections} />

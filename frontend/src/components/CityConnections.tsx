@@ -25,6 +25,12 @@ interface ConnectionProps {
    * DependencyFlows particles take over).
    */
   selectedFileId?: string | null;
+  /**
+   * DEPENDENCIES view mode (spec §14): the buildings recede and the arcs
+   * take the stage — thicker tubes, brighter opacity and an amber tint so
+   * the dependency veins read as the city's active layer.
+   */
+  highlight?: boolean;
 }
 
 const FILE_ARCS_MAX = 70;
@@ -55,6 +61,7 @@ export function CityConnections({
   showDirArcs,
   showFileArcs = true,
   selectedFileId = null,
+  highlight = false,
 }: ConnectionProps) {
   const fileMatRef = useRef<THREE.MeshBasicMaterial>(null);
   const dirMatRef = useRef<THREE.MeshBasicMaterial>(null);
@@ -81,10 +88,10 @@ export function CityConnections({
       const a = buildingPos.get(conn.from);
       const b = buildingPos.get(conn.to);
       if (!a || !b || (a.x === b.x && a.z === b.z)) continue;
-      geos.push(arcGeometry(a.x, a.y, a.z, b.x, b.y, b.z, 0.05));
+      geos.push(arcGeometry(a.x, a.y, a.z, b.x, b.y, b.z, highlight ? 0.09 : 0.05));
     }
     return geos;
-  }, [fileConnections, buildingPos, showFileArcs, selectedFileId]);
+  }, [fileConnections, buildingPos, showFileArcs, selectedFileId, highlight]);
 
   // ── Dir → dir arcs (overview architecture map) ───────────────────────────
   const dirGeos = useMemo(() => {
@@ -95,10 +102,10 @@ export function CityConnections({
       const a = conn.from === "" ? { x: 0, z: 0 } : blockPos.get(conn.from);
       const b = conn.to === "" ? { x: 0, z: 0 } : blockPos.get(conn.to);
       if (!a || !b) continue;
-      geos.push(arcGeometry(a.x, 3.2, a.z, b.x, 3.2, b.z, 0.1));
+      geos.push(arcGeometry(a.x, 3.2, a.z, b.x, 3.2, b.z, highlight ? 0.16 : 0.1));
     }
     return geos;
-  }, [dirConnections, blockPos, showDirArcs]);
+  }, [dirConnections, blockPos, showDirArcs, highlight]);
 
   useEffect(() => {
     return () => {
@@ -109,8 +116,18 @@ export function CityConnections({
 
   useFrame(({ clock }) => {
     const t = clock.elapsedTime;
-    if (fileMatRef.current) fileMatRef.current.opacity = 0.22 + Math.sin(t * 1.6) * 0.1;
-    if (dirMatRef.current) dirMatRef.current.opacity = 0.3 + Math.sin(t * 1.1 + 1) * 0.1;
+    // In DEPENDENCIES mode the pulsing baseline rides higher — the mode must
+    // never pulse the arcs back down to their idle subtlety
+    if (fileMatRef.current) {
+      fileMatRef.current.opacity = highlight
+        ? 0.55 + Math.sin(t * 1.6) * 0.12
+        : 0.22 + Math.sin(t * 1.6) * 0.1;
+    }
+    if (dirMatRef.current) {
+      dirMatRef.current.opacity = highlight
+        ? 0.65 + Math.sin(t * 1.1 + 1) * 0.1
+        : 0.3 + Math.sin(t * 1.1 + 1) * 0.1;
+    }
   });
 
   return (
@@ -119,9 +136,9 @@ export function CityConnections({
         <mesh key={`fa-${i}`} geometry={geo}>
           <meshBasicMaterial
             ref={i === 0 ? fileMatRef : undefined}
-            color={ENV.connection}
+            color={highlight ? "#e8b23c" : ENV.connection}
             transparent
-            opacity={0.25}
+            opacity={highlight ? 0.55 : 0.25}
             blending={THREE.AdditiveBlending}
             depthWrite={false}
             toneMapped={false}
@@ -134,7 +151,7 @@ export function CityConnections({
             ref={i === 0 ? dirMatRef : undefined}
             color="#e8b23c"
             transparent
-            opacity={0.3}
+            opacity={highlight ? 0.65 : 0.3}
             blending={THREE.AdditiveBlending}
             depthWrite={false}
             toneMapped={false}

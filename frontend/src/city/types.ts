@@ -2,8 +2,12 @@
  * City domain types — mirror of backend `cityMapper.ts` output.
  */
 
+import type { VoxelSectionSpec } from "./voxels";
+
 export type Severity = "P0" | "P1" | "P2";
 export type ThreatLevel = "critical" | "high" | "medium" | "low" | "safe";
+/** Reviewer's triage state for one finding (local-first, no server). */
+export type ReviewStatus = "reviewed" | "false-positive" | "to-fix";
 
 export interface CitySnippet {
   before: string[];
@@ -59,6 +63,8 @@ export interface CityFile {
   coveragePct?: number;
   /** Files sharing ≥6 normalized duplicated lines with this one (top 3) */
   clonePartners?: Array<{ id: string; path: string; lines: number }>;
+  /** Named code regions feeding the voxel packing (absent in old payloads) */
+  sections?: VoxelSectionSpec[];
 }
 
 export interface CityDir {

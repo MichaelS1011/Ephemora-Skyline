@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef } from "react";
 import { Stars } from "@react-three/drei";
 import { useThree } from "@react-three/fiber";
 import { useStore } from "../stores/useStore";
-import { getDirLayout } from "../city/layout";
+import { constructionStep, getDirLayout } from "../city/layout";
 import { ENV } from "../city/palette";
 import { CameraRig } from "./CameraRig";
 import { CityTree } from "./CityTree";
@@ -19,25 +19,37 @@ export function CityScene() {
   const cityData = useStore((s) => s.cityData);
   const focusPath = useStore((s) => s.focusPath);
   const requestFly = useStore((s) => s.requestFly);
+  const buildStartedAt = useStore((s) => s.buildStartedAt);
   const { camera } = useThree();
-  const everHadCity = useRef(false);
+  // Which build the crane flight was armed for — the in-city re-scan keeps
+  // CityScene mounted while the city pointer changes, so the flight is
+  // coupled to buildStartedAt, not to a session-wide "ever had a city" flag.
+  const craneBuildRef = useRef<number | null>(null);
 
   // Empty world: an establishing shot close enough to SEE the Ephe's
   // strolling the ground — the world feels inhabited before it is built.
   useEffect(() => {
     if (cityData) {
-      // City just appeared: rise from street level to a builder's overview
-      if (everHadCity.current === false) {
-        everHadCity.current = true;
-        const b = getDirLayout(cityData, []).bounds;
-        requestFly(0, 0, Math.max(b * 1.75, 130));
+      // City just appeared (new build): start the crane at street level,
+      // then glide up to the overview in ONE flight timed to the build
+      if (craneBuildRef.current !== buildStartedAt) {
+        craneBuildRef.current = buildStartedAt;
+        const layout = getDirLayout(cityData, []);
+        camera.position.set(14, 2.2, 26);
+        camera.lookAt(0, 1.5, 0);
+        const unitTotal = layout.blocks.length + layout.buildings.length + (layout.podium ? 1 : 0);
+        const flightSeconds = Math.min(
+          9,
+          Math.max(4, (unitTotal * constructionStep(unitTotal)) / 1000),
+        );
+        requestFly(0, 0, Math.max(layout.bounds * 1.75, 130), flightSeconds);
       }
       return;
     }
-    everHadCity.current = false;
+    craneBuildRef.current = null;
     camera.position.set(17, 10, 34);
     camera.lookAt(0, 1, 0);
-  }, [cityData, camera, requestFly]);
+  }, [cityData, buildStartedAt, camera, requestFly]);
 
   const bounds = useMemo(() => {
     if (!cityData) return 60;

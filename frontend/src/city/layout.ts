@@ -17,7 +17,7 @@
  * mapping.ts — renderer-agnostic and portable.
  */
 
-import type { CityData, CityDir, CityFile } from "./types";
+import type { CityData, CityDir, CityFile, CityFinding, Severity } from "./types";
 import { threatRank } from "./palette";
 import {
   blockFootprint as blockFootprintOf,
@@ -30,6 +30,7 @@ import {
   polygonMinRadius,
   type VoronoiSite,
 } from "./voronoi";
+import { generateVoxelLayout, type VoxelLayout } from "./voxels";
 
 // ── Placement types ────────────────────────────────────────────────────────
 
@@ -50,6 +51,14 @@ export interface BuildingPlacement {
   w: number;
   d: number;
   h: number;
+  /**
+   * Honest voxel packing behind this placement (plaza buildings). w/d/h are
+   * derived from it (mapping-capped inside the generator), so placement and
+   * voxels can never disagree. District skyline towers stay mapping-based in
+   * V1 — their `voxels` field is intentionally absent; documented drift, the
+   * skyline only needs silhouette proportions, not per-voxel cells.
+   */
+  voxels?: VoxelLayout | null;
 }
 
 export interface StreetLine {
@@ -124,21 +133,28 @@ function computeGridLayout(dir: CityDir): DirLayout {
   const buildings: BuildingPlacement[] = [];
   const cols = Math.max(1, Math.ceil(Math.sqrt(files.length)));
   const rows = Math.ceil(files.length / cols);
-  const cells = centerOutCells(cols, rows, PLAZA_CELL);
+  // Voxel footprints can outgrow the legacy cell size — the grid cell must
+  // clear the largest footprint plus breathing room, or neighbours fuse.
+  const layouts = files.map((file) => generateVoxelLayout(file));
+  const maxFoot = layouts.reduce((m, v) => Math.max(m, v.footprintW, v.footprintD), 0);
+  const plazaCell = Math.max(PLAZA_CELL, maxFoot + 0.8);
+  const cells = centerOutCells(cols, rows, plazaCell);
 
-  let maxFoot = 0;
   files.forEach((file, i) => {
     const cell = cells[i] ?? { x: 0, z: 0 };
-    const w = footprintOf(file);
-    const d = footprintOf(file);
-    maxFoot = Math.max(maxFoot, w, d);
+    // Voxel-true placement: the generator holds the mapping caps itself
+    // (footprint [0.8, 1.6]×, height [0.7, 1.4]×), so proportions survive.
+    const voxels = layouts[i]!;
+    const w = voxels.footprintW;
+    const d = voxels.footprintD;
     buildings.push({
       file,
       x: cell.x + jitter(file.path, 0.7),
       z: cell.z + jitter(file.path + "|z", 0.7),
       w,
       d,
-      h: heightOf(file),
+      h: voxels.height,
+      voxels,
     });
   });
 
@@ -208,7 +224,12 @@ function computeGridLayout(dir: CityDir): DirLayout {
   return { dir, blocks: blockPlacements, buildings, podium, streets, bounds, plazaExtent };
 }
 
-/** Representative towers of a district's subtree (up to 6, risk-ordered). */
+/**
+ * Representative towers of a district's subtree (up to 6, risk-ordered).
+ * V1 note: skyline towers stay mapping-based (heightOf/footprintOf) on
+ * purpose — the plaza buildings carry the voxel-true placements; the
+ * skyline only needs comparable silhouette proportions (documented drift).
+ */
 function buildSkyline(child: CityDir, blockW: number): BuildingPlacement[] {
   let reps = child.districtFiles ?? [];
   if (reps.length === 0) {
@@ -264,14 +285,18 @@ function computeVoronoiLayout(dir: CityDir): DirLayout {
   // Needed plaza extent from the center-out grid (same packing as grid mode)
   const cols = Math.max(1, Math.ceil(Math.sqrt(files.length)));
   const rows = Math.ceil(files.length / cols);
-  const cells = centerOutCells(cols, rows, PLAZA_CELL);
+  const voxelByFile = new Map<string, VoxelLayout>();
   let maxFoot = 0;
   files.forEach((file) => {
-    const w = footprintOf(file);
-    maxFoot = Math.max(maxFoot, w, w);
+    const voxels = generateVoxelLayout(file);
+    voxelByFile.set(file.id, voxels);
+    maxFoot = Math.max(maxFoot, voxels.footprintW, voxels.footprintD);
   });
+  // Voxel footprints can outgrow the legacy cell size — keep neighbours apart
+  const plazaGridCell = Math.max(PLAZA_CELL, maxFoot + 0.8);
+  const cells = centerOutCells(cols, rows, plazaGridCell);
   const neededPlazaExtent =
-    files.length === 0 ? 0 : ((Math.max(cols, rows) - 1) * PLAZA_CELL) / 2 + maxFoot / 2 + 4;
+    files.length === 0 ? 0 : ((Math.max(cols, rows) - 1) * plazaGridCell) / 2 + maxFoot / 2 + 4;
 
   const maxBlockW =
     children.length > 0 ? Math.max(...children.map((c) => blockFootprint(c.linesOfCode))) : 0;
@@ -303,14 +328,15 @@ function computeVoronoiLayout(dir: CityDir): DirLayout {
 
   files.forEach((file, i) => {
     const cell = cells[i] ?? { x: 0, z: 0 };
-    const w = footprintOf(file);
+    const voxels = voxelByFile.get(file.id) ?? generateVoxelLayout(file);
     buildings.push({
       file,
       x: plazaCenter.x + cell.x * compression + jitter(file.path, 0.7 * compression),
       z: plazaCenter.z + cell.z * compression + jitter(file.path + "|z", 0.7 * compression),
-      w,
-      d: w,
-      h: heightOf(file),
+      w: voxels.footprintW,
+      d: voxels.footprintD,
+      h: voxels.height,
+      voxels,
     });
   });
 
@@ -370,6 +396,18 @@ export function setLayoutMode(mode: LayoutMode): void {
 
 export function getLayoutMode(): LayoutMode {
   return activeLayoutMode;
+}
+
+// ── Construction pacing ────────────────────────────────────────────────────
+
+/**
+ * Milliseconds between two raised construction units (districts, buildings,
+ * podium). 6000/unitTotal keeps mid-size cities in the ~6 s band; the clamps
+ * hold tiny builds at a perceivable 420 ms pace and cap huge ones at a 40 ms
+ * stagger so the total never runs away unbounded.
+ */
+export function constructionStep(unitTotal: number): number {
+  return Math.max(40, Math.min(420, 6000 / Math.max(unitTotal, 1)));
 }
 
 // ── Memoised access ────────────────────────────────────────────────────────
@@ -482,4 +520,56 @@ export function landmarkFileId(city: CityData): string | null {
     if (!best || riskScore(hit.file) > riskScore(best.file)) best = hit;
   }
   return best?.file.id ?? null;
+}
+
+// ── Finding search ─────────────────────────────────────────────────────────
+
+export interface FindingHit {
+  file: CityFile;
+  finding: CityFinding;
+  /** Position in the file's FULL findings list — the findingKey contract. */
+  index: number;
+}
+
+const SEVERITY_ORDER: Record<Severity, number> = { P0: 0, P1: 1, P2: 2 };
+
+/** Total ordering over findings: severity first, then risk, then message. */
+function compareFindingHits(a: FindingHit, b: FindingHit): number {
+  const bySeverity = SEVERITY_ORDER[a.finding.severity] - SEVERITY_ORDER[b.finding.severity];
+  if (bySeverity !== 0) return bySeverity;
+  const byRisk = riskScore(b.file) - riskScore(a.file);
+  if (byRisk !== 0) return byRisk;
+  const byMessage = a.finding.message.localeCompare(b.finding.message);
+  if (byMessage !== 0) return byMessage;
+  const byPath = a.file.path.localeCompare(b.file.path);
+  if (byPath !== 0) return byPath;
+  return a.index - b.index;
+}
+
+/**
+ * Full-text search over findings: ruleId (falling back to the finding type),
+ * message, severity token, and the containing file's name/path — all
+ * case-insensitive contains. Ordered P0 < P1 < P2, then file risk, then
+ * message; fully deterministic for the search dropdown and its keyboard
+ * navigation.
+ */
+export function searchFindings(city: CityData, query: string, limit = 5): FindingHit[] {
+  const q = query.trim().toLowerCase();
+  if (!q) return [];
+  const hits: FindingHit[] = [];
+  for (const { file } of allFiles(city)) {
+    file.findings.forEach((finding, index) => {
+      const subject = (finding.ruleId ?? finding.type).toLowerCase();
+      if (
+        subject.includes(q) ||
+        finding.message.toLowerCase().includes(q) ||
+        finding.severity.toLowerCase().includes(q) ||
+        file.name.toLowerCase().includes(q) ||
+        file.path.toLowerCase().includes(q)
+      ) {
+        hits.push({ file, finding, index });
+      }
+    });
+  }
+  return hits.sort(compareFindingHits).slice(0, limit);
 }
