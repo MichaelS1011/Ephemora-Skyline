@@ -1,0 +1,143 @@
+/* #50 — profile picker: the confirm modal became an inline detail card.
+   These rules live outside globals.css (parallel-agent ownership). They style
+   .profile-detail (the card), its rows and buttons, and keep the card inside
+   the <details class="scan-settings"> flow so it can never float over other
+   surfaces — the old portalled overlay with z-[60] is gone. */
+
+.profile-detail {
+  margin-top: 12px;
+  border: 1px solid rgba(232, 80, 60, 0.35);
+  border-radius: 6px;
+  background: rgba(18, 18, 16, 0.72);
+  padding: 0.9rem 1rem;
+  box-shadow: 0 0 24px rgba(232, 80, 60, 0.08);
+}
+.profile-detail:focus-visible {
+  outline: 1px solid rgba(232, 80, 60, 0.6);
+}
+.profile-detail-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+}
+.profile-detail-head h3 {
+  margin: 0;
+  font: 700 13px/1.4 var(--font-ui);
+  letter-spacing: 0.02em;
+  color: #f2efe8;
+}
+.profile-detail-lede {
+  margin: 4px 0 12px;
+  font: 400 11px/1.6 var(--font-ui);
+  color: var(--meta-strong);
+}
+.profile-detail-engines {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+.profile-engine-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: 4px;
+  border: 1px solid rgba(150, 142, 128, 0.14);
+  background: rgba(150, 142, 128, 0.05);
+  opacity: 0.62;
+}
+.profile-engine-row.on {
+  border-color: rgba(41, 211, 152, 0.22);
+  background: rgba(41, 211, 152, 0.05);
+  opacity: 1;
+}
+.profile-engine-mark {
+  flex-shrink: 0;
+  width: 16px;
+  text-align: center;
+  font: 400 11px/1.6 var(--font-ui);
+  color: var(--meta-faint);
+}
+.profile-engine-row.on .profile-engine-mark {
+  color: #29d398;
+}
+.profile-engine-name {
+  font: 600 11px/1.5 var(--font-ui);
+  color: var(--meta);
+}
+.profile-engine-row.on .profile-engine-name {
+  color: #e8e4da;
+}
+.profile-engine-state {
+  margin-left: 6px;
+  font-weight: 400;
+  color: var(--meta-faint);
+}
+.profile-engine-row.on .profile-engine-state {
+  color: #29d398;
+}
+.profile-engine-what {
+  font: 400 11px/1.45 var(--font-ui);
+  color: var(--meta);
+}
+.profile-detail-meta {
+  margin-bottom: 12px;
+  padding: 8px 10px;
+  border-radius: 4px;
+  border: 1px solid rgba(242, 239, 232, 0.12);
+  background: rgba(242, 239, 232, 0.04);
+  font: 400 11px/1.6 var(--font-ui);
+  color: var(--meta-strong);
+}
+.profile-detail-meta b {
+  letter-spacing: 0.08em;
+  font-weight: 400;
+}
+.profile-detail-meta span {
+  color: #cfcabe;
+}
+.profile-detail-note {
+  margin: 0 0 12px;
+  font: 400 11px/1.6 var(--font-ui);
+  color: #ffd23f;
+}
+.profile-detail-actions {
+  display: flex;
+  gap: 8px;
+}
+.profile-detail-use {
+  flex: 1;
+  min-height: 36px;
+  padding: 8px 10px;
+  border: 1px solid #e8503c;
+  border-radius: 4px;
+  background: #e8503c;
+  color: #161614;
+  font: 600 11px/1.4 var(--font-ui);
+  letter-spacing: 0.08em;
+  cursor: pointer;
+}
+.profile-detail-use:hover {
+  filter: brightness(1.1);
+}
+.profile-detail-close {
+  flex: 1;
+  min-height: 36px;
+  padding: 8px 10px;
+  border: 1px solid rgba(165, 158, 144, 0.35);
+  border-radius: 4px;
+  background: rgba(22, 22, 20, 0.7);
+  color: #cfcabe;
+  font: 400 11px/1.4 var(--font-ui);
+  letter-spacing: 0.08em;
+  cursor: pointer;
+}
+.profile-detail-close:hover {
+  filter: brightness(1.25);
+}
+/* the card may stretch the narrow landing column, never overflow it */
+.scan-settings .profile-detail {
+  max-width: 100%;
+}

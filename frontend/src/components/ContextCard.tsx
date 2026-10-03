@@ -339,17 +339,32 @@ export function ContextCard() {
 
       {dir.topAuthor && (
         <div
-          className="flex items-center gap-2 mt-4 text-[12px]"
-          title={`${dir.topAuthor} authored ${Math.round((dir.topAuthorShare ?? 0) * 100)}% of files in this view`}
+          className="pt-4"
+          style={{ borderTop: "1px solid rgba(150,142,128,0.18)", marginTop: 16 }}
         >
-          <span
-            className="w-2 h-2 rounded-full shrink-0"
-            style={{ background: authorColor(dir.topAuthor) }}
-            aria-hidden
-          />
-          <span className="truncate" style={{ color: "#aaa69c" }}>
-            Top contributor: <span style={{ color: "#c5c0b5" }}>{dir.topAuthor}</span>
-          </span>
+          {/* #52: a person does not belong between language shares — own
+              block with a heading that says what the number means. */}
+          <div className="text-[12px] mb-2.5" style={{ color: "#aaa69c" }}>
+            Authorship — git blame across this view
+          </div>
+          <div
+            className="flex items-center gap-2 text-[12px]"
+            title={`${dir.topAuthor} authored ${Math.round((dir.topAuthorShare ?? 0) * 100)}% of files in this view`}
+          >
+            <span
+              className="w-2 h-2 rounded-full shrink-0"
+              style={{ background: authorColor(dir.topAuthor) }}
+              aria-hidden
+            />
+            <span className="truncate" style={{ color: "#aaa69c" }}>
+              Top contributor: <span style={{ color: "#c5c0b5" }}>{dir.topAuthor}</span>
+              {dir.topAuthorShare != null && (
+                <span className="ml-1 tabular-nums">
+                  · {Math.round(dir.topAuthorShare * 100)}% of files
+                </span>
+              )}
+            </span>
+          </div>
         </div>
       )}
 

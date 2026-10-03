@@ -10,8 +10,11 @@ import {
 } from "../config/scanProfiles";
 import { FINDING_CATEGORIES } from "../config/findingCategories";
 import { ProfileConfirmDialog } from "./ProfileConfirmDialog";
+import "../design/profile-picker.css";
+import { t } from "../i18n";
 
 export function ProfileChips({ variant }: { variant: "landing" | "analyze-panel" }) {
+  const lang = useStore((s) => s.prefs.lang);
   const scanProfile = useStore((s) => s.scanProfile);
   const setScanProfile = useStore((s) => s.setScanProfile);
   const scanCategories = useStore((s) => s.scanCategories);
@@ -36,10 +39,24 @@ export function ProfileChips({ variant }: { variant: "landing" | "analyze-panel"
         ))}
       </div>
       <p className="profile-description">
-        {meta.summary} <span>Estimated time: {PROFILE_DURATION[active]}.</span>
+        {meta.summary}{" "}
+        <span>{t(lang, "profile.estimated", { time: PROFILE_DURATION[active] })}</span>
       </p>
-      <p className="category-caption">What to look for</p>
-      <div className="profile-options category-options" aria-label="What to look for">
+      {/* The detail card sits in the normal flow, directly under the chips it
+          describe — no portal, no overlay (#50). Clicking another chip swaps
+          its content, so two profiles can be read back to back. */}
+      {detailFor && (
+        <ProfileConfirmDialog
+          profile={detailFor}
+          onConfirm={() => {
+            setScanProfile(detailFor);
+            setDetailFor(null);
+          }}
+          onCancel={() => setDetailFor(null)}
+        />
+      )}
+      <p className="category-caption">{t(lang, "profile.lookFor")}</p>
+      <div className="profile-options category-options" aria-label={t(lang, "profile.lookFor")}>
         {FINDING_CATEGORIES.map((category) => {
           const on = scanCategories.includes(category.id);
           return (
@@ -59,16 +76,6 @@ export function ProfileChips({ variant }: { variant: "landing" | "analyze-panel"
           );
         })}
       </div>
-      {detailFor && (
-        <ProfileConfirmDialog
-          profile={detailFor}
-          onConfirm={() => {
-            setScanProfile(detailFor);
-            setDetailFor(null);
-          }}
-          onCancel={() => setDetailFor(null)}
-        />
-      )}
     </div>
   );
 }

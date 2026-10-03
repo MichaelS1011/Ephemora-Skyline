@@ -17,6 +17,11 @@ function buildShortcuts(lang: Lang): ShortcutEntry[] {
       category: t(lang, "hints.catNavigation"),
     },
     {
+      keys: ["⌘/Ctrl", "K"],
+      description: t(lang, "hints.searchFocusCmdK"),
+      category: t(lang, "hints.catNavigation"),
+    },
+    {
       keys: ["]"],
       description: t(lang, "hints.nextBuilding"),
       category: t(lang, "hints.catNavigation"),

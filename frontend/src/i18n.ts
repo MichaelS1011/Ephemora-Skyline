@@ -19,12 +19,25 @@ export const DICT = {
   },
   "landing.localBadge": {
     en: "Local by design",
-    de: "Lokal by design",
+    de: "Lokal, mit Absicht",
   },
   /**
    * The badge is a claim, so it carries its own evidence: what the scan sends
    * out, what it never sends, and the switch that stops the rest.
    */
+  /**
+   * The duration was measured on the server route only (POST /api/analyze-local
+   * → poll → result), so the label says what it covers: reading the folder is
+   * the user's own disk work and is not in the number.
+   */
+  "profile.estimated": {
+    en: "Scan time once the folder is read: {time}.",
+    de: "Scanzeit, nachdem der Ordner gelesen ist: {time}.",
+  },
+  "profile.lookFor": {
+    en: "What to look for",
+    de: "Worauf achten",
+  },
   "landing.localBadgeNote": {
     en: "Source code is never uploaded. Scanners fetch their own rule and advisory data (semgrep.dev, api.osv.dev, npm, one GitHub release check). SKYLINE_OFFLINE=1 stops every one of them.",
     de: "Quellcode wird nie hochgeladen. Die Scanner holen ihre Regel- und Sicherheitsdaten selbst (semgrep.dev, api.osv.dev, npm, ein GitHub-Release-Check). SKYLINE_OFFLINE=1 schaltet sie alle ab.",
@@ -475,6 +488,10 @@ export const DICT = {
     en: "Focus the search bar (file name or language)",
     de: "Suchleiste fokussieren (Dateiname oder Sprache)",
   },
+  "hints.searchFocusCmdK": {
+    en: "Focus the search bar — works even while typing",
+    de: "Suchleiste fokussieren — funktioniert auch beim Schreiben",
+  },
   "hints.nextBuilding": {
     en: "Next building — when the 3D view has focus",
     de: "Nächstes Gebäude — wenn die 3D-Ansicht den Fokus hat",
@@ -579,11 +596,11 @@ export const DICT = {
   },
   "panel.showFindingContext": {
     en: "Show finding context only",
-    de: "Nur Finding-Umgebung anzeigen",
+    de: "Nur Fund-Umgebung anzeigen",
   },
   "panel.sourceAria": {
     en: "Source code of this file with flagged finding lines",
-    de: "Quellcode dieser Datei mit markierten Finding-Zeilen",
+    de: "Quellcode dieser Datei mit markierten Fund-Zeilen",
   },
   "panel.sectionFindings": {
     en: "Findings in this section",
@@ -683,11 +700,11 @@ export const DICT = {
   },
   "panel.detailsCollapseAria": {
     en: "Collapse finding details",
-    de: "Finding-Details einklappen",
+    de: "Fund-Details einklappen",
   },
   "panel.detailsExpandAria": {
     en: "Expand finding details",
-    de: "Finding-Details ausklappen",
+    de: "Fund-Details ausklappen",
   },
   "panel.copyFindingTitle": {
     en: "Copy finding",
@@ -785,7 +802,7 @@ export const DICT = {
   },
   "panel.secretsTitle": {
     en: "Contains hardcoded secrets (gitleaks) — keys, tokens or passwords in source. Rotate the credential now, then move it to an environment variable.",
-    de: "Enthält hartkodierte Secrets (gitleaks) — Schlüssel, Tokens oder Passwörter im Quelltext. Credential sofort rotieren, dann in eine Umgebungsvariable verschieben.",
+    de: "Enthält hartkodierte Secrets (gitleaks) — Schlüssel, Tokens oder Passwörter im Quelltext. Schlüssel sofort austauschen, dann in eine Umgebungsvariable verschieben.",
   },
   "panel.sarifExport": {
     en: "↓ SARIF Export",
@@ -1250,19 +1267,19 @@ export const DICT = {
   },
   "heat.groupTip": {
     en: "Far-zoom heatmap: pick what the city grid shows when you zoom out. Clicking a channel zooms out to the heat view.",
-    de: "Heatmap bei weitem Zoom: lege fest, was das Stadtgitter beim Herauszoomen zeigt. Ein Klick auf einen Kanal zoomt in die Heat-Ansicht heraus.",
+    de: "Heatmap bei weitem Zoom: lege fest, was das Stadtgitter beim Herauszoomen zeigt. Ein Klick auf einen Kanal zoomt in die Heatmap-Ansicht heraus.",
   },
   "heat.threatTip": {
     en: "THREAT: color heat cells by P0 red, P1 orange, P2 yellow, clean dark blue. Click to zoom out into the heat view.",
-    de: "THREAT: färbt Heat-Zellen nach P0 rot, P1 orange, P2 gelb, sauber dunkelblau. Klick zoomt in die Heat-Ansicht heraus.",
+    de: "THREAT: färbt Heatmap-Zellen nach P0 rot, P1 orange, P2 gelb, sauber dunkelblau. Klick zoomt in die Heatmap-Ansicht heraus.",
   },
   "heat.complexityTip": {
     en: "CX: color heat cells by cyan (simple) → amber → magenta (complex). Click to zoom out into the heat view.",
-    de: "CX: färbt Heat-Zellen von Cyan (einfach) → Bernstein → Magenta (komplex). Klick zoomt in die Heat-Ansicht heraus.",
+    de: "CX: färbt Heatmap-Zellen von Cyan (einfach) → Bernstein → Magenta (komplex). Klick zoomt in die Heatmap-Ansicht heraus.",
   },
   "heat.churnTip": {
     en: "CHURN: color heat cells by green (stable) → orange (constantly churning). Click to zoom out into the heat view.",
-    de: "CHURN: färbt Heat-Zellen von Grün (stabil) → Orange (ständig in Bewegung). Klick zoomt in die Heat-Ansicht heraus.",
+    de: "CHURN: färbt Heatmap-Zellen von Grün (stabil) → Orange (ständig in Bewegung). Klick zoomt in die Heatmap-Ansicht heraus.",
   },
   "heat.churnUnavailableTip": {
     en: "No .git folder in this upload — churn and author districts need the project’s git metadata",

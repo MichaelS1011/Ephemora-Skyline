@@ -22,7 +22,7 @@ export const SCAN_PROFILES: ScanProfileMeta[] = [
     id: "quick",
     icon: "⚡",
     label: "Quick",
-    summary: "critical findings only — fastest scan (~10s)",
+    summary: "critical findings only — fastest scan",
   },
   {
     id: "standard",
@@ -30,7 +30,7 @@ export const SCAN_PROFILES: ScanProfileMeta[] = [
     label: "Standard",
     summary: "all scanners — secrets, AST, CVEs, heuristics",
   },
-  { id: "deep", icon: "🔬", label: "Deep", summary: "standard + git-history secret scan — slower" },
+  { id: "deep", icon: "🔬", label: "Deep", summary: "standard + git-history secret scan" },
   {
     id: "security-only",
     icon: "🛡",
@@ -200,13 +200,24 @@ export const PROFILE_SCOPE: Record<ScanProfile, string> = {
   custom: "shows all findings, P0 to P2",
 };
 
+/**
+ * THE single source of time promises — chip description line and the detail
+ * card both read this, no other copy is written anywhere. Values are measured,
+ * not guessed: .qoder-scratch/profile-diff.mjs drove every profile through the
+ * real HTTP route (POST /api/analyze-local → poll /api/status → /api/result)
+ * against this repo (1290 collected files, backend :4000, 2026-10-04):
+ * quick 1.7s, standard 4.7s, security-only 4.7s, quality-only 1.7s, deep 4.7s
+ * (deep adds the git-history walk but finished in the same poll interval).
+ * Poll granularity is 1.5s, so each value is rounded up to the next second.
+ */
 export const PROFILE_DURATION: Record<ScanProfile, string> = {
-  quick: "≤ 30s",
-  standard: "~40s",
-  deep: "1–3 min",
-  "security-only": "~40s",
-  "quality-only": "~20s",
-  custom: "~40s",
+  quick: "~2s",
+  standard: "~5s",
+  deep: "~5s",
+  "security-only": "~5s",
+  "quality-only": "~2s",
+  // custom falls back to the standard preset today (see configPayload)
+  custom: "~5s",
 };
 
 const STORAGE_KEY = "codecity-scan-profile";
