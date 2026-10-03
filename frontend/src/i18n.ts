@@ -438,9 +438,14 @@ export const DICT = {
     en: "Dismiss message",
     de: "Meldung schließen",
   },
+  /**
+   * The link is a pointer into the backend's in-RAM result store: 24 hours and
+   * at most 20 analyses (ANALYSIS_TTL_MS / ANALYSIS_MAX_ENTRIES). Saying only
+   * "while the server runs" promised more lifetime than the store has.
+   */
   "actions.linkCopied": {
-    en: "City link copied. It opens while this local server is running.",
-    de: "Stadt-Link kopiert. Er funktioniert, solange dieser lokale Server läuft.",
+    en: "City link copied. It opens on this machine only, while the server runs — and for about a day or the next 20 scans, whichever comes first.",
+    de: "Stadt-Link kopiert. Er öffnet nur auf diesem Rechner, solange der Server läuft — etwa einen Tag lang oder bis zu den nächsten 20 Scans, je nachdem was zuerst eintritt.",
   },
   "actions.linkCopyFailed": {
     en: "The link could not be copied. Copy the address from your browser instead.",

@@ -122,3 +122,23 @@ describe("a data sheet joins the city as data, not as a code tower", () => {
     expect(c.codeLines).toBe(40 + 120 + 90 + 60 + 55 + 50 + 45 + 80); // SQL + TS
   });
 });
+
+/**
+ * The language block in the project panel used to report "JSON 82 %" — a data
+ * catalogue presented as the shape of the codebase. Data languages have their
+ * own map now, so a data language may never appear in the code share again.
+ */
+describe("code languages and data languages stay apart", () => {
+  it("counts a lockfile as data, not as a language of the code", () => {
+    const mapped = city([
+      file("package-lock.json", "JSON", 7556),
+      file("src/app.ts", "TypeScript", 40),
+    ]);
+    const root = mapped.tree;
+    expect(Object.keys(root.dataLanguages ?? {})).toContain("JSON");
+    expect(Object.keys(root.languages)).not.toContain("JSON");
+    expect(root.languages["TypeScript"]).toBe(40);
+    expect(root.dataLines).toBeGreaterThan(0);
+    expect(root.codeLines).toBe((root.linesOfCode ?? 0) - (root.dataLines ?? 0));
+  });
+});
