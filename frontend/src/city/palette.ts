@@ -37,6 +37,9 @@ export const LANGUAGE_COLORS: Record<string, string> = {
   PHP: "#5fb0c9",
   Kotlin: "#6f7ce0",
   Swift: "#e0655f",
+  // .env joins the scan as its own kind — sand, so it reads as configuration
+  // and not as another source language.
+  Env: "#c2a391",
   Other: "#7f8ea3",
 };
 

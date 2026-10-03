@@ -1,4 +1,5 @@
 import type { SecurityIssue } from "../../models/index.js";
+import { isSecretFinding, maskSecretText } from "./redact.js";
 
 export interface FindingKnowledge {
   /** Plain-language: what does this finding mean for the code owner? */
@@ -217,7 +218,7 @@ export function buildSnippet(content: string | undefined, line: number): CodeSni
  * Attach knowledge + code frame to issues, in place. Cheap and idempotent —
  * called by every adapter/facade merge that has the file content at hand.
  */
-export function enrichIssues(issues: SecurityIssue[], content: string | undefined): void {
+export function enrichIssues(issues: SecurityIssue[], content?: string): void {
   for (const issue of issues) {
     if (!issue.explanation) {
       const knowledge = knowledgeFor(issue.type);
@@ -227,6 +228,16 @@ export function enrichIssues(issues: SecurityIssue[], content: string | undefine
     }
     if (!issue.snippet) {
       issue.snippet = buildSnippet(content, issue.line);
+    }
+    // A credential finding must not carry the credential: its line, and the
+    // lines around it, are written into the report the user shares.
+    if (isSecretFinding(issue)) {
+      issue.code = maskSecretText(issue.code);
+      if (issue.snippet) {
+        issue.snippet.line = maskSecretText(issue.snippet.line);
+        issue.snippet.before = issue.snippet.before.map((l) => maskSecretText(l));
+        issue.snippet.after = issue.snippet.after.map((l) => maskSecretText(l));
+      }
     }
   }
 }

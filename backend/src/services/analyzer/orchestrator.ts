@@ -22,6 +22,7 @@ import type {
 import {
   countLines,
   detectLanguage,
+  ENV_FILE,
   estimateCyclomaticComplexity,
   extractClasses,
   extractFunctions,
@@ -69,6 +70,26 @@ export const SUPPORTED_EXTENSIONS = new Set([
   ".kt",
   ".swift",
 ]);
+
+/**
+ * Does this path join the scan? An extension from the list above, or an env file
+ * — `.env` has no extension to look up (`path.extname(".env")` is empty), and
+ * the file that holds the deployment secrets was silently outside the scan the
+ * user thought they had run.
+ */
+export function isScannedPath(relativePath: string): boolean {
+  return SUPPORTED_EXTENSIONS.has(path.extname(relativePath)) || ENV_FILE.test(relativePath);
+}
+
+/**
+ * The list a user sees when a folder turns out to be empty. It used to be typed
+ * out by hand in the error message, where it drifted: thirteen of the kinds were
+ * named and the rest (shell, SQL, terraform, php, and the rest) were not, so the
+ * message told the user the scan was narrower than it is.
+ */
+export function supportedExtensionsLabel(): string {
+  return [...SUPPORTED_EXTENSIONS].map((e) => e.slice(1)).join(", ") + ", .env";
+}
 
 export class AnalysisOrchestrator {
   private logger: pino.Logger;
@@ -136,7 +157,7 @@ export class AnalysisOrchestrator {
       const relativePath = filePath.replace(dirPath + "/", "");
       // Skip hidden dirs, node_modules, dist, build, .git
       if (/^(node_modules|\.git|dist|build|\.next|coverage|\.turbo)/.test(relativePath)) continue;
-      if (!SUPPORTED_EXTENSIONS.has(path.extname(relativePath))) continue;
+      if (!isScannedPath(relativePath)) continue;
       // Scan-config scope: language allowlist + user exclude paths
       if (config?.languageScope?.length) {
         const lang = languageOfPath(relativePath);

@@ -97,11 +97,14 @@ describe("maskForScanning keeps the geometry of the file", () => {
    * characters per comment is enough to move a finding onto its neighbour.
    */
   it("keeps the block comment delimiters as blanks", () => {
-    const src = '/* prose */\nconst c = "eval(x)";\n';
+    const src = "/* prose */\nconst c = eval(x);\n";
     const masked = maskForScanning(src, "TypeScript");
     expect(masked.length).toBe(src.length);
     expect(masked.split("\n")[1]).toBe(src.split("\n")[1]);
-    expect(types("src/a.ts", src)).toEqual(["EVAL_USAGE"]);
+    const [hit] = adapter.scanFile("src/a.ts", src);
+    expect(hit?.type).toBe("EVAL_USAGE");
+    // the point of the mask: the finding is on line 2, not on line 1
+    expect(hit?.line).toBe(2);
   });
 
   /**

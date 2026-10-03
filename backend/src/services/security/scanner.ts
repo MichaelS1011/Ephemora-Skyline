@@ -18,6 +18,7 @@ import { OsvAdapter } from "./adapters/osv-adapter.js";
 import { RuffAdapter } from "./adapters/ruff-adapter.js";
 import { dedupIssues, SEVERITY_ORDER } from "./dedup.js";
 import { enrichIssues } from "./finding-knowledge.js";
+import { isSecretFinding, maskSecretText } from "./redact.js";
 import { resolveConfig, type ResolvedScanConfig } from "./scan-config.js";
 
 export class SecurityScanner {
@@ -403,8 +404,12 @@ export class SecurityScanner {
       enrichIssues(allowed, contentByPath.get(fa.path));
       for (const iss of allowed) {
         if (!iss.code && iss.provenance?.startsWith("gitleaks")) {
-          iss.code =
-            contentByPath.get(fa.path)?.split("\n")[iss.line - 1]?.trim().slice(0, 120) ?? "";
+          // This is the line the report will show. gitleaks only names the file
+          // and line, so the text has to be read from disk here — and a secret
+          // line must arrive masked, or the mask in enrichIssues was too early.
+          const raw = contentByPath.get(fa.path)?.split("\n")[iss.line - 1]?.trim().slice(0, 120);
+          const masked = isSecretFinding(iss) ? maskSecretText(raw ?? "") : raw;
+          if (masked) iss.code = masked;
         }
       }
 

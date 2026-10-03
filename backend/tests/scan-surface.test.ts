@@ -2,8 +2,12 @@ import { describe, it, expect } from "vitest";
 import { readFileSync } from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
-import { SUPPORTED_EXTENSIONS } from "../src/services/analyzer/orchestrator.js";
-import { detectLanguage } from "../src/services/analyzer/metrics.js";
+import {
+  isScannedPath,
+  SUPPORTED_EXTENSIONS,
+  supportedExtensionsLabel,
+} from "../src/services/analyzer/orchestrator.js";
+import { detectLanguage, ENV_FILE, isDataFile } from "../src/services/analyzer/metrics.js";
 import { REGEX_PATTERNS, RegexAdapter } from "../src/services/security/adapters/regex-adapter.js";
 import { FINDING_KNOWLEDGE } from "../src/services/security/finding-knowledge.js";
 
@@ -38,6 +42,34 @@ describe("scan surface — which files the user's folder contributes", () => {
     expect(block, "frontend extension list not found").toBeTruthy();
     const listed = [...block![1]!.matchAll(/"(\.[a-z0-9]+)"/g)].map((m) => m[1]!);
     expect(new Set(listed)).toEqual(new Set(SUPPORTED_EXTENSIONS));
+  });
+
+  /**
+   * `.env` is recognised by name, not by extension, and both walkers have to
+   * agree: a file the browser never uploads cannot appear in any report.
+   */
+  it("keeps the frontend's env rule identical to the backend's", () => {
+    const src = readFileSync(
+      path.join(repoRoot, "frontend/src/hooks/useLocalAnalysis.ts"),
+      "utf-8",
+    );
+    const frontend = src.match(/const ENV_FILE = \/(.*)\/;/)?.[1];
+    expect(frontend, "frontend env rule not found").toBeTruthy();
+    expect(frontend).toBe(ENV_FILE.source);
+    expect(isScannedPath("config/.env.production")).toBe(true);
+    expect(isScannedPath("README.md")).toBe(false);
+  });
+
+  /**
+   * The message shown when a folder comes back empty named thirteen kinds while
+   * the scan accepts many more — a lie about the tool's own reach.
+   */
+  it("names every kind it accepts when it says what it reads", () => {
+    const label = supportedExtensionsLabel();
+    for (const ext of SUPPORTED_EXTENSIONS) {
+      expect(label, `${ext} missing from the message`).toContain(ext.slice(1));
+    }
+    expect(label).toContain("env");
   });
 
   it("names the new file kinds so the city colours them", () => {

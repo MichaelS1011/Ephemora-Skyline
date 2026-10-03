@@ -36,6 +36,14 @@ const SUPPORTED_EXTENSIONS = new Set([
   ".swift",
 ]);
 
+/**
+ * Env files carry no extension the walker can look up (".env" is a dotfile,
+ * ".env.production" ends in ".production"), and the file holding the deployment
+ * credentials must not be the one file the scan admits it never opened.
+ * Mirrored from ENV_FILE in the backend metrics — pinned by a test.
+ */
+const ENV_FILE = /(^|\/)\.env(\.|$)/;
+
 /** Directory names that never contain relevant source code */
 const SKIP_DIRS =
   /^(node_modules|dist|build|out|\.next|\.nuxt|coverage|\.turbo|\.vscode|\.idea|__pycache__|\.venv|venv|target|vendor|\.pytest_cache|\.mypy_cache|\.gradle|Pods|bin|obj)$/i;
@@ -296,6 +304,7 @@ export function useLocalAnalysis() {
         if (
           !git &&
           !SUPPORTED_EXTENSIONS.has(ext) &&
+          !ENV_FILE.test(rel) &&
           !MANIFEST_BASENAMES.has(base) &&
           !IGNORE_FILENAMES.has(base)
         )
@@ -393,6 +402,7 @@ export function useLocalAnalysis() {
           if (
             !git &&
             !SUPPORTED_EXTENSIONS.has(ext) &&
+            !ENV_FILE.test(rel) &&
             !MANIFEST_BASENAMES.has(base) &&
             !IGNORE_FILENAMES.has(base)
           )

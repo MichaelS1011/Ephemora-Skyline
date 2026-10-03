@@ -1,5 +1,6 @@
 import type { Request, Response } from "express";
 import type { AnalysisOrchestrator } from "../../services/analyzer/orchestrator.js";
+import { supportedExtensionsLabel } from "../../services/analyzer/orchestrator.js";
 import type { AnalysisResult, GitHubRepo } from "../../models/index.js";
 import { promises as fs } from "fs";
 import os from "os";
@@ -236,7 +237,7 @@ async function runLocalAnalysis(
     if (result.status === "failed" || result.summary.totalFiles === 0) {
       const message =
         result.error ??
-        "No analyzable files found in that folder — supported languages: ts, tsx, js, jsx, py, go, rs, java, rb, html, css, json, yaml";
+        `No analyzable files found in that folder — CodeCity reads: ${supportedExtensionsLabel()}`;
       failJob(analysisId, message, analysisStore);
       return;
     }

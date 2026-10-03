@@ -5,6 +5,7 @@ import path from "path";
 import { RegexAdapter } from "../src/services/security/adapters/regex-adapter.js";
 import { AnalysisOrchestrator } from "../src/services/analyzer/orchestrator.js";
 import { SecurityScanner } from "../src/services/security/scanner.js";
+import { hasDataLines, isDataFile } from "../src/services/analyzer/metrics.js";
 
 /**
  * A lockfile, a translation catalogue and a generated schema are not code.
@@ -96,4 +97,25 @@ describe("the pipeline builds no structure out of data", () => {
     expect(code!.functions.length).toBeGreaterThan(0);
     expect(code!.lines.code).toBeGreaterThan(0);
   }, 30_000);
+});
+/**
+ * Two questions about the same file, and they do not always agree. "Is this
+ * code-shaped?" decides complexity, functions and code-shaped security rules.
+ * "Are its lines data?" decides which total they join. Terraform is the case
+ * where they differ: HCL has no branches to score, but three lines of resource
+ * declarations are still the project's infrastructure source, and moving them
+ * next to a translation catalogue would understate the codebase.
+ */
+describe("the two data decisions", () => {
+  it("asks no code questions of a .tf file but still counts its lines as code", () => {
+    expect(isDataFile("infra/main.tf")).toBe(true);
+    expect(hasDataLines("infra/main.tf")).toBe(false);
+  });
+
+  it("counts the lines of a catalogue and a manifest as data", () => {
+    expect(hasDataLines("assets/i18n/de.json")).toBe(true);
+    expect(hasDataLines("config/.env")).toBe(true);
+    expect(hasDataLines("pnpm-lock.yaml")).toBe(true);
+    expect(hasDataLines("src/app.ts")).toBe(false);
+  });
 });

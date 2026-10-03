@@ -7,7 +7,16 @@ import path from "path";
 import type { FileAnalysis } from "../../models/index.js";
 
 // Simple language detection by extension
+/**
+ * `.env` and its variants have no extension in the eyes of `path.extname`
+ * (".env" is a dotfile, ".env.production" has extension ".production"), so the
+ * env files are recognised by name — and they are now in scope, because a
+ * credential finding no longer carries the credential with it (see redact.ts).
+ */
+export const ENV_FILE = /(^|\/)\.env(\.|$)/;
+
 export function detectLanguage(filePath: string): string {
+  if (ENV_FILE.test(filePath)) return "Env";
   const ext = path.extname(filePath).toLowerCase();
   const langMap: Record<string, string> = {
     ".ts": "TypeScript",
@@ -47,7 +56,15 @@ export function computeAvgComplexity(files: FileAnalysis[]): number {
 }
 
 /** Formats that carry data, not behaviour. */
-const DATA_LANGUAGES = new Set(["JSON", "YAML", "Config", "Terraform"]);
+const DATA_LANGUAGES = new Set(["JSON", "YAML", "Config", "Terraform", "Env"]);
+/**
+ * Of those, the ones whose *lines* are not source text either. Terraform is the
+ * difference: HCL has no branches to count, so a `.tf` file scores complexity 1
+ * and is asked no code-shaped questions — but three lines of resource
+ * declarations are still three lines of the project's infrastructure source, and
+ * moving them next to a translation catalogue would understate the codebase.
+ */
+const DATA_LINE_LANGUAGES = new Set(["JSON", "YAML", "Config", "Env"]);
 const DATA_PATHS = /\.lock$|(^|\/)(requirements[^/]*\.txt|go\.sum|Pipfile|poetry\.lock)$/;
 
 /**
@@ -58,6 +75,11 @@ const DATA_PATHS = /\.lock$|(^|\/)(requirements[^/]*\.txt|go\.sum|Pipfile|poetry
  */
 export function isDataFile(filePath: string, language?: string): boolean {
   return DATA_LANGUAGES.has(language ?? detectLanguage(filePath)) || DATA_PATHS.test(filePath);
+}
+
+/** Should this file's lines be counted apart from the code lines? */
+export function hasDataLines(filePath: string, language?: string): boolean {
+  return DATA_LINE_LANGUAGES.has(language ?? detectLanguage(filePath)) || DATA_PATHS.test(filePath);
 }
 
 /** Languages that comment with `#` instead of `//`. */
@@ -271,6 +293,44 @@ const SCAN_MASKS: Record<string, MaskOptions> = {
 export function maskForScanning(code: string, language: string): string {
   const opts = SCAN_MASKS[language];
   return opts ? maskNonCode(code, opts) : code;
+}
+
+/**
+ * The file with its prose and its string contents gone: what is left is the
+ * skeleton a finding is actually made of. A line that still has a call in it is
+ * behaviour; a line that only ever held text is text, however alarming that text
+ * reads. Comments and regex literals are blanked, string contents blanked, and
+ * the length preserved so line numbers stay true.
+ */
+export function structureLines(code: string, language?: string): string[] {
+  return maskNonCode(code, {
+    hash: isHashCommentLanguage(language),
+    slash: !isHashCommentLanguage(language),
+    blankStrings: true,
+  }).split("\n");
+}
+
+const KEYWORDS =
+  "(?:(?:export|default|const|let|var|static|readonly|public|private|return|yield|await|throw)\\s+)*";
+/** A catalogue entry: `"text",` on its own, or `key: "text"` */
+const TEXT_ONLY_LINE = new RegExp(`^[\\s,;:]*${KEYWORDS}(?:[\\w$.\\[\\]-]+\\s*:\\s*)?[\\s,;:]*$`);
+
+/**
+ * Does this line state behaviour, or only name it? The input is the structure
+ * view, so string contents and comments are already blank and what remains is the
+ * line's shape: a text value on its own, or a key whose whole value is text.
+ *
+ * Deliberately narrower than "the line is a string": `const q = "SELECT … OR 1=1"`
+ * binds a payload inside the code itself, and that is a finding the product has
+ * always made and must keep making. A catalogue entry has no such binding — the
+ * object it sits in is the data, which is why nothing is executed by reading it.
+ */
+export function isTextOnlyLine(structureLine: string, originalLine = ""): boolean {
+  // A line with nothing left in the structure view is inside a multi-line
+  // literal (or a comment): the text on it is content, not code.
+  if (structureLine.trim() === "") return originalLine.trim() !== "";
+  const stripped = structureLine.replace(/["'`]/g, "");
+  return stripped !== structureLine && TEXT_ONLY_LINE.test(stripped);
 }
 
 /**

@@ -1,3 +1,5 @@
+import { ENV_FILE } from "../analyzer/metrics.js";
+
 /**
  * ScanConfig — user-configurable scan behavior.
  *
@@ -311,6 +313,9 @@ export function resolveConfig(input?: unknown): ResolveResult {
 
 /** Map a file path to a normalized language name for language gating */
 export function languageOfPath(filePath: string): string {
+  // ".env.production" ends in an extension that means nothing; as an env file it
+  // is env, and a rule scoped to "env" has to reach it
+  if (ENV_FILE.test(filePath)) return "env";
   const ext = filePath.slice(filePath.lastIndexOf(".")).toLowerCase();
   const map: Record<string, string> = {
     ".py": "python",

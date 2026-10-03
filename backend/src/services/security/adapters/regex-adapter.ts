@@ -1,5 +1,11 @@
 import type { SecurityIssue } from "../../../models/index.js";
-import { detectLanguage, isDataFile, maskForScanning } from "../../analyzer/metrics.js";
+import {
+  detectLanguage,
+  isDataFile,
+  isTextOnlyLine,
+  maskForScanning,
+  structureLines,
+} from "../../analyzer/metrics.js";
 import { enrichIssues } from "../finding-knowledge.js";
 import type { ScannerAdapter } from "../adapter.js";
 import { languageOfPath, type CustomPattern } from "../scan-config.js";
@@ -353,6 +359,13 @@ export class RegexAdapter implements ScannerAdapter {
       return low;
     };
 
+    // Built on first use: most files produce no matches at all
+    let structure: string[] | null = null;
+    const isTextLine = (line: number): boolean => {
+      structure ??= structureLines(content, detectLanguage(filePath));
+      return isTextOnlyLine(structure[line - 1] ?? "", lines[line - 1] ?? "");
+    };
+
     for (const pattern of this.activePatterns) {
       // Language gating: loose equality is a JavaScript-only pitfall — in
       // Python `==` is the correct operator (400+ false positives in real
@@ -380,6 +393,14 @@ export class RegexAdapter implements ScannerAdapter {
         const lineNum = findLineNum(match.index);
         // Never flag prose: comments, docstrings
         if (suppressedLines.has(lineNum)) {
+          if (match[0].length === 0) regex.lastIndex++;
+          continue;
+        }
+
+        // Never flag text that only names the construct: an advice entry, a fix
+        // suggestion's unsafe example, a rule catalogue. Rules that name their
+        // file type are exempt, because there the string is the fact.
+        if (!pattern.paths && isTextLine(lineNum)) {
           if (match[0].length === 0) regex.lastIndex++;
           continue;
         }
