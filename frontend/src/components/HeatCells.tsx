@@ -10,6 +10,7 @@ import {
   complexityColor,
   churnColor,
   severityColor,
+  liftHexForDusk,
   THREAT_COLOR,
   UNCHECKED_COLOR,
 } from "../city/palette";
@@ -37,14 +38,15 @@ function fileHeatColor(
   },
   colorblind: boolean,
 ): THREE.Color {
+  // Every far-view tile is lifted off the dusk ground (see liftHexForDusk).
+  const tile = (hex: string): THREE.Color => new THREE.Color(liftHexForDusk(hex));
   if (channel === "threat") {
     const worst = file.findings.reduce(
       (max, f) => Math.max(max, f.severity === "P0" ? 3 : f.severity === "P1" ? 2 : 1),
       0,
     );
-    if (worst === 0)
-      return new THREE.Color(isUncheckedClean(file) ? UNCHECKED_COLOR : THREAT_COLOR.safe);
-    return new THREE.Color(
+    if (worst === 0) return tile(isUncheckedClean(file) ? UNCHECKED_COLOR : THREAT_COLOR.safe);
+    return tile(
       worst === 3
         ? severityColor("P0", colorblind)
         : worst === 2
@@ -53,7 +55,7 @@ function fileHeatColor(
     );
   }
   if (channel === "complexity") {
-    return new THREE.Color(
+    return tile(
       complexityColor(
         syntheticComplexity({ ...file, threatLevel: "safe", findings: [] } as never),
         colorblind,
@@ -61,8 +63,8 @@ function fileHeatColor(
     );
   }
   // churn — absent data reads as a calm, neutral dark cell
-  if (file.churnScore === undefined) return new THREE.Color("#243247");
-  return new THREE.Color(churnColor(file.churnScore, colorblind));
+  if (file.churnScore === undefined) return tile("#243247");
+  return tile(churnColor(file.churnScore, colorblind));
 }
 
 export function HeatCells({ layout }: { layout: DirLayout }) {
@@ -111,7 +113,7 @@ export function HeatCells({ layout }: { layout: DirLayout }) {
       dummy.scale.set(blk.w * 1.35, 1, blk.d * 1.35);
       dummy.updateMatrix();
       mesh.setMatrixAt(i, dummy.matrix);
-      mesh.setColorAt(i, new THREE.Color(color));
+      mesh.setColorAt(i, new THREE.Color(liftHexForDusk(color)));
       i++;
     }
     mesh.instanceMatrix.needsUpdate = true;

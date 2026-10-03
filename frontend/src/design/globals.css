@@ -1087,6 +1087,13 @@ button:disabled {
 .city-coach {
   bottom: 90px !important;
 }
+/* #17: the scan-summary toast is centered at top:96px — exactly the band the
+   ModeBar (STRUCTURE/SECURITY/DEPENDENCIES, top:78px, bottom:115px) occupies.
+   The transient toast was landing on top of that control. Drop it below the
+   mode switch instead of removing the notice. */
+div[role="status"].animate-toast-in {
+  top: 128px !important;
+}
 .security-tour {
   bottom: 90px !important;
   min-width: 0 !important;

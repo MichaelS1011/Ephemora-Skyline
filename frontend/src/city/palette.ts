@@ -144,6 +144,76 @@ export function churnColor(score: number, colorblind = false): string {
     : gradient(score, "#29d398", "#ff7a1a");
 }
 
+// ── Far-view heat-cell legibility (#30) ────────────────────────────────────
+
+/**
+ * The far-zoom heat grid is unlit and sits on the dusk ground (ENV.ground
+ * #24231e) and fog (#3a382f). Measured on the demo city the whole grid sat at
+ * a relative luminance of ~0.035 (p50) — the calm `safe` cell (#3b4a63) only
+ * cleared the ground by 1.76:1 and the fog by 1.31:1, so the city read as one
+ * dark mass.
+ *
+ * `liftHexForDusk` raises every tile's HSL lightness by a CONSTANT offset.
+ * Constant (not a floor) is deliberate: a flat floor would collapse `safe`
+ * onto `unchecked`, destroying the semantic pair the product depends on. An
+ * additive shift preserves the lightness gap between neighbouring heat levels
+ * exactly, and because it is monotonic it can never reorder the ramp — P0 stays
+ * hotter than P1, `unchecked` stays lighter than `safe`.
+ */
+export const DUSK_LIFT = 0.16;
+
+function hexToHsl(hex: string): { h: number; s: number; l: number } {
+  const r = parseInt(hex.slice(1, 3), 16) / 255;
+  const g = parseInt(hex.slice(3, 5), 16) / 255;
+  const b = parseInt(hex.slice(5, 7), 16) / 255;
+  const max = Math.max(r, g, b);
+  const min = Math.min(r, g, b);
+  const l = (max + min) / 2;
+  if (max === min) return { h: 0, s: 0, l };
+  const d = max - min;
+  const s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+  let h: number;
+  if (max === r) h = ((g - b) / d + (g < b ? 6 : 0)) / 6;
+  else if (max === g) h = ((b - r) / d + 2) / 6;
+  else h = ((r - g) / d + 4) / 6;
+  return { h, s, l };
+}
+
+function hslToHex(h: number, s: number, l: number): string {
+  const hue = (p: number, q: number, tIn: number): number => {
+    let t = tIn;
+    if (t < 0) t += 1;
+    if (t > 1) t -= 1;
+    if (t < 1 / 6) return p + (q - p) * 6 * t;
+    if (t < 1 / 2) return q;
+    if (t < 2 / 3) return p + (q - p) * (2 / 3 - t) * 6;
+    return p;
+  };
+  let r: number;
+  let g: number;
+  let b: number;
+  if (s === 0) {
+    r = g = b = l;
+  } else {
+    const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
+    const p = 2 * l - q;
+    r = hue(p, q, h + 1 / 3);
+    g = hue(p, q, h);
+    b = hue(p, q, h - 1 / 3);
+  }
+  const to = (v: number): string =>
+    Math.round(Math.max(0, Math.min(1, v)) * 255)
+      .toString(16)
+      .padStart(2, "0");
+  return `#${to(r)}${to(g)}${to(b)}`;
+}
+
+/** Pure sRGB-space lightness lift — see the DUSK_LIFT block comment. */
+export function liftHexForDusk(hex: string, offset = DUSK_LIFT): string {
+  const { h, s, l } = hexToHsl(hex);
+  return hslToHex(h, s, Math.min(0.82, l + offset));
+}
+
 // ── Author territory colors (git blame districts) ─────────────────────────
 
 const AUTHOR_PALETTE = [
@@ -170,7 +240,6 @@ export function authorColor(name: string): string {
 
 export const ENV = {
   skyTop: "#1f1e1b",
-  skyHorizon: "#3a372f",
   // Fog sits ABOVE every surface it hides, or distance flattens into black
   // instead of lifting into haze.
   fog: "#3a382f",
@@ -185,9 +254,6 @@ export const ENV = {
   windowWarm: "#ffc470",
   windowCool: "#e8d8b0",
   windowAlarm: "#ff4d5e",
-  // Facades catch the sky: a building darker than the ground it stands on
-  // reads as a cut-out instead of a volume.
-  wallDark: "#35342e",
   connection: "#e8b23c",
   selection: "#e8503c",
 } as const;

@@ -865,13 +865,19 @@ export function tourStops(city: CityData): FileHit[] {
 }
 
 /** The single most risky file in the city — rendered as a landmark tower. */
+const landmarkCache = new WeakMap<CityData, string | null>();
+
 export function landmarkFileId(city: CityData): string | null {
+  const cached = landmarkCache.get(city);
+  if (cached !== undefined) return cached;
   let best: FileHit | null = null;
   for (const hit of allFiles(city)) {
     if (hit.file.findings.length === 0) continue;
     if (!best || byRisk(hit.file, best.file) < 0) best = hit;
   }
-  return best?.file.id ?? null;
+  const id = best?.file.id ?? null;
+  landmarkCache.set(city, id);
+  return id;
 }
 
 // ── Finding search ─────────────────────────────────────────────────────────

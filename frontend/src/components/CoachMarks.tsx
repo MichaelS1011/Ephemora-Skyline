@@ -198,9 +198,9 @@ export function CoachMarks() {
   if (!visible || tourActive || buildPhase === "constructing") return null;
 
   return (
-    <div className="absolute left-0 right-0 z-40 flex justify-center pointer-events-none city-coach">
+    <div className="absolute left-1/2 -translate-x-1/2 z-40 w-[min(90vw,520px)] pointer-events-none city-coach">
       <div
-        className="pointer-events-auto animate-fade-up"
+        className="pointer-events-auto animate-fade-up w-full"
         style={{
           background: "rgba(24, 24, 22, 0.94)",
           border: "1px solid rgba(150,142,128,0.26)",
@@ -208,7 +208,6 @@ export function CoachMarks() {
           padding: "14px 18px",
           boxShadow: "0 12px 36px rgba(0,0,0,0.3)",
           backdropFilter: "blur(20px)",
-          width: "min(90vw, 520px)",
           maxHeight: "60vh",
           overflowY: "auto",
           fontFamily: "var(--font-sans, ui-sans-serif, system-ui, sans-serif)",

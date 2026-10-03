@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo } from "react";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import type { DirLayout } from "../city/layout";
@@ -63,9 +63,6 @@ export function CityConnections({
   selectedFileId = null,
   highlight = false,
 }: ConnectionProps) {
-  const fileMatRef = useRef<THREE.MeshBasicMaterial>(null);
-  const dirMatRef = useRef<THREE.MeshBasicMaterial>(null);
-
   const buildingPos = useMemo(() => {
     const map = new Map<string, { x: number; y: number; z: number }>();
     for (const b of layout.buildings) map.set(b.file.id, { x: b.x, y: b.h + 0.6, z: b.z });
@@ -107,6 +104,31 @@ export function CityConnections({
     return geos;
   }, [dirConnections, blockPos, showDirArcs, highlight]);
 
+  const fileMat = useMemo(
+    () =>
+      new THREE.MeshBasicMaterial({
+        color: new THREE.Color(highlight ? "#e8b23c" : ENV.connection),
+        transparent: true,
+        opacity: highlight ? 0.55 : 0.25,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+        toneMapped: false,
+      }),
+    [highlight],
+  );
+  const dirMat = useMemo(
+    () =>
+      new THREE.MeshBasicMaterial({
+        color: new THREE.Color("#e8b23c"),
+        transparent: true,
+        opacity: highlight ? 0.65 : 0.3,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+        toneMapped: false,
+      }),
+    [highlight],
+  );
+
   useEffect(() => {
     return () => {
       for (const g of fileGeos) g.dispose();
@@ -114,49 +136,33 @@ export function CityConnections({
     };
   }, [fileGeos, dirGeos]);
 
+  useEffect(() => {
+    return () => {
+      fileMat.dispose();
+      dirMat.dispose();
+    };
+  }, [fileMat, dirMat]);
+
   useFrame(({ clock }) => {
     const t = clock.elapsedTime;
     // In DEPENDENCIES mode the pulsing baseline rides higher — the mode must
-    // never pulse the arcs back down to their idle subtlety
-    if (fileMatRef.current) {
-      fileMatRef.current.opacity = highlight
-        ? 0.55 + Math.sin(t * 1.6) * 0.12
-        : 0.22 + Math.sin(t * 1.6) * 0.1;
-    }
-    if (dirMatRef.current) {
-      dirMatRef.current.opacity = highlight
-        ? 0.65 + Math.sin(t * 1.1 + 1) * 0.1
-        : 0.3 + Math.sin(t * 1.1 + 1) * 0.1;
-    }
+    // never pulse the arcs back down to their idle subtlety.
+    // One shared material per arc group: EVERY arc pulses. The old code
+    // attached the animated ref to arc #0 only, so the rest stayed frozen at
+    // their static mount opacity (#16b).
+    fileMat.opacity = highlight ? 0.55 + Math.sin(t * 1.6) * 0.12 : 0.22 + Math.sin(t * 1.6) * 0.1;
+    dirMat.opacity = highlight
+      ? 0.65 + Math.sin(t * 1.1 + 1) * 0.1
+      : 0.3 + Math.sin(t * 1.1 + 1) * 0.1;
   });
 
   return (
     <group>
       {fileGeos.map((geo, i) => (
-        <mesh key={`fa-${i}`} geometry={geo}>
-          <meshBasicMaterial
-            ref={i === 0 ? fileMatRef : undefined}
-            color={highlight ? "#e8b23c" : ENV.connection}
-            transparent
-            opacity={highlight ? 0.55 : 0.25}
-            blending={THREE.AdditiveBlending}
-            depthWrite={false}
-            toneMapped={false}
-          />
-        </mesh>
+        <mesh key={`fa-${i}`} geometry={geo} material={fileMat} />
       ))}
       {dirGeos.map((geo, i) => (
-        <mesh key={`da-${i}`} geometry={geo}>
-          <meshBasicMaterial
-            ref={i === 0 ? dirMatRef : undefined}
-            color="#e8b23c"
-            transparent
-            opacity={highlight ? 0.65 : 0.3}
-            blending={THREE.AdditiveBlending}
-            depthWrite={false}
-            toneMapped={false}
-          />
-        </mesh>
+        <mesh key={`da-${i}`} geometry={geo} material={dirMat} />
       ))}
     </group>
   );

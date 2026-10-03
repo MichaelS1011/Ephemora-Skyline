@@ -8,6 +8,7 @@ import type { FocusTier } from "../city/focus";
 import type { VoxelLayout } from "../city/voxels";
 import { languageColor, severityColor, REVIEWED_BEACON_COLOR, ENV } from "../city/palette";
 import { materialState, erosionState } from "../city/mapping";
+import { landmarkFileId } from "../city/layout";
 import { findVoxelForLine } from "../city/voxels";
 import { useStore, type ViewMode } from "../stores/useStore";
 import { VoxelMesh, slabSegments, getVoxelMaterial, sectionBandHeights } from "./VoxelMesh";
@@ -323,6 +324,17 @@ export function Building({
   const selected = selectedUnit?.kind === "file" && selectedUnit.id === file.id;
 
   const cityMeta = useStore((s) => s.cityData?.meta);
+  const cityData = useStore((s) => s.cityData);
+  // #16c: the city's landmark is normally flagged by the caller (plaza
+  // buildings). A district's skyline towers are rendered by District.tsx,
+  // which cannot thread the flag — so a landmark that lives INSIDE a district
+  // showed no beam at all. Buildings resolve it themselves from the (cached)
+  // layout so the marker follows the file wherever it is drawn.
+  const isCityLandmark = useMemo(
+    () => !!cityData && landmarkFileId(cityData) === file.id,
+    [cityData, file.id],
+  );
+  const showLandmark = isLandmark || isCityLandmark;
   const facadeColor = languageColor(file.language);
   const alarm = file.threatLevel === "critical" || file.threatLevel === "high";
   // Metric→visual mapping: graphite (healthy) / glass (dead code) / alarm
@@ -646,10 +658,16 @@ export function Building({
       const cur = hoverGlowRef.current;
       const next = Math.abs(target - cur) < 0.005 ? target : cur + (target - cur) * 0.16;
       hoverGlowRef.current = next;
+      // The alarm baseline must survive the per-frame write. The memoized
+      // material starts an alarm body at 1.15; a flat 0.55 here silently
+      // overwrote it every frame, so a P0 building flickered down to the calm
+      // baseline and stopped reading as an alarm (#16a).
+      const baseline = matState === "alarm" ? 1.15 : 0.55;
       // The focus AND mode factors ride on the baseline too — otherwise this
       // per-frame write would overwrite the memoized dimming every frame and
       // the city would flicker back to full brightness in SECURITY mode
-      mat.emissiveIntensity = (0.55 + next * 0.6 + Math.sin(t * 0.7 + seed) * 0.05) * overallFactor;
+      mat.emissiveIntensity =
+        (baseline + next * 0.6 + Math.sin(t * 0.7 + seed) * 0.05) * overallFactor;
     }
     // Voxel-body hover: the outline seam eases bright — the facade flicker's
     // replacement on the block stack
@@ -1060,7 +1078,7 @@ export function Building({
       )}
 
       {/* Antenna for towers / landmark — height + offset vary per seed */}
-      {(isTower || isLandmark) && (
+      {(isTower || showLandmark) && (
         <mesh position={[antennaOffX, h + (stepped ? 0.6 : 1.0) + antennaH / 2, antennaOffX]}>
           <cylinderGeometry args={[0.05, 0.09, antennaH, 6]} />
           <meshStandardMaterial color="#3a4256" roughness={0.6} />
@@ -1084,7 +1102,7 @@ export function Building({
       )}
 
       {/* Landmark beam — the lighthouse of the city */}
-      {isLandmark && (
+      {showLandmark && (
         <>
           <mesh ref={beamRef} position={[0, h + 22, 0]}>
             <cylinderGeometry args={[0.32, 0.55, 44, 8, 1, true]} />

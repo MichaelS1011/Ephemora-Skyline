@@ -144,7 +144,7 @@ export function Tooltip() {
         borderRadius: 4,
         padding: "0.55rem 0.7rem",
         fontFamily: "var(--font-mono)",
-        fontSize: "0.68rem",
+        fontSize: "0.75rem",
         color: "var(--brand-ink)",
         pointerEvents: "none",
         zIndex: 50,
@@ -158,7 +158,7 @@ export function Tooltip() {
       {/* Type indicator */}
       <div className="flex items-center gap-1.5 mb-1">
         <span
-          className="font-jetbrains text-[8px] px-1 py-px rounded-sm uppercase tracking-wide"
+          className="font-jetbrains text-[11px] px-1 py-px rounded-sm uppercase tracking-wide"
           style={{ color: accent, background: `${accent}18`, border: `1px solid ${accent}33` }}
         >
           {isBlock ? t(lang, "tooltip.typeDistrict") : t(lang, "tooltip.typeFile")}
