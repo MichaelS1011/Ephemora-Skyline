@@ -3,6 +3,8 @@
  * Mirrors the backend scan-config presets (resolveConfig applies them).
  */
 
+import { enabledCategoriesPayload, type FindingCategory } from "./findingCategories";
+
 export type ScanProfile =
   "quick" | "standard" | "deep" | "security-only" | "quality-only" | "custom";
 
@@ -232,6 +234,13 @@ export function saveProfile(profile: ScanProfile): void {
  * resolveConfig() applies the profile preset; "custom" is reserved for the
  * pattern editor (stage 2) and falls back to standard today.
  */
-export function configPayload(profile: ScanProfile): { profile: ScanProfile } {
-  return { profile: profile === "custom" ? "standard" : profile };
+export function configPayload(
+  profile: ScanProfile,
+  categories: FindingCategory[] = [],
+): { profile: ScanProfile; enabledCategories?: FindingCategory[] } {
+  const enabledCategories = enabledCategoriesPayload(categories);
+  return {
+    profile: profile === "custom" ? "standard" : profile,
+    ...(enabledCategories.length > 0 ? { enabledCategories } : {}),
+  };
 }

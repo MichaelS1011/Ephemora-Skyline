@@ -8,14 +8,18 @@ import {
   loadSavedProfile,
   type ScanProfile,
 } from "../config/scanProfiles";
+import { FINDING_CATEGORIES } from "../config/findingCategories";
 import { ProfileConfirmDialog } from "./ProfileConfirmDialog";
 
 export function ProfileChips({ variant }: { variant: "landing" | "analyze-panel" }) {
   const scanProfile = useStore((s) => s.scanProfile);
   const setScanProfile = useStore((s) => s.setScanProfile);
+  const scanCategories = useStore((s) => s.scanCategories);
+  const toggleScanCategory = useStore((s) => s.toggleScanCategory);
   const [detailFor, setDetailFor] = useState<ScanProfile | null>(null);
   const active = scanProfile ?? loadSavedProfile();
   const meta = SCAN_PROFILES.find((p) => p.id === active) ?? SCAN_PROFILES[1]!;
+  const onlyOneLeft = scanCategories.length === 1;
   return (
     <div className={`profile-picker profile-picker-${variant}`}>
       <div className="profile-options" aria-label="Scan profile">
@@ -34,6 +38,27 @@ export function ProfileChips({ variant }: { variant: "landing" | "analyze-panel"
       <p className="profile-description">
         {meta.summary} <span>Estimated time: {PROFILE_DURATION[active]}.</span>
       </p>
+      <p className="category-caption">What to look for</p>
+      <div className="profile-options category-options" aria-label="What to look for">
+        {FINDING_CATEGORIES.map((category) => {
+          const on = scanCategories.includes(category.id);
+          return (
+            <button
+              key={category.id}
+              onClick={() => toggleScanCategory(category.id)}
+              aria-pressed={on}
+              disabled={!on && onlyOneLeft}
+              title={
+                category.meaning +
+                (on && onlyOneLeft ? " — the last kind stays on; a scan of nothing is no scan" : "")
+              }
+            >
+              {on && <span aria-hidden="true">✓ </span>}
+              {category.label}
+            </button>
+          );
+        })}
+      </div>
       {detailFor && (
         <ProfileConfirmDialog
           profile={detailFor}

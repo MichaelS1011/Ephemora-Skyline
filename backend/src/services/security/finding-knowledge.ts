@@ -1,4 +1,5 @@
 import type { SecurityIssue } from "../../models/index.js";
+import { categoryOf } from "./categories.js";
 import { isSecretFinding, maskSecretText } from "./redact.js";
 
 export interface FindingKnowledge {
@@ -226,6 +227,9 @@ export function enrichIssues(issues: SecurityIssue[], content?: string): void {
       if (knowledge.cwe) issue.cwe = knowledge.cwe;
       if (knowledge.refUrl) issue.refUrl = knowledge.refUrl;
     }
+    // After the knowledge pass, because the category is derived from the CWE
+    // this is the place that attaches.
+    if (!issue.category) issue.category = categoryOf(issue.type, issue.cwe);
     if (!issue.snippet) {
       issue.snippet = buildSnippet(content, issue.line);
     }

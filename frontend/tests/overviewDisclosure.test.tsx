@@ -241,6 +241,30 @@ describe("project overview", () => {
     expect(text).not.toContain("never checked");
   });
 
+  it("says which kinds of mistakes a folder is full of", async () => {
+    const city = cityData();
+    city.findingsByCategory = city.tree.findingsByCategory = {
+      injection: 4,
+      hygiene: 3,
+      secrets: 0,
+      crypto: 0,
+      transport: 0,
+      exposure: 0,
+      dependencies: 0,
+      permissions: 0,
+      unclassified: 0,
+    };
+    const text = await show(<ContextCard />, city);
+    expect(text).toContain("injection 4 · hygiene 3");
+  });
+
+  it("names the kinds nobody looked for when their engines were off", async () => {
+    const city = cityData();
+    city.unverifiedEngines = ["gitleaks", "regex"];
+    const text = await show(<ContextCard />, city);
+    expect(text).toContain("Nobody looked for: Secrets");
+  });
+
   it("calls the demo city what it is: nothing was scanned", async () => {
     const city = cityData();
     city.scanProvenance = {

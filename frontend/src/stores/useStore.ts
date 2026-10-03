@@ -1,5 +1,11 @@
 import { create } from "zustand";
-import type { CityData, ReviewStatus, SelectedUnit, Severity } from "../city/types";
+import type {
+  CityData,
+  FindingCategory,
+  ReviewStatus,
+  SelectedUnit,
+  Severity,
+} from "../city/types";
 import {
   allFiles,
   byRisk,
@@ -10,6 +16,7 @@ import {
 } from "../city/layout";
 import { findVoxelForLine } from "../city/voxels";
 import { loadSavedProfile, saveProfile, type ScanProfile } from "../config/scanProfiles";
+import { loadSavedCategories, saveCategories } from "../config/findingCategories";
 import { findingKey, loadReviews, saveReviews } from "../reviews";
 import { loadPrefs, savePrefs, type Prefs } from "../prefs";
 
@@ -203,6 +210,9 @@ interface AppState {
   // ── Scan configuration (shared by Landing + AnalyzePanel) ─────────────
   scanProfile: ScanProfile;
   setScanProfile: (p: ScanProfile) => void;
+  /** Which kinds of mistakes the user wants reported (all = no filter) */
+  scanCategories: FindingCategory[];
+  toggleScanCategory: (c: FindingCategory) => void;
 
   tourActive: boolean;
   tourIndex: number;
@@ -589,6 +599,18 @@ export const useStore = create<AppState>((set, get) => ({
   setShowFindings: (v) => set({ showFindings: v }),
 
   scanProfile: loadSavedProfile(),
+  scanCategories: loadSavedCategories(),
+  toggleScanCategory: (c) => {
+    const current = get().scanCategories;
+    const next = current.includes(c)
+      ? // the last chip stays on: "nothing selected" is not "nothing scanned"
+        current.length > 1
+        ? current.filter((x) => x !== c)
+        : current
+      : [...current, c];
+    saveCategories(next);
+    set({ scanCategories: next });
+  },
   setScanProfile: (p) => {
     saveProfile(p);
     set({ scanProfile: p });

@@ -1,4 +1,6 @@
 import { ENV_FILE } from "../analyzer/metrics.js";
+import { CATEGORY_IDS } from "./categories.js";
+import type { FindingCategory } from "../../models/index.js";
 
 /**
  * ScanConfig — user-configurable scan behavior.
@@ -40,6 +42,12 @@ export interface ScanConfig {
   enabledFindingTypes: string[];
   /** Denylist wins over the allowlist */
   disabledFindingTypes: string[];
+  /**
+   * Which kinds of mistakes to report (empty = all). This is the axis a user
+   * can actually decide about — severity is a threshold and a type list is a
+   * hundred names, but "injection yes, hygiene later" is a real choice.
+   */
+  enabledCategories: FindingCategory[];
   customPatterns: CustomPattern[];
   severityThreshold: "P0" | "P1" | "P2";
   languageScope: string[];
@@ -100,6 +108,7 @@ export function defaultScanConfig(): ScanConfig {
   return {
     profile: "standard",
     enabledFindingTypes: [],
+    enabledCategories: [],
     disabledFindingTypes: [],
     customPatterns: [],
     severityThreshold: "P2",
@@ -180,6 +189,29 @@ function strArray(v: unknown, cap: number, label: string, errors: string[]): str
   return out;
 }
 
+/**
+ * An unknown category is refused, not dropped: a filter that quietly ignores
+ * a typo reports a scan the user believes they limited.
+ */
+function categoriesOf(v: unknown, errors: string[]): FindingCategory[] {
+  if (v === undefined || v === null) return [];
+  if (!Array.isArray(v)) {
+    errors.push("enabledCategories: expected an array");
+    return [];
+  }
+  if (v.length > CATEGORY_IDS.length)
+    errors.push(`enabledCategories: truncated to ${CATEGORY_IDS.length} entries`);
+  const kept: FindingCategory[] = [];
+  for (const entry of v.slice(0, CATEGORY_IDS.length)) {
+    if (typeof entry === "string" && (CATEGORY_IDS as string[]).includes(entry)) {
+      if (!kept.includes(entry as FindingCategory)) kept.push(entry as FindingCategory);
+    } else {
+      errors.push(`enabledCategories: unknown category "${String(entry)}"`);
+    }
+  }
+  return kept;
+}
+
 function severityOf(
   v: unknown,
   fallback: "P0" | "P1" | "P2",
@@ -240,6 +272,7 @@ export function resolveConfig(input?: unknown): ResolveResult {
     "disabledFindingTypes",
     errors,
   );
+  config.enabledCategories = categoriesOf(raw["enabledCategories"], errors);
   if (preset.disabledFindingTypes && config.disabledFindingTypes.length === 0) {
     config.disabledFindingTypes = preset.disabledFindingTypes;
   }

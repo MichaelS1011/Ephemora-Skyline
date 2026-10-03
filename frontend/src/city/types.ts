@@ -6,6 +6,20 @@ import type { VoxelSectionSpec } from "./voxels";
 
 export type Severity = "P0" | "P1" | "P2";
 export type ThreatLevel = "critical" | "high" | "medium" | "low" | "safe";
+/**
+ * What kind of mistake a finding is. Decided by the backend's CWE-cluster
+ * table (`services/security/categories.ts`); the UI only labels and filters.
+ */
+export type FindingCategory =
+  | "injection"
+  | "secrets"
+  | "crypto"
+  | "transport"
+  | "exposure"
+  | "dependencies"
+  | "permissions"
+  | "hygiene"
+  | "unclassified";
 /** Reviewer's triage state for one finding (local-first, no server). */
 export type ReviewStatus = "reviewed" | "false-positive" | "to-fix";
 
@@ -19,6 +33,8 @@ export interface CitySnippet {
 export interface CityFinding {
   type: string;
   severity: Severity;
+  /** What kind of mistake this is — the axis the user filters by */
+  category?: FindingCategory;
   line: number;
   message: string;
   fix?: string;
@@ -95,6 +111,8 @@ export interface CityDir {
   /** language → data lines */
   dataLanguages?: Record<string, number>;
   findingsBySeverity: Record<Severity, number>;
+  /** Which kinds of mistakes live in this folder — the axis the user chose */
+  findingsByCategory?: Record<FindingCategory, number>;
   /** Weighted risk of the findings in SHIPPED code (P0×10 + P1×7 + P2×3) */
   threatScore: number;
   /** Files in the subtree that live in test code */
@@ -152,6 +170,8 @@ export interface CityData {
   /** lines of translation catalogues, manifests and other data files */
   dataLines?: number;
   findingsBySeverity: Record<Severity, number>;
+  /** Which kinds of mistakes the scan reported, over the whole city */
+  findingsByCategory?: Record<FindingCategory, number>;
   /** language → CODE lines */
   languages: Record<string, number>;
   /** language → data lines, kept out of the bar above */

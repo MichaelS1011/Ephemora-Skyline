@@ -740,6 +740,16 @@ button:disabled {
 .profile-options button:hover {
   border-color: #e8503c;
 }
+.category-options {
+  margin-top: 8px;
+}
+.category-caption {
+  margin-top: 14px;
+  font: 600 11px/1 var(--font-ui);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--meta-faint);
+}
 .profile-description {
   margin-top: 12px;
   font: 12px/1.65 var(--font-ui);

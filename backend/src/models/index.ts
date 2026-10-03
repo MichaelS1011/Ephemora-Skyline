@@ -86,6 +86,22 @@ export interface CodeSnippet {
   number: number;
 }
 
+/**
+ * The kind of mistake a finding represents. The table that decides this lives
+ * in `services/security/categories.ts`; the union lives here because the
+ * payload and the frontend both speak it.
+ */
+export type FindingCategory =
+  | "injection"
+  | "secrets"
+  | "crypto"
+  | "transport"
+  | "exposure"
+  | "dependencies"
+  | "permissions"
+  | "hygiene"
+  | "unclassified";
+
 export interface SecurityIssue {
   type: string;
   severity: "P0" | "P1" | "P2";
@@ -100,6 +116,8 @@ export interface SecurityIssue {
   explanation?: string;
   /** Standard taxonomy reference, e.g. "CWE-89" */
   cwe?: string;
+  /** What kind of mistake this is — the axis a user filters by */
+  category?: FindingCategory;
   /** Authoritative documentation link (OWASP/CWE/semgrep/advisory) */
   refUrl?: string;
   /** Code frame around the flagged line — shows WHERE the problem lives */

@@ -17,6 +17,7 @@ import { DependencyAdapter } from "./adapters/dependency-adapter.js";
 import { OsvAdapter } from "./adapters/osv-adapter.js";
 import { RuffAdapter } from "./adapters/ruff-adapter.js";
 import { dedupIssues, SEVERITY_ORDER } from "./dedup.js";
+import { categoryOf } from "./categories.js";
 import { enrichIssues } from "./finding-knowledge.js";
 import { isSecretFinding, maskSecretText } from "./redact.js";
 import { resolveConfig, type ResolvedScanConfig } from "./scan-config.js";
@@ -196,6 +197,12 @@ export class SecurityScanner {
       // An entry names a family too: ruff contributes QUALITY_<code> and semgrep
       // SECURITY_<check-id>, which no fixed list could ever enumerate.
       !allow.some((a) => issue.type === a || issue.type.startsWith(`${a}_`))
+    )
+      return false;
+    const categories = this.config.enabledCategories;
+    if (
+      categories.length > 0 &&
+      !categories.includes(issue.category ?? categoryOf(issue.type, issue.cwe))
     )
       return false;
     return true;

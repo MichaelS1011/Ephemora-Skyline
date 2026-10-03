@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useStore } from "../stores/useStore";
 import { explainDistrictDraw, resolveDir, tourStops } from "../city/layout";
 import { describeGitignoreSkips } from "../city/provenance";
+import { blindCategories, categoryMeta, summarizeCategories } from "../config/findingCategories";
 import { topLanguages, languageColor, SEVERITY_COLOR, authorColor } from "../city/palette";
 import { MarkerLegend } from "./CoachMarks";
 
@@ -77,6 +78,10 @@ export function ContextCard() {
     findingsInTests > 0 && totalFindings > 0
       ? `${findingsInTests} of ${totalFindings} findings were found in test code`
       : "";
+  const kinds = summarizeCategories(dir.findingsByCategory);
+  const blind = isRoot
+    ? blindCategories(cityData.unverifiedEngines ?? []).map((id) => categoryMeta(id).label)
+    : [];
   const langs = topLanguages(dir.languages, 4);
   const totalLangLines = Object.values(dir.languages).reduce((sum, lines) => sum + lines, 0) || 1;
   const stops = tourStops(cityData);
@@ -169,6 +174,8 @@ export function ContextCard() {
         drawLines.length > 0 ||
         testLine !== "" ||
         uncheckedLine !== "" ||
+        kinds !== "" ||
+        blind.length > 0 ||
         (isRoot && skipped !== "")) && (
         <div className="-mt-1 mb-1 space-y-1.5">
           {dataLines > 0 && (
@@ -197,6 +204,24 @@ export function ContextCard() {
               title="No engine that covers these languages ran in this scan. The files are not clean — they are unread."
             >
               {uncheckedLine}
+            </div>
+          )}
+          {kinds !== "" && (
+            <div
+              className="text-[12px]"
+              style={{ color: "#aaa69c" }}
+              title="What this folder is actually full of. Severity says how bad a finding is; this says what kind of work it is."
+            >
+              {kinds}
+            </div>
+          )}
+          {blind.length > 0 && (
+            <div
+              className="text-[12px]"
+              style={{ color: "#8f8b82" }}
+              title="No engine that could report on these ran in this scan. Zero findings here is a blind spot, not a clean result."
+            >
+              Nobody looked for: {blind.join(", ")}
             </div>
           )}
           {testLine !== "" && (

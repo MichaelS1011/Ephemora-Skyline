@@ -26,6 +26,7 @@
 import path from "path";
 import { hasDataLines, roleOfPath, type FileRole } from "../services/analyzer/metrics.js";
 import { missingEnginesFor } from "../services/security/scan-depth.js";
+import type { FindingCategory } from "../models/index.js";
 import type { AnalysisResult, FileAnalysis, ProjectSummary } from "../models/index.js";
 
 export type Severity = "P0" | "P1" | "P2";
@@ -42,6 +43,8 @@ export interface CitySnippet {
 export interface CityFinding {
   type: string;
   severity: Severity;
+  /** What kind of mistake this is — the axis the user filters by */
+  category?: FindingCategory;
   line: number;
   message: string;
   fix?: string;
@@ -141,6 +144,12 @@ export interface CityDir {
   dataLanguages: Record<string, number>;
   findingsBySeverity: Record<Severity, number>; // subtree finding counts
   /**
+   * What kinds of mistakes live in this folder. The category axis is the one
+   * a user can decide about ("injection yes, hygiene later"); severity and
+   * type are not choices, this is.
+   */
+  findingsByCategory: Record<FindingCategory, number>;
+  /**
    * Weighted risk of the findings this folder holds in shipped code
    * (P0×10 + P1×7 + P2×3). Test fixtures are counted separately below, so a
    * folder full of deliberate bad examples cannot outscore a real one.
@@ -195,6 +204,7 @@ export interface CityData {
   /** lines of translation catalogues, manifests and other data files */
   dataLines: number;
   findingsBySeverity: Record<Severity, number>;
+  findingsByCategory: Record<FindingCategory, number>;
   /** Findings that were found in test code — still findings, different claim */
   findingsInTests: number;
   /** How many of `totalFiles` are test files */
@@ -323,6 +333,20 @@ function emptySeverityCount(): Record<Severity, number> {
   return { P0: 0, P1: 0, P2: 0 };
 }
 
+function emptyCategoryCount(): Record<FindingCategory, number> {
+  return {
+    injection: 0,
+    secrets: 0,
+    crypto: 0,
+    transport: 0,
+    exposure: 0,
+    dependencies: 0,
+    permissions: 0,
+    hygiene: 0,
+    unclassified: 0,
+  };
+}
+
 function toCityFinding(v: FileAnalysis["vulnerabilities"][number], inTest?: boolean): CityFinding {
   const enriched = v as unknown as {
     provenance?: string;
@@ -344,6 +368,7 @@ function toCityFinding(v: FileAnalysis["vulnerabilities"][number], inTest?: bool
     cwe: enriched.cwe,
     refUrl: enriched.refUrl,
     snippet: enriched.snippet,
+    category: v.category,
     inTest,
   };
 }
@@ -526,6 +551,7 @@ export function mapResultToCityData(result: AnalysisResult): CityData {
       languages: {},
       dataLanguages: {},
       findingsBySeverity: emptySeverityCount(),
+      findingsByCategory: emptyCategoryCount(),
       threatScore: 0,
       testFiles: 0,
       unverifiedFiles: 0,
@@ -556,6 +582,7 @@ export function mapResultToCityData(result: AnalysisResult): CityData {
         dirNode.unverifiedFiles += 1;
       for (const v of f.vulnerabilities) {
         dirNode.findingsBySeverity[v.severity] = (dirNode.findingsBySeverity[v.severity] ?? 0) + 1;
+        dirNode.findingsByCategory[v.category ?? "unclassified"] += 1;
         const score = SEVERITY_SCORE[v.severity] ?? 0;
         if (inTest) {
           dirNode.findingsInTests += 1;
@@ -585,6 +612,9 @@ export function mapResultToCityData(result: AnalysisResult): CityData {
       }
       for (const sev of SEVERITY_ORDER) {
         dirNode.findingsBySeverity[sev] += cityChild.findingsBySeverity[sev];
+      }
+      for (const [category, count] of Object.entries(cityChild.findingsByCategory)) {
+        dirNode.findingsByCategory[category as FindingCategory] += count;
       }
       dirNode.threatScore += cityChild.threatScore;
       dirNode.testFiles += cityChild.testFiles;
@@ -743,6 +773,7 @@ export function mapResultToCityData(result: AnalysisResult): CityData {
     codeLines: tree.codeLines,
     dataLines: tree.dataLines,
     findingsBySeverity: tree.findingsBySeverity,
+    findingsByCategory: tree.findingsByCategory,
     findingsInTests: tree.findingsInTests,
     testFiles: tree.testFiles,
     unverifiedFiles: tree.unverifiedFiles,
