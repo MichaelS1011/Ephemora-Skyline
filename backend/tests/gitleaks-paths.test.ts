@@ -5,6 +5,7 @@ import os from "os";
 import path from "path";
 import { GitleaksAdapter } from "../src/services/security/adapters/gitleaks-adapter.js";
 import { relativeToClone } from "../src/services/security/adapter.js";
+import { leakPath } from "../src/services/security/adapters/gitleaks-adapter.js";
 
 /**
  * The key contract between a batch adapter and the merge in scanner.ts.
@@ -75,5 +76,82 @@ describe("GitleaksAdapter.scanRepository keys", () => {
       }
     },
     60000,
+  );
+});
+
+/**
+ * The same keying question, in the other direction.
+ *
+ * `gitleaks detect` without `--no-git` walks commits and reports the path as
+ * the commit holds it — repo-RELATIVE. The merge wants repo-relative, so the
+ * relative form must pass through untouched instead of being thrown away for
+ * not starting with the scan root. Before this, the shape mismatch dropped
+ * every history secret, and the Deep profile scored exactly like Standard on
+ * every repository — the chip promised a pass whose results nobody could see.
+ */
+describe("leakPath — both shapes one adapter produces", () => {
+  it("keeps a commit-relative path as the merge key", () => {
+    expect(leakPath("/clone/x", "config.ts")).toBe("config.ts");
+    expect(leakPath("/clone/x", "./app/config.ts")).toBe("app/config.ts");
+    expect(leakPath("/clone/x", "app\\config.ts")).toBe("app/config.ts");
+  });
+
+  it("still strips the absolute form the working-tree pass reports", () => {
+    expect(leakPath("/clone/x", "/clone/x/app/config.ts")).toBe("app/config.ts");
+    expect(leakPath("/clone/x", "/elsewhere/config.ts")).toBeUndefined();
+    expect(leakPath("/clone/x", undefined)).toBeUndefined();
+  });
+});
+
+describe("a secret that only lives in git history", () => {
+  const bin = findBinary();
+  const gitAvailable = (() => {
+    try {
+      execFileSync("git", ["--version"], { stdio: "ignore", timeout: 5000 });
+      return true;
+    } catch {
+      return false;
+    }
+  })();
+
+  it.skipIf(!bin || !gitAvailable)(
+    "reaches the caller with gitHistory and is absent without it",
+    async () => {
+      const dir = await fs.mkdtemp(path.join(os.tmpdir(), "codecity-gitleaks-history-"));
+      const clean = 'export const name = "app";\n';
+      const committed =
+        'export const name = "app";\nconst API_KEY = "aK9d2Fq7Xz4Lm8Nr1Bv5Cs3Ty6Uw0Pg2Hj4Kl";\n';
+      const git = (...args: string[]): void => {
+        execFileSync("git", args, { cwd: dir, stdio: "ignore" });
+      };
+      try {
+        await fs.writeFile(path.join(dir, "config.ts"), clean);
+        git("init", "-q");
+        git("add", "config.ts");
+        git("-c", "user.email=t@local", "-c", "user.name=t", "commit", "-qm", "first");
+        await fs.writeFile(path.join(dir, "config.ts"), committed);
+        git("add", "config.ts");
+        git("-c", "user.email=t@local", "-c", "user.name=t", "commit", "-qm", "oops");
+        await fs.writeFile(path.join(dir, "config.ts"), clean);
+        git("add", "config.ts");
+        git("-c", "user.email=t@local", "-c", "user.name=t", "commit", "-qm", "remove it again");
+
+        const deep = await new GitleaksAdapter().scanRepository(dir, { gitHistory: true });
+        expect(deep, "gitleaks binary present but the scan returned null").not.toBeNull();
+        const fromHistory = deep!.get("config.ts") ?? [];
+        expect(
+          fromHistory.some((i) => i.provenance === "gitleaks-history"),
+          "the committed-then-removed key must surface as a history finding",
+        ).toBe(true);
+
+        const standard = await new GitleaksAdapter().scanRepository(dir);
+        expect(standard!.get("config.ts") ?? [], "the working tree holds no secret").toHaveLength(
+          0,
+        );
+      } finally {
+        await fs.rm(dir, { recursive: true, force: true });
+      }
+    },
+    90000,
   );
 });

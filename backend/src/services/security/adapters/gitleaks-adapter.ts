@@ -35,6 +35,18 @@ function isHighEntropySecret(value: string): boolean {
   return false;
 }
 
+/**
+ * The path a leak arrived with, as the merge wants it: relative to the scanned
+ * folder. Both shapes are real — an absolute path from the working-tree pass, a
+ * commit-relative one from the history pass.
+ */
+export function leakPath(clonePath: string, reported: string | undefined): string | undefined {
+  if (!reported) return undefined;
+  const norm = reported.replaceAll("\\", "/").replace(/^\.\//, "");
+  if (!path.isAbsolute(norm)) return norm.length > 0 ? norm : undefined;
+  return relativeToClone(clonePath, norm);
+}
+
 // Regex for candidate secret values — tightened vs old scanner.ts:26
 const CANDIDATE_RE =
   /(?:password|passwd|pwd|secret|token|api[_-]?key|apikey|access[_-]?token|aws[_-]?secret|github[_-]?token|private[_-]?key)\s*[:=]\s*['"]([^'"]{8,})['"]/gi;
@@ -172,9 +184,12 @@ export class GitleaksAdapter implements ScannerAdapter {
           Commit?: string;
         }>;
         for (const l of leaks) {
-          // gitleaks names files under --source, i.e. absolutely; the merge in
-          // scanner.ts looks findings up by repo-relative path (relativeToClone).
-          const rel = relativeToClone(clonePath, l.File);
+          // The two passes name files differently: the working-tree pass reports
+          // an absolute path under --source, the history pass reports the path as
+          // the commit holds it — repo-relative. Reading only the absolute shape
+          // silently dropped EVERY secret that deep's history pass found, which is
+          // why the Deep profile scored exactly like Standard on every repo.
+          const rel = leakPath(clonePath, l.File);
           if (!rel) continue;
           // history findings can duplicate the working-tree finding on the same line
           if (pass.history && (byFile.get(rel) ?? []).some((i) => i.line === (l.StartLine ?? 1)))
