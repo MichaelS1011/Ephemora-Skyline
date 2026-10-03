@@ -223,7 +223,7 @@ export function Landing() {
           <span>Skyline</span>
         </a>
         <div className="flex items-center gap-4">
-          <span className="local-badge">
+          <span className="local-badge" title={t(lang, "landing.localBadgeNote")}>
             <span aria-hidden="true" />
             {t(lang, "landing.localBadge")}
           </span>

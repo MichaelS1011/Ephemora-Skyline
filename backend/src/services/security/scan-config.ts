@@ -1,5 +1,6 @@
 import { ENV_FILE } from "../analyzer/metrics.js";
 import { CATEGORY_IDS } from "./categories.js";
+import { isOffline } from "./network-policy.js";
 import type { FindingCategory } from "../../models/index.js";
 
 /**
@@ -231,6 +232,21 @@ export interface ResolveResult {
 }
 
 /**
+ * The offline switch outranks both a preset and a user toggle: it is a claim
+ * about the machine, and a claim you cannot switch off is not a claim. The
+ * three engines it stops are the ones that read a rule pack or an advisory
+ * database over the network; the file never leaves, but a name does.
+ */
+function applyOffline(config: ScanConfig): ScanConfig {
+  if (isOffline()) {
+    config.tools.semgrep = false;
+    config.tools.osv = false;
+    config.tools.dependencies = false;
+  }
+  return config;
+}
+
+/**
  * Validate + normalize an unknown client payload into a ScanConfig.
  * Unknown keys are ignored (forward compatible); every list is capped;
  * custom patterns run through the ReDoS validation.
@@ -241,10 +257,10 @@ export function resolveConfig(input?: unknown): ResolveResult {
   const errors: string[] = [];
   const config = defaultScanConfig();
 
-  if (input === undefined || input === null) return { config, errors };
+  if (input === undefined || input === null) return { config: applyOffline(config), errors };
   if (typeof input !== "object") {
     errors.push("config: expected an object");
-    return { config, errors };
+    return { config: applyOffline(config), errors };
   }
   const raw = input as Record<string, unknown>;
 
@@ -341,7 +357,7 @@ export function resolveConfig(input?: unknown): ResolveResult {
     }
   }
 
-  return { config, errors };
+  return { config: applyOffline(config), errors };
 }
 
 /** Map a file path to a normalized language name for language gating */

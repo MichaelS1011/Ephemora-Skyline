@@ -21,6 +21,14 @@ export const DICT = {
     en: "Local by design",
     de: "Lokal by design",
   },
+  /**
+   * The badge is a claim, so it carries its own evidence: what the scan sends
+   * out, what it never sends, and the switch that stops the rest.
+   */
+  "landing.localBadgeNote": {
+    en: "Source code is never uploaded. Scanners fetch their own rule and advisory data (semgrep.dev, api.osv.dev, npm, one GitHub release check). SKYLINE_OFFLINE=1 stops every one of them.",
+    de: "Quellcode wird nie hochgeladen. Die Scanner holen ihre Regel- und Sicherheitsdaten selbst (semgrep.dev, api.osv.dev, npm, ein GitHub-Release-Check). SKYLINE_OFFLINE=1 schaltet sie alle ab.",
+  },
   "landing.langAria": {
     en: "Change display language",
     de: "Anzeigesprache wechseln",

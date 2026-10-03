@@ -26,9 +26,20 @@ Most security tooling is a terminal of findings you scroll. Ephemora Skyline mak
 
 ## Privacy model
 
-Local analysis reads file contents in-process on your own machine through the `localhost` backend and sends nothing to a third party. Git runs through `execFile` with an argument array (never a shell string), so file names cannot inject commands. Local analysis is bounded at **3000 files / 40 MB** and skips `node_modules`, `.git`, and build dirs. The remote path (`POST /api/analyze`, public-repo clone via the GitHub API) is an explicit, separate action. See [SECURITY.md](./SECURITY.md) for the reporting process.
+Local analysis reads file contents in-process on your own machine through the `localhost` backend. **Your source code is never uploaded and never sent to a third party.** What does leave the machine are lookups made by the scanners themselves, and they carry no source:
 
-**Telemetry: none.** Ephemora Skyline ships no analytics and phones home for nothing except one anonymous check of the public GitHub releases API (cached, no data about you or your code — disable it with _More → Check for updates_ toggled off in a future release, or by blocking `/api/update/check`). Maintainers measure adoption through [GitHub's built-in traffic & clone statistics](https://docs.github.com/en/rest/metrics/traffic) (`GH_TOKEN=... node scripts/clone-stats.mjs`) — which count clones without ever identifying a user.
+| Host                 | Made by                | Leaves the machine                                          | When                                                 |
+| -------------------- | ---------------------- | ----------------------------------------------------------- | ---------------------------------------------------- |
+| `api.github.com`     | the app (update check) | one anonymous request for the newest release tag            | once an hour, if the app checks for an update        |
+| `semgrep.dev`        | `semgrep`              | the name of the rule pack it downloads (`p/security-audit`) | first scan of a session with Semgrep switched on     |
+| `api.osv.dev`        | `osv-scanner`          | package names and versions read out of your lockfiles       | a scan with the dependency engine switched on        |
+| `registry.npmjs.org` | `npm audit`            | the same dependency names, via npm's own advisory path      | dependency engine on, but no `osv-scanner` installed |
+
+Measured, not assumed: a scan of a 11-file fixture on the `standard` profile produced 8 connection attempts to `semgrep.dev`; a scan of this repository produced 25 to `api.osv.dev` plus the same 8. Nothing else reached out. The harness is `.qoder-scratch/net-probe.mts` — a logging proxy in front of the real scanner; the same command works for any folder.
+
+**None of this is required.** `SKYLINE_OFFLINE=1` closes every path above: the update check answers offline and the Semgrep, OSV and `npm audit` engines do not run. The city then reports them through `scanProvenance` and paints the buildings the colour of ground no scanner looked at, instead of pretending they came back clean. Git runs through `execFile` with an argument array (never a shell string), so file names cannot inject commands. Local analysis is bounded at **3000 files / 40 MB** and skips `node_modules`, `.git`, and build dirs. The remote path (`POST /api/analyze`, public-repo clone via the GitHub API) is an explicit, separate action. See [SECURITY.md](./SECURITY.md) for the reporting process.
+
+**Telemetry: none.** Ephemora Skyline ships no analytics and no beacon of its own — the only request it makes is the anonymous release check in the table above, and `SKYLINE_OFFLINE=1` switches that off too. Maintainers measure adoption through [GitHub's built-in traffic & clone statistics](https://docs.github.com/en/rest/metrics/traffic) (`GH_TOKEN=... node scripts/clone-stats.mjs`) — which count clones without ever identifying a user.
 
 ## Quick start
 

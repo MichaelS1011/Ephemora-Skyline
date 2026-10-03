@@ -3,7 +3,8 @@
  * Mirrors the backend scan-config presets (resolveConfig applies them).
  */
 
-import { enabledCategoriesPayload, type FindingCategory } from "./findingCategories";
+import { enabledCategoriesPayload } from "./findingCategories";
+import type { FindingCategory } from "../city/types";
 
 export type ScanProfile =
   "quick" | "standard" | "deep" | "security-only" | "quality-only" | "custom";

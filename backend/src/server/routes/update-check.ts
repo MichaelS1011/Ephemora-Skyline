@@ -1,5 +1,6 @@
 import type { Request, Response } from "express";
 import { createRequire } from "module";
+import { isOffline } from "../../services/security/network-policy.js";
 
 /**
  * GET /api/update/check — passive update notification, local-first style:
@@ -60,6 +61,12 @@ function build(latest: string | null, url: string | null, offline?: boolean): Up
 }
 
 export async function handleUpdateCheck(_req: Request, res: Response): Promise<void> {
+  if (isOffline()) {
+    // SKYLINE_OFFLINE is a claim about this machine; answering it from cache
+    // would still be honest, fetching would not.
+    res.json(build(null, null, true));
+    return;
+  }
   if (cache && Date.now() - cache.at < CACHE_TTL_MS) {
     res.json(cache.data);
     return;
