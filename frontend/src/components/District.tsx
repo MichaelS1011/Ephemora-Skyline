@@ -154,7 +154,7 @@ export function District({ placement, appearAt, skylineAt, constructing }: Distr
             <div
               style={{
                 fontFamily: "'JetBrains Mono', ui-monospace, Menlo, monospace",
-                fontSize: 9,
+                fontSize: 11,
                 color: "var(--meta-strong)",
                 background: "rgba(18, 18, 16, 0.75)",
                 border: "1px solid rgba(90,120,180,0.35)",
@@ -175,7 +175,7 @@ export function District({ placement, appearAt, skylineAt, constructing }: Distr
         <div
           style={{
             fontFamily: "'JetBrains Mono', ui-monospace, Menlo, monospace",
-            fontSize: 10,
+            fontSize: 12,
             color: hasP0 ? "#ffb3bc" : "#a9bbdd",
             background: "rgba(18, 18, 16, 0.82)",
             border: `1px solid ${hasP0 ? "rgba(255,46,77,0.5)" : "rgba(90,120,180,0.4)"}`,
@@ -188,7 +188,7 @@ export function District({ placement, appearAt, skylineAt, constructing }: Distr
         >
           {dir.name}
           {hasP0 && <span style={{ color: SEVERITY_COLOR.P0, marginLeft: 5 }}>●</span>}
-          <span style={{ opacity: 0.6, marginLeft: 6, fontSize: 8 }}>{dir.fileCount}</span>
+          <span style={{ opacity: 0.7, marginLeft: 6, fontSize: 11 }}>{dir.fileCount}</span>
         </div>
       </Html>
     </group>
