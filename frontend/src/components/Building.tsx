@@ -501,24 +501,26 @@ export function Building({
     if (monolith) {
       // Bloat monolith: near-black, featureless slab — reads as wasted space
       const side = new THREE.MeshStandardMaterial({
-        color: dimColor("#0c0c0b", overallFactor),
+        color: "#0c0c0b",
         roughness: 0.35,
         metalness: 0.55,
         transparent: dimmed || voxelStage,
         opacity: dimmed ? 0.12 : voxelStage ? 0.3 : 1,
       });
       const roof = new THREE.MeshStandardMaterial({
-        color: dimColor("#0a0a09", overallFactor),
+        color: "#0a0a09",
         roughness: 0.3,
         metalness: 0.6,
         transparent: dimmed || voxelStage,
         opacity: dimmed ? 0.1 : voxelStage ? 0.26 : 1,
       });
+      side.userData.baseColor = "#0c0c0b";
+      roof.userData.baseColor = "#0a0a09";
       return [side, side, roof, roof, side, side];
     }
     if (matState === "glass") {
       const side = new THREE.MeshPhysicalMaterial({
-        color: dimColor("#d8cdb4", overallFactor),
+        color: "#d8cdb4",
         roughness: 0.12,
         metalness: 0.05,
         transparent: true,
@@ -527,20 +529,22 @@ export function Building({
         thickness: 0.6,
       });
       const roof = new THREE.MeshStandardMaterial({
-        color: dimColor("#1a2530", overallFactor),
+        color: "#1a2530",
         roughness: 0.4,
         transparent: true,
         opacity: dimmed ? 0.08 : voxelStage ? 0.12 : 0.45,
       });
+      side.userData.baseColor = "#d8cdb4";
+      roof.userData.baseColor = "#1a2530";
       return [side, side, roof, roof, side, side];
     }
     // Dark-metal body: graphite panels, faint env response, calm raster glow
     const side = new THREE.MeshStandardMaterial({
-      color: dimColor("#23252b", overallFactor),
+      color: "#23252b",
       map: facade!.map,
       emissiveMap: facade!.emissive,
       emissive: new THREE.Color(0xffffff),
-      emissiveIntensity: (voxelStage ? 0.15 : matState === "alarm" ? 1.15 : 0.55) * overallFactor,
+      emissiveIntensity: voxelStage ? 0.15 : matState === "alarm" ? 1.15 : 0.55,
       // Eroded hotspots read as coarse, corroded panels; healthy code as
       // smooth brushed metal. Language stays as the lit-slot accent.
       roughness: erosion === "eroded" ? 0.78 : erosion === "weathered" ? 0.6 : 0.45,
@@ -550,17 +554,33 @@ export function Building({
       opacity: dimmed ? 0.12 : voxelStage ? 0.32 : 1,
     });
     const roof = new THREE.MeshStandardMaterial({
-      color: dimColor(
-        erosion === "stable" || erosion === "unknown" ? "#191917" : "#171310",
-        overallFactor,
-      ),
+      color: erosion === "stable" || erosion === "unknown" ? "#191917" : "#171310",
       roughness: 0.9,
       metalness: 0.2,
       transparent: dimmed || voxelStage,
       opacity: dimmed ? 0.12 : voxelStage ? 0.26 : 1,
     });
+    side.userData.baseColor = "#23252b";
+    side.userData.baseEmissive = voxelStage ? 0.15 : matState === "alarm" ? 1.15 : 0.55;
+    roof.userData.baseColor = erosion === "stable" || erosion === "unknown" ? "#191917" : "#171310";
     return [side, side, roof, roof, side, side];
-  }, [voxelBody, facade, dimmed, matState, erosion, monolith, voxelStage, overallFactor]);
+  }, [voxelBody, facade, dimmed, matState, erosion, monolith, voxelStage]);
+
+  // Brightness (focus tier × view mode) used to be baked into the materials, so
+  // selecting one file rebuilt 6 materials per neighbour and threw 180 away
+  // (measured in the browser). The material is created once at full brightness
+  // and the factor is written onto it here — layout effect, so no frame of the
+  // undimmed colour flashes before the next render.
+  useLayoutEffect(() => {
+    for (const m of materials) {
+      const base = m.userData.baseColor as string | undefined;
+      if (base) m.color.set(dimColor(base, overallFactor));
+      if (m.userData.baseEmissive !== undefined) {
+        const emissive = m as THREE.MeshStandardMaterial;
+        emissive.emissiveIntensity = (m.userData.baseEmissive as number) * overallFactor;
+      }
+    }
+  }, [materials, overallFactor]);
 
   useEffect(() => {
     return () => {
