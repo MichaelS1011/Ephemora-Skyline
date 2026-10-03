@@ -147,7 +147,11 @@ export const REGEX_PATTERNS: ScanPattern[] = [
     score: 3,
   },
   {
-    regex: /[^=!<>]==[^=]/g,
+    // `x == null` is the one loose comparison JavaScript programmers write on
+    // purpose — it catches null and undefined in one go. Reporting it as a bug
+    // was the only real-code LOOSE_EQUALITY finding left in this repo's own
+    // scan, so the rule chased an idiom instead of a mistake.
+    regex: /[^=!<>]==(?!=)(?!\s*(?:null|undefined)\b)/g,
     type: "LOOSE_EQUALITY",
     severity: "P2",
     message: "Loose equality (==) — use === instead",

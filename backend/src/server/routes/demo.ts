@@ -103,7 +103,7 @@ const FINDINGS: Record<string, FindingSpec[]> = {
       type: "HARDCODED_SECRET",
       severity: "P0",
       line: 23,
-      code: 'const JWT_SECRET = "sk-live-9f2b7c...";',
+      code: 'const JWT_SECRET = "REPLACE_WITH_ENV_JWT_SIGNING_KEY";',
       message: "Hardcoded JWT signing secret committed to the repository",
       fix: "Load from environment or a secrets manager (Vault, AWS Secrets Manager)",
     },

@@ -178,6 +178,36 @@ DELETE FROM sessions WHERE expired = true;
       typesIn("src/db.ts", 'const q = "SELECT name FROM users WHERE id = " + userId;\n'),
     ).toContain("SQL_INJECTION");
   });
+
+  /**
+   * `== null` / `== undefined` is the deliberate nullish idiom — it is the one
+   * loose comparison a reviewer expects to read, not a bug. A real audit of
+   * this repo's own scan found the rule firing on exactly that (twice) and on
+   * nothing else in ordinary source.
+   */
+  it("does not read the nullish idiom as loose equality", () => {
+    for (const src of [
+      "if (focusTier == null) return 1;\n",
+      "const gone = value == undefined;\n",
+      "a = b == null ? 0 : b;\n",
+      "if (x != null) y();\n",
+    ]) {
+      expect(typesIn("src/a.ts", src), src.trim()).not.toContain("LOOSE_EQUALITY");
+    }
+  });
+
+  it("still flags a loose comparison against a value", () => {
+    expect(typesIn("src/a.ts", 'if (a == "1") {}\n')).toContain("LOOSE_EQUALITY");
+    expect(typesIn("src/a.ts", "if (a == b) {}\n")).toContain("LOOSE_EQUALITY");
+    expect(typesIn("src/a.ts", "if (a == 0) {}\n")).toContain("LOOSE_EQUALITY");
+  });
+
+  /** The negative lookahead must not let `===` slip back in as a match */
+  it("keeps strict equality quiet", () => {
+    for (const src of ["if (a === b) {}\n", "if (a !== b) {}\n", "x = y === null;\n"]) {
+      expect(typesIn("src/a.ts", src), src.trim()).not.toContain("LOOSE_EQUALITY");
+    }
+  });
 });
 
 describe("every emitted finding type explains itself", () => {
