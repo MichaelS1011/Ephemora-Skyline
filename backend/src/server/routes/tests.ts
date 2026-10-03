@@ -13,6 +13,7 @@
 
 import { execFile } from "child_process";
 import { promises as fs } from "fs";
+import os from "os";
 import path from "path";
 import { promisify } from "util";
 import type { Request, Response } from "express";
@@ -154,18 +155,76 @@ export function parseJestStyleJson(raw: string): TestRunResult | null {
 
 // ── Process execution ──────────────────────────────────────────────────────
 
+/**
+ * A test run is code from the scanned folder, executed here. The parent process
+ * holds the user's credentials (registry tokens, cloud keys, database URLs) in
+ * its environment, so the child gets an allowlist instead of an inheritance:
+ * what a node run needs to start, and nothing that identifies an account.
+ *
+ * A suite that genuinely needs the real HOME has to be run in the terminal;
+ * that is the cost of running a stranger's tests, and the cheaper choice.
+ */
+const ENV_ALLOWLIST = [
+  "PATH",
+  "LANG",
+  "LC_ALL",
+  "TZ",
+  "TMPDIR",
+  "SYSTEMROOT",
+  "COMSPEC",
+  "PATHEXT",
+  "WINSOCKPATH",
+  "NVM_BIN",
+];
+
+export const RUNNER_HOME = {
+  /** npm must not find the user's ~/.npmrc — it can carry a registry token */
+  npmCache: (home: string): string => path.join(home, "npm-cache"),
+  async prepare(home: string): Promise<void> {
+    await fs.mkdir(RUNNER_HOME.npmCache(home), { recursive: true });
+    await fs.writeFile(path.join(home, ".npmrc"), "", "utf-8");
+  },
+};
+
+export function runnerEnv(home: string): NodeJS.ProcessEnv {
+  const env: NodeJS.ProcessEnv = { CI: "1" };
+  for (const key of ENV_ALLOWLIST) {
+    const value = process.env[key];
+    if (value !== undefined) env[key] = value;
+  }
+  env["HOME"] = home;
+  env["USERPROFILE"] = home; // npm on windows reads this, not HOME
+  env["npm_config_userconfig"] = path.join(home, ".npmrc");
+  env["npm_config_cache"] = RUNNER_HOME.npmCache(home);
+  return env;
+}
+
+/**
+ * The selection arrives as extra CLI arguments. A value starting with `-` is not
+ * a file name but an option, and `npx vitest --config <path>` would let the
+ * caller choose which code the runner loads.
+ */
+export function sanitizeFileFilters(files: string[], max = 100): string[] {
+  return files
+    .filter((f) => typeof f === "string" && f.trim() !== "" && !f.trim().startsWith("-"))
+    .map((f) => normalizePath(f.trim()))
+    .filter((f) => !f.split("/").includes(".."))
+    .slice(0, max);
+}
+
 async function runCmd(
   cmd: string,
   args: string[],
   cwd: string,
   timeoutMs: number,
+  env: NodeJS.ProcessEnv,
 ): Promise<{ stdout: string; stderr: string; code: number }> {
   try {
     const { stdout, stderr } = await execFileAsync(cmd, args, {
       cwd,
       timeout: timeoutMs,
       maxBuffer: MAX_OUTPUT,
-      env: { ...process.env, CI: "1" },
+      env,
     });
     return { stdout, stderr, code: 0 };
   } catch (error) {
@@ -178,24 +237,70 @@ async function runCmd(
   }
 }
 
-async function ensureDependencies(uploadDir: string, setStage: (s: string) => void): Promise<void> {
-  const nm = await fs
-    .stat(path.join(uploadDir, "node_modules"))
+/**
+ * `npx vitest` would download the newest vitest from the registry when the
+ * project does not have one, and run it. Fetching code and executing it is not
+ * a side effect of pressing "run my tests", so the run only proceeds on what
+ * the project already pins: a lockfile, or an installed node_modules.
+ */
+export type InstallDecision = "install-pinned" | "skip" | "refuse";
+
+export function installDecision(state: {
+  nodeModules: boolean;
+  lockfile: boolean;
+}): InstallDecision {
+  if (state.nodeModules) return "skip";
+  return state.lockfile ? "install-pinned" : "refuse";
+}
+
+export const REFUSAL =
+  "No lockfile in this project — CodeCity will not resolve a fresh dependency graph just to run its tests. " +
+  "Run npm ci (or npm install) once yourself, or scan a copy that has package-lock.json / pnpm-lock.yaml / yarn.lock in it.";
+
+/** The project's own runner, not a version npx may still fetch from the registry */
+export function runnerBinaryPath(runner: Runner): string[] {
+  return ["node_modules", ".bin", runner];
+}
+
+const LOCKFILES = [
+  "package-lock.json",
+  "npm-shrinkwrap.json",
+  "pnpm-lock.yaml",
+  "yarn.lock",
+  "bun.lockb",
+  "bun.lock",
+];
+
+async function exists(p: string): Promise<boolean> {
+  return fs
+    .stat(p)
     .then(() => true)
     .catch(() => false);
-  if (nm) return;
-  const lock = await fs
-    .stat(path.join(uploadDir, "package-lock.json"))
-    .then(() => true)
-    .catch(() => false);
-  setStage("Installing dependencies (npm) — first run only…");
-  const args = lock
-    ? ["ci", "--ignore-scripts", "--no-audit", "--no-fund"]
-    : ["install", "--ignore-scripts", "--no-audit", "--no-fund"];
-  const res = await runCmd("npm", args, uploadDir, INSTALL_TIMEOUT_MS);
+}
+
+async function ensureDependencies(
+  uploadDir: string,
+  setStage: (s: string) => void,
+  env: NodeJS.ProcessEnv,
+): Promise<void> {
+  const nodeModules = await exists(path.join(uploadDir, "node_modules"));
+  const lockfile = (await Promise.all(LOCKFILES.map((f) => exists(path.join(uploadDir, f))))).some(
+    Boolean,
+  );
+  const decision = installDecision({ nodeModules, lockfile });
+  if (decision === "skip") return;
+  if (decision === "refuse") throw new Error(REFUSAL);
+  setStage("Installing pinned dependencies (npm ci) — first run only…");
+  const res = await runCmd(
+    "npm",
+    ["ci", "--ignore-scripts", "--no-audit", "--no-fund"],
+    uploadDir,
+    INSTALL_TIMEOUT_MS,
+    env,
+  );
   if (res.code !== 0) {
     throw new Error(
-      "npm install failed — the project's dependencies could not be installed. Tests need a working package.json.",
+      "npm ci failed — the lockfile and package.json disagree, so the pinned versions could not be installed.",
     );
   }
 }
@@ -214,7 +319,13 @@ export async function executeTestRun(
     state.error = "The scanned copy of this project is gone (24h TTL) — scan the folder again.";
     return;
   }
+  let runnerHome: string | undefined;
   try {
+    // One private HOME per run, so the install and the test process never read
+    // the real one; removed again at the end of this function
+    runnerHome = path.join(os.tmpdir(), "codecity-runner", runId);
+    await RUNNER_HOME.prepare(runnerHome);
+    const env = runnerEnv(runnerHome);
     // Collect every directory with a supported runner: the project root or
     // any workspace (monorepos like Ephemora itself have backend + frontend)
     const targets: Array<{ dir: string; runner: Runner; wsName: string }> = [];
@@ -253,7 +364,7 @@ export async function executeTestRun(
     }
 
     const started = Date.now();
-    const filter = (files ?? []).map(normalizePath);
+    const filter = sanitizeFileFilters(files ?? []);
     const merged: TestFileResult[] = [];
     let runner: Runner = "vitest";
     let totalTests = 0;
@@ -261,18 +372,34 @@ export async function executeTestRun(
 
     for (const target of targets) {
       runner = target.runner;
-      await ensureDependencies(target.dir, () => {
-        state.stage = `Installing dependencies (${target.wsName}) — first run only…`;
-      });
+      await ensureDependencies(
+        target.dir,
+        () => {
+          state.stage = `Installing dependencies (${target.wsName}) — first run only…`;
+        },
+        env,
+      );
       state.status = "running";
       state.stage = `Running ${runner} (${target.wsName})…`;
 
       const reportPath = path.join(target.dir, ".codecity-test-report.json");
+      // A workspace's runner is often hoisted to the repository root, so both
+      // places are checked before the run is refused.
+      const candidates = [path.join(target.dir, ...runnerBinaryPath(target.runner))];
+      if (target.dir !== uploadDir)
+        candidates.push(path.join(uploadDir, ...runnerBinaryPath(target.runner)));
+      const where = await Promise.all(candidates.map(exists));
+      const binary = candidates[where.indexOf(true)];
+      if (!binary) {
+        throw new Error(
+          `${target.runner} is not installed in ${target.wsName} — CodeCity does not fetch a runner from the registry to execute it here.`,
+        );
+      }
       const args =
         target.runner === "vitest"
-          ? ["vitest", "run", "--reporter=json", `--outputFile.json=${reportPath}`, ...filter]
-          : ["jest", "--json", `--outputFile=${reportPath}`, ...filter];
-      const res = await runCmd("npx", args, target.dir, TEST_TIMEOUT_MS);
+          ? ["run", "--reporter=json", `--outputFile.json=${reportPath}`, ...filter]
+          : ["--json", `--outputFile=${reportPath}`, ...filter];
+      const res = await runCmd(binary, args, target.dir, TEST_TIMEOUT_MS, env);
 
       // The report FILE is immune to stdout buffer truncation
       let reportRaw: string | null = null;
@@ -307,6 +434,8 @@ export async function executeTestRun(
   } catch (error) {
     state.status = "failed";
     state.error = error instanceof Error ? error.message : "Test run failed";
+  } finally {
+    if (runnerHome) await fs.rm(runnerHome, { recursive: true, force: true }).catch(() => {});
   }
 }
 

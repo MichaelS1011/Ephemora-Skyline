@@ -21,6 +21,7 @@ import pino from "pino";
 import type { AnalysisResult } from "../models/index.js";
 import type { ResolvedScanConfig } from "../services/security/scan-config.js";
 import { AnalysisOrchestrator } from "../services/analyzer/orchestrator.js";
+import { localOnlyRoute } from "./local-only.js";
 import { SecurityScanner } from "../services/security/scanner.js";
 import { getHealth } from "./routes/health.js";
 import { getDemoResult } from "./routes/demo.js";
@@ -127,6 +128,16 @@ const localAnalyzeLimiter = rateLimit({
   message: { error: "Too many analyses — take a short break." },
 });
 
+// A test run installs packages and executes the scanned project's own code, so
+// it is not on the generous read budget the polling endpoint shares
+const testRunLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Too many test runs — give the finished one a moment." },
+});
+
 // ── WS analyze budget ─────────────────────────────────────────────────────
 
 // ── Middleware ─────────────────────────────────────────────────────────────
@@ -180,6 +191,7 @@ app.get("/api/cities/default", (_req: Request, res: Response): void => {
 // Large route-specific body limit: the client uploads the folder's source files
 app.post(
   "/api/analyze-local",
+  localOnlyRoute,
   localAnalyzeLimiter,
   async (req: Request, res: Response): Promise<void> => {
     await handleLocalAnalyze(req, res, createOrchestrator, analysisStore);
@@ -187,9 +199,14 @@ app.post(
 );
 
 // POST /api/tests/:id/run — run the project's own tests from the staged copy
-app.post("/api/tests/:id/run", readLimiter, (req: Request, res: Response): void => {
-  void handleTestRun(req, res);
-});
+app.post(
+  "/api/tests/:id/run",
+  localOnlyRoute,
+  testRunLimiter,
+  (req: Request, res: Response): void => {
+    void handleTestRun(req, res);
+  },
+);
 
 // GET /api/tests/run/:runId — poll a test run
 app.get("/api/tests/run/:runId", readLimiter, (req: Request, res: Response): void => {
