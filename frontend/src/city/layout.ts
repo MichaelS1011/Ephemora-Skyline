@@ -690,6 +690,96 @@ export function getDirLayout(city: CityData, focusPath: string[]): DirLayout {
   return layout;
 }
 
+/**
+ * What a plot draws for a child district: its representative skyline towers.
+ * Older payloads carry no skyline, and then the layout walks the subtree's
+ * rendered files instead — the same fallback `buildSkyline` uses, so the
+ * panel never explains a picture that is not on screen.
+ */
+function skylineReps(child: CityDir): number {
+  const direct = child.districtFiles?.length ?? 0;
+  if (direct > 0) return direct;
+  let n = 0;
+  const walk = (d: CityDir): void => {
+    n += d.detailFiles.length;
+    d.children.forEach(walk);
+  };
+  walk(child);
+  return n;
+}
+
+/** The caps a city was laid out under, as shipped in its payload. */
+export interface CityDrawLimits {
+  skylineTowers: number;
+  buildingsPerDirectory: number;
+}
+
+/** How many files a view draws, and where the rest of them are. */
+export interface DistrictDraw {
+  /** files in this subtree */
+  totalFiles: number;
+  /** files sitting directly in this folder */
+  filesHere: number;
+  /** of those, how many stand as their own building */
+  drawnHere: number;
+  /** of those, how many the view folds into the podium marker */
+  folded: number;
+  /** sub-district plots this view draws */
+  plots: number;
+  /** files living inside those plots */
+  filesBelow: number;
+  /** towers drawn across those plots */
+  towers: number;
+  /** towers per plot — from the payload's limits, else the widest one here */
+  skylineTowers: number;
+}
+
+/**
+ * Count what the current view actually draws. Every number comes from the tree
+ * the mapper built: a folder's own files are the plaza buildings (capped per
+ * folder), everything else is either a sub-district plot with a handful of
+ * skyline towers, or folded into one podium marker.
+ */
+export function districtDraw(dir: CityDir, limits?: CityDrawLimits): DistrictDraw {
+  const reps = dir.children.map(skylineReps);
+  const observedMax = reps.length > 0 ? Math.max(...reps) : 0;
+  const skylineTowers = limits?.skylineTowers ?? observedMax;
+  const filesBelow = dir.children.reduce((s, c) => s + c.fileCount, 0);
+  const filesHere = Math.max(0, dir.fileCount - filesBelow);
+  const drawnHere = dir.detailFiles.length;
+  return {
+    totalFiles: dir.fileCount,
+    filesHere,
+    drawnHere,
+    folded: Math.max(0, filesHere - drawnHere),
+    plots: dir.children.length,
+    filesBelow,
+    towers: reps.reduce((s, n) => s + Math.min(n, skylineTowers || n), 0),
+    skylineTowers,
+  };
+}
+
+/**
+ * Say why a district with 92 files draws 6 buildings — in the words the
+ * numbers support. Returns nothing when the view draws every file it holds.
+ */
+export function explainDistrictDraw(dir: CityDir, limits?: CityDrawLimits): string[] {
+  const draw = districtDraw(dir, limits);
+  const lines: string[] = [];
+  if (draw.folded > 0) {
+    const cap = limits?.buildingsPerDirectory ?? draw.drawnHere;
+    lines.push(
+      `${draw.drawnHere} of ${draw.filesHere} files here stand as buildings — a folder draws at most ${cap}, the rest share one podium marker.`,
+    );
+  }
+  if (draw.plots > 0 && draw.filesBelow > 0) {
+    lines.push(
+      `${draw.filesBelow} files live in ${draw.plots} sub-district${draw.plots === 1 ? "" : "s"}; each plot shows up to ${draw.skylineTowers} of its most at-risk files.`,
+    );
+  }
+  return lines;
+}
+
 // ── Search / navigation / tour helpers ─────────────────────────────────────
 
 export interface FileHit {

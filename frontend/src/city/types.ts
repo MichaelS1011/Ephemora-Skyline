@@ -71,8 +71,16 @@ export interface CityDir {
   name: string;
   path: string;
   fileCount: number;
+  /** Σ lines in the subtree, data catalogues included — the plot's size class. */
   linesOfCode: number;
+  /** `linesOfCode` without the data files; absent in payloads before #48b. */
+  codeLines?: number;
+  /** lines of JSON/YAML catalogues and manifests, counted apart from code */
+  dataLines?: number;
+  /** language → CODE lines (data files never appear here) */
   languages: Record<string, number>;
+  /** language → data lines */
+  dataLanguages?: Record<string, number>;
   findingsBySeverity: Record<Severity, number>;
   threatScore: number;
   topFindings: CityFinding[];
@@ -115,12 +123,25 @@ export interface CityData {
   repo: { owner: string; name: string; branch: string };
   totalFiles: number;
   renderedFiles: number;
+  /** Σ lines the scanner read as code-shaped, data catalogues included */
   totalLines: number;
+  /** `totalLines` without the data files; absent in payloads before #48b */
+  codeLines?: number;
+  /** lines of translation catalogues, manifests and other data files */
+  dataLines?: number;
   findingsBySeverity: Record<Severity, number>;
+  /** language → CODE lines */
   languages: Record<string, number>;
+  /** language → data lines, kept out of the bar above */
+  dataLanguages?: Record<string, number>;
   tree: CityDir;
   fileConnections: FileConnection[];
   dirConnections: DirConnection[];
+  /**
+   * The caps the city was laid out under — what the panel quotes when it says
+   * "6 of 92". Absent in payloads before the draw limits were published.
+   */
+  limits?: { skylineTowers: number; buildingsPerDirectory: number };
   /** Which optional dimensions are present — UI degrades gracefully without */
   meta: {
     churn: boolean;
@@ -131,6 +152,11 @@ export interface CityData {
     blame: boolean;
   };
   scanProvenance?: ScanProvenance;
+  /**
+   * What the project's own .gitignore kept out of the scan. Absent for
+   * results scanned before the counter — the panel then says nothing about it.
+   */
+  skippedByGitignore?: { files: number; directories: number };
 }
 
 /** Which unit is currently selected (a rendered file building or a block). */

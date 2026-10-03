@@ -11,9 +11,20 @@
  *   FULL file set — the visual cap never corrupts the numbers.
  * - Import edges are resolved (relative paths, extension/index candidates,
  *   `@/` alias) and aggregated per top-level directory for the overview.
+ *
+ * Lines are split by what they are: a translation catalogue or a manifest has
+ * lines but no behaviour, and the analyzer already refuses to score it as code
+ * (complexity 1, no functions). The line statistics honour that same decision,
+ * so `codeLines` and `dataLines` are published apart and `languages` only ever
+ * carries code lines.
+ *
+ * The caps that decide how many buildings a directory draws are shipped with
+ * the city (`limits`), so the panel can explain "6 of 92" instead of letting an
+ * unrendered district read as an empty one.
  */
 
 import path from "path";
+import { hasDataLines } from "../services/analyzer/metrics.js";
 import type { AnalysisResult, FileAnalysis, ProjectSummary } from "../models/index.js";
 
 export type Severity = "P0" | "P1" | "P2";
@@ -99,8 +110,15 @@ export interface CityDir {
   name: string; // last path segment; '' for the root
   path: string; // directory path relative to repo root; '' for root
   fileCount: number; // files in the whole subtree (full, uncapped)
-  linesOfCode: number; // Σ code lines in subtree
-  languages: Record<string, number>; // language → code lines (subtree)
+  /** Σ lines in the subtree — the size class the layout draws plots from */
+  linesOfCode: number;
+  /** Σ lines of files that carry behaviour (linesOfCode minus dataLines) */
+  codeLines: number;
+  /** Σ lines of data catalogues and manifests, counted apart from code */
+  dataLines: number;
+  languages: Record<string, number>; // language → CODE lines (subtree)
+  /** language → data lines (subtree) — kept out of `languages` on purpose */
+  dataLanguages: Record<string, number>;
   findingsBySeverity: Record<Severity, number>; // subtree finding counts
   threatScore: number; // weighted: P0×10 + P1×7 + P2×3 (subtree)
   topFindings: CityFinding[]; // worst findings in subtree (max 3)
@@ -133,12 +151,28 @@ export interface CityData {
   repo: { owner: string; name: string; branch: string };
   totalFiles: number; // full analyzed file count (uncapped)
   renderedFiles: number; // Σ detailFiles across the tree
+  /** Σ lines the scanner read as code-shaped, data catalogues included */
   totalLines: number;
+  /** `totalLines` minus the lines that belong to data files */
+  codeLines: number;
+  /** lines of translation catalogues, manifests and other data files */
+  dataLines: number;
   findingsBySeverity: Record<Severity, number>;
+  /** language → CODE lines — data files never show up here */
   languages: Record<string, number>;
+  /** language → data lines, shown apart so the bar stays about code */
+  dataLanguages: Record<string, number>;
   tree: CityDir;
   fileConnections: FileConnection[];
   dirConnections: DirConnection[];
+  /**
+   * The caps this city was laid out under. The panel needs them to explain
+   * "6 of 92 files" as a draw limit rather than as an empty district.
+   */
+  limits: {
+    skylineTowers: number;
+    buildingsPerDirectory: number;
+  };
   /**
    * Which optional visualization dimensions are present — the client
    * degrades gracefully (graphite instead of erosion, no glass) when a
@@ -158,6 +192,12 @@ export interface CityData {
    * absent for results that never ran a scan (the demo city).
    */
   scanProvenance?: ProjectSummary["scanProvenance"];
+  /**
+   * What the project's own .gitignore kept out of the scan, copied from the
+   * summary. A city that does not say this makes an unscanned folder look
+   * like a clean one. Absent for results scanned before the counter existed.
+   */
+  skippedByGitignore?: ProjectSummary["skippedByGitignore"];
 }
 
 // ── Budgets ────────────────────────────────────────────────────────────────
@@ -420,7 +460,10 @@ export function mapResultToCityData(result: AnalysisResult): CityData {
       path: node.path,
       fileCount: 0,
       linesOfCode: 0,
+      codeLines: 0,
+      dataLines: 0,
       languages: {},
+      dataLanguages: {},
       findingsBySeverity: emptySeverityCount(),
       threatScore: 0,
       topFindings: [],
@@ -433,7 +476,15 @@ export function mapResultToCityData(result: AnalysisResult): CityData {
     const aggregateFile = (f: FileAnalysis): void => {
       dirNode.fileCount += 1;
       dirNode.linesOfCode += f.lines.code;
-      dirNode.languages[f.language] = (dirNode.languages[f.language] ?? 0) + f.lines.code;
+      // Data lines join the size class of the plot (the building is already
+      // flat) but never join the code totals or the language bar.
+      if (hasDataLines(f.path, f.language)) {
+        dirNode.dataLines += f.lines.code;
+        dirNode.dataLanguages[f.language] = (dirNode.dataLanguages[f.language] ?? 0) + f.lines.code;
+      } else {
+        dirNode.codeLines += f.lines.code;
+        dirNode.languages[f.language] = (dirNode.languages[f.language] ?? 0) + f.lines.code;
+      }
       for (const v of f.vulnerabilities) {
         dirNode.findingsBySeverity[v.severity] = (dirNode.findingsBySeverity[v.severity] ?? 0) + 1;
         dirNode.threatScore += SEVERITY_SCORE[v.severity] ?? 0;
@@ -449,8 +500,13 @@ export function mapResultToCityData(result: AnalysisResult): CityData {
       dirNode.children.push(cityChild);
       dirNode.fileCount += cityChild.fileCount;
       dirNode.linesOfCode += cityChild.linesOfCode;
+      dirNode.codeLines += cityChild.codeLines;
+      dirNode.dataLines += cityChild.dataLines;
       for (const [lang, lines] of Object.entries(cityChild.languages)) {
         dirNode.languages[lang] = (dirNode.languages[lang] ?? 0) + lines;
+      }
+      for (const [lang, lines] of Object.entries(cityChild.dataLanguages)) {
+        dirNode.dataLanguages[lang] = (dirNode.dataLanguages[lang] ?? 0) + lines;
       }
       for (const sev of SEVERITY_ORDER) {
         dirNode.findingsBySeverity[sev] += cityChild.findingsBySeverity[sev];
@@ -573,6 +629,10 @@ export function mapResultToCityData(result: AnalysisResult): CityData {
   for (const [lang, lines] of Object.entries(tree.languages)) {
     languageTotals[lang] = lines;
   }
+  const dataLanguageTotals: Record<string, number> = {};
+  for (const [lang, lines] of Object.entries(tree.dataLanguages)) {
+    dataLanguageTotals[lang] = lines;
+  }
 
   return {
     repo: {
@@ -583,8 +643,11 @@ export function mapResultToCityData(result: AnalysisResult): CityData {
     totalFiles: tree.fileCount,
     renderedFiles,
     totalLines: tree.linesOfCode,
+    codeLines: tree.codeLines,
+    dataLines: tree.dataLines,
     findingsBySeverity: tree.findingsBySeverity,
     languages: languageTotals,
+    dataLanguages: dataLanguageTotals,
     tree,
     fileConnections: [...fileEdgeMap.values()]
       .filter((e) => renderedIds.has(e.from) && renderedIds.has(e.to))
@@ -593,6 +656,10 @@ export function mapResultToCityData(result: AnalysisResult): CityData {
     dirConnections: [...dirEdgeMap.values()]
       .sort((a, b) => b.weight - a.weight)
       .slice(0, DIR_CONNECTIONS_MAX),
+    limits: {
+      skylineTowers: DISTRICT_FILES_MAX,
+      buildingsPerDirectory: perDirCap,
+    },
     meta: {
       churn: hasChurn,
       deadCode: deadCodeCandidates.size > 0,
@@ -602,6 +669,7 @@ export function mapResultToCityData(result: AnalysisResult): CityData {
       blame: files.some((f) => f.churn?.topAuthor),
     },
     scanProvenance: result.summary.scanProvenance,
+    skippedByGitignore: result.summary.skippedByGitignore,
   };
 }
 

@@ -49,6 +49,15 @@ export function ScanSummary() {
 
   const f = cityData.findingsBySeverity;
   const total = f.P0 + f.P1 + f.P2;
+  // The scan is only complete for what the project itself called source.
+  // Say what the .gitignore kept out while the user is still reading this.
+  const skipped = cityData.skippedByGitignore;
+  const skippedParts = skipped
+    ? [
+        skipped.files > 0 ? `${skipped.files.toLocaleString()} files` : "",
+        skipped.directories > 0 ? `${skipped.directories.toLocaleString()} folders` : "",
+      ].filter(Boolean)
+    : [];
   const verdict = scanVerdict(cityData.scanProvenance, total, cityData.languages);
   const clean = verdict.kind === "clear";
   // "no findings" is only a result if something looked. An unverified scan
@@ -107,6 +116,18 @@ export function ScanSummary() {
         <span className="font-jetbrains text-[11px]" style={{ color: "#8f8b82" }}>
           {cityData.totalFiles.toLocaleString()} files analyzed
         </span>
+
+        {/* What the project's own .gitignore kept out — "complete" is only
+            complete for the files that were allowed in. */}
+        {skippedParts.length > 0 && (
+          <span
+            title="Every folder's own .gitignore decides what the scan reads. What it keeps out is not in this city."
+            className="font-jetbrains text-[11px]"
+            style={{ color: "#8f8b82" }}
+          >
+            {skippedParts.join(" and ")} kept out by .gitignore
+          </span>
+        )}
 
         {/* Severity badges */}
         {total > 0 && (

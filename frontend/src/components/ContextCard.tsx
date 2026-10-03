@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useStore } from "../stores/useStore";
-import { resolveDir, tourStops } from "../city/layout";
+import { explainDistrictDraw, resolveDir, tourStops } from "../city/layout";
 import { topLanguages, languageColor, SEVERITY_COLOR, authorColor } from "../city/palette";
 import { MarkerLegend } from "./CoachMarks";
 
@@ -49,6 +49,21 @@ export function ContextCard() {
   const dir = resolveDir(cityData.tree, focusPath);
   const findings = dir.findingsBySeverity;
   const totalFindings = findings.P0 + findings.P1 + findings.P2;
+  // Payloads from before the split only have the mixed number; show it rather
+  // than inventing a code-only figure.
+  const codeLines = dir.codeLines ?? dir.linesOfCode;
+  const dataLines = dir.dataLines ?? 0;
+  const dataLabels = topLanguages(dir.dataLanguages ?? {}, 2)
+    .map((language) => language.name)
+    .join(", ");
+  const drawLines = explainDistrictDraw(dir, cityData.limits);
+  const skipped = cityData.skippedByGitignore;
+  const skippedParts = skipped
+    ? [
+        skipped.files > 0 ? `${skipped.files.toLocaleString()} files` : "",
+        skipped.directories > 0 ? `${skipped.directories.toLocaleString()} folders` : "",
+      ].filter(Boolean)
+    : [];
   const langs = topLanguages(dir.languages, 4);
   const totalLangLines = Object.values(dir.languages).reduce((sum, lines) => sum + lines, 0) || 1;
   const stops = tourStops(cityData);
@@ -127,17 +142,52 @@ export function ContextCard() {
             {dir.fileCount.toLocaleString()}
           </dd>
         </div>
-        <div title="Lines of code, excluding comments and blank lines.">
+        <div title="Lines of code, excluding comments, blank lines and data files.">
           <dt className="text-[12px] mb-1" style={{ color: "#aaa69c" }}>
             Lines of code
           </dt>
           <dd className="text-[22px] font-semibold leading-none tabular-nums">
-            {dir.linesOfCode >= 1000
-              ? `${(dir.linesOfCode / 1000).toFixed(1)}k`
-              : dir.linesOfCode.toLocaleString()}
+            {codeLines >= 1000 ? `${(codeLines / 1000).toFixed(1)}k` : codeLines.toLocaleString()}
           </dd>
         </div>
       </dl>
+
+      {(dataLines > 0 || drawLines.length > 0 || (isRoot && skippedParts.length > 0)) && (
+        <div className="-mt-1 mb-1 space-y-1.5">
+          {dataLines > 0 && (
+            <div
+              className="text-[12px]"
+              style={{ color: "#aaa69c" }}
+              title="Translation catalogues, manifests and generated JSON have lines but no behaviour. They are counted apart from the code, never inside it."
+            >
+              {dataLines.toLocaleString()} lines of data
+              {dataLabels ? ` (${dataLabels})` : ""}
+            </div>
+          )}
+          {isRoot &&
+            skippedParts.length > 0 &&
+            skipped &&
+            (skipped.files > 0 || skipped.directories > 0) && (
+              <div
+                className="text-[12px]"
+                style={{ color: "#aaa69c" }}
+                title="Every folder's own .gitignore decides what the scan reads. What it keeps out is not part of this city."
+              >
+                {skippedParts.join(" and ")} kept out by .gitignore
+              </div>
+            )}
+          {drawLines.map((line) => (
+            <div
+              key={line}
+              className="text-[12px]"
+              style={{ color: "#aaa69c" }}
+              title="One building per file that fits the plots of this view. The rest are represented by a district plot or a podium marker, and every finding is still counted."
+            >
+              {line}
+            </div>
+          ))}
+        </div>
+      )}
 
       <div className="py-4" style={{ borderBottom: "1px solid rgba(150,142,128,0.18)" }}>
         {totalFindings > 0 ? (

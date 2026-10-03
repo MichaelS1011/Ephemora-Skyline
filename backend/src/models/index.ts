@@ -129,12 +129,19 @@ export interface DirectorySummary {
 export interface ProjectSummary {
   totalFiles: number;
   totalDirectories: number;
+  /**
+   * Σ lines of every scanned file, data catalogues included. The city panel
+   * does not show this number: `cityMapper` splits the data lines back out
+   * (`codeLines` / `dataLines`), because 300 lines of translation JSON are not
+   * 300 lines of code. Producers that fill this field count all of them.
+   */
   totalLines: number;
   avgCyclomatic: number;
   maxCyclomatic: number;
   languages: Record<string, number>;
   totalVulnerabilities: number;
   vulnerabilitiesBySeverity: { P0: number; P1: number; P2: number };
+  /** language → lines of every scanned file; see `totalLines` for the caveat */
   languagesByLines: Record<string, number>;
   /** Entries the project's own .gitignore kept out of the scan */
   skippedByGitignore?: { files: number; directories: number };
