@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef } from "react";
 import { Stars } from "@react-three/drei";
 import { useThree } from "@react-three/fiber";
 import { useStore } from "../stores/useStore";
-import { getDirLayout } from "../city/layout";
+import { getDirLayout, OVERVIEW_FACTOR } from "../city/layout";
 import { ENV } from "../city/palette";
 import { CameraRig } from "./CameraRig";
 import { CityTree } from "./CityTree";
@@ -44,10 +44,11 @@ export function CityScene() {
   useEffect(() => {
     if (cityData) {
       // City just appeared (new build): the crane starts at street level and
-      // CityTree drives it district by district while they rise (the build is
-      // only legible at plot height — see CityTree's tour). Pulling out to the
-      // overview here would spend the whole construction flying away from the
-      // figures the user came to watch; that reveal is the 'built' effect below.
+      // CityTree keeps it framed on whatever stands while the centre is built
+      // and pulls it back as the rings fill (layout.craneShot). Pulling out to
+      // the overview here would spend the whole construction flying away from
+      // the figures the user came to watch; that reveal is the 'built' effect
+      // below.
       if (craneBuildRef.current !== buildStartedAt) {
         craneBuildRef.current = buildStartedAt;
         camera.position.set(14, 2.2, 26);
@@ -68,10 +69,13 @@ export function CityScene() {
     if (craneBuildRef.current !== buildStartedAt || overviewRef.current === buildStartedAt) return;
     overviewRef.current = buildStartedAt;
     const layout = getDirLayout(cityData, []);
+    // The same factor the crane's last shot used, on the one geometry the
+    // crane did not include (bounds carries the street margin) — so the
+    // handover from crane to reveal is a short, continuous glide.
     requestFly({
       x: 0,
       z: 0,
-      distance: Math.max(layout.bounds * 1.75, 130),
+      distance: Math.max(layout.bounds * OVERVIEW_FACTOR, 130),
       duration: 2.6,
     });
   }, [cityData, buildPhase, buildStartedAt, requestFly]);

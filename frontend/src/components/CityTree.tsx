@@ -4,7 +4,13 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useFrame, useThree } from "@react-three/fiber";
 import { Html } from "@react-three/drei";
 import { useStore } from "../stores/useStore";
-import { getDirLayout, landmarkFileId, planConstruction } from "../city/layout";
+import {
+  builtExtent,
+  craneShot,
+  getDirLayout,
+  landmarkFileId,
+  planConstruction,
+} from "../city/layout";
 import { buildSidewalkNetwork, plazaLanes } from "../city/sidewalks";
 import { ENV } from "../city/palette";
 import { findingKey } from "../reviews";
@@ -30,22 +36,6 @@ import { computeFocusTiers, type FocusTier } from "../city/focus";
 
 /** Phase 0 of the construction cinematic: empty terrain while the Ephe's move in. */
 export const PHASE_0_MS = 1600;
-
-/**
- * Crane framing for a construction stop. Two things must fit at once: the plot
- * the builders stand on, and the tallest tower rising out of it. At this
- * camera's 52° vertical fov and the 21° eye line below, measured on the demo
- * city, that is ~1.35·span for the pad and ~1.55·height for the crown — and
- * the distance is capped, because past ~34 units an Ephe carrying a block is
- * a speck again, which is the whole thing the tour exists to prevent.
- */
-const TOUR_ELEVATION = 0.36; // ≈ 21°
-const tourFraming = (span: number, tallest: number, cap = 34) => ({
-  dist: Math.min(cap, Math.max(16, span * 1.35, tallest * 1.55)),
-  targetY: Math.max(1.5, tallest * 0.3),
-});
-/** The crane starts moving to a district just before its first unit rises. */
-const TOUR_LEAD_MS = 200;
 
 export function CityTree() {
   const cityData = useStore((s) => s.cityData);
@@ -186,64 +176,6 @@ export function CityTree() {
     () => (plan ? plan.sites.map((s) => ({ ...s, at: riseAt(s.offset) })) : []),
     [plan, animBase, riseK],
   );
-  // ── The crane follows the work ─────────────────────────────────────────────
-  // An Ephe carrying a block has to be big enough to see. Framed for the whole
-  // city — the demo's bounds·0.72 ≈ 63 units — a builder is two pixels and the
-  // construction reads as happening by itself. So the camera visits each
-  // district while THAT district rises and the full-height reveal waits until
-  // the city stands (CityScene). Each stop is framed for its own plot AND the
-  // tallest tower going up on it, so a three-file module and a forty-file
-  // package both fill the shot. The crane yields for good the moment a hand
-  // takes the camera.
-  const tourStops = useMemo(() => {
-    if (!plan || !layout) return [];
-    // plan.sites is emitted district by district (the district pad first, then
-    // its own towers), so one pass groups every tower with its plot — and the
-    // shot is framed for the tallest thing that goes up while we are watching.
-    const stops: Array<{
-      offset: number;
-      x: number;
-      z: number;
-      span: number;
-      tallest: number;
-      cap: number;
-    }> = [];
-    let tallestPlaza = 0;
-    let plazaOffset = 0;
-    for (const s of plan.sites) {
-      if (s.kind === "district") {
-        stops.push({ offset: s.offset, x: s.x, z: s.z, span: s.span, tallest: s.h, cap: 34 });
-      } else if (s.kind === "tower" && stops.length > 0) {
-        stops[stops.length - 1]!.tallest = Math.max(stops[stops.length - 1]!.tallest, s.h);
-      } else {
-        // the level's own files, on the central plaza
-        if (tallestPlaza === 0) plazaOffset = s.offset;
-        tallestPlaza = Math.max(tallestPlaza, s.h);
-      }
-    }
-    if (tallestPlaza > 0) {
-      // The plaza is one wide, low plot: its framing comes from the level's
-      // extent, and the legibility cap that keeps a district shot tight would
-      // leave half the plaza outside the frame.
-      stops.push({
-        offset: plazaOffset,
-        x: 0,
-        z: 0,
-        span: layout.bounds,
-        tallest: tallestPlaza,
-        cap: layout.bounds * 0.9,
-      });
-    }
-    return stops
-      .sort((a, b) => a.offset - b.offset)
-      .map((s) => ({
-        offset: s.offset,
-        x: s.x,
-        z: s.z,
-        ...tourFraming(s.span, s.tallest, s.cap),
-      }));
-  }, [plan, layout]);
-
   // Ephes live in the plaza buildings they raised. Memoised so HUD re-renders
   // never recreate the walker population.
   const homes = useMemo(
@@ -263,11 +195,11 @@ export function CityTree() {
   // tower begins to rise, which is also what switches the HUD status line
   // from "moving in…" to the build counter.
   const lastReportRef = useRef(0);
-  const tourStopRef = useRef(-1);
   useFrame(() => {
+    const store = useStore.getState();
     if (!constructing || step === 0) {
       lastReportRef.current = 0;
-      tourStopRef.current = -1;
+      store.setCraneFraming(null); // no crane outside a build
       return;
     }
     const nowMs = Date.now();
@@ -275,28 +207,21 @@ export function CityTree() {
     lastReportRef.current = nowMs;
     const elapsed = Date.now() - animBase;
     const done = elapsed < 0 ? 0 : Math.min(unitTotal, Math.max(1, Math.ceil(elapsed / step)));
-    useStore.getState().setConstructionProgress(done, unitTotal);
-    // Crane tour — see tourStops. Never while a hand is on the camera: the
-    // user took the view, and a crane that keeps stealing it back is a bug.
-    if (tourStops.length > 0 && useStore.getState().cameraManualAt <= buildStartedAt) {
-      let idx = 0;
-      for (let i = 0; i < tourStops.length; i++) {
-        if (elapsed >= tourStops[i]!.offset - TOUR_LEAD_MS) idx = i;
-      }
-      if (idx !== tourStopRef.current) {
-        tourStopRef.current = idx;
-        const stop = tourStops[idx]!;
-        const next = tourStops[idx + 1];
-        const ms = (next?.offset ?? durationMs) - elapsed;
-        useStore.getState().requestFly({
-          x: stop.x,
-          z: stop.z,
-          distance: stop.dist,
-          targetY: stop.targetY,
-          elevation: TOUR_ELEVATION,
-          duration: Math.min(1.8, Math.max(0.6, ms / 1000)),
-        });
-      }
+    store.setConstructionProgress(done, unitTotal);
+    // ── The crane follows the city's size ────────────────────────────────────
+    // An Ephe carrying a block has to be big enough to see AND the city has to
+    // grow big enough to read. Both come out of one rule: the shot is sized to
+    // what actually stands, so the frame is tight on the centre while the
+    // centre is the only thing there and opens up ring by ring as the districts
+    // fill. The schedule is centre-out, so this extent only ever grows — the
+    // rig eases toward it every frame and never hops. Never while a hand is on
+    // the camera: the user took the view, and a crane that steals it back is a
+    // bug.
+    if (plan && store.cameraManualAt <= buildStartedAt) {
+      const extent = builtExtent(plan.sites, elapsed);
+      store.setCraneFraming(craneShot(extent.radius, extent.top));
+    } else {
+      store.setCraneFraming(null);
     }
     // Final rise + 700 ms settle → city stands. Guarded against a build
     // that was replaced by a re-scan while this frame was in flight.

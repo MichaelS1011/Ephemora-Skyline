@@ -1,6 +1,8 @@
 import { describe, it, expect } from "vitest";
 import {
   approachFromCurrentDirection,
+  CRANE_ELEVATION,
+  craneAdvance,
   flightDuration,
   turntableStep,
   clampToCity,
@@ -9,6 +11,7 @@ import {
   TURN_MAX_PHI,
   TURN_MIN_PHI,
 } from "../src/components/CameraRig";
+import type { XYZ } from "../src/components/CameraRig";
 
 /** Horizontal azimuth of a vector on the XZ plane (radians, atan2 convention). */
 function azimuth(v: { x: number; z: number }): number {
@@ -233,5 +236,77 @@ describe("clampToCity", () => {
       const pos = { x: 0, y: PIVOT_Y, z: overviewDist(bounds, TALLEST_POSSIBLE) };
       expect(clampToCity(pos, bounds)).toEqual(pos);
     }
+  });
+});
+
+describe("craneAdvance", () => {
+  // A pose just inside the plaza, on the +z side, looking at the centre.
+  const cam = { x: 0, y: 6, z: 20 };
+  const pivot = { x: 0, y: PIVOT_Y, z: 0 };
+  /** Distance from the camera to the point it orbits — its framing. */
+  const framing = (p: XYZ, target: XYZ) =>
+    Math.hypot(p.x - target.x, p.y - target.y, p.z - target.z);
+  const shotAt = (dist: number) => ({ dist, targetY: PIVOT_Y });
+  /** The full shot position, for the "it eases, it does not cut" comparisons */
+  const settled = (from: XYZ, around: XYZ, dist: number) =>
+    approachFromCurrentDirection(from, around, { x: 0, y: PIVOT_Y, z: 0 }, dist, CRANE_ELEVATION);
+
+  it("eases toward the shot instead of cutting to it", () => {
+    const want = settled(cam, pivot, 60);
+    const one = craneAdvance(cam, pivot, shotAt(60), 1 / 60);
+    (["x", "y", "z"] as const).forEach((axis) => {
+      expect(one.pos[axis]).toBeGreaterThan(Math.min(cam[axis], want[axis]));
+      expect(one.pos[axis]).toBeLessThan(Math.max(cam[axis], want[axis]));
+    });
+  });
+
+  it("lands the shot when it is allowed to keep following", () => {
+    let pos = cam;
+    let target = pivot;
+    for (let i = 0; i < 200; i++) {
+      const next = craneAdvance(pos, target, shotAt(60), 1 / 30);
+      pos = next.pos;
+      target = next.target;
+    }
+    expect(framing(pos, target)).toBeCloseTo(60, 1);
+    expect(target).toEqual({ x: 0, y: PIVOT_Y, z: 0 });
+  });
+
+  it("moves nothing when no time has passed", () => {
+    expect(craneAdvance(cam, pivot, shotAt(120), 0).pos).toEqual(cam);
+  });
+
+  it("never rotates the view away from the side the user is on", () => {
+    const off = { x: 20, z: 27 };
+    const before = azimuth({ x: 20, z: 27 });
+    const after = craneAdvance({ x: off.x, y: 9, z: off.z }, pivot, shotAt(90), 5);
+    expect(azimuth({ x: after.pos.x, z: after.pos.z })).toBeCloseTo(before, 6);
+  });
+
+  it("follows a growing city out with one target and no cut", () => {
+    // The measured defect this replaces: a flight per district moved the orbit
+    // TARGET to each plot and re-capped the distance, so the view swung
+    // sideways and the framing snapped in again. The crane has one pivot (the
+    // centre) and an extent that only grows — so both stay put / only widen.
+    let pos = cam;
+    let target = pivot;
+    let prev = framing(pos, target);
+    let maxStep = 0;
+    for (const dist of [26, 34, 48, 66, 90]) {
+      for (let i = 0; i < 6; i++) {
+        const next = craneAdvance(pos, target, shotAt(dist), 0.1); // 10 Hz
+        pos = next.pos;
+        target = next.target;
+        const now = framing(pos, target);
+        expect(now).toBeGreaterThanOrEqual(prev);
+        maxStep = Math.max(maxStep, (now - prev) / prev);
+        prev = now;
+      }
+      expect(target.x).toBe(0);
+      expect(target.z).toBe(0);
+    }
+    // 3.5 units of framing per 100 ms at the steepest — a glide, not a jump
+    expect(maxStep).toBeLessThan(0.2);
+    expect(prev).toBeGreaterThan(75);
   });
 });

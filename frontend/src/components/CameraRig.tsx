@@ -5,6 +5,7 @@ import type { OrbitControls as OrbitControlsImpl } from "three-stdlib";
 import * as THREE from "three";
 import { useStore } from "../stores/useStore";
 import { getDirLayout } from "../city/layout";
+import type { CraneShot } from "../city/layout";
 
 /**
  * Camera rig — the user is the pilot, in two modes:
@@ -23,6 +24,11 @@ import { getDirLayout } from "../city/layout";
  * BOTH modes, but control is NEVER taken away: the tween is aborted the
  * instant the user drags, scrolls, walks or turns, and the camera reports its
  * real position to the Minimap.
+ *
+ * While a city is being built the construction crane drives the view instead:
+ * CityTree publishes one shot per 100 ms, sized for whatever actually stands,
+ * and the rig eases toward it continuously (craneAdvance) — the city grows, the
+ * frame opens up, no cut. A hand on the camera stops the crane for good.
  */
 
 export interface XYZ {
@@ -52,10 +58,10 @@ function easeInOutCubic(t: number): number {
  * new target, so a flight never drags the camera to a fixed south-east
  * vantage the user never chose.
  *
- * A scripted shot (the construction crane) may pass `elevation`: the azimuth
- * is still the live one — the camera stays on the side of the city it is on —
- * but the height is the shot's own, because a crane that inherits a
- * street-level eye line cannot show a plot and a tower in the same frame.
+ * The construction crane passes its own `elevation`: the azimuth is still the
+ * live one — the camera stays on the side of the city it is on — but the height
+ * is the shot's, because a crane that inherits a street-level eye line cannot
+ * show a plot and a tower in the same frame.
  *
  * Degenerate case (camPos == camTarget — no direction to preserve, e.g. the
  * very first flight of a freshly loaded city): falls back to the legacy
@@ -96,7 +102,7 @@ export function approachFromCurrentDirection(
 /**
  * Short, snappy flight duration derived from the target distance:
  * 0.35 s floor (a hop), 1.6 s cap (a cross-city glide) by default.
- * Callers with an explicit duration (e.g. the construction crane) win.
+ * Callers with an explicit duration (the built-city reveal) win.
  */
 export function flightDuration(distance: number, cap = 1.6): number {
   return Math.min(cap, Math.max(0.35, 0.35 + distance / 220));
@@ -189,6 +195,42 @@ export function clampToCity(pos: XYZ, bounds: number | null): XYZ {
   return { x, y, z };
 }
 
+/** The crane's eye line: 21° below the horizon — the angle at which a plot and
+ *  the crown rising out of it both fit the same frame. */
+export const CRANE_ELEVATION = 0.36;
+/** Per-second exponential closure toward the shot: quick enough to keep up
+ *  with a 20 s build, slow enough that the pull-back reads as one move. */
+const CRANE_FOLLOW_RATE = 2.2;
+
+/**
+ * One crane step: ease the camera `delta` seconds toward the shot sized for
+ * whatever stands right now.
+ *
+ * The pivot is the city centre and the azimuth stays the live one, so the
+ * crane only ever changes DISTANCE and HEIGHT — it never rotates the view away
+ * from the side the user is standing on. Exponential closure instead of a
+ * from/to tween is what makes a 10 Hz stream of growing shots read as one
+ * continuous pull-back rather than a new flight per district.
+ */
+export function craneAdvance(
+  camPos: XYZ,
+  camTarget: XYZ,
+  shot: CraneShot,
+  delta: number,
+): { pos: XYZ; target: XYZ } {
+  const target = { x: 0, y: shot.targetY, z: 0 };
+  const want = approachFromCurrentDirection(camPos, camTarget, target, shot.dist, CRANE_ELEVATION);
+  const k = 1 - Math.exp(-CRANE_FOLLOW_RATE * delta);
+  return {
+    pos: {
+      x: camPos.x + (want.x - camPos.x) * k,
+      y: camPos.y + (want.y - camPos.y) * k,
+      z: camPos.z + (want.z - camPos.z) * k,
+    },
+    target,
+  };
+}
+
 /** Half-extent of the level the pilot is in, or null with no city loaded. */
 function useCityBounds(): number | null {
   const cityData = useStore((s) => s.cityData);
@@ -248,8 +290,8 @@ export function CameraRig() {
     firstFlightRef.current = true;
   }, [cityData]);
 
-  // A skip hands control back immediately: the construction crane flight
-  // must not keep gliding while the user already skipped the cinematic
+  // A skip hands control back immediately: no flight scripted for the
+  // cinematic may keep gliding while the user has already skipped it
   const buildSkipAt = useStore((s) => s.buildSkipAt);
   useEffect(() => {
     if (buildSkipAt) tweenRef.current = null;
@@ -394,7 +436,6 @@ export function CameraRig() {
       anchor,
       { x: toTarget.x, y: toTarget.y, z: toTarget.z },
       distance,
-      flyRequest.elevation,
     );
     const toPos = new THREE.Vector3(pos.x, pos.y, pos.z);
     firstFlightRef.current = false;
@@ -410,8 +451,8 @@ export function CameraRig() {
       }
       return;
     }
-    // A caller supplied duration (e.g. the construction crane flight) wins;
-    // otherwise the flight stays short and snappy (0.35–1.6 s).
+    // A caller-supplied duration (the built-city reveal) wins; otherwise the
+    // flight stays short and snappy (0.35–1.6 s).
     tweenRef.current = {
       fromPos,
       toPos,
@@ -520,7 +561,29 @@ export function CameraRig() {
       }
     }
 
+    // The construction crane follows the city's size — see craneAdvance. It
+    // yields within the same frame the pilot touches anything (a held key or a
+    // drag), which is sooner than CityTree's 10 Hz director can notice the
+    // manual stamp, and it never fights a flight that is already running.
     const tween = tweenRef.current;
+    const crane =
+      !tween && keys.size === 0 && !dragging.current ? useStore.getState().craneFraming : null;
+    if (crane) {
+      const step = craneAdvance(camera.position, controls.target, crane, delta);
+      const kept = clampToCity(step.pos, boundsRef.current);
+      camera.position.set(kept.x, kept.y, kept.z);
+      _look.set(step.target.x, step.target.y, step.target.z);
+      if (free) {
+        camera.lookAt(_look);
+        _euler.setFromQuaternion(camera.quaternion, "YXZ");
+        look.current.yaw = _euler.y;
+        look.current.pitch = _euler.x;
+      } else {
+        controls.target.copy(_look);
+        controls.update();
+      }
+    }
+
     if (tween) {
       tween.t = Math.min(1, tween.t + delta / tween.dur);
       const e = easeInOutCubic(tween.t);

@@ -1,6 +1,13 @@
 import { create } from "zustand";
 import type { CityData, ReviewStatus, SelectedUnit, Severity } from "../city/types";
-import { allFiles, findFileById, getDirLayout, riskScore, tourStops } from "../city/layout";
+import {
+  allFiles,
+  findFileById,
+  getDirLayout,
+  riskScore,
+  tourStops,
+  type CraneShot,
+} from "../city/layout";
 import { findVoxelForLine } from "../city/voxels";
 import { loadSavedProfile, saveProfile, type ScanProfile } from "../config/scanProfiles";
 import { findingKey, loadReviews, saveReviews } from "../reviews";
@@ -21,13 +28,6 @@ export interface FlyRequest {
    * when omitted the rig keeps its ground-level default (y = 1.5).
    */
   targetY?: number;
-  /**
-   * Elevation above the horizon at the destination, in radians. Optional —
-   * when omitted the flight keeps the direction the user is looking from.
-   * The construction crane sets it: a shot that inherits a street-level eye
-   * line can never hold a plot and its towers at once.
-   */
-  elevation?: number;
   nonce: number;
 }
 
@@ -135,6 +135,17 @@ interface AppState {
    *  flying for the rest of that build. */
   cameraManualAt: number;
   noteCameraManual: () => void;
+
+  /**
+   * Live crane shot while a city is under construction.
+   *
+   * A plain value, deliberately NOT a fly request: a request is a from/to
+   * tween that ends, and one per district is exactly the hopping the user
+   * rejected. The rig eases toward this every frame instead, so pulling back
+   * as the city grows is one continuous move. null when no crane is working.
+   */
+  craneFraming: CraneShot | null;
+  setCraneFraming: (shot: CraneShot | null) => void;
 
   // ── Filters ────────────────────────────────────────────────────────────
   threatFilter: Severity | "all";
@@ -441,6 +452,17 @@ export const useStore = create<AppState>((set, get) => ({
     const now = Date.now();
     if (now - get().cameraManualAt < 250) return;
     set({ cameraManualAt: now });
+  },
+
+  craneFraming: null,
+  // The director writes this ~10 Hz while the city rises; unchanged shots are
+  // dropped so a standing still-frame never re-renders the rig.
+  setCraneFraming: (shot) => {
+    const cur = get().craneFraming;
+    if (cur === null || shot === null) {
+      if (cur === shot) return;
+    } else if (cur.dist === shot.dist && cur.targetY === shot.targetY) return;
+    set({ craneFraming: shot });
   },
 
   threatFilter: "all",

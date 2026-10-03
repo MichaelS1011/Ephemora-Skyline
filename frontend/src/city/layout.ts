@@ -451,17 +451,21 @@ export interface BuildSite {
 }
 
 export interface BuildPlan {
-  /** epoch-ms each district plot opens, in `layout.blocks` order */
+  /**
+   * epoch-ms each district plot opens. Index-aligned with `layout.blocks`,
+   * but the slots themselves are handed out in build order — centre-out — so
+   * these numbers are NOT ascending in index order.
+   */
   blockAt: number[];
-  /** epoch-ms each skyline tower rises, per block, in `skyline` order */
+  /** epoch-ms each skyline tower rises, index-aligned per block */
   skylineAt: number[][];
   /** epoch-ms each of this level's own plaza files rises */
   plazaAt: number[];
-  /** epoch-ms the podium lands */
+  /** epoch-ms the podium lands, at its own distance from the plaza */
   podiumAt: number;
   /**
-   * Work points in rise order. The podium is absent: it is the plaza floor
-   * landing under everything already built, not a tower someone raises.
+   * Work points in rise order. The podium is absent: nothing is carried and
+   * raised at its spot — it is one aggregate marker that lands whole.
    */
   sites: BuildSite[];
   /** rising units — the pacing input, counted by the same walk that schedules */
@@ -486,11 +490,19 @@ function dominantLanguage(languages: Record<string, number>): string {
 }
 
 /**
- * The construction schedule. One unit is one tower the eye can follow: a plot
- * opens, its skyline fills tower by tower, and only the next district starts.
- * Counting towers rather than districts is what makes a 40-file folder build
- * in a breath and a 900-file one take its time — the districts alone would
- * always be the same handful.
+ * The construction schedule, built centre-out.
+ *
+ * Two rules, both geometric:
+ * — a plot opens before its own towers (one run per district, never split),
+ * — runs are scheduled by how far they stand from the plaza, so the level's
+ *   own files — the centre — rise first and the districts fill outward ring by
+ *   ring. The podium is one more run at its own radius; a rule that reads "the
+ *   city grows from the middle" has to hold for every unit in it, not just the
+ *   ones that happen to be listed last.
+ *
+ * Because rise order now equals distance order, the built extent can only
+ * grow, and the crane can follow the city's SIZE instead of hopping from one
+ * district to the next.
  */
 export function planConstruction(
   layout: Pick<DirLayout, "blocks" | "buildings" | "podium">,
@@ -501,60 +513,84 @@ export function planConstruction(
     layout.buildings.length +
     (layout.podium ? 1 : 0);
   const step = constructionStep(total);
-  const blockAt: number[] = [];
-  const skylineAt: number[][] = [];
-  const plazaAt: number[] = [];
+  const blockAt: number[] = new Array<number>(layout.blocks.length).fill(0);
+  const skylineAt: number[][] = new Array<number[]>(layout.blocks.length).fill([]);
+  const plazaAt: number[] = new Array<number>(layout.buildings.length).fill(0);
   const sites: BuildSite[] = [];
   let cursor = 0;
+  let podiumAt = baseMs;
   const slot = (): number => baseMs + cursor++ * step;
-  for (const b of layout.blocks) {
-    const at = slot();
-    blockAt.push(at);
-    sites.push({
-      kind: "district",
-      x: b.x,
-      z: b.z,
-      doorX: b.x,
-      doorZ: b.z + b.d / 2 + 1.1,
-      h: PLOT_ROOF_H,
-      span: Math.max(b.w, b.d),
-      color: languageColor(dominantLanguage(b.dir.languages)),
-      offset: at - baseMs,
+
+  const runs: Array<{ radius: number; place: () => void }> = [];
+  layout.blocks.forEach((b, i) => {
+    runs.push({
+      radius: Math.hypot(b.x, b.z),
+      place: () => {
+        const at = slot();
+        blockAt[i] = at;
+        sites.push({
+          kind: "district",
+          x: b.x,
+          z: b.z,
+          doorX: b.x,
+          doorZ: b.z + b.d / 2 + 1.1,
+          h: PLOT_ROOF_H,
+          span: Math.max(b.w, b.d),
+          color: languageColor(dominantLanguage(b.dir.languages)),
+          offset: at - baseMs,
+        });
+        const atPerTower: number[] = [];
+        for (const t of b.skyline) {
+          const towerAt = slot();
+          atPerTower.push(towerAt);
+          sites.push({
+            kind: "tower",
+            x: b.x + t.x,
+            z: b.z + t.z,
+            doorX: b.x + t.x,
+            doorZ: b.z + t.z + t.d / 2 + 0.7,
+            h: t.h,
+            span: Math.max(t.w, t.d),
+            color: languageColor(t.file.language),
+            offset: towerAt - baseMs,
+          });
+        }
+        skylineAt[i] = atPerTower;
+      },
     });
-    const atPerTower: number[] = [];
-    for (const t of b.skyline) {
-      const towerAt = slot();
-      atPerTower.push(towerAt);
-      sites.push({
-        kind: "tower",
-        x: b.x + t.x,
-        z: b.z + t.z,
-        doorX: b.x + t.x,
-        doorZ: b.z + t.z + t.d / 2 + 0.7,
-        h: t.h,
-        span: Math.max(t.w, t.d),
-        color: languageColor(t.file.language),
-        offset: towerAt - baseMs,
-      });
-    }
-    skylineAt.push(atPerTower);
-  }
-  for (const b of layout.buildings) {
-    const at = slot();
-    plazaAt.push(at);
-    sites.push({
-      kind: "building",
-      x: b.x,
-      z: b.z,
-      doorX: b.x,
-      doorZ: b.z + b.d / 2 + 0.9,
-      h: b.h,
-      span: Math.max(b.w, b.d),
-      color: languageColor(b.file.language),
-      offset: at - baseMs,
+  });
+  layout.buildings.forEach((b, i) => {
+    runs.push({
+      radius: Math.hypot(b.x, b.z),
+      place: () => {
+        const at = slot();
+        plazaAt[i] = at;
+        sites.push({
+          kind: "building",
+          x: b.x,
+          z: b.z,
+          doorX: b.x,
+          doorZ: b.z + b.d / 2 + 0.9,
+          h: b.h,
+          span: Math.max(b.w, b.d),
+          color: languageColor(b.file.language),
+          offset: at - baseMs,
+        });
+      },
+    });
+  });
+  if (layout.podium) {
+    const p = layout.podium;
+    runs.push({
+      radius: Math.hypot(p.x, p.z),
+      place: () => {
+        podiumAt = slot();
+      },
     });
   }
-  const podiumAt = baseMs + cursor * step;
+  runs.sort((a, b) => a.radius - b.radius);
+  for (const run of runs) run.place();
+
   return {
     blockAt,
     skylineAt,
@@ -565,6 +601,63 @@ export function planConstruction(
     step,
     durationMs: total * step,
   };
+}
+
+// ── The crane follows the city's size ──────────────────────────────────────
+
+/** How wide a frame a finished city gets, as a multiple of its half-extent. */
+export const OVERVIEW_FACTOR = 1.75;
+
+/**
+ * Vertical clearance a crown needs at this camera (52° vertical fov, eye line
+ * 21° below horizontal) — measured, not guessed: it is the factor that kept a
+ * rising tower inside the frame in the plot-height shots it replaces.
+ */
+const CROWN_FACTOR = 1.55;
+
+/** Tightest shot the crane gets: the street-level establishing distance. */
+const CRANE_MIN_DIST = 26;
+
+export interface CraneShot {
+  dist: number;
+  targetY: number;
+}
+
+/**
+ * The shot for a city that currently spans `radius` and stands `top` tall.
+ *
+ * `OVERVIEW_FACTOR` is the one the 'built' reveal uses, so the crane ends
+ * where that flight begins instead of fighting it. The min distance keeps the
+ * FIRST small building big on screen — which is the whole point: the frame is
+ * sized to what actually stands, so the builders are large while the centre is
+ * built and the reveal of scale comes as the rings fill.
+ */
+export function craneShot(radius: number, top: number): CraneShot {
+  return {
+    dist: Math.max(CRANE_MIN_DIST, radius * OVERVIEW_FACTOR, top * CROWN_FACTOR),
+    targetY: Math.max(1.5, top * 0.35),
+  };
+}
+
+/**
+ * How much city stands `elapsed` ms into the build: the outermost footprint
+ * edge and the tallest crown among the units that have STARTED rising.
+ *
+ * Both are maxima over a set that only grows, so the pair is monotone — the
+ * crane can pull back and never has to push in again.
+ */
+export function builtExtent(
+  sites: readonly BuildSite[],
+  elapsed: number,
+): { radius: number; top: number } {
+  let radius = 0;
+  let top = 0;
+  for (const s of sites) {
+    if (s.offset > elapsed) continue;
+    radius = Math.max(radius, Math.hypot(s.x, s.z) + s.span / 2);
+    top = Math.max(top, s.h);
+  }
+  return { radius, top };
 }
 
 // ── Memoised access ────────────────────────────────────────────────────────
