@@ -88,11 +88,15 @@ function safeDisplayName(raw: string): string {
  * Body: { name: string, files: Array<{ path, content }> }
  * Responds 202 { id, statusUrl } immediately; the analysis runs in the
  * background with progress on GET /api/status/:id.
+ *
+ * `createOrchestrator` is called per request on purpose: the scanner holds the
+ * resolved config and per-run adapter state, so one shared instance would let
+ * two analyses running at the same time answer with each other's profile.
  */
 export async function handleLocalAnalyze(
   req: Request,
   res: Response,
-  orchestrator: AnalysisOrchestrator,
+  createOrchestrator: (config: ResolvedScanConfig) => AnalysisOrchestrator,
   analysisStore: {
     set(id: string, result: AnalysisResult): void;
     get(id: string): AnalysisResult | undefined;
@@ -195,9 +199,14 @@ export async function handleLocalAnalyze(
     statusUrl: `/api/status/${analysisId}`,
   });
 
-  void runLocalAnalysis(analysisId, uploadDir, repo, orchestrator, analysisStore, config).catch(
-    () => {},
-  );
+  void runLocalAnalysis(
+    analysisId,
+    uploadDir,
+    repo,
+    createOrchestrator(config),
+    analysisStore,
+    config,
+  ).catch(() => {});
 }
 
 /** Background runner for local-folder analyses — never awaited */

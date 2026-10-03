@@ -94,10 +94,10 @@ describe("handleLocalAnalyze", () => {
     await handleLocalAnalyze(
       makeReq({ name: "x", files: [] }),
       makeRes() as never,
-      orchestrator,
+      () => orchestrator,
       store,
     );
-    await handleLocalAnalyze(makeReq({}), res as never, orchestrator, store);
+    await handleLocalAnalyze(makeReq({}), res as never, () => orchestrator, store);
     expect(res.statusCode).toBe(400);
   });
 
@@ -111,7 +111,7 @@ describe("handleLocalAnalyze", () => {
     await handleLocalAnalyze(
       makeReq({ name: "big", files }),
       res as never,
-      orchestrator,
+      () => orchestrator,
       new Map(),
     );
     expect(res.statusCode).toBe(400);
@@ -131,7 +131,7 @@ describe("handleLocalAnalyze", () => {
     await handleLocalAnalyze(
       makeReq({ name: "my-project", files }),
       res as never,
-      orchestrator,
+      () => orchestrator,
       store,
     );
     expect(res.statusCode).toBe(202);
@@ -165,7 +165,7 @@ describe("handleLocalAnalyze", () => {
         ],
       }),
       res as never,
-      real,
+      () => real,
       store,
     );
     expect(res.statusCode).toBe(202);
@@ -186,4 +186,58 @@ describe("handleLocalAnalyze", () => {
       .catch(() => false);
     expect(dirKept).toBe(true);
   }, 60000);
+
+  /**
+   * One scanner for the whole process meant the profile of the analysis that
+   * started last also decided the analysis that was still running: the
+   * orchestrator held a single scanner and `setConfig` overwrote it mid-flight.
+   */
+  it("gives each concurrent analysis its own orchestrator and its own config", async () => {
+    const given: Array<{ instance: number; profile: string }> = [];
+    let built = 0;
+    const factory = (config: { profile: string }): AnalysisOrchestrator => {
+      const instance = ++built;
+      return {
+        analyzeDirectory: async (analysisId: string): Promise<AnalysisResult> => {
+          given.push({ instance, profile: config.profile });
+          return {
+            id: analysisId,
+            repo: { owner: "local", name: "x", branch: "local", cloneUrl: "", analyzedAt: "" },
+            files: [],
+            directories: [],
+            summary: {
+              totalFiles: 1,
+              totalDirectories: 0,
+              totalLines: 0,
+              avgCyclomatic: 0,
+              maxCyclomatic: 0,
+              languages: {},
+              totalVulnerabilities: 0,
+              vulnerabilitiesBySeverity: { P0: 0, P1: 0, P2: 0 },
+              languagesByLines: {},
+            },
+            createdAt: new Date().toISOString(),
+            status: "complete",
+          } as AnalysisResult;
+        },
+      } as unknown as AnalysisOrchestrator;
+    };
+
+    const store = new Map<string, AnalysisResult>();
+    const req = (profile: string) =>
+      makeReq({
+        name: profile,
+        files: [{ path: "app.js", content: "const a = 1;\n" }],
+        config: { profile },
+      });
+    await Promise.all([
+      handleLocalAnalyze(req("quick"), makeRes() as never, factory, store),
+      handleLocalAnalyze(req("quality-only"), makeRes() as never, factory, store),
+    ]);
+    for (let i = 0; i < 40 && given.length < 2; i++) {
+      await new Promise((r) => setTimeout(r, 100));
+    }
+    expect(given.map((g) => g.profile).sort()).toEqual(["quality-only", "quick"]);
+    expect(new Set(given.map((g) => g.instance)).size).toBe(2);
+  });
 });

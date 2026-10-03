@@ -43,7 +43,7 @@ describe("failed analysis contract (H1)", () => {
     await handleLocalAnalyze(
       makeReq({ name: "broken", files: [{ path: "a.ts", content: "const x = 1;" }] }),
       res as never,
-      orchestrator,
+      () => orchestrator,
       store,
     );
     expect(res.statusCode).toBe(202);
@@ -101,7 +101,7 @@ describe("failed analysis contract (H1)", () => {
     await handleLocalAnalyze(
       makeReq({ name: "boom", files: [{ path: "a.ts", content: "const x = 1;" }] }),
       res as never,
-      orchestrator,
+      () => orchestrator,
       store,
     );
     const id = (res.body as { id: string }).id;

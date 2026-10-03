@@ -19,6 +19,7 @@ import { WebSocketServer } from "ws";
 import pino from "pino";
 
 import type { AnalysisResult } from "../models/index.js";
+import type { ResolvedScanConfig } from "../services/security/scan-config.js";
 import { AnalysisOrchestrator } from "../services/analyzer/orchestrator.js";
 import { SecurityScanner } from "../services/security/scanner.js";
 import { getHealth } from "./routes/health.js";
@@ -100,8 +101,11 @@ class AnalysisStore {
 const analysisStore = new AnalysisStore();
 
 // ── Service instances ─────────────────────────────────────────────────────
-const securityScanner = new SecurityScanner();
-const orchestrator = new AnalysisOrchestrator(securityScanner);
+// Per analysis, not per process: the scanner carries the resolved profile and
+// the adapters carry the state of the run they just did, so two scans sharing
+// one instance would report each other's settings.
+const createOrchestrator = (config: ResolvedScanConfig): AnalysisOrchestrator =>
+  new AnalysisOrchestrator(new SecurityScanner(undefined, config));
 
 // ── Rate limiting ─────────────────────────────────────────────────────────
 // Read endpoints get a generous budget (browsing a city should never lock
@@ -178,7 +182,7 @@ app.post(
   "/api/analyze-local",
   localAnalyzeLimiter,
   async (req: Request, res: Response): Promise<void> => {
-    await handleLocalAnalyze(req, res, orchestrator, analysisStore);
+    await handleLocalAnalyze(req, res, createOrchestrator, analysisStore);
   },
 );
 
