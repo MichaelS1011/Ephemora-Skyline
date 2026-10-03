@@ -98,7 +98,5 @@ describe("the pipeline leaves ignored files out of the city", () => {
     // directory skipped whole — the count says which, because "3 entries"
     // would hide that a folder's contents were never even read.
     expect(result.summary.skippedByGitignore).toEqual({ files: 2, directories: 1 });
-  }, // the real pipeline, which means the real batch engines: semgrep alone
-  // needs longer than vitest's 5 s default on a six-file folder
-  30_000);
+  }, 30_000); // needs longer than vitest's 5 s default on a six-file folder // the real pipeline, which means the real batch engines: semgrep alone
 });

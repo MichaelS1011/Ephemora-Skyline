@@ -1,5 +1,5 @@
 export interface HealthResponse {
-  status: 'ok';
+  status: "ok";
   uptime: number;
   timestamp: string;
   version: string;
@@ -7,9 +7,9 @@ export interface HealthResponse {
 
 export async function getHealth(): Promise<HealthResponse> {
   return {
-    status: 'ok',
+    status: "ok",
     uptime: Math.floor(process.uptime()),
     timestamp: new Date().toISOString(),
-    version: '1.0.0',
+    version: "1.0.0",
   };
 }

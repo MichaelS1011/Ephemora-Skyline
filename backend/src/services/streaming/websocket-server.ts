@@ -8,9 +8,9 @@
  * - Timeout-triggered default analysis when no client sends a URL
  */
 
-import type pino from 'pino';
-import { WebSocket } from 'ws';
-import type { WebSocketEvent } from '../../models/index.js';
+import type pino from "pino";
+import { WebSocket } from "ws";
+import type { WebSocketEvent } from "../../models/index.js";
 
 interface WsClientInfo {
   ws: WebSocket;
@@ -33,14 +33,17 @@ export class WebSocketServerManager {
   private cleanupTimer: NodeJS.Timeout | null = null;
 
   constructor(logger: pino.Logger) {
-    this.logger = logger.child({ service: 'ws-manager' });
+    this.logger = logger.child({ service: "ws-manager" });
   }
 
   /** Handle a new WebSocket connection */
   handleConnection(ws: WebSocket, _url: string | null): void {
     if (this.clients.size >= MAX_CONNECTIONS) {
-      this.logger.warn({ size: this.clients.size, max: MAX_CONNECTIONS }, 'Max connections reached, rejecting');
-      ws.close(1013, 'Server full');
+      this.logger.warn(
+        { size: this.clients.size, max: MAX_CONNECTIONS },
+        "Max connections reached, rejecting",
+      );
+      ws.close(1013, "Server full");
       return;
     }
 
@@ -53,30 +56,30 @@ export class WebSocketServerManager {
     };
 
     this.clients.set(clientId, info);
-    this.logger.info({ clientId }, 'WebSocket client connected');
+    this.logger.info({ clientId }, "WebSocket client connected");
 
     // Send welcome event
     this.send(clientId, {
-      type: 'connected',
+      type: "connected",
       payload: { clientId, timestamp: new Date().toISOString() },
       timestamp: new Date().toISOString(),
     });
 
     // Set up handlers
-    ws.on('pong', () => {
+    ws.on("pong", () => {
       const client = this.clients.get(clientId);
       if (client) {
         client.lastPong = Date.now();
       }
     });
 
-    ws.on('close', () => {
-      this.logger.info({ clientId }, 'WebSocket client disconnected');
+    ws.on("close", () => {
+      this.logger.info({ clientId }, "WebSocket client disconnected");
       this.clients.delete(clientId);
     });
 
-    ws.on('error', (error) => {
-      this.logger.error({ clientId, error }, 'WebSocket error');
+    ws.on("error", (error) => {
+      this.logger.error({ clientId, error }, "WebSocket error");
       this.clients.delete(clientId);
     });
   }
@@ -93,7 +96,7 @@ export class WebSocketServerManager {
       client.ws.send(JSON.stringify(event));
       return true;
     } catch (error) {
-      this.logger.error({ clientId, error }, 'Failed to send WS event');
+      this.logger.error({ clientId, error }, "Failed to send WS event");
       this.clients.delete(clientId);
       return false;
     }
@@ -120,7 +123,7 @@ export class WebSocketServerManager {
 
     const sent = results.filter(Boolean).length;
     if (sent > 0) {
-      this.logger.debug({ sent, event: event.type }, 'Broadcast sent');
+      this.logger.debug({ sent, event: event.type }, "Broadcast sent");
     }
   }
 
@@ -141,7 +144,7 @@ export class WebSocketServerManager {
 
         // Check stale
         if (now - client.lastPong > STALE_THRESHOLD) {
-          this.logger.warn({ clientId }, 'Client stale, removing');
+          this.logger.warn({ clientId }, "Client stale, removing");
           client.ws.terminate();
           this.clients.delete(clientId);
         }
@@ -159,8 +162,9 @@ export class WebSocketServerManager {
       const now = Date.now();
       for (const [clientId, client] of this.clients) {
         const age = now - client.connectedAt;
-        if (age > 1800000) { // 30 min max lifetime
-          this.logger.info({ clientId, age }, 'Client expired, closing');
+        if (age > 1800000) {
+          // 30 min max lifetime
+          this.logger.info({ clientId, age }, "Client expired, closing");
           client.ws.close();
           this.clients.delete(clientId);
         }
@@ -189,7 +193,7 @@ export class WebSocketServerManager {
   closeAll(): void {
     for (const [, client] of this.clients) {
       if (client.ws.readyState === WebSocket.OPEN) {
-        client.ws.close(1001, 'Server shutting down');
+        client.ws.close(1001, "Server shutting down");
       }
     }
     this.clients.clear();

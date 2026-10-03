@@ -1,4 +1,4 @@
-import type { AnalysisResult } from '../models/index.js';
+import type { AnalysisResult } from "../models/index.js";
 
 export function resultToSarif(result: AnalysisResult) {
   const rulesMap = new Map<string, { name: string; desc: string }>();
@@ -9,15 +9,16 @@ export function resultToSarif(result: AnalysisResult) {
     }
   }
   return {
-    $schema: 'https://raw.githubusercontent.com/oasis-tcs/sarif-spec/master/Schemata/sarif-schema-2.1.0.json',
-    version: '2.1.0',
+    $schema:
+      "https://raw.githubusercontent.com/oasis-tcs/sarif-spec/master/Schemata/sarif-schema-2.1.0.json",
+    version: "2.1.0",
     runs: [
       {
         tool: {
           driver: {
-            name: 'CodeCity CyberDefense',
-            version: '0.1.0',
-            informationUri: 'https://github.com/codecity-cyberdefense',
+            name: "CodeCity CyberDefense",
+            version: "0.1.0",
+            informationUri: "https://github.com/codecity-cyberdefense",
             rules: [...rulesMap.entries()].map(([id, r]) => ({
               id,
               name: r.name,
@@ -29,7 +30,7 @@ export function resultToSarif(result: AnalysisResult) {
         results: result.files.flatMap((f) =>
           f.vulnerabilities.map((v) => ({
             ruleId: (v as unknown as { ruleId?: string }).ruleId ?? v.type,
-            level: v.severity === 'P0' ? 'error' : v.severity === 'P1' ? 'warning' : 'note',
+            level: v.severity === "P0" ? "error" : v.severity === "P1" ? "warning" : "note",
             message: { text: `${v.type}: ${v.message}` },
             locations: [
               {
@@ -39,7 +40,11 @@ export function resultToSarif(result: AnalysisResult) {
                 },
               },
             ],
-            properties: { severity: v.severity, score: v.score, provenance: (v as unknown as { provenance?: string }).provenance },
+            properties: {
+              severity: v.severity,
+              score: v.score,
+              provenance: (v as unknown as { provenance?: string }).provenance,
+            },
           })),
         ),
       },
