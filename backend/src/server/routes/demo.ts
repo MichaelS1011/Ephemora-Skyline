@@ -4,6 +4,10 @@ import type { AnalysisResult, FileAnalysis } from "../../models/index.js";
  * Synthetic demo repository — a plausible multi-district codebase that flows
  * through the same cityMapper as real analyses. Deterministic (seeded PRNG)
  * so the demo city always looks the same.
+ *
+ * Nothing here was analyzed: the summary is arithmetic over the files below,
+ * the findings say `provenance: "demo"`, and every engine is declared off. A
+ * demo must never arrive carrying an analyzer's claims.
  */
 
 // mulberry32 — tiny seeded PRNG
@@ -61,7 +65,7 @@ const HOOKS = [
   "useMediaQuery",
   "useOnClickOutside",
   "useScrollPosition",
-  "useWebsocket",
+  "useInterval",
 ];
 
 const STORES = ["authStore", "uiStore", "cartStore", "settingsStore", "editorStore", "playerStore"];
@@ -76,7 +80,7 @@ const SERVICES = [
   "security-scanner",
   "city-mapper",
   "orchestrator",
-  "websocket-server",
+  "metrics-aggregator",
   "logger",
   "rate-limiter",
   "database",
@@ -250,6 +254,7 @@ export function getDemoResult(): AnalysisResult {
       vulnerabilities: (spec.findings ?? []).map((f) => ({
         ...f,
         score: f.severity === "P0" ? 10 : f.severity === "P1" ? 7 : 3,
+        provenance: "demo",
       })),
     };
   });
@@ -262,9 +267,30 @@ export function getDemoResult(): AnalysisResult {
   const languages: Record<string, number> = {};
   for (const f of files) languages[f.language] = (languages[f.language] ?? 0) + f.lines.code;
 
-  const dirs = new Set(
-    files.map((f) => f.path.split("/")[0]).filter((d): d is string => Boolean(d)),
-  );
+  // Everything the summary claims is derived from the files above — the same
+  // arithmetic the orchestrator runs. Invented constants here once said
+  // "max complexity 42" about a dataset whose own files peaked at 18.
+  const scores = files.map((f) => f.complexity.cyclomatic);
+  const avgOf = (list: number[]): number =>
+    list.length > 0 ? Math.round((list.reduce((a, b) => a + b, 0) / list.length) * 100) / 100 : 0;
+
+  const byDir = new Map<string, FileAnalysis[]>();
+  for (const f of files) {
+    const top = f.path.split("/")[0];
+    if (!top) continue;
+    const bucket = byDir.get(top);
+    if (bucket) bucket.push(f);
+    else byDir.set(top, [f]);
+  }
+
+  const directories = [...byDir].map(([dirPath, inDir]) => ({
+    path: dirPath,
+    fileCount: inDir.length,
+    totalLines: inDir.reduce((s, f) => s + f.lines.total, 0),
+    avgComplexity: avgOf(inDir.map((f) => f.complexity.cyclomatic)),
+    vulnerabilityCount: inDir.reduce((s, f) => s + f.vulnerabilities.length, 0),
+    children: [],
+  }));
 
   return {
     id: "demo-001",
@@ -272,32 +298,34 @@ export function getDemoResult(): AnalysisResult {
       owner: "codecity",
       name: "demo-city",
       branch: "main",
-      cloneUrl: "https://github.com/codecity/demo-city",
+      cloneUrl: "",
       analyzedAt: new Date().toISOString(),
     },
     files,
-    directories: [...dirs].map((d) => ({
-      path: d,
-      fileCount: files.filter((f) => f.path.startsWith(d + "/")).length,
-      totalLines: files
-        .filter((f) => f.path.startsWith(d + "/"))
-        .reduce((s, f) => s + f.lines.total, 0),
-      avgComplexity: 20,
-      vulnerabilityCount: files
-        .filter((f) => f.path.startsWith(d + "/"))
-        .reduce((s, f) => s + f.vulnerabilities.length, 0),
-      children: [],
-    })),
+    directories,
     summary: {
       totalFiles: files.length,
-      totalDirectories: dirs.size,
+      totalDirectories: byDir.size,
       totalLines,
-      avgCyclomatic: 14,
-      maxCyclomatic: 42,
+      avgCyclomatic: avgOf(scores),
+      maxCyclomatic: scores.length > 0 ? Math.max(...scores) : 0,
       languages,
       totalVulnerabilities: totalVulns,
       vulnerabilitiesBySeverity: bySeverity,
       languagesByLines: languages,
+      // Nothing scanned any of this. Declaring the engines as absent is the
+      // difference between "the city is clean" and "nobody looked".
+      scanProvenance: {
+        regex: false,
+        gitleaks: false,
+        semgrep: false,
+        dependencies: false,
+        osv: false,
+        ruff: false,
+        churn: false,
+        duplicates: false,
+        coverage: false,
+      },
     },
     createdAt: new Date().toISOString(),
     status: "complete",

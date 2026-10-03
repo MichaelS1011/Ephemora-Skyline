@@ -6,7 +6,7 @@
  * 2. Enumerate files → read content → compute metrics
  * 3. Security scan → tag vulnerabilities
  * 4. Aggregate → produce AnalysisResult
- * 5. Stream progress via WebSocket events
+ * 5. Emit progress events for the job-progress map (GET /api/status/:id)
  */
 
 import { promises as fs } from "fs";
@@ -17,7 +17,7 @@ import type {
   FileAnalysis,
   ProjectSummary,
   GitHubRepo,
-  WebSocketEvent,
+  ProgressEvent,
 } from "../../models/index.js";
 import {
   countLines,
@@ -37,7 +37,7 @@ import { IgnoreMatcher } from "./gitignore.js";
 import type { SecurityScanner } from "../security/scanner.js";
 
 interface ProgressCallback {
-  (event: WebSocketEvent): void;
+  (event: ProgressEvent): void;
 }
 
 const MAX_FILE_SIZE = 2 * 1024 * 1024; // 2MB max per file
@@ -115,18 +115,14 @@ export class AnalysisOrchestrator {
     const startTime = Date.now();
     if (config) this.scanner.setConfig(config);
 
-    const emit = (type: WebSocketEvent["type"], payload: Record<string, unknown>) => {
-      const event: WebSocketEvent = {
-        type,
-        payload,
-        timestamp: new Date().toISOString(),
-      };
-      this.logger.debug({ type }, "Progress event");
+    const emit = (progress: number, stage: string) => {
+      const event: ProgressEvent = { progress, stage };
+      this.logger.debug({ progress, stage }, "Progress event");
       progressCallback?.(event);
     };
 
     // --- Phase 2: Enumerate files ---
-    emit("analysis_progress", { progress: 25, stage: "Enumerating files" });
+    emit(25, "Enumerating files");
 
     const allFiles: string[] = [];
     const gitignore = new IgnoreMatcher();
@@ -140,7 +136,7 @@ export class AnalysisOrchestrator {
     );
 
     // --- Phase 3: Parse + Scan each file ---
-    emit("analysis_progress", { progress: 30, stage: "Parsing files", totalFiles });
+    emit(30, "Parsing files");
 
     // Whole-clone batch scans (gitleaks, semgrep) replace per-file process
     // spawns — the facade merges their findings into the per-file loop.
@@ -171,17 +167,11 @@ export class AnalysisOrchestrator {
     for (let i = 0; i < candidateFiles.length; i += PARALLEL_BATCH_SIZE) {
       const batch = candidateFiles.slice(i, i + PARALLEL_BATCH_SIZE);
       const results = await Promise.all(
-        batch.map(async ({ fullPath, relativePath }, idx) => {
-          const fileIndex = i + idx;
+        batch.map(async ({ fullPath, relativePath }) => {
           try {
             const content = await fs.readFile(fullPath, "utf-8");
             // Skip oversized files
             if (content.length > MAX_FILE_SIZE) return null;
-
-            emit("file_parsing_started", {
-              file: relativePath,
-              progress: Math.round((fileIndex / totalFiles) * 60) + 30,
-            });
 
             const lines = countLines(content);
             const language = detectLanguage(relativePath);
@@ -222,11 +212,6 @@ export class AnalysisOrchestrator {
               vulnerabilities,
             };
 
-            emit("file_parsed", {
-              file: relativePath,
-              progress: Math.round((fileIndex / totalFiles) * 60) + 30,
-            });
-
             contentMap.set(relativePath, content);
             return analysis;
           } catch {
@@ -263,7 +248,7 @@ export class AnalysisOrchestrator {
       coverageRan: false,
     };
     try {
-      emit("analysis_progress", { progress: 88, stage: "Deep scan (semgrep + gitleaks)" });
+      emit(88, "Deep scan (semgrep + gitleaks)");
       const batch = await this.scanner.scanRepositoryBatch(dirPath, fileAnalyses, {
         // The "Deep" profile is the only one that promises secrets in git
         // history, and nothing used to read that toggle: repo.fullHistory is a
@@ -280,7 +265,7 @@ export class AnalysisOrchestrator {
 
     // --- Phase 3c: Dependency scan (npm audit) — supply-chain findings ---
     try {
-      emit("analysis_progress", { progress: 89, stage: "Dependency audit (npm)" });
+      emit(89, "Dependency audit (npm)");
       const deps = await this.scanner.scanDependencies(dirPath, fileAnalyses);
       scanProvenance.depsRan = deps.executed;
     } catch (e) {
@@ -290,7 +275,7 @@ export class AnalysisOrchestrator {
     // --- Phase 3d: Git churn (hotspot analysis, clone-based scans only) ---
     try {
       if (await hasGitHistory(dirPath)) {
-        emit("analysis_progress", { progress: 90, stage: "Analyzing git history" });
+        emit(90, "Analyzing git history");
         const churn = await collectGitChurn(dirPath);
         if (churn.meaningful) {
           for (const f of fileAnalyses) {
@@ -312,7 +297,7 @@ export class AnalysisOrchestrator {
     // --- Phase 3e: Code duplicates (copy-paste detection) ---
     try {
       if (contentMap.size > 1) {
-        emit("analysis_progress", { progress: 91, stage: "Detecting code duplicates" });
+        emit(91, "Detecting code duplicates");
         const dup = detectDuplicates(contentMap);
         for (const f of fileAnalyses) {
           const partners = dup.byPath.get(f.path);
@@ -327,7 +312,7 @@ export class AnalysisOrchestrator {
 
     // --- Phase 3f: Test coverage (read existing lcov reports, never run tests) ---
     try {
-      emit("analysis_progress", { progress: 92, stage: "Reading coverage reports" });
+      emit(92, "Reading coverage reports");
       const cov = await collectCoverage(dirPath);
       if (cov.source) {
         for (const f of fileAnalyses) {
@@ -380,7 +365,7 @@ export class AnalysisOrchestrator {
       },
     };
 
-    emit("analysis_progress", { progress: 95, stage: "Finalizing results" });
+    emit(95, "Finalizing results");
 
     const result: AnalysisResult = {
       id: analysisId,
@@ -392,19 +377,15 @@ export class AnalysisOrchestrator {
       status: "complete",
     };
 
-    emit("analysis_progress", {
-      progress: 100,
-      stage: "Analysis complete",
-      totalFiles: result.summary.totalFiles,
-    });
-    emit("analysis_complete", {
-      id: analysisId,
-      totalFiles: result.summary.totalFiles,
-      duration: Date.now() - startTime,
-    });
+    emit(100, "Analysis complete");
 
     this.logger.info(
-      { analysisId, totalFiles: result.summary.totalFiles, totalVulns },
+      {
+        analysisId,
+        totalFiles: result.summary.totalFiles,
+        totalVulns,
+        durationMs: Date.now() - startTime,
+      },
       "Analysis complete",
     );
     return result;

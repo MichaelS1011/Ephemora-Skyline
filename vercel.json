@@ -7,10 +7,6 @@
       "destination": "https://codecity-backend.onrender.com/api/:path*"
     },
     {
-      "source": "/ws/:path*",
-      "destination": "https://codecity-backend.onrender.com/ws/:path*"
-    },
-    {
       "source": "/(.*)",
       "destination": "/index.html"
     }

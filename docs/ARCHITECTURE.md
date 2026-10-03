@@ -38,7 +38,7 @@ codecity-cyberdefense/          # internal package name (owner-locked)
 ```
 backend/src/
 ├── server/
-│   ├── index.ts            # Express app + HTTP + WebSocket server
+│   ├── index.ts            # Express app + HTTP server
 │   └── routes/
 │       ├── analyze.ts      # POST /api/analyze handler
 │       ├── demo.ts         # GET /api/demo — demo data
@@ -58,7 +58,7 @@ backend/src/
 │       ├── SecurityIssue
 │       ├── AnalysisResult
 │       ├── ProjectSummary
-│       └── WebSocketEvent
+│       └── ProgressEvent
 ├── parser/                 # Code parser: lines, complexity, functions
 ├── scanner/                # Security pattern matching
 ├── ai/                     # AI integration (future)
@@ -72,14 +72,14 @@ backend/src/
 2. File Parser → per file: lines, languages, cyclomatic/cognitive complexity
 3. SecurityScanner → pattern matching for vulnerabilities (P0/P1/P2)
 4. Analyzer Orchestrator → aggregate the result → AnalysisResult
-5. WebSocket / polling → send progress to the frontend
+5. Progress events → job-progress map → the frontend polls GET /api/status/:id
 ```
 
 ### API Design
 
 - **Asynchronous**: `POST /api/analyze` starts the analysis in the background and returns an `analysisId` immediately
 - **Polling**: `GET /api/result/:id/city` and `GET /api/status/:id` for status queries
-- **WebSocket**: `/ws` for real-time updates during analysis
+- **Progress**: `GET /api/status/:id` only — there is no socket, the frontend polls it every 2 s
 - **In-memory store**: `Map<string, AnalysisResult>` — no persistence (for PoC/development)
 
 ### Security Middleware
@@ -105,7 +105,7 @@ frontend/src/
 │   └── SearchBar.tsx       # Repository URL input
 ├── renderer/               # 3D renderer components
 ├── hooks/
-│   └── useAnalysis.ts      # WebSocket analysis flow (progress, fallback polling)
+│   └── useLocalAnalysis.ts # folder pick → upload → poll /api/status for progress
 ├── stores/
 │   └── useStore.ts         # Zustand store (global state)
 ├── design/                 # Design system: colors, cyberpunk theme
@@ -184,7 +184,6 @@ render.yaml → Two services:
 - **system git** via execFile argument array (no shell, token via askpass)
 - **Pino** — logging
 - **Helmet + CORS + Rate Limit** — security
-- **WebSocket (ws)** — real-time communication
 
 ---
 

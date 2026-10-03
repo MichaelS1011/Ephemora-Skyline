@@ -1,9 +1,8 @@
 /**
- * CodeCity CyberDefense — Express + WebSocket Server
+ * CodeCity — local Express API server
  *
  * All analysis results live in a single `analysisStore`.
- * WebSocket progress is routed exclusively through the WS client socket;
- * HTTP endpoints use normal request/response.
+ * Analysis progress is served by GET /api/status/:id; the frontend polls it.
  */
 
 import type { Request, Response, NextFunction } from "express";
@@ -14,8 +13,6 @@ import helmet from "helmet";
 import rateLimit from "express-rate-limit";
 import dotenv from "dotenv";
 import http from "http";
-import type { WebSocket } from "ws";
-import { WebSocketServer } from "ws";
 import pino from "pino";
 
 import type { AnalysisResult } from "../models/index.js";
@@ -25,13 +22,12 @@ import { localOnlyRoute } from "./local-only.js";
 import { SecurityScanner } from "../services/security/scanner.js";
 import { getHealth } from "./routes/health.js";
 import { getDemoResult } from "./routes/demo.js";
-import { getJobProgress } from "./routes/job-progress.js";
+import { handleStatus } from "./routes/status.js";
 import { bindHost, isLoopbackHost } from "./bind-address.js";
 import { handleLocalAnalyze, pruneStaleUploadDirs } from "./routes/local-analyze.js";
 import { handleSource } from "./routes/source.js";
 import { handleUpdateCheck } from "./routes/update-check.js";
 import { handleTestRun, handleTestStatus } from "./routes/tests.js";
-import { WebSocketServerManager } from "../services/streaming/websocket-server.js";
 import { mapResultToCityData } from "../utils/cityMapper.js";
 import { resultToSarif } from "../utils/sarif.js";
 
@@ -137,8 +133,6 @@ const testRunLimiter = rateLimit({
   legacyHeaders: false,
   message: { error: "Too many test runs — give the finished one a moment." },
 });
-
-// ── WS analyze budget ─────────────────────────────────────────────────────
 
 // ── Middleware ─────────────────────────────────────────────────────────────
 // Behind a reverse proxy (nginx in compose, Render's router) express-rate-limit
@@ -269,27 +263,7 @@ app.get("/api/result/:id/source/:fileId", readLimiter, (req: Request, res: Respo
 
 // GET /api/status/:id — poll analysis progress
 app.get("/api/status/:id", (req: Request, res: Response): void => {
-  const id = req.params["id"];
-  if (!id || Array.isArray(id)) {
-    res.status(400).json({ error: "Missing analysis ID" });
-    return;
-  }
-
-  const result = analysisStore.get(id);
-  if (!result) {
-    res.status(404).json({ error: "Analysis not found" });
-    return;
-  }
-
-  const live = getJobProgress(id);
-  res.json({
-    status: result.status,
-    progress: result.status === "complete" ? 100 : (live?.progress ?? 0),
-    stage: result.status === "complete" ? "Complete" : live?.stage,
-    filesParsed: result.files.length,
-    totalFiles: result.summary.totalFiles,
-    error: result.status === "failed" ? result.error : undefined,
-  });
+  handleStatus(req, res, analysisStore);
 });
 
 // ── Error handling ─────────────────────────────────────────────────────────
@@ -298,64 +272,12 @@ app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
   res.status(500).json({ error: "Internal server error" });
 });
 
-// ── WebSocket server ───────────────────────────────────────────────────────
-const wss = new WebSocketServer({ server, path: "/ws" });
-const wsManager = new WebSocketServerManager(logger);
-
-wsManager.startHeartbeat();
-wsManager.startCleanup();
-
-wss.on("connection", (wsClient: WebSocket, request: http.IncomingMessage) => {
-  const clientId = crypto.randomUUID();
-  logger.info({ clientId }, "WebSocket client connected");
-
-  // Register with manager for heartbeat + cleanup tracking
-  wsManager.handleConnection(wsClient, request.url ?? "/ws");
-
-  // Allow 5s for client activity before defaulting to demo data
-  const startAnalysisTimeout = setTimeout(() => {
-    if (wsClient.readyState === wsClient.OPEN) {
-      logger.info({ clientId }, "No activity received — sending demo data");
-      try {
-        wsClient.send(
-          JSON.stringify({
-            type: "analysis_progress",
-            payload: { progress: 0, stage: "Loading demo data...", connected: true },
-            timestamp: new Date().toISOString(),
-          }),
-        );
-        // Stream the demo result as a completed analysis
-        const demo = getDemoResult();
-        analysisStore.set(demo.id, demo);
-        wsClient.send(
-          JSON.stringify({
-            type: "analysis_complete",
-            payload: { id: demo.id, totalFiles: demo.summary.totalFiles },
-            timestamp: new Date().toISOString(),
-          }),
-        );
-      } catch {
-        /* client already closed */
-      }
-    }
-  }, 5000);
-
-  wsClient.on("close", () => {
-    clearTimeout(startAnalysisTimeout);
-    logger.info({ clientId }, "WebSocket client disconnected");
-  });
-});
-
 // ── Graceful shutdown ──────────────────────────────────────────────────────
 const shutdown = (signal: string) => {
   logger.info({ signal }, "Shutdown signal received");
-  wsManager.closeAll();
   server.close(() => {
     logger.info("HTTP server closed");
-    wss.close(() => {
-      logger.info("WebSocket server closed");
-      process.exit(0);
-    });
+    process.exit(0);
   });
 };
 

@@ -62,7 +62,7 @@ A fifth check runs in CI: `npm audit --audit-level high` must report no high-sev
 
 | Layer    | Technology                                                                            |
 | -------- | ------------------------------------------------------------------------------------- |
-| Backend  | Express 4, TypeScript (ESM), pino logging, WebSocket (`ws`)                           |
+| Backend  | Express 4, TypeScript (ESM), pino logging                                             |
 | Git      | system `git` via `execFile` — argument array, never a shell string                    |
 | Security | regex heuristics + `gitleaks` (secrets) + `semgrep` (AST) + `npm audit` (deps)        |
 | Frontend | Vite 8, React 19, three.js r186 (`@react-three/fiber` 9), Zustand 5, Tailwind CSS 3.4 |
@@ -82,8 +82,7 @@ Ephemora-Skyline/
 │       ├── services/
 │       │   ├── analyzer/    # pipeline: parse -> scan -> aggregate (orchestrator.ts)
 │       │   ├── github/      # clone-manager (execFile git) + API client
-│       │   ├── security/    # scanner facade + adapters (regex / gitleaks / semgrep / dep)
-│       │   └── streaming/   # WebSocket progress
+│       │   └── security/    # scanner facade + adapters (regex / gitleaks / semgrep / dep)
 │       ├── models/          # CityData, Finding, FileNode
 │       └── utils/           # cityMapper (city layout) + SARIF export
 ├── frontend/                # React + three.js visualization (:3010 via Vite)

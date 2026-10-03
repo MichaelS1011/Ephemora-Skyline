@@ -6,7 +6,7 @@ import { promises as fs } from "fs";
 import os from "os";
 import path from "path";
 import { deleteJobProgress } from "./job-progress.js";
-import { makeSkeleton, makeOnEvent, failJob } from "./job-progress.js";
+import { makeSkeleton, makeProgressWriter, failJob } from "./job-progress.js";
 import { resolveConfig, type ResolvedScanConfig } from "../../services/security/scan-config.js";
 
 /** Upload caps — a local dev folder should always fit comfortably */
@@ -223,7 +223,7 @@ async function runLocalAnalysis(
   },
   config?: ResolvedScanConfig,
 ): Promise<void> {
-  const { onEvent } = makeOnEvent(analysisId);
+  const onEvent = makeProgressWriter(analysisId);
   try {
     const result = await orchestrator.analyzeDirectory(
       analysisId,

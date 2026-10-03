@@ -162,19 +162,12 @@ export interface ProjectSummary {
   };
 }
 
-export type WebSocketEventType =
-  | "repo_cloned"
-  | "file_parsing_started"
-  | "file_parsed"
-  | "building_generated"
-  | "analysis_progress"
-  | "analysis_complete"
-  | "vulnerability_found"
-  | "connected"
-  | "error";
-
-export interface WebSocketEvent {
-  type: WebSocketEventType;
-  payload: Record<string, unknown>;
-  timestamp: string;
+/**
+ * One step of the analysis pipeline. The job-progress map holds the latest of
+ * these and `GET /api/status/:id` serves it — the frontend polls that endpoint,
+ * there is no socket to feed.
+ */
+export interface ProgressEvent {
+  progress: number;
+  stage: string;
 }
