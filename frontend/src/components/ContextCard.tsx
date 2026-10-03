@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useStore } from "../stores/useStore";
 import { explainDistrictDraw, resolveDir, tourStops } from "../city/layout";
+import { describeGitignoreSkips } from "../city/provenance";
 import { topLanguages, languageColor, SEVERITY_COLOR, authorColor } from "../city/palette";
 import { MarkerLegend } from "./CoachMarks";
 
@@ -57,13 +58,7 @@ export function ContextCard() {
     .map((language) => language.name)
     .join(", ");
   const drawLines = explainDistrictDraw(dir, cityData.limits);
-  const skipped = cityData.skippedByGitignore;
-  const skippedParts = skipped
-    ? [
-        skipped.files > 0 ? `${skipped.files.toLocaleString()} files` : "",
-        skipped.directories > 0 ? `${skipped.directories.toLocaleString()} folders` : "",
-      ].filter(Boolean)
-    : [];
+  const skipped = describeGitignoreSkips(cityData.skippedByGitignore);
   const langs = topLanguages(dir.languages, 4);
   const totalLangLines = Object.values(dir.languages).reduce((sum, lines) => sum + lines, 0) || 1;
   const stops = tourStops(cityData);
@@ -152,7 +147,7 @@ export function ContextCard() {
         </div>
       </dl>
 
-      {(dataLines > 0 || drawLines.length > 0 || (isRoot && skippedParts.length > 0)) && (
+      {(dataLines > 0 || drawLines.length > 0 || (isRoot && skipped !== "")) && (
         <div className="-mt-1 mb-1 space-y-1.5">
           {dataLines > 0 && (
             <div
@@ -164,18 +159,15 @@ export function ContextCard() {
               {dataLabels ? ` (${dataLabels})` : ""}
             </div>
           )}
-          {isRoot &&
-            skippedParts.length > 0 &&
-            skipped &&
-            (skipped.files > 0 || skipped.directories > 0) && (
-              <div
-                className="text-[12px]"
-                style={{ color: "#aaa69c" }}
-                title="Every folder's own .gitignore decides what the scan reads. What it keeps out is not part of this city."
-              >
-                {skippedParts.join(" and ")} kept out by .gitignore
-              </div>
-            )}
+          {isRoot && skipped !== "" && (
+            <div
+              className="text-[12px]"
+              style={{ color: "#aaa69c" }}
+              title="Every folder's own .gitignore decides what the scan reads. What it keeps out is not part of this city."
+            >
+              {skipped} kept out by .gitignore
+            </div>
+          )}
           {drawLines.map((line) => (
             <div
               key={line}

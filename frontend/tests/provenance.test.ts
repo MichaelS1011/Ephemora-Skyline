@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { scanVerdict } from "../src/city/provenance";
+import { describeGitignoreSkips, scanVerdict } from "../src/city/provenance";
 import type { ScanProvenance } from "../src/city/types";
 
 /** Every engine ran — the baseline a claim of "clear" is earned against. */
@@ -67,5 +67,23 @@ describe("scanVerdict", () => {
     expect(scanVerdict({ regex: true, gitleaks: true, semgrep: true }, 0, {})).toEqual({
       kind: "clear",
     });
+  });
+});
+
+describe("describeGitignoreSkips", () => {
+  it("counts in the grammatical number the scan found", () => {
+    expect(describeGitignoreSkips({ files: 3, directories: 1 })).toBe("3 files and 1 folder");
+    expect(describeGitignoreSkips({ files: 1, directories: 1 })).toBe("1 file and 1 folder");
+    expect(describeGitignoreSkips({ files: 49, directories: 3 })).toBe("49 files and 3 folders");
+  });
+
+  it("names only what was actually kept out", () => {
+    expect(describeGitignoreSkips({ files: 0, directories: 2 })).toBe("2 folders");
+    expect(describeGitignoreSkips({ files: 7, directories: 0 })).toBe("7 files");
+    expect(describeGitignoreSkips({ files: 0, directories: 0 })).toBe("");
+  });
+
+  it("stays silent for a result scanned before the counter existed", () => {
+    expect(describeGitignoreSkips(undefined)).toBe("");
   });
 });

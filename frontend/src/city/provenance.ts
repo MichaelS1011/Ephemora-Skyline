@@ -29,6 +29,23 @@ const SECURITY_ENGINES: { key: keyof ScanProvenance; label: string; needs?: RegE
   { key: "osv", label: "osv-scanner", needs: /^Python$/ },
 ];
 
+/**
+ * "one file kept out" and "49 files kept out" are different statements about
+ * the same scan, and the count is what the user weighs. Both panels read this
+ * so the wording cannot drift apart between them.
+ */
+export function describeGitignoreSkips(skipped?: { files: number; directories: number }): string {
+  if (!skipped) return "";
+  const parts: string[] = [];
+  if (skipped.files > 0)
+    parts.push(`${skipped.files.toLocaleString()} ${skipped.files === 1 ? "file" : "files"}`);
+  if (skipped.directories > 0)
+    parts.push(
+      `${skipped.directories.toLocaleString()} ${skipped.directories === 1 ? "folder" : "folders"}`,
+    );
+  return parts.join(" and ");
+}
+
 export function scanVerdict(
   provenance: ScanProvenance | undefined,
   findingsTotal: number,

@@ -204,6 +204,15 @@ describe("project overview", () => {
     expect(text).not.toContain("lines of data");
     expect(text).not.toContain(".gitignore");
   });
+
+  it("counts one kept-out folder in the singular", async () => {
+    const text = await show(
+      <ContextCard />,
+      cityData({ skippedByGitignore: { files: 3, directories: 1 } }),
+    );
+    expect(text).toContain("3 files and 1 folder kept out by .gitignore");
+    expect(text).not.toContain("1 folders");
+  });
 });
 
 describe("scan summary", () => {
