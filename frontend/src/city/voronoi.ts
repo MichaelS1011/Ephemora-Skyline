@@ -48,9 +48,13 @@ export function seedSites(sites: VoronoiSite[], halfExtent: number): Point[] {
   let consumed = 0;
   const radiusByRank = new Map<string, number>();
   for (const site of sorted) {
-    // Heavier sites start closer to the centre
-    const frac = (consumed + 0.5) / sites.length;
-    consumed += Math.max(site.weight, 1e-6) / total;
+    // Equal-area band centre (phyllotaxis principle): `consumed` is already
+    // the cumulative weight fraction 0..1, so the seed sits at the radius
+    // whose disc covers half of the site's own area share. Heavier sites
+    // start closer to the centre, the lightest near halfExtent.
+    const share = Math.max(site.weight, 1e-6) / total;
+    const frac = Math.min(consumed + share / 2, 1);
+    consumed += share;
     radiusByRank.set(site.key, Math.sqrt(frac) * halfExtent);
   }
   return sites.map((site, i) => {
@@ -112,10 +116,27 @@ export function polygonCentroid(polygon: Point[]): Point {
   return { x: cx / (6 * a), z: cz / (6 * a) };
 }
 
-/** Distance from centroid to the closest vertex — usable "incircle" proxy */
+/**
+ * Incircle proxy: distance from `c` to the closest polygon edge *segment*
+ * (perpendicular foot clamped to the segment). This is the largest radius
+ * guaranteed to stay inside the polygon; centroid→vertex would overestimate
+ * it by 1/cos of the edge's angular offset (≥1.0x, several x for slivers).
+ */
 export function polygonMinRadius(polygon: Point[], c: Point): number {
   if (polygon.length === 0) return 0;
-  return Math.min(...polygon.map((v) => Math.hypot(v.x - c.x, v.z - c.z)));
+  let best = Infinity;
+  for (let i = 0; i < polygon.length; i++) {
+    const a = polygon[i]!;
+    const b = polygon[(i + 1) % polygon.length]!;
+    const dx = b.x - a.x;
+    const dz = b.z - a.z;
+    const len2 = dx * dx + dz * dz;
+    const t =
+      len2 === 0 ? 0 : Math.max(0, Math.min(1, ((c.x - a.x) * dx + (c.z - a.z) * dz) / len2));
+    const dist = Math.hypot(c.x - (a.x + t * dx), c.z - (a.z + t * dz));
+    if (dist < best) best = dist;
+  }
+  return best;
 }
 
 /**
