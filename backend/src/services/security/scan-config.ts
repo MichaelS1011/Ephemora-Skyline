@@ -328,6 +328,14 @@ export function languageOfPath(filePath: string): string {
     ".json": "json",
     ".yaml": "yaml",
     ".yml": "yaml",
+    ".sh": "shell",
+    ".bash": "shell",
+    ".sql": "sql",
+    ".tf": "terraform",
+    ".php": "php",
+    ".cs": "csharp",
+    ".kt": "kotlin",
+    ".swift": "swift",
   };
   return map[ext] ?? "other";
 }

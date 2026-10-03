@@ -27,6 +27,14 @@ export function detectLanguage(filePath: string): string {
     ".json": "JSON",
     ".yaml": "YAML",
     ".yml": "YAML",
+    ".sh": "Shell",
+    ".bash": "Shell",
+    ".sql": "SQL",
+    ".tf": "Terraform",
+    ".php": "PHP",
+    ".cs": "CSharp",
+    ".kt": "Kotlin",
+    ".swift": "Swift",
   };
   return langMap[ext] || "Other";
 }
@@ -40,7 +48,7 @@ export function computeAvgComplexity(files: FileAnalysis[]): number {
 
 /** Languages that comment with `#` instead of `//`. */
 function isHashCommentLanguage(language?: string): boolean {
-  return language === "Python" || language === "Ruby";
+  return language === "Python" || language === "Ruby" || language === "Shell";
 }
 
 /**

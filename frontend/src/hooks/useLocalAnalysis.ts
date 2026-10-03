@@ -24,6 +24,16 @@ const SUPPORTED_EXTENSIONS = new Set([
   ".json",
   ".yaml",
   ".yml",
+  // Keep identical to SUPPORTED_EXTENSIONS in the backend orchestrator — the
+  // parity test in backend/tests/scan-surface.test.ts compares the two lists.
+  ".sh",
+  ".bash",
+  ".sql",
+  ".tf",
+  ".php",
+  ".cs",
+  ".kt",
+  ".swift",
 ]);
 
 /** Directory names that never contain relevant source code */

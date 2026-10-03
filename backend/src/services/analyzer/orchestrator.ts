@@ -38,7 +38,7 @@ interface ProgressCallback {
 }
 
 const MAX_FILE_SIZE = 2 * 1024 * 1024; // 2MB max per file
-const SUPPORTED_EXTENSIONS = new Set([
+export const SUPPORTED_EXTENSIONS = new Set([
   ".ts",
   ".tsx",
   ".js",
@@ -56,6 +56,16 @@ const SUPPORTED_EXTENSIONS = new Set([
   ".json",
   ".yaml",
   ".yml",
+  // Shell/SQL/infra files are where deploy accidents live — a folder scan that
+  // never uploads them cannot claim to have looked at the project's scripts.
+  ".sh",
+  ".bash",
+  ".sql",
+  ".tf",
+  ".php",
+  ".cs",
+  ".kt",
+  ".swift",
 ]);
 
 export class AnalysisOrchestrator {

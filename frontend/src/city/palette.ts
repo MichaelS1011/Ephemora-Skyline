@@ -29,6 +29,14 @@ export const LANGUAGE_COLORS: Record<string, string> = {
   YAML: "#7fc4b0",
   Config: "#9aa7b8",
   Shell: "#89c98f",
+  // Script, query and infra files join the scan — hues chosen for the free
+  // bands of this palette (olive, orchid, steel, indigo, brick), because the
+  // blue/green/amber band was already taken by the languages above.
+  SQL: "#b6c94f",
+  Terraform: "#bd5fc9",
+  PHP: "#5fb0c9",
+  Kotlin: "#6f7ce0",
+  Swift: "#e0655f",
   Other: "#7f8ea3",
 };
 

@@ -9,6 +9,11 @@ interface ScanPattern {
   message: string;
   fix?: string;
   score: number;
+  /**
+   * Only paths matching this produce the finding. An install hook is a fact
+   * about a manifest, not about a source file that happens to mention one.
+   */
+  paths?: RegExp;
 }
 
 export const REGEX_PATTERNS: ScanPattern[] = [
@@ -130,7 +135,65 @@ export const REGEX_PATTERNS: ScanPattern[] = [
     fix: "Use HTTPS for all API calls",
     score: 5,
   },
+  {
+    // Deploy accidents live in shell scripts and manifests, and until now the
+    // scan never even uploaded those files.
+    regex: /^\s*"(?:preinstall|postinstall|prepublish|prepublishOnly)"\s*:/gm,
+    paths: /(?:^|\/)package\.json$/,
+    type: "INSTALL_HOOKS",
+    severity: "P1",
+    message: "Automatic install hook — code that runs on every machine that installs this",
+    fix: "Expose a documented script instead of a lifecycle hook, so setup stays a deliberate action",
+    score: 7,
+  },
+  {
+    regex: /\b(?:curl|wget)\b[^|\n]{0,200}\|\s*(?:sudo\s+)?(?:bash|sh|zsh|python\d?(?:\.\d+)?)\b/g,
+    type: "CURL_PIPE_BASH",
+    severity: "P0",
+    message: "Downloaded script executed without an integrity check",
+    fix: "Download to a file, verify its checksum or signature, then run it",
+    score: 9,
+  },
+  {
+    regex: /\bchmod\b[^\n]*?(?:\b[0-7]?77\b|\ba\+w\b|\bgo\+w\b|\bo\+w\b)/g,
+    type: "WORLD_WRITABLE",
+    severity: "P1",
+    message: "World-writable permission — any local user can modify or replace the target",
+    fix: "Use the narrowest permission that works (typically 755 for a directory, 644 for a file)",
+    score: 6,
+  },
+  {
+    regex:
+      /(?:--insecure\b|--no-check-certificate\b|verify\s*=\s*false\b|rejectUnauthorized\s*:\s*false\b|InsecureSkipVerify\s*:\s*true\b|NODE_TLS_REJECT_UNAUTHORIZED\s*=\s*0\b|sslmode\s*=\s*disable\b)/gi,
+    type: "TLS_VERIFICATION_DISABLED",
+    severity: "P0",
+    message: "TLS certificate validation switched off — the connection is open to interception",
+    fix: "Fix the certificate (or the trust store); never disable verification to make a call succeed",
+    score: 9,
+  },
+  {
+    regex:
+      /\brm\s+(?:-[a-z]+\s+)*(?:\/(?:$|[\s*])|--no-preserve-root)|(?:^|[\s;&(])dd\s+[^\n]*\bof=\/dev\//gm,
+    type: "DESTRUCTIVE_COMMAND",
+    severity: "P0",
+    message: "Destructive command targets the filesystem root or a raw device",
+    fix: "Refuse absolute or unset paths before deleting, and never write to a device node from a script",
+    score: 10,
+  },
 ];
+
+/**
+ * Runtime-danger claims: a hook that installs code, a command that wipes the
+ * disk. In a test file such a string is a description, not a machine about to
+ * act — the finding stays, but as hygiene (P2) instead of an alarm.
+ */
+const OPERATIONAL_TYPES = new Set([
+  "INSTALL_HOOKS",
+  "CURL_PIPE_BASH",
+  "WORLD_WRITABLE",
+  "TLS_VERIFICATION_DISABLED",
+  "DESTRUCTIVE_COMMAND",
+]);
 
 export class RegexAdapter implements ScannerAdapter {
   readonly id = "regex";
@@ -246,6 +309,14 @@ export class RegexAdapter implements ScannerAdapter {
       // Python projects otherwise)
       if (pattern.type === "LOOSE_EQUALITY" && !isJsFamily) continue;
 
+      // Path gating: an install hook is a fact about a manifest, not about a
+      // source file that happens to name one.
+      if (pattern.paths && !pattern.paths.test(filePath)) continue;
+
+      // A .sql file IS the query language — every statement in a migration
+      // would otherwise read as an injection and bury the real findings.
+      if (pattern.type === "SQL_INJECTION" && ext === ".sql") continue;
+
       // Local regex instance prevents race conditions across concurrent file scans
       const regex = new RegExp(pattern.regex.source, pattern.regex.flags);
       let match: RegExpExecArray | null;
@@ -285,7 +356,9 @@ export class RegexAdapter implements ScannerAdapter {
 
         // Downgrade severity for test files (except secrets which are always P0)
         let severity = pattern.severity;
-        if (isTestFile && pattern.type !== "HARDCODED_SECRET" && severity === "P0") {
+        if (isTestFile && OPERATIONAL_TYPES.has(pattern.type)) {
+          severity = "P2";
+        } else if (isTestFile && pattern.type !== "HARDCODED_SECRET" && severity === "P0") {
           severity = "P1";
         }
 

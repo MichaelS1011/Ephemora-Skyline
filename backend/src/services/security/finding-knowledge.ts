@@ -145,6 +145,34 @@ export const FINDING_KNOWLEDGE: Record<string, FindingKnowledge> = {
     explain:
       "A mutable default argument (list/dict/set) is shared across every call of the function — mutations leak between invocations. Use None and create a fresh value inside.",
   },
+  INSTALL_HOOKS: {
+    explain:
+      "A lifecycle hook (preinstall/postinstall) runs automatically whenever someone installs this package — on their machine, in their build, with their credentials. This is the standard route by which a careless or compromised dependency executes code.",
+    cwe: "CWE-829",
+    refUrl: "https://cwe.mitre.org/data/definitions/829.html",
+  },
+  CURL_PIPE_BASH: {
+    explain:
+      "A script is downloaded and executed in one step, so whatever the server returns that day runs with your privileges. A hijacked domain or a compromised server becomes code execution on this machine.",
+    cwe: "CWE-494",
+    refUrl: "https://cwe.mitre.org/data/definitions/494.html",
+  },
+  WORLD_WRITABLE: {
+    explain:
+      "The file or directory is writable by every user on the machine. Any local process can replace its content — a script, socket or config that something else executes becomes a path to running code as another user.",
+    cwe: "CWE-732",
+    refUrl: "https://cwe.mitre.org/data/definitions/732.html",
+  },
+  TLS_VERIFICATION_DISABLED: {
+    explain:
+      "Certificate validation is switched off, so the connection no longer proves who is on the other end. Anything a network attacker can route through can read or change the traffic — including credentials and tokens.",
+    cwe: "CWE-295",
+    refUrl: "https://cwe.mitre.org/data/definitions/295.html",
+  },
+  DESTRUCTIVE_COMMAND: {
+    explain:
+      "This deletes down the filesystem root or writes to a raw device. If the path above it is ever empty or unset, the command stops being a cleanup and destroys the machine it runs on.",
+  },
 };
 
 export function knowledgeFor(type: string): FindingKnowledge {
