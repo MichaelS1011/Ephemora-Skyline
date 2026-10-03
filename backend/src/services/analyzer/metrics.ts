@@ -56,13 +56,15 @@ export function computeAvgComplexity(files: FileAnalysis[]): number {
 }
 
 /** Formats that carry data, not behaviour. */
-const DATA_LANGUAGES = new Set(["JSON", "YAML", "Config", "Terraform", "Env"]);
+const DATA_LANGUAGES = new Set(["JSON", "YAML", "Config", "Terraform", "Env", "SQL"]);
 /**
- * Of those, the ones whose *lines* are not source text either. Terraform is the
- * difference: HCL has no branches to count, so a `.tf` file scores complexity 1
- * and is asked no code-shaped questions — but three lines of resource
- * declarations are still three lines of the project's infrastructure source, and
- * moving them next to a translation catalogue would understate the codebase.
+ * Of those, the ones whose *lines* are not source text either. Terraform and
+ * SQL are the difference: HCL has no branches to score, and a migration's
+ * CASE/ELSE is the query language's own grammar, not control flow — asking
+ * code-shaped questions of them manufactures towers out of format. But their
+ * lines are still the project's hand-written infrastructure and schema source,
+ * and moving them next to a translation catalogue would understate the
+ * codebase.
  */
 const DATA_LINE_LANGUAGES = new Set(["JSON", "YAML", "Config", "Env"]);
 const DATA_PATHS = /\.lock$|(^|\/)(requirements[^/]*\.txt|go\.sum|Pipfile|poetry\.lock)$/;
@@ -82,7 +84,7 @@ export function hasDataLines(filePath: string, language?: string): boolean {
   return DATA_LINE_LANGUAGES.has(language ?? detectLanguage(filePath)) || DATA_PATHS.test(filePath);
 }
 
-export type FileRole = "code" | "test";
+export type FileRole = "code" | "test" | "data";
 
 /**
  * Test folders and test files, in the conventions the ecosystems actually use.
@@ -101,13 +103,32 @@ const TEST_FILE =
  * `backend/tests/*.test.ts`, which made the tool call its own scanner test the
  * highest-risk file in the project. Findings there stay visible — they only
  * stop leading the ranking.
+ *
+ * Answers "code" or "test" only. Whether a file is DATA is not readable from
+ * the path alone — a manifest and a hand-written migration live in different
+ * worlds under the same folder habits — so that part of the decision is
+ * `roleOf`, which brings in the language.
  */
-export function roleOfPath(filePath: string): FileRole {
+export function roleOfPath(filePath: string): Exclude<FileRole, "data"> {
   const normalized = filePath.replace(/\\/g, "/");
   const base = normalized.split("/").pop() ?? normalized;
   if (TEST_DIR.test(normalized)) return "test";
   if (TEST_FILE.test(base)) return "test";
   return "code";
+}
+
+/**
+ * The full answer to "what is this file in the city".
+ *
+ * A data sheet — a lockfile, a generated schema, a translation catalogue —
+ * has lines and braces but no behaviour. Its height, complexity and sections
+ * are format, not structure, so the city may show it as a plot with its size
+ * and its findings (a secret in a lockfile is still a secret), never as a
+ * code tower competing for the skyline.
+ */
+export function roleOf(filePath: string, language?: string): FileRole {
+  if (isDataFile(filePath, language)) return "data";
+  return roleOfPath(filePath);
 }
 
 /** Languages that comment with `#` instead of `//`. */

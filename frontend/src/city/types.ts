@@ -52,8 +52,13 @@ export interface CityFinding {
   inTest?: boolean;
 }
 
-/** Which side of the codebase a file belongs to. */
-export type FileRole = "code" | "test";
+/**
+ * Which side of the codebase a file belongs to. "data" marks files that carry
+ * data and no behaviour (lockfiles, generated schemas, catalogues, env files,
+ * Terraform, SQL migrations) — the renderer must not draw them as complexity
+ * towers. Older payloads omit the value; treat absent as "code".
+ */
+export type FileRole = "code" | "test" | "data";
 
 export interface CityFile {
   id: string;

@@ -5,7 +5,13 @@ import path from "path";
 import { RegexAdapter } from "../src/services/security/adapters/regex-adapter.js";
 import { AnalysisOrchestrator } from "../src/services/analyzer/orchestrator.js";
 import { SecurityScanner } from "../src/services/security/scanner.js";
-import { hasDataLines, isDataFile } from "../src/services/analyzer/metrics.js";
+import {
+  estimateCyclomaticComplexity,
+  extractSections,
+  hasDataLines,
+  isDataFile,
+  roleOf,
+} from "../src/services/analyzer/metrics.js";
 
 /**
  * A lockfile, a translation catalogue and a generated schema are not code.
@@ -66,6 +72,13 @@ describe("the pipeline builds no structure out of data", () => {
       path.join(dir, "app.ts"),
       "export function real(): number { return 1 == 1 ? 2 : 3 }\n",
     );
+    await writeFile(
+      path.join(dir, "001_init.sql"),
+      `CREATE TABLE tiers (id INTEGER PRIMARY KEY, label TEXT);
+INSERT INTO tiers (id, label) VALUES (1, 'ada');
+SELECT id, CASE WHEN label = 'ada' THEN 'first' ELSE 'later' END FROM tiers ORDER BY id;
+`,
+    );
   });
 
   afterAll(async () => {
@@ -97,19 +110,61 @@ describe("the pipeline builds no structure out of data", () => {
     expect(code!.functions.length).toBeGreaterThan(0);
     expect(code!.lines.code).toBeGreaterThan(0);
   }, 30_000);
+
+  it("builds no complexity tower and no fake module out of a SQL migration", async () => {
+    // measured ungated: the branch counter reads the query grammar as control
+    // flow, and the section extractor invents a "module" block out of format
+    const migration =
+      "select id, case when label = 'ada' then 'first' else 'later' end from tiers order by id;\n";
+    expect(estimateCyclomaticComplexity(migration, "SQL")).toBeGreaterThan(1);
+    expect(extractSections("001_init.sql", migration, { functions: [], classes: [] })).toHaveLength(
+      1,
+    );
+
+    const orchestrator = new AnalysisOrchestrator(new SecurityScanner());
+    const result = await orchestrator.analyzeDirectory("sqlfile-test", dir, {
+      owner: "local",
+      name: "sqlfile-test",
+      branch: "main",
+      cloneUrl: "",
+      analyzedAt: new Date().toISOString(),
+    });
+    const sql = result.files.find((f) => f.path === "001_init.sql");
+    expect(sql).toBeTruthy();
+    expect(sql!.complexity.cyclomatic).toBe(1);
+    expect(sql!.functions).toEqual([]);
+    expect(sql!.classes).toEqual([]);
+    expect(sql!.sections ?? []).toEqual([]);
+    // its lines stay code lines — schema text the project wrote itself
+    expect(sql!.lines.code).toBeGreaterThan(0);
+  }, 30_000);
 });
 /**
  * Two questions about the same file, and they do not always agree. "Is this
  * code-shaped?" decides complexity, functions and code-shaped security rules.
- * "Are its lines data?" decides which total they join. Terraform is the case
- * where they differ: HCL has no branches to score, but three lines of resource
- * declarations are still the project's infrastructure source, and moving them
- * next to a translation catalogue would understate the codebase.
+ * "Are its lines data?" decides which total they join. Terraform and SQL are
+ * the cases where they differ: HCL has no branches to score and a migration's
+ * CASE/ELSE is the query language's grammar, not control flow — but their
+ * lines are still the project's own infrastructure and schema source, and
+ * moving them next to a translation catalogue would understate the codebase.
  */
 describe("the two data decisions", () => {
   it("asks no code questions of a .tf file but still counts its lines as code", () => {
     expect(isDataFile("infra/main.tf")).toBe(true);
     expect(hasDataLines("infra/main.tf")).toBe(false);
+  });
+
+  it("asks no code questions of a .sql migration but keeps its lines in the code total", () => {
+    expect(isDataFile("db/migrations/001_init.sql")).toBe(true);
+    expect(hasDataLines("db/migrations/001_init.sql")).toBe(false);
+  });
+
+  it("names the third urban role: data is neither code nor test", () => {
+    expect(roleOf("vendor/client.openapi.json", "JSON")).toBe("data");
+    expect(roleOf("db/migrations/001_init.sql", "SQL")).toBe("data");
+    expect(roleOf("config/.env.production")).toBe("data");
+    expect(roleOf("backend/tests/datafiles.test.ts")).toBe("test");
+    expect(roleOf("src/app.ts")).toBe("code");
   });
 
   it("counts the lines of a catalogue and a manifest as data", () => {

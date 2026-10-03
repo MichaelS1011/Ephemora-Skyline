@@ -24,7 +24,7 @@
  */
 
 import path from "path";
-import { hasDataLines, roleOfPath, type FileRole } from "../services/analyzer/metrics.js";
+import { hasDataLines, roleOf, roleOfPath, type FileRole } from "../services/analyzer/metrics.js";
 import { missingEnginesFor } from "../services/security/scan-depth.js";
 import type { FindingCategory } from "../models/index.js";
 import type { AnalysisResult, FileAnalysis, ProjectSummary } from "../models/index.js";
@@ -85,8 +85,10 @@ export interface CityFile {
   path: string;
   language: string;
   /**
-   * "test" for test folders and *.test.* files. Absent in payloads mapped
-   * before the split — the client then treats the file as code.
+   * "test" for test folders and *.test.* files, "data" for files that carry
+   * data and no behaviour (lockfiles, generated schemas, catalogues,
+   * migrations, .env). Absent in payloads mapped before the split — the
+   * client then treats the file as code.
    */
   role?: FileRole;
   linesOfCode: number;
@@ -321,12 +323,21 @@ function findCircularFiles(files: FileAnalysis[], pathSet: Set<string>): Set<str
 function skylineWeight(f: FileAnalysis): number {
   const risk = f.vulnerabilities.reduce((s, v) => s + (SEVERITY_SCORE[v.severity] ?? 0), 0);
   // A fixture never becomes the tower the user sees from orbit.
-  return roleWeight(f.path) * 100_000_000 + risk * 10_000 + Math.min(f.lines.code, 2000);
+  return roleWeight(f) * 100_000_000 + risk * 10_000 + Math.min(f.lines.code, 2000);
 }
 
-/** Test code ranks below shipped code, but never disappears. */
-function roleWeight(filePath: string): number {
-  return roleOfPath(filePath) === "test" ? 0 : 1;
+/**
+ * Rank by role. Test code sits below shipped code but never disappears; a
+ * data sheet (lockfile, schema, catalogue) never competes for the skyline on
+ * size — 7 556 format lines of package-lock.json measured as the tallest
+ * "code" tower of its city. With real findings in it a data file ranks as
+ * code again: a secret in a lockfile is still a secret.
+ */
+function roleWeight(f: FileAnalysis): number {
+  const role = roleOf(f.path, f.language);
+  if (role === "test") return 0;
+  if (role === "data") return f.vulnerabilities.length > 0 ? 1 : 0.5;
+  return 1;
 }
 
 function emptySeverityCount(): Record<Severity, number> {
@@ -383,7 +394,7 @@ function threatLevelOf(findings: FileAnalysis["vulnerabilities"]): ThreatLevel {
 
 function fileSortKey(f: FileAnalysis): number {
   const worst = findingsSortKey(f.vulnerabilities);
-  return roleWeight(f.path) * 1_000_000 + worst * 1000 + Math.min(f.lines.code, 1000);
+  return roleWeight(f) * 1_000_000 + worst * 1000 + Math.min(f.lines.code, 1000);
 }
 
 function findingsSortKey(findings: FileAnalysis["vulnerabilities"]): number {
@@ -831,7 +842,7 @@ function mapCityFile(
     id,
     name: path.posix.basename(f.path),
     path: f.path,
-    role: roleOfPath(f.path),
+    role: roleOf(f.path, f.language),
     language: f.language,
     linesOfCode: f.lines.code,
     cyclomaticComplexity: f.complexity?.cyclomatic ?? 1,

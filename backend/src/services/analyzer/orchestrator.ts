@@ -82,6 +82,35 @@ export function isScannedPath(relativePath: string): boolean {
 }
 
 /**
+ * Names that mark a path segment as tool output rather than source: build
+ * folders, coverage and test traces, dependency and cache directories. A
+ * user's repo produces these the same way ours does, and a .gitignore is the
+ * project's courtesy, not the scanner's safety net — so the analyzer excludes
+ * them even where nothing ignores them.
+ *
+ * The test is exact per segment on purpose. The check this replaced matched
+ * prefixes without a boundary: `.gitlab-ci.yml`, `.github/workflows/ci.yml`,
+ * `distribute.ts` and `builder/main.ts` were measured out of the scan by the
+ * tool's own selection — real source silently missing.
+ */
+const ARTIFACT_SEGMENT =
+  /^(?:node_modules|\.git|dist|build|out|\.next|\.nuxt|coverage|\.nyc_output|\.turbo|\.vscode|\.idea|__pycache__|\.venv|venv|target|vendor|\.pytest_cache|\.mypy_cache|\.gradle|Pods|bin|obj|playwright-report|test-results|blob-report|storybook-static)$/i;
+
+/** Does any segment of this project-relative path name tool output? */
+export function isArtifactPath(relativePath: string): boolean {
+  return relativePath.split("/").some((segment) => ARTIFACT_SEGMENT.test(segment));
+}
+
+/**
+ * The ONE place that decides whether a path joins the scan: source-shaped
+ * (extension or env file) and no segment that names tool output. Both the
+ * directory walk and the candidate loop read this decision.
+ */
+export function isScanCandidate(relativePath: string): boolean {
+  return isScannedPath(relativePath) && !isArtifactPath(relativePath);
+}
+
+/**
  * The list a user sees when a folder turns out to be empty. It used to be typed
  * out by hand in the error message, where it drifted: thirteen of the kinds were
  * named and the rest (shell, SQL, terraform, php, and the rest) were not, so the
@@ -151,9 +180,8 @@ export class AnalysisOrchestrator {
     const candidateFiles: Array<{ fullPath: string; relativePath: string }> = [];
     for (const filePath of allFiles) {
       const relativePath = filePath.replace(dirPath + "/", "");
-      // Skip hidden dirs, node_modules, dist, build, .git
-      if (/^(node_modules|\.git|dist|build|\.next|coverage|\.turbo)/.test(relativePath)) continue;
-      if (!isScannedPath(relativePath)) continue;
+      // The scan's one file-selection decision: extension shape + artifact dirs
+      if (!isScanCandidate(relativePath)) continue;
       // Scan-config scope: language allowlist + user exclude paths
       if (config?.languageScope?.length) {
         const lang = languageOfPath(relativePath);
@@ -419,14 +447,13 @@ export class AnalysisOrchestrator {
       const fullPath = path.join(currentPath, entry.name);
       const relPath = relDir ? `${relDir}/${entry.name}` : entry.name;
 
-      // Skip directories with no relevant source — must stay in sync with
-      // SKIP_DIRS in frontend/src/hooks/useLocalAnalysis.ts
-      if (
-        /^(node_modules|\.git|dist|build|out|\.next|\.nuxt|coverage|\.turbo|\.vscode|\.idea|__pycache__|\.venv|venv|target|vendor|\.pytest_cache|\.mypy_cache|\.gradle|Pods|bin|obj)$/i.test(
-          entry.name,
-        )
-      )
+      // The same artifact decision the candidate loop makes — applied to the
+      // directory name here, so a tool-output tree is skipped whole instead of
+      // walked and thrown away. Must stay in sync with SKIP_DIRS in
+      // frontend/src/hooks/useLocalAnalysis.ts
+      if (isArtifactPath(relPath)) {
         continue;
+      }
       if (/^\.(hidden|DS_Store)$/.test(entry.name)) continue;
 
       // Symlinks in untrusted repos could point anywhere on disk (e.g.
