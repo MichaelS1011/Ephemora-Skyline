@@ -35,7 +35,9 @@ const [clones, views, repo] = await Promise.all([
   get(""),
 ]);
 
-console.log(`Repository: ${repo.full_name}  ★ ${repo.stargazers_count}  forks: ${repo.forks_count}`);
+console.log(
+  `Repository: ${repo.full_name}  ★ ${repo.stargazers_count}  forks: ${repo.forks_count}`,
+);
 console.log(`Clones (last 14 days):  ${clones.count} total / ${clones.uniques} unique`);
 console.log(`Views  (last 14 days):  ${views.count} total / ${views.uniques} unique`);
 console.log("\nPer day:");

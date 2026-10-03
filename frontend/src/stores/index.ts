@@ -5,4 +5,4 @@
  * Each store encapsulates a slice of the global state.
  */
 
-export { useStore } from './useStore';
+export { useStore } from "./useStore";

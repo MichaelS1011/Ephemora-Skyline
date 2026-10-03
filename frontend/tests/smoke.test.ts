@@ -1,20 +1,20 @@
-import { describe, it, expect } from 'vitest';
-import { THREAT_COLOR, LANGUAGE_COLORS } from '../src/city/palette';
-import { getDirLayout } from '../src/city/layout';
-import type { CityData } from '../src/city/types';
+import { describe, it, expect } from "vitest";
+import { THREAT_COLOR, LANGUAGE_COLORS } from "../src/city/palette";
+import { getDirLayout } from "../src/city/layout";
+import type { CityData } from "../src/city/types";
 
-describe('frontend smoke', () => {
-  it('palette has threat levels', () => {
+describe("frontend smoke", () => {
+  it("palette has threat levels", () => {
     expect(THREAT_COLOR).toBeDefined();
     expect(Object.keys(THREAT_COLOR).length).toBe(5);
-    expect(LANGUAGE_COLORS.TypeScript).toBe('#5b9bff');
+    expect(LANGUAGE_COLORS.TypeScript).toBe("#5b9bff");
   });
 
-  it('layout returns empty for null focus', () => {
+  it("layout returns empty for null focus", () => {
     const fakeCity = {
       tree: {
-        name: '',
-        path: '',
+        name: "",
+        path: "",
         fileCount: 0,
         linesOfCode: 0,
         languages: {},
@@ -33,7 +33,7 @@ describe('frontend smoke', () => {
       languages: {},
       fileConnections: [],
       dirConnections: [],
-      repo: { owner: 'o', name: 'n', branch: 'main' },
+      repo: { owner: "o", name: "n", branch: "main" },
     } as unknown as CityData;
     const layout = getDirLayout(fakeCity, []);
     expect(layout).toBeDefined();

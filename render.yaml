@@ -14,6 +14,6 @@ services:
       - key: TRUST_PROXY
         value: "1"
       - key: FRONTEND_ORIGIN
-        sync: false   # set in Render dashboard
+        sync: false # set in Render dashboard
       - key: GITHUB_TOKEN
-        sync: false   # optional — set for higher API rate limits
+        sync: false # optional — set for higher API rate limits

@@ -1,8 +1,8 @@
-'use client';
+"use client";
 
-import type * as THREE from 'three';
-import { useMemo, useRef } from 'react';
-import { useFrame } from '@react-three/fiber';
+import type * as THREE from "three";
+import { useMemo, useRef } from "react";
+import { useFrame } from "@react-three/fiber";
 
 /**
  * Ambient dust — warm and cool motes drifting over the city.

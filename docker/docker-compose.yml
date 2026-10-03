@@ -5,7 +5,7 @@ services:
       dockerfile: docker/Dockerfile.backend
     container_name: codecity-backend
     ports:
-      - '4000:4000'
+      - "4000:4000"
     environment:
       - NODE_ENV=production
       - PORT=4000
@@ -22,7 +22,7 @@ services:
       dockerfile: docker/Dockerfile.frontend
     container_name: codecity-frontend
     ports:
-      - '3000:80'
+      - "3000:80"
     depends_on:
       - backend
     restart: unless-stopped

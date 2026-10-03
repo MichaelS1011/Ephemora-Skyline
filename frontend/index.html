@@ -35,23 +35,26 @@
       // Raw stack traces are only shown in development; in production the
       // overlay is skipped (errors still surface in the browser console).
       (function () {
-        var isDev =
-          location.hostname === 'localhost' || location.hostname === '127.0.0.1';
+        var isDev = location.hostname === "localhost" || location.hostname === "127.0.0.1";
         if (!isDev) return;
         function show(kind, msg) {
-          var el = document.createElement('pre');
-          el.id = 'boot-error';
-          el.style.cssText = 'color:#ff6688;font:11px monospace;padding:12px;white-space:pre-wrap;position:relative;z-index:9999';
-          el.textContent = kind + ': ' + msg;
+          var el = document.createElement("pre");
+          el.id = "boot-error";
+          el.style.cssText =
+            "color:#ff6688;font:11px monospace;padding:12px;white-space:pre-wrap;position:relative;z-index:9999";
+          el.textContent = kind + ": " + msg;
           document.body.appendChild(el);
         }
-        window.addEventListener('error', function (e) {
-          var stack = e.error && e.error.stack ? '\n' + String(e.error.stack).slice(0, 1000) : '';
-          show('BOOT ERROR', e.message + '\n' + (e.filename || '') + ':' + (e.lineno || '') + stack);
+        window.addEventListener("error", function (e) {
+          var stack = e.error && e.error.stack ? "\n" + String(e.error.stack).slice(0, 1000) : "";
+          show(
+            "BOOT ERROR",
+            e.message + "\n" + (e.filename || "") + ":" + (e.lineno || "") + stack,
+          );
         });
-        window.addEventListener('unhandledrejection', function (e) {
+        window.addEventListener("unhandledrejection", function (e) {
           var r = e.reason;
-          show('REJECTION', String((r && r.stack) || r).slice(0, 1000));
+          show("REJECTION", String((r && r.stack) || r).slice(0, 1000));
         });
       })();
     </script>
