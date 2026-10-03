@@ -25,6 +25,7 @@
 
 import path from "path";
 import { hasDataLines, roleOfPath, type FileRole } from "../services/analyzer/metrics.js";
+import { missingEnginesFor } from "../services/security/scan-depth.js";
 import type { AnalysisResult, FileAnalysis, ProjectSummary } from "../models/index.js";
 
 export type Severity = "P0" | "P1" | "P2";
@@ -115,6 +116,14 @@ export interface CityFile {
   clonePartners?: Array<{ id: string; path: string; lines: number }>;
   /** Voxel sections (CodeBlocks) — capped at 24 in the analyzer, absent for demo data */
   sections?: CitySection[];
+  /**
+   * Scanners that were switched off but would have reported on this file's
+   * language. Absent (or empty) means the file was checked as deep as the
+   * profile goes. A file with no findings and no right to be calm is exactly
+   * what this is for: measured on the Quick profile, 169 of 173 buildings
+   * wore the colour of a clean scan while semgrep and ruff never ran.
+   */
+  unverifiedBy?: string[];
 }
 
 export interface CityDir {
@@ -139,6 +148,12 @@ export interface CityDir {
   threatScore: number;
   /** Files in the subtree that live in test code */
   testFiles: number;
+  /**
+   * Clean-looking files in the subtree that a switched-off scanner would have
+   * covered. The far-zoom heat channel needs this to stop painting an
+   * unscanned folder with the colour of a checked one.
+   */
+  unverifiedFiles: number;
   /** Findings in the subtree that were found in test code */
   findingsInTests: number;
   /** Weighted risk of those test-code findings */
@@ -184,6 +199,10 @@ export interface CityData {
   findingsInTests: number;
   /** How many of `totalFiles` are test files */
   testFiles: number;
+  /** Buildings that look clean but were never seen by an engine covering them */
+  unverifiedFiles: number;
+  /** Names of the engines that were off, for the languages this project has */
+  unverifiedEngines: string[];
   /** language → CODE lines — data files never show up here */
   languages: Record<string, number>;
   /** language → data lines, shown apart so the bar stays about code */
@@ -465,6 +484,17 @@ export function mapResultToCityData(result: AnalysisResult): CityData {
   const hasChurn = files.some((f) => f.churn);
   const circular = findCircularFiles(files, pathSet);
 
+  // Which engines were off for which language — a handful of languages, so the
+  // answer is memoised instead of rebuilt for every one of 173 files.
+  const missingByLanguage = new Map<string, string[]>();
+  const missingFor = (language: string): string[] => {
+    const cached = missingByLanguage.get(language);
+    if (cached) return cached;
+    const missing = missingEnginesFor(language, result.summary.scanProvenance);
+    missingByLanguage.set(language, missing);
+    return missing;
+  };
+
   // Stable ids for every analyzed file (detail or not — dir-level
   // aggregation uses ALL resolved edges, not just rendered buildings).
   const allIds = new Map<string, string>();
@@ -498,6 +528,7 @@ export function mapResultToCityData(result: AnalysisResult): CityData {
       findingsBySeverity: emptySeverityCount(),
       threatScore: 0,
       testFiles: 0,
+      unverifiedFiles: 0,
       findingsInTests: 0,
       testThreatScore: 0,
       topFindings: [],
@@ -521,6 +552,8 @@ export function mapResultToCityData(result: AnalysisResult): CityData {
       }
       const inTest = roleOfPath(f.path) === "test";
       if (inTest) dirNode.testFiles += 1;
+      if (f.vulnerabilities.length === 0 && missingFor(f.language).length > 0)
+        dirNode.unverifiedFiles += 1;
       for (const v of f.vulnerabilities) {
         dirNode.findingsBySeverity[v.severity] = (dirNode.findingsBySeverity[v.severity] ?? 0) + 1;
         const score = SEVERITY_SCORE[v.severity] ?? 0;
@@ -555,6 +588,7 @@ export function mapResultToCityData(result: AnalysisResult): CityData {
       }
       dirNode.threatScore += cityChild.threatScore;
       dirNode.testFiles += cityChild.testFiles;
+      dirNode.unverifiedFiles += cityChild.unverifiedFiles;
       dirNode.findingsInTests += cityChild.findingsInTests;
       dirNode.testThreatScore += cityChild.testThreatScore;
       dirNode.topFindings.push(...cityChild.topFindings);
@@ -575,7 +609,14 @@ export function mapResultToCityData(result: AnalysisResult): CityData {
       .sort((a, b) => fileSortKey(b) - fileSortKey(a))
       .slice(0, perDirCap)
       .map((f) =>
-        mapCityFile(f, allIds.get(f.path) ?? `f-${f.path}`, deadCodeCandidates, circular, allIds),
+        mapCityFile(
+          f,
+          allIds.get(f.path) ?? `f-${f.path}`,
+          deadCodeCandidates,
+          circular,
+          allIds,
+          missingFor,
+        ),
       );
     dirNode.detailFiles = detail;
     renderedFiles += detail.length;
@@ -603,7 +644,14 @@ export function mapResultToCityData(result: AnalysisResult): CityData {
       .sort((a, b) => skylineWeight(b) - skylineWeight(a))
       .slice(0, DISTRICT_FILES_MAX)
       .map((f) =>
-        mapCityFile(f, allIds.get(f.path) ?? `f-${f.path}`, deadCodeCandidates, circular, allIds),
+        mapCityFile(
+          f,
+          allIds.get(f.path) ?? `f-${f.path}`,
+          deadCodeCandidates,
+          circular,
+          allIds,
+          missingFor,
+        ),
       );
 
     // Author territory: who owns most of THIS directory's files (blame)
@@ -697,6 +745,10 @@ export function mapResultToCityData(result: AnalysisResult): CityData {
     findingsBySeverity: tree.findingsBySeverity,
     findingsInTests: tree.findingsInTests,
     testFiles: tree.testFiles,
+    unverifiedFiles: tree.unverifiedFiles,
+    unverifiedEngines: [
+      ...new Set([...new Set(files.map((f) => f.language))].flatMap(missingFor)),
+    ].sort(),
     languages: languageTotals,
     dataLanguages: dataLanguageTotals,
     tree,
@@ -730,7 +782,9 @@ function mapCityFile(
   deadCodeCandidates: Set<string>,
   circular: Set<string>,
   idByPath?: Map<string, string>,
+  missingFor?: (language: string) => string[],
 ): CityFile {
+  const unverifiedBy = missingFor?.(f.language) ?? [];
   const findings = [...f.vulnerabilities]
     .sort((a, b) => (SEVERITY_SCORE[b.severity] ?? 0) - (SEVERITY_SCORE[a.severity] ?? 0))
     .slice(0, FINDINGS_PER_FILE)
@@ -764,5 +818,6 @@ function mapCityFile(
     coveragePct: f.coveragePct,
     clonePartners: clonePartners && clonePartners.length > 0 ? clonePartners : undefined,
     sections: f.sections && f.sections.length > 0 ? f.sections : undefined,
+    unverifiedBy: unverifiedBy.length > 0 ? unverifiedBy : undefined,
   };
 }

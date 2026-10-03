@@ -60,6 +60,19 @@ export function ContextCard() {
   const drawLines = explainDistrictDraw(dir, cityData.limits);
   const skipped = describeGitignoreSkips(cityData.skippedByGitignore);
   const findingsInTests = dir.findingsInTests ?? 0;
+  const unverified = dir.unverifiedFiles ?? 0;
+  const engines = cityData.unverifiedEngines ?? [];
+  // The demo city declares every engine off — then the honest sentence is not
+  // "semgrep was switched off" but "nobody looked at any of this".
+  const nothingScanned = cityData.scanProvenance?.regex === false;
+  const uncheckedLine =
+    unverified > 0
+      ? nothingScanned
+        ? "No scanner looked at this city — it is a demo"
+        : `${unverified} of ${dir.fileCount} files here were never checked${
+            engines.length > 0 ? ` by ${engines.join(", ")}` : ""
+          }`
+      : "";
   const testLine =
     findingsInTests > 0 && totalFindings > 0
       ? `${findingsInTests} of ${totalFindings} findings were found in test code`
@@ -152,7 +165,11 @@ export function ContextCard() {
         </div>
       </dl>
 
-      {(dataLines > 0 || drawLines.length > 0 || testLine !== "" || (isRoot && skipped !== "")) && (
+      {(dataLines > 0 ||
+        drawLines.length > 0 ||
+        testLine !== "" ||
+        uncheckedLine !== "" ||
+        (isRoot && skipped !== "")) && (
         <div className="-mt-1 mb-1 space-y-1.5">
           {dataLines > 0 && (
             <div
@@ -171,6 +188,15 @@ export function ContextCard() {
               title="Every folder's own .gitignore decides what the scan reads. What it keeps out is not part of this city."
             >
               {skipped} kept out by .gitignore
+            </div>
+          )}
+          {uncheckedLine !== "" && (
+            <div
+              className="text-[12px]"
+              style={{ color: "#8f8b82" }}
+              title="No engine that covers these languages ran in this scan. The files are not clean — they are unread."
+            >
+              {uncheckedLine}
             </div>
           )}
           {testLine !== "" && (

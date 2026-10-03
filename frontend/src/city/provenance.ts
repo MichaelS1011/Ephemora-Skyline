@@ -46,6 +46,17 @@ export function describeGitignoreSkips(skipped?: { files: number; directories: n
   return parts.join(" and ");
 }
 
+/**
+ * What a building with no findings is allowed to claim.
+ *
+ * "safe" is the colour of a checked file. If the engines that cover this
+ * file's language were switched off, the file was never a candidate for a
+ * finding — it is unknown ground, and the city must show it as such.
+ */
+export function isUncheckedClean(file: { findings: unknown[]; unverifiedBy?: string[] }): boolean {
+  return file.findings.length === 0 && (file.unverifiedBy?.length ?? 0) > 0;
+}
+
 export function scanVerdict(
   provenance: ScanProvenance | undefined,
   findingsTotal: number,

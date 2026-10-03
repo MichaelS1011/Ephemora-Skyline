@@ -227,6 +227,36 @@ describe("project overview", () => {
     const text = await show(<ContextCard />, cityData());
     expect(text).not.toContain("test code");
   });
+
+  it("names the buildings no engine looked at", async () => {
+    const city = cityData();
+    city.unverifiedEngines = ["semgrep"];
+    city.tree.unverifiedFiles = 84;
+    const text = await show(<ContextCard />, city);
+    expect(text).toContain("84 of 92 files here were never checked by semgrep");
+  });
+
+  it("says nothing about unread files when the profile ran every engine", async () => {
+    const text = await show(<ContextCard />, cityData());
+    expect(text).not.toContain("never checked");
+  });
+
+  it("calls the demo city what it is: nothing was scanned", async () => {
+    const city = cityData();
+    city.scanProvenance = {
+      regex: false,
+      gitleaks: false,
+      semgrep: false,
+      dependencies: false,
+      ruff: false,
+      osv: false,
+    };
+    city.unverifiedEngines = ["gitleaks", "semgrep"];
+    city.tree.unverifiedFiles = 67;
+    const text = await show(<ContextCard />, city);
+    expect(text).toContain("No scanner looked at this city — it is a demo");
+    expect(text).not.toContain("never checked by gitleaks");
+  });
 });
 
 describe("scan summary", () => {

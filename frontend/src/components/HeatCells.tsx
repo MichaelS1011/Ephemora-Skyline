@@ -6,7 +6,14 @@ import type { DirLayout } from "../city/layout";
 import type { CityData } from "../city/types";
 import { useStore, type HeatChannel } from "../stores/useStore";
 import { useLodFar } from "../hooks/useLodFar";
-import { complexityColor, churnColor, severityColor, THREAT_COLOR } from "../city/palette";
+import {
+  complexityColor,
+  churnColor,
+  severityColor,
+  THREAT_COLOR,
+  UNCHECKED_COLOR,
+} from "../city/palette";
+import { isUncheckedClean } from "../city/provenance";
 import { syntheticComplexity } from "../city/mapping";
 
 /**
@@ -26,6 +33,7 @@ function fileHeatColor(
     cyclomaticComplexity: number;
     importCount?: number;
     churnScore?: number;
+    unverifiedBy?: string[];
   },
   colorblind: boolean,
 ): THREE.Color {
@@ -34,7 +42,8 @@ function fileHeatColor(
       (max, f) => Math.max(max, f.severity === "P0" ? 3 : f.severity === "P1" ? 2 : 1),
       0,
     );
-    if (worst === 0) return new THREE.Color(THREAT_COLOR.safe);
+    if (worst === 0)
+      return new THREE.Color(isUncheckedClean(file) ? UNCHECKED_COLOR : THREAT_COLOR.safe);
     return new THREE.Color(
       worst === 3
         ? severityColor("P0", colorblind)
@@ -91,7 +100,10 @@ export function HeatCells({ layout }: { layout: DirLayout }) {
               ? severityColor("P1", colorblind)
               : (subtree.findingsBySeverity.P2 ?? 0) > 0
                 ? severityColor("P2", colorblind)
-                : THREAT_COLOR.safe
+                : blk.dir.unverifiedFiles === blk.dir.fileCount &&
+                    (blk.dir.unverifiedFiles ?? 0) > 0
+                  ? UNCHECKED_COLOR
+                  : THREAT_COLOR.safe
           : heatChannel === "complexity"
             ? complexityColor(subtree.avgComplexity, colorblind)
             : churnColor(subtree.maxChurn ?? 0, colorblind);

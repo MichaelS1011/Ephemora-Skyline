@@ -1205,6 +1205,12 @@ export const DICT = {
     en: "{loc} LOC · no findings",
     de: "{loc} LOC · keine Funde",
   },
+  // A file the switched-off engines would have covered is unknown ground, not
+  // a clean result — the tooltip has to say which of the two it is.
+  "tooltip.fileBadgeUnchecked": {
+    en: "{loc} LOC · not checked by {engines}",
+    de: "{loc} LOC · von {engines} nicht geprüft",
+  },
   "tooltip.detailsHint": {
     en: "click for details",
     de: "klicken für Details",

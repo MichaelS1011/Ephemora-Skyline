@@ -90,6 +90,13 @@ export const THREAT_COLOR: Record<ThreatLevel, string> = {
   safe: "#3b4a63",
 };
 
+/**
+ * The colour of a file nothing looked at. Distinct from `safe`, which means
+ * "looked, found nothing": measured on the Quick profile, 169 of 173 buildings
+ * would otherwise wear that calm blue on the strength of a regex pass.
+ */
+export const UNCHECKED_COLOR = "#6b6a63";
+
 export function threatRank(level: ThreatLevel): number {
   return { critical: 4, high: 3, medium: 2, low: 1, safe: 0 }[level];
 }

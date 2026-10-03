@@ -72,6 +72,12 @@ export interface CityFile {
   clonePartners?: Array<{ id: string; path: string; lines: number }>;
   /** Named code regions feeding the voxel packing (absent in old payloads) */
   sections?: VoxelSectionSpec[];
+  /**
+   * Scanners that were switched off but cover this file's language. A file
+   * with no findings and a non-empty list was never deeply checked — it may
+   * not wear the colour of a clean one.
+   */
+  unverifiedBy?: string[];
 }
 
 export interface CityDir {
@@ -95,6 +101,8 @@ export interface CityDir {
   testFiles?: number;
   /** Findings in the subtree that were found in test code */
   findingsInTests?: number;
+  /** Clean-looking files the switched-off engines would have covered */
+  unverifiedFiles?: number;
   /** Weighted risk of those test-code findings */
   testThreatScore?: number;
   topFindings: CityFinding[];
@@ -152,6 +160,10 @@ export interface CityData {
   findingsInTests?: number;
   /** How many of `totalFiles` are test files */
   testFiles?: number;
+  /** Buildings that look clean but were never seen by an engine covering them */
+  unverifiedFiles?: number;
+  /** Engines that were off for the languages this project contains */
+  unverifiedEngines?: string[];
   tree: CityDir;
   fileConnections: FileConnection[];
   dirConnections: DirConnection[];

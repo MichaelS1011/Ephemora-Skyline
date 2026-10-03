@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { describeGitignoreSkips, scanVerdict } from "../src/city/provenance";
+import { describeGitignoreSkips, isUncheckedClean, scanVerdict } from "../src/city/provenance";
 import type { ScanProvenance } from "../src/city/types";
 
 /** Every engine ran — the baseline a claim of "clear" is earned against. */
@@ -85,5 +85,19 @@ describe("describeGitignoreSkips", () => {
 
   it("stays silent for a result scanned before the counter existed", () => {
     expect(describeGitignoreSkips(undefined)).toBe("");
+  });
+});
+
+describe("isUncheckedClean", () => {
+  it("refuses to call an unread file clean", () => {
+    expect(isUncheckedClean({ findings: [], unverifiedBy: ["semgrep"] })).toBe(true);
+    expect(isUncheckedClean({ findings: [], unverifiedBy: [] })).toBe(false);
+    expect(isUncheckedClean({ findings: [] })).toBe(false);
+  });
+
+  it("says nothing about depth for a file that has findings", () => {
+    expect(
+      isUncheckedClean({ findings: [{ severity: "P0" }], unverifiedBy: ["semgrep", "ruff"] }),
+    ).toBe(false);
   });
 });

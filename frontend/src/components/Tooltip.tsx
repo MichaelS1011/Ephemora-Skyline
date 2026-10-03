@@ -1,7 +1,8 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useStore } from "../stores/useStore";
 import { getDirLayout } from "../city/layout";
-import { languageColor, SEVERITY_COLOR, THREAT_COLOR } from "../city/palette";
+import { languageColor, SEVERITY_COLOR, THREAT_COLOR, UNCHECKED_COLOR } from "../city/palette";
+import { isUncheckedClean } from "../city/provenance";
 import type { ThreatLevel } from "../city/types";
 import { t } from "../i18n";
 
@@ -121,8 +122,10 @@ export function Tooltip() {
       // or not.
       hint = t(lang, "tooltip.orbitHint");
     } else {
-      badge = t(lang, "tooltip.fileBadgeNone", { loc });
-      badgeColor = "#29d398";
+      badge = isUncheckedClean(b.file)
+        ? t(lang, "tooltip.fileBadgeUnchecked", { loc, engines: b.file.unverifiedBy!.join(", ") })
+        : t(lang, "tooltip.fileBadgeNone", { loc });
+      badgeColor = isUncheckedClean(b.file) ? UNCHECKED_COLOR : "#29d398";
       hint = t(lang, "tooltip.noFindingsOrbitHint", { language: b.file.language });
     }
   }
