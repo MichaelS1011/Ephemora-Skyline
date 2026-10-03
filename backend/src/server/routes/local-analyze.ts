@@ -29,7 +29,18 @@ const isGitPath = (rel: string): boolean => rel === ".git" || rel.startsWith(".g
 // project's own tests from the city ("run my tests"). A TTL sweeper prunes
 // directories whose analysis is old — nothing accumulates forever.
 const STAGED_DIRS = new Map<string, { dir: string; lastUsed: number }>();
-const STAGED_TTL_MS = 24 * 60 * 60 * 1000;
+const STAGED_TTL_MS =
+  Math.max(1, Number(process.env.CODECITY_UPLOAD_TTL_HOURS ?? 24)) * 60 * 60 * 1000;
+
+/** The one directory this app stages into; nothing outside it is ever removed. */
+function uploadsRoot(): string {
+  // An escape hatch for tests and for a machine whose /tmp is too small — the
+  // sweeper only ever looks inside this root.
+  return process.env.CODECITY_UPLOAD_DIR ?? path.join(os.tmpdir(), "codecity-uploads");
+}
+
+/** A staged dir is a direct child named by the id the route generated. */
+const STAGED_DIR_NAME = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
 export function registerUploadDir(analysisId: string, dir: string): void {
   STAGED_DIRS.set(analysisId, { dir, lastUsed: Date.now() });
@@ -51,6 +62,28 @@ export function pruneStaleUploadDirs(now: number = Date.now()): Promise<void> {
       jobs.push(fs.rm(entry.dir, { recursive: true, force: true }).catch(() => {}));
     }
   }
+  // The registry lives in RAM, so a restart forgets every folder it staged —
+  // and the copies of the user's source stayed behind (212 of them on this
+  // machine). Sweep the staging root itself: only direct children, only the
+  // uuid-shaped names this route makes, only real directories, only past TTL.
+  // A symlinked child is left alone rather than followed out of the root.
+  jobs.push(
+    fs
+      .readdir(uploadsRoot(), { withFileTypes: true })
+      .then((entries) =>
+        Promise.all(
+          entries
+            .filter((e) => e.isDirectory() && !e.isSymbolicLink() && STAGED_DIR_NAME.test(e.name))
+            .map(async (e) => {
+              const dir = path.join(uploadsRoot(), e.name);
+              const stat = await fs.stat(dir).catch(() => null);
+              if (!stat || Date.now() - stat.mtimeMs <= STAGED_TTL_MS) return;
+              return fs.rm(dir, { recursive: true, force: true }).catch(() => {});
+            }),
+        ),
+      )
+      .catch(() => undefined),
+  );
   return Promise.all(jobs).then(() => undefined);
 }
 
@@ -161,20 +194,28 @@ export async function handleLocalAnalyze(
     return;
   }
 
-  // Isolated upload dir under the OS temp dir
+  // Isolated upload dir under the OS temp dir. The staged copy is the user's
+  // source code, so it is created owner-only: /tmp is one shared directory, and
+  // a world-readable copy of somebody's repository is a leak the product itself
+  // would cause.
   const analysisId = crypto.randomUUID();
-  const uploadDir = path.join(os.tmpdir(), "codecity-uploads", analysisId);
+  const uploadDir = path.join(uploadsRoot(), analysisId);
   try {
-    await fs.mkdir(uploadDir, { recursive: true });
+    await fs.mkdir(uploadDir, { recursive: true, mode: 0o700 });
+    await fs.chmod(uploadDir, 0o700).catch(() => {});
     for (const f of cleaned) {
       const target = path.resolve(uploadDir, f.path);
       if (!target.startsWith(uploadDir + path.sep)) continue; // belt and braces
-      await fs.mkdir(path.dirname(target), { recursive: true });
-      if (f.encoding === "base64") {
-        await fs.writeFile(target, Buffer.from(f.content, "base64"));
-      } else {
-        await fs.writeFile(target, f.content, "utf-8");
-      }
+      await fs.mkdir(path.dirname(target), { recursive: true, mode: 0o700 });
+      const data =
+        f.encoding === "base64"
+          ? Buffer.from(f.content, "base64")
+          : Buffer.from(f.content, "utf-8");
+      await fs.writeFile(
+        target,
+        data,
+        f.encoding === "base64" ? undefined : { encoding: "utf-8", mode: 0o600 },
+      );
     }
   } catch (error) {
     await fs.rm(uploadDir, { recursive: true, force: true }).catch(() => {});

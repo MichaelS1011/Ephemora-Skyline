@@ -1,6 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { promises as fs } from "fs";
-import os from "os";
 import path from "path";
 import { safeRelativePath, handleLocalAnalyze } from "../src/server/routes/local-analyze.js";
 import { AnalysisOrchestrator } from "../src/services/analyzer/orchestrator.js";
@@ -179,7 +178,7 @@ describe("handleLocalAnalyze", () => {
     expect(result?.summary.totalFiles).toBe(1);
     // New contract: the staged copy SURVIVES the run — the test runner
     // reuses it. It is swept later by the TTL (pruneStaleUploadDirs).
-    const uploadDir = path.join(os.tmpdir(), "codecity-uploads", id);
+    const uploadDir = path.join(process.env.CODECITY_UPLOAD_DIR!, id);
     const dirKept = await fs
       .access(uploadDir)
       .then(() => true)

@@ -95,7 +95,8 @@ describe("failed analysis contract (H1)", () => {
         throw new Error("boom");
       },
     } as unknown as AnalysisOrchestrator;
-    const uploadsRoot = path.join(os.tmpdir(), "codecity-uploads");
+    // the suite stages in its own root (vitest.config.ts), never the user's
+    const uploadsRoot = process.env.CODECITY_UPLOAD_DIR!;
     const store: Store = new Map();
     const res = makeRes();
     await handleLocalAnalyze(
