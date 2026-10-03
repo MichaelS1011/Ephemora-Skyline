@@ -189,7 +189,7 @@ export async function handleLocalAnalyze(
   if (!cleaned.some((f) => !isGitPath(f.path))) {
     res.status(400).json({
       error:
-        "No analyzable source files in that folder (supported: ts, tsx, js, jsx, py, go, rs, java, rb, html, css, json, yaml)",
+        "No analyzable source files in that folder — CodeCity reads: " + supportedExtensionsLabel(),
     });
     return;
   }

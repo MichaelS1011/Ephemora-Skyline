@@ -2,7 +2,10 @@ import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { promises as fs } from "fs";
 import path from "path";
 import { safeRelativePath, handleLocalAnalyze } from "../src/server/routes/local-analyze.js";
-import { AnalysisOrchestrator } from "../src/services/analyzer/orchestrator.js";
+import {
+  AnalysisOrchestrator,
+  SUPPORTED_EXTENSIONS,
+} from "../src/services/analyzer/orchestrator.js";
 import { SecurityScanner } from "../src/services/security/scanner.js";
 import pino from "pino";
 import type { AnalysisResult } from "../src/models/index.js";
@@ -98,6 +101,33 @@ describe("handleLocalAnalyze", () => {
     );
     await handleLocalAnalyze(makeReq({}), res as never, () => orchestrator, store);
     expect(res.statusCode).toBe(400);
+  });
+
+  /**
+   * This sentence is the only place a user learns what the folder picker
+   * actually collects. It used to be a hand-typed list, so it drifted: shell,
+   * SQL, Terraform, PHP, C#, Kotlin and Swift were scanned but never named.
+   * The message now quotes the scanner's own list — and this test refuses the
+   * moment one of the two stops matching.
+   */
+  it("names the real extension list when nothing was collected", async () => {
+    const { orchestrator } = stubOrchestrator();
+    const res = makeRes();
+    await handleLocalAnalyze(
+      makeReq({
+        name: "history-only",
+        files: [{ path: ".git/HEAD", content: "ref: refs/heads/main\n" }],
+      }),
+      res as never,
+      () => orchestrator,
+      new Map<string, AnalysisResult>(),
+    );
+    expect(res.statusCode).toBe(400);
+    const error = (res.body as { error: string }).error;
+    for (const ext of SUPPORTED_EXTENSIONS) {
+      expect(error, `the message must name ${ext}`).toContain(ext.slice(1));
+    }
+    expect(error).toContain(".env");
   });
 
   it("rejects folders exceeding the file cap", async () => {
