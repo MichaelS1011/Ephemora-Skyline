@@ -243,9 +243,10 @@ export function CityTree() {
 
   // Filters combine with AND: a building stays bright only when it matches
   // EVERY active filter (threat + rule); anything else dims to a backdrop.
-  const fileDimmed = (fileId: string): boolean => {
-    const b = layout.buildings.find((x) => x.file.id === fileId);
-    if (!b) return false;
+  // The placement arrives from the same loop that draws it — looking the file
+  // up again by id was a linear scan per building per render (104 calls,
+  // 1184 array steps in one drill-in).
+  const fileDimmed = (b: (typeof layout.buildings)[number]): boolean => {
     const threatDimmed =
       threatFilter !== "all" && !b.file.findings.some((v) => v.severity === threatFilter);
     const ruleDimmed =
@@ -339,7 +340,7 @@ export function CityTree() {
             voxels={b.voxels}
             highlightLine={voxelHighlight?.fileId === b.file.id ? voxelHighlight.line : null}
             isLandmark={b.file.id === landmarkId}
-            dimmed={fileDimmed(b.file.id)}
+            dimmed={fileDimmed(b)}
             focusTier={tiers.get(b.file.id) ?? null}
             fullyReviewed={fullyReviewed(b.file)}
             appearAt={buildingAppear(i)}

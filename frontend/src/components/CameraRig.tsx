@@ -4,8 +4,17 @@ import { OrbitControls } from "@react-three/drei";
 import type { OrbitControls as OrbitControlsImpl } from "three-stdlib";
 import * as THREE from "three";
 import { useStore } from "../stores/useStore";
+import type { CameraInfo } from "../stores/useStore";
 import { getDirLayout } from "../city/layout";
 import type { CraneShot } from "../city/layout";
+
+/** Shortest signed distance between two headings, so ±π does not look like a jump. */
+function angleDelta(a: number, b: number): number {
+  let d = b - a;
+  while (d > Math.PI) d -= Math.PI * 2;
+  while (d < -Math.PI) d += Math.PI * 2;
+  return d;
+}
 
 /**
  * Camera rig — the user is the pilot, in two modes:
@@ -270,6 +279,8 @@ export function CameraRig() {
   const tweenRef = useRef<Tween | null>(null);
   const lastNonce = useRef(-1);
   const frameCount = useRef(0);
+  /** The pose last handed to the HUD — the frame loop only writes when it moved. */
+  const lastReported = useRef<CameraInfo | null>(null);
   // The first flight after a fresh city load has no user-established
   // viewpoint yet — it keeps the legacy fallback approach; every later
   // flight preserves the direction the user is looking from.
@@ -602,26 +613,41 @@ export function CameraRig() {
 
     frameCount.current++;
     if (frameCount.current % 6 === 0) {
-      if (free) {
-        // Free flight reports the VIEW heading (minimap cone) and the
-        // distance to the city core (drives the LOD tiers).
-        camera.getWorldDirection(_dir);
-        setCameraInfo({
-          x: camera.position.x,
-          z: camera.position.z,
-          angle: Math.atan2(_dir.x, _dir.z),
-          dist: camera.position.length(),
-        });
-      } else {
-        setCameraInfo({
-          x: camera.position.x,
-          z: camera.position.z,
-          angle: Math.atan2(
-            camera.position.x - controls.target.x,
-            camera.position.z - controls.target.z,
-          ),
-          dist: camera.position.distanceTo(controls.target),
-        });
+      const reported: CameraInfo = free
+        ? (() => {
+            // Free flight reports the VIEW heading (minimap cone) and the
+            // distance to the city core (drives the LOD tiers).
+            camera.getWorldDirection(_dir);
+            return {
+              x: camera.position.x,
+              z: camera.position.z,
+              angle: Math.atan2(_dir.x, _dir.z),
+              dist: camera.position.length(),
+            };
+          })()
+        : {
+            x: camera.position.x,
+            z: camera.position.z,
+            angle: Math.atan2(
+              camera.position.x - controls.target.x,
+              camera.position.z - controls.target.z,
+            ),
+            dist: camera.position.distanceTo(controls.target),
+          };
+      // The HUD only ever asks "where is the camera", so a write that changes
+      // nothing is a re-render for nobody: every 6th frame put a fresh object
+      // into the store, even while the city stood still (5 writes per idle
+      // six-second sample). Same view within a hair → say nothing.
+      const last = lastReported.current;
+      const moved =
+        !last ||
+        Math.abs(last.x - reported.x) > 0.01 ||
+        Math.abs(last.z - reported.z) > 0.01 ||
+        Math.abs(last.dist - reported.dist) > 0.01 ||
+        Math.abs(angleDelta(last.angle, reported.angle)) > 0.004;
+      if (moved) {
+        lastReported.current = reported;
+        setCameraInfo(reported);
       }
     }
   });

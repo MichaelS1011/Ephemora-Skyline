@@ -194,16 +194,23 @@ export function useLocalAnalysis() {
     (id: string) => {
       const startedAt = Date.now();
       let notFoundStreak = 0;
+      // One request at a time: the tick fires every POLL_INTERVAL_MS while the
+      // backend is busy scanning and slow to answer, so without this the queue
+      // grew by one pending fetch per tick and late answers wrote progress out
+      // of order.
+      let inFlight = false;
       stopPolling();
       pollTimerRef.current = setInterval(() => {
+        if (inFlight) return;
+        inFlight = true;
         void (async () => {
-          if (Date.now() - startedAt > POLL_TIMEOUT_MS) {
-            stopPolling();
-            setErrorMessage("Analysis timed out — is the backend still running?");
-            setState("error");
-            return;
-          }
           try {
+            if (Date.now() - startedAt > POLL_TIMEOUT_MS) {
+              stopPolling();
+              setErrorMessage("Analysis timed out — is the backend still running?");
+              setState("error");
+              return;
+            }
             const res = await fetch(`/api/status/${encodeURIComponent(id)}`);
             if (!res.ok) {
               // 404 = the job is gone (backend restarted) — not transient.
@@ -240,6 +247,8 @@ export function useLocalAnalysis() {
             }
           } catch {
             // network hiccup — retry on next tick
+          } finally {
+            inFlight = false;
           }
         })();
       }, POLL_INTERVAL_MS);
