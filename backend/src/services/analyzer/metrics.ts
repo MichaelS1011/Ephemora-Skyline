@@ -46,6 +46,20 @@ export function computeAvgComplexity(files: FileAnalysis[]): number {
   return Math.round((total / files.length) * 100) / 100;
 }
 
+/** Formats that carry data, not behaviour. */
+const DATA_LANGUAGES = new Set(["JSON", "YAML", "Config", "Terraform"]);
+const DATA_PATHS = /\.lock$|(^|\/)(requirements[^/]*\.txt|go\.sum|Pipfile|poetry\.lock)$/;
+
+/**
+ * Is this file data? A lockfile, a translation catalogue or a generated schema
+ * has lines and braces but no control flow, so code-shaped questions ("does
+ * this call eval?") have no true answer in it. Measured on the first
+ * self-scan: a generated city JSON was the tool's own "highest-risk file".
+ */
+export function isDataFile(filePath: string, language?: string): boolean {
+  return DATA_LANGUAGES.has(language ?? detectLanguage(filePath)) || DATA_PATHS.test(filePath);
+}
+
 /** Languages that comment with `#` instead of `//`. */
 function isHashCommentLanguage(language?: string): boolean {
   return language === "Python" || language === "Ruby" || language === "Shell";

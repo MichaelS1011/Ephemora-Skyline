@@ -26,6 +26,7 @@ import {
   extractClasses,
   extractFunctions,
   extractSections,
+  isDataFile,
 } from "./metrics.js";
 import { languageOfPath, type ResolvedScanConfig } from "../security/scan-config.js";
 import { collectGitChurn, hasGitHistory } from "./git-churn.js";
@@ -163,20 +164,24 @@ export class AnalysisOrchestrator {
 
             const lines = countLines(content);
             const language = detectLanguage(relativePath);
-            const cyclomatic = estimateCyclomaticComplexity(content, language);
+            // Data has lines but no behaviour: no control flow to score, no
+            // functions to name, no imports to draw edges from.
+            const dataFile = isDataFile(relativePath, language);
+            const cyclomatic = dataFile ? 1 : estimateCyclomaticComplexity(content, language);
 
             const vulnerabilities = await this.scanner.scanFile(relativePath, content);
-            const { imports: rawImports, exports: fileExports } = this.scanner.scanFileStructure(
-              relativePath,
-              content,
-            );
+            const { imports: rawImports, exports: fileExports } = dataFile
+              ? { imports: [], exports: [] }
+              : this.scanner.scanFileStructure(relativePath, content);
             const imports = rawImports.map((imp) => ({ ...imp, line: 0 }));
 
             // Extract functions (simple regex-based)
-            const functions = extractFunctions(content);
-            const classes = extractClasses(content);
+            const functions = dataFile ? [] : extractFunctions(content);
+            const classes = dataFile ? [] : extractClasses(content);
             // Voxel sections (CodeBlocks): blocks from the found structure
-            const sections = extractSections(relativePath, content, { functions, classes });
+            const sections = dataFile
+              ? []
+              : extractSections(relativePath, content, { functions, classes });
 
             const analysis: FileAnalysis = {
               path: relativePath,

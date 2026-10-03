@@ -1,4 +1,5 @@
 import type { SecurityIssue } from "../../../models/index.js";
+import { isDataFile } from "../../analyzer/metrics.js";
 import { enrichIssues } from "../finding-knowledge.js";
 import type { ScannerAdapter } from "../adapter.js";
 
@@ -138,7 +139,7 @@ export const REGEX_PATTERNS: ScanPattern[] = [
   {
     // Deploy accidents live in shell scripts and manifests, and until now the
     // scan never even uploaded those files.
-    regex: /^\s*"(?:preinstall|postinstall|prepublish|prepublishOnly)"\s*:/gm,
+    regex: /"(?:preinstall|postinstall|prepublish|prepublishOnly)"\s*:/g,
     paths: /(?:^|\/)package\.json$/,
     type: "INSTALL_HOOKS",
     severity: "P1",
@@ -205,6 +206,10 @@ export class RegexAdapter implements ScannerAdapter {
     const dot = filePath.lastIndexOf(".");
     const ext = dot > filePath.lastIndexOf("/") ? filePath.slice(dot).toLowerCase() : "";
     const isJsFamily = [".js", ".jsx", ".ts", ".tsx", ".mjs", ".cjs"].includes(ext);
+    // A code-shaped question has no true answer in a lockfile or a translation
+    // catalogue: "does this line call eval?" reads values, not behaviour. Only
+    // rules that name their file type (the `paths` gate) run on data.
+    const dataFile = isDataFile(filePath);
 
     // Heuristic: findings in test/spec files are lower priority
     const isTestFile =
@@ -312,6 +317,7 @@ export class RegexAdapter implements ScannerAdapter {
       // Path gating: an install hook is a fact about a manifest, not about a
       // source file that happens to name one.
       if (pattern.paths && !pattern.paths.test(filePath)) continue;
+      if (dataFile && !pattern.paths) continue;
 
       // A .sql file IS the query language — every statement in a migration
       // would otherwise read as an injection and bury the real findings.
