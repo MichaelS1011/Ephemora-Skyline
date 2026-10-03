@@ -59,6 +59,10 @@ const MANIFEST_BASENAMES = new Set([
   "composer.lock",
 ]);
 
+/** Ignore rules travel with the project so the backend can honour them — the
+ * file itself is never counted as source, it has no code at all. */
+const IGNORE_FILENAMES = new Set([".gitignore"]);
+
 const isGitPath = (rel: string): boolean => rel === ".git" || rel.startsWith(".git/");
 
 /** ArrayBuffer → base64 (binary-safe for .git packfiles) */
@@ -289,7 +293,13 @@ export function useLocalAnalysis() {
         if (segments.some((s) => SKIP_DIRS.test(s))) continue;
         const git = isGitPath(rel);
         const base = rel.split("/").pop() ?? "";
-        if (!git && !SUPPORTED_EXTENSIONS.has(ext) && !MANIFEST_BASENAMES.has(base)) continue;
+        if (
+          !git &&
+          !SUPPORTED_EXTENSIONS.has(ext) &&
+          !MANIFEST_BASENAMES.has(base) &&
+          !IGNORE_FILENAMES.has(base)
+        )
+          continue;
         // .git metadata rides along in its own budget (git churn/blame need it)
         if (git) {
           if (file.size > GIT_MAX_FILE_BYTES || gitBytes + file.size > GIT_MAX_TOTAL_BYTES) {
@@ -380,7 +390,13 @@ export function useLocalAnalysis() {
           const ext = dot > rel.lastIndexOf("/") ? rel.slice(dot).toLowerCase() : "";
           const base = entry.name;
           const git = isGitPath(rel);
-          if (!git && !SUPPORTED_EXTENSIONS.has(ext) && !MANIFEST_BASENAMES.has(base)) continue;
+          if (
+            !git &&
+            !SUPPORTED_EXTENSIONS.has(ext) &&
+            !MANIFEST_BASENAMES.has(base) &&
+            !IGNORE_FILENAMES.has(base)
+          )
+            continue;
           if (!git && (files.length >= MAX_FILES || totalBytes > MAX_TOTAL_BYTES)) {
             throw new FolderCollectionError(
               `Analysis aborted — folder exceeds ${MAX_FILES} files / 40 MB. Exclude node_modules & build output and retry.`,

@@ -31,6 +31,7 @@ import { languageOfPath, type ResolvedScanConfig } from "../security/scan-config
 import { collectGitChurn, hasGitHistory } from "./git-churn.js";
 import { detectDuplicates } from "./duplicates.js";
 import { collectCoverage } from "./coverage.js";
+import { IgnoreMatcher } from "./gitignore.js";
 import type { SecurityScanner } from "../security/scanner.js";
 
 interface ProgressCallback {
@@ -106,7 +107,9 @@ export class AnalysisOrchestrator {
     emit("analysis_progress", { progress: 25, stage: "Enumerating files" });
 
     const allFiles: string[] = [];
-    await this.walkDirectory(dirPath, dirPath, allFiles);
+    const gitignore = new IgnoreMatcher();
+    const skippedByGitignore = { files: 0, directories: 0 };
+    await this.walkDirectory(dirPath, dirPath, allFiles, gitignore, skippedByGitignore);
 
     const totalFiles = allFiles.length;
     this.logger.info(
@@ -331,6 +334,9 @@ export class AnalysisOrchestrator {
       totalVulnerabilities: totalVulns,
       vulnerabilitiesBySeverity,
       languagesByLines: languageLines,
+      // What the project itself declared "not source" — a scan that hides this
+      // number lets an empty district read as a clean one.
+      skippedByGitignore,
       // Honest provenance: "complete" doesn't imply semgrep/gitleaks ran
       scanProvenance: {
         regex: true,
@@ -375,16 +381,33 @@ export class AnalysisOrchestrator {
     return result;
   }
 
-  /** Recursively walk directory and collect file paths */
+  /**
+   * Recursively walk directory and collect file paths.
+   *
+   * Each folder's own .gitignore is read before its entries are judged, so a
+   * nested rule file applies to exactly the subtree it belongs to — the same
+   * reach git gives it. An ignored directory is skipped whole rather than
+   * walked and then thrown away.
+   */
   private async walkDirectory(
     basePath: string,
     currentPath: string,
     files: string[],
+    ignores: IgnoreMatcher,
+    skipped: { files: number; directories: number },
   ): Promise<void> {
+    const relDir = path.relative(basePath, currentPath).split(path.sep).join("/");
+    try {
+      ignores.add(relDir, await fs.readFile(path.join(currentPath, ".gitignore"), "utf-8"));
+    } catch {
+      // no ignore file in this folder — the ones above still apply
+    }
+
     const entries = await fs.readdir(currentPath, { withFileTypes: true });
 
     for (const entry of entries) {
       const fullPath = path.join(currentPath, entry.name);
+      const relPath = relDir ? `${relDir}/${entry.name}` : entry.name;
 
       // Skip directories with no relevant source — must stay in sync with
       // SKIP_DIRS in frontend/src/hooks/useLocalAnalysis.ts
@@ -400,8 +423,15 @@ export class AnalysisOrchestrator {
       // /etc/passwd) — never follow them into reads or recursion.
       if (entry.isSymbolicLink()) continue;
 
+      const kind = entry.isDirectory() ? "dir" : "file";
+      if (ignores.isIgnored(relPath, kind)) {
+        if (entry.isDirectory()) skipped.directories++;
+        else skipped.files++;
+        continue;
+      }
+
       if (entry.isDirectory()) {
-        await this.walkDirectory(basePath, fullPath, files);
+        await this.walkDirectory(basePath, fullPath, files, ignores, skipped);
       } else {
         files.push(fullPath);
       }
