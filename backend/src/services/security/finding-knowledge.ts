@@ -1,6 +1,6 @@
 import type { SecurityIssue } from "../../models/index.js";
 import { categoryOf } from "./categories.js";
-import { isSecretFinding, maskSecretText } from "./redact.js";
+import { maskSecretText } from "./redact.js";
 
 export interface FindingKnowledge {
   /** Plain-language: what does this finding mean for the code owner? */
@@ -233,15 +233,16 @@ export function enrichIssues(issues: SecurityIssue[], content?: string): void {
     if (!issue.snippet) {
       issue.snippet = buildSnippet(content, issue.line);
     }
-    // A credential finding must not carry the credential: its line, and the
-    // lines around it, are written into the report the user shares.
-    if (isSecretFinding(issue)) {
-      issue.code = maskSecretText(issue.code);
-      if (issue.snippet) {
-        issue.snippet.line = maskSecretText(issue.snippet.line);
-        issue.snippet.before = issue.snippet.before.map((l) => maskSecretText(l));
-        issue.snippet.after = issue.snippet.after.map((l) => maskSecretText(l));
-      }
+    // Every code frame is masked, not only the credential finding's own.
+    // A frame reaches two lines past the finding, so a hygiene hit one line
+    // above a `DB_PASSWORD = …` carried the password into the city JSON the
+    // user exports — measured on a two-file fixture: the credential findings
+    // were clean, the CONSOLE_USAGE frame next to them was not.
+    if (issue.code) issue.code = maskSecretText(issue.code);
+    if (issue.snippet) {
+      issue.snippet.line = maskSecretText(issue.snippet.line);
+      issue.snippet.before = issue.snippet.before.map((l) => maskSecretText(l));
+      issue.snippet.after = issue.snippet.after.map((l) => maskSecretText(l));
     }
   }
 }

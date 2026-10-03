@@ -41,6 +41,8 @@ Measured, not assumed: a scan of a 11-file fixture on the `standard` profile pro
 
 **Telemetry: none.** Ephemora Skyline ships no analytics and no beacon of its own — the only request it makes is the anonymous release check in the table above, and `SKYLINE_OFFLINE=1` switches that off too. Maintainers measure adoption through [GitHub's built-in traffic & clone statistics](https://docs.github.com/en/rest/metrics/traffic) (`GH_TOKEN=... node scripts/clone-stats.mjs`) — which count clones without ever identifying a user.
 
+**What the saved city carries.** A finding stores the line it was found on plus a two-line code frame, and the whole result is written to a JSON file you can export and share. So the value of any credential-shaped assignment (`NAME = "…"`, `"NAME": "…"`) is erased to `‹hidden›` before the finding is kept — the name stays, because the name is what tells you where to fix it. Masking is not limited to secret findings: it runs on every frame, because a `console.log` one line above a password carries that password in its neighbour lines. `.env`, `.env.production` and friends are in the scan surface **because** of that masking, and are read as data — no complexity, no code shape questions.
+
 ## Quick start
 
 Requires **Node >= 20** and **npm >= 10**.

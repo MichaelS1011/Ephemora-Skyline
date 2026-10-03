@@ -167,3 +167,48 @@ FEATURE_FLAGS=beta
     expect(secret!.snippet?.line).not.toContain(VALUE);
   });
 });
+
+/**
+ * The frame around a finding reaches two lines past it. Masking only the
+ * credential finding's own frame left the neighbour case open: a console.log one
+ * line above a password carries that password in its snippet, and the snippet is
+ * what lands in the city JSON a user exports. Measured on a two-file fixture
+ * before this test existed — the secret findings were clean, the CONSOLE_USAGE
+ * frame was not.
+ */
+describe("a credential one line away from an ordinary finding", () => {
+  const content = `console.log("boot");
+const cfg = load();
+DB_PASSWORD = "${VALUE}"
+export { cfg };
+`;
+
+  it("keeps the value out of every field the scanner hands back", async () => {
+    const issues = await new SecurityScanner().scanFile("src/app.ts", content);
+    expect(
+      issues.some((i) => i.type === "CONSOLE_USAGE"),
+      "the hygiene finding must exist",
+    ).toBe(true);
+    const json = JSON.stringify(issues);
+    expect(json, "a snippet frame must not carry the credential value").not.toContain(VALUE);
+    expect(json).toContain("DB_PASSWORD"); // the name is the useful half
+  });
+
+  it("masks the neighbour line of a non-secret finding in enrichIssues", () => {
+    const issues = [
+      {
+        type: "CONSOLE_USAGE",
+        severity: "P2",
+        score: 3,
+        line: 1,
+        code: 'console.log("boot")',
+        message: "console statement",
+        provenance: "regex",
+      } as unknown as SecurityIssue,
+    ];
+    enrichIssues(issues, content);
+    const frame = issues[0]!.snippet!;
+    expect(frame.after.join("\n")).toContain("DB_PASSWORD");
+    expect(JSON.stringify(frame)).not.toContain(VALUE);
+  });
+});
