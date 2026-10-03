@@ -244,7 +244,10 @@ export class AnalysisOrchestrator {
     try {
       emit("analysis_progress", { progress: 88, stage: "Deep scan (semgrep + gitleaks)" });
       const batch = await this.scanner.scanRepositoryBatch(dirPath, fileAnalyses, {
-        gitHistory: repo.fullHistory,
+        // The "Deep" profile is the only one that promises secrets in git
+        // history, and nothing used to read that toggle: repo.fullHistory is a
+        // GitHub-clone flag, so a locally scanned folder never got the pass.
+        gitHistory: config?.tools.gitleaksHistory === true || repo.fullHistory === true,
       });
       scanProvenance.gitleaksRan = batch.gitleaksRan;
       scanProvenance.semgrepRan = batch.semgrepRan;

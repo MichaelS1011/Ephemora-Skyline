@@ -148,6 +148,9 @@ export class GitleaksAdapter implements ScannerAdapter {
         });
       }
       for (const pass of passes) {
+        // Per-pass isolation: a history pass needs a git repository and can
+        // fail or time out on its own, and that must not throw away the
+        // secrets already found in the working tree.
         const { stdout } = await execFileAsync(bin, pass.args, {
           timeout: parseInt(process.env.GITLEAKS_TIMEOUT || "120", 10) * 1000,
           maxBuffer: 50 * 1024 * 1024,
@@ -155,7 +158,11 @@ export class GitleaksAdapter implements ScannerAdapter {
           const err = e as { stdout?: string };
           // gitleaks exits 1 when leaks found, stdout still contains JSON
           if (err.stdout) return { stdout: err.stdout } as { stdout: string };
-          throw e;
+          this.logger.warn(
+            { e, pass: pass.history ? "history" : "working tree" },
+            "gitleaks pass failed — continuing with the other pass",
+          );
+          return { stdout: "" };
         });
         if (!stdout?.trim()) continue;
         const leaks = JSON.parse(stdout) as Array<{

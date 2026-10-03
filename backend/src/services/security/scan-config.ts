@@ -81,13 +81,10 @@ const PROFILE_PRESETS: Record<ScanProfile, Partial<ScanConfig>> = {
     disabledFindingTypes: ["CONSOLE_USAGE", "LOOSE_EQUALITY", "LOCALSTORAGE_USAGE"],
   },
   "quality-only": {
-    enabledFindingTypes: [
-      "CONSOLE_USAGE",
-      "LOOSE_EQUALITY",
-      "QUALITY_F401",
-      "QUALITY_F811",
-      "QUALITY_F841",
-    ],
+    // The UI promises "dead code, console, style", so this is the hygiene
+    // family: the three hand-written ones plus every QUALITY_<code> a linter
+    // contributes — ruff alone has 15 of them, which no fixed list could track.
+    enabledFindingTypes: ["CONSOLE_USAGE", "LOOSE_EQUALITY", "LOCALSTORAGE_USAGE", "QUALITY"],
     tools: { ...ALL_TOOLS_ON, gitleaks: false, semgrep: false, dependencies: false, osv: false },
   },
   custom: {},
@@ -243,6 +240,12 @@ export function resolveConfig(input?: unknown): ResolveResult {
   );
   if (preset.disabledFindingTypes && config.disabledFindingTypes.length === 0) {
     config.disabledFindingTypes = preset.disabledFindingTypes;
+  }
+  // A profile's allowlist was never applied, so "Quality" reported every security
+  // finding too — the opposite of what its own label promises. An explicit user
+  // list still replaces it rather than widening it.
+  if (preset.enabledFindingTypes && config.enabledFindingTypes.length === 0) {
+    config.enabledFindingTypes = preset.enabledFindingTypes;
   }
   config.languageScope = strArray(raw["languageScope"], MAX_LANGUAGES, "languageScope", errors);
   config.excludePaths = strArray(raw["excludePaths"], MAX_EXCLUDE_PATHS, "excludePaths", errors);

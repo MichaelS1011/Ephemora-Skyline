@@ -28,6 +28,8 @@ export class SecurityScanner {
   private osvAdapter: OsvAdapter = new OsvAdapter();
   private ruffAdapter: RuffAdapter = new RuffAdapter();
   private config: ResolvedScanConfig;
+  /** One CVE question per scan: the batch phase and the dependency phase share it */
+  private cveAnswered = false;
   semgrepAdapter: SemgrepAdapter | null = null;
 
   constructor(adapters?: ScannerAdapter[], config?: ResolvedScanConfig) {
@@ -41,6 +43,19 @@ export class SecurityScanner {
       this.gitleaksAdapter = new GitleaksAdapter();
       this.adapters = [new RegexAdapter(), this.gitleaksAdapter, semgrep];
     }
+    this.applyCustomPatterns();
+  }
+
+  /**
+   * A user rule that is validated, stored and never compiled is a lie about the
+   * scan: the config's `customPatterns` join the regex catalogue here, and again
+   * on every setConfig, because one scanner instance serves many scans.
+   */
+  private applyCustomPatterns(): void {
+    for (const adapter of this.adapters) {
+      if (adapter.id !== "regex" || !(adapter instanceof RegexAdapter)) continue;
+      adapter.setCustomPatterns(this.config.customPatterns);
+    }
   }
 
   /**
@@ -52,9 +67,16 @@ export class SecurityScanner {
     clonePath: string,
     fileAnalyses: FileAnalysis[],
   ): Promise<{ executed: boolean; added: number; runner: string | null }> {
+    if (!this.config.tools.dependencies) return { executed: false, added: 0, runner: null };
+    // The batch phase already asked the CVE question when osv is on — asking it
+    // again here cost a second network round trip per scan.
+    if (this.cveAnswered) return { executed: true, added: 0, runner: this.osvAdapter.lastRunner };
+
     // osv covers npm too — prefer it, fall back to the npm-audit adapter
-    const osv = await this.osvAdapter.scanRepository(clonePath);
-    if (this.osvAdapter.lastBatchExecuted) {
+    const useOsv = this.config.tools.osv;
+    const osv = useOsv ? await this.osvAdapter.scanRepository(clonePath) : new Map();
+    this.cveAnswered = useOsv;
+    if (useOsv && this.osvAdapter.lastBatchExecuted) {
       return {
         executed: true,
         added: this.mergeByFile(osv, fileAnalyses, "osv"),
@@ -96,7 +118,7 @@ export class SecurityScanner {
         fileAnalyses.push(target);
       }
       enrichIssues(issues, target.content);
-      const merged = dedupIssues([...target.vulnerabilities, ...issues]);
+      const merged = this.filterForPath(dedupIssues([...target.vulnerabilities, ...issues]), rel);
       added += merged.length - target.vulnerabilities.length;
       target.vulnerabilities = merged.sort(
         (a, b) => SEVERITY_ORDER[a.severity] - SEVERITY_ORDER[b.severity] || a.line - b.line,
@@ -109,6 +131,7 @@ export class SecurityScanner {
   /** Apply a scan config for the NEXT scan (mutates thresholds, tool toggles) */
   setConfig(config: ResolvedScanConfig): void {
     this.config = config;
+    this.applyCustomPatterns();
   }
 
   /**
@@ -140,7 +163,7 @@ export class SecurityScanner {
       const res = await adapter.scanFile(filePath, content);
       all.push(...res);
     }
-    const deduped = dedupIssues(all).filter((i) => this.configFilterAllows(i));
+    const deduped = this.filterForPath(dedupIssues(all), filePath);
     // Sort by severity order P0>P1>P2 then line
     deduped.sort(
       (a, b) => SEVERITY_ORDER[a.severity] - SEVERITY_ORDER[b.severity] || a.line - b.line,
@@ -150,6 +173,16 @@ export class SecurityScanner {
     return deduped;
   }
 
+  /**
+   * The single place a finding is judged. Batch and dependency merges used to
+   * append their results beside it, so a category turned off in the profile was
+   * still reported whenever semgrep, gitleaks or ruff named it.
+   */
+  private filterForPath(issues: SecurityIssue[], filePath: string): SecurityIssue[] {
+    if (this.config.excludePaths.some((needle) => filePath.includes(needle))) return [];
+    return issues.filter((i) => this.configFilterAllows(i));
+  }
+
   /** Severity threshold + type allow/denylist from the scan config */
   private configFilterAllows(issue: SecurityIssue): boolean {
     const t = this.config.severityThreshold;
@@ -157,7 +190,13 @@ export class SecurityScanner {
     if (t === "P1" && issue.severity === "P2") return false;
     if (this.config.disabledFindingTypes.includes(issue.type)) return false;
     const allow = this.config.enabledFindingTypes;
-    if (allow.length > 0 && !allow.includes(issue.type)) return false;
+    if (
+      allow.length > 0 &&
+      // An entry names a family too: ruff contributes QUALITY_<code> and semgrep
+      // SECURITY_<check-id>, which no fixed list could ever enumerate.
+      !allow.some((a) => issue.type === a || issue.type.startsWith(`${a}_`))
+    )
+      return false;
     return true;
   }
 
@@ -289,7 +328,7 @@ export class SecurityScanner {
     }
 
     const gitleaksTask = (async (): Promise<Map<string, SecurityIssue[]> | null> => {
-      if (!this.gitleaksAdapter) return null;
+      if (!this.gitleaksAdapter || !this.config.tools.gitleaks) return null;
       try {
         return await this.gitleaksAdapter.scanRepository(clonePath, {
           gitHistory: opts?.gitHistory,
@@ -301,7 +340,7 @@ export class SecurityScanner {
     })();
 
     const semgrepTask = (async (): Promise<Map<string, SecurityIssue[]>> => {
-      if (!this.semgrepAdapter) return new Map();
+      if (!this.semgrepAdapter || !this.config.tools.semgrep) return new Map();
       try {
         return await this.scanBatch(clonePath, contentByPath);
       } catch (e) {
@@ -326,11 +365,14 @@ export class SecurityScanner {
       }
     })();
 
-    // osv: CVE scan across all ecosystems (parallel, has pip-audit fallback)
     const osvTask = (async (): Promise<Map<string, SecurityIssue[]>> => {
       if (!this.config.tools.osv) return new Map();
+      // "answered" = it was asked in this scan, whatever it brought back — the
+      // dependency phase must not spend a second round trip on the same question
+      this.cveAnswered = true;
       try {
-        return await this.osvAdapter.scanRepository(clonePath);
+        const found = await this.osvAdapter.scanRepository(clonePath);
+        return found;
       } catch (e) {
         this.logger.warn({ e }, "osv batch scan failed — CVEs skipped");
         return new Map();
@@ -353,18 +395,20 @@ export class SecurityScanner {
         ...(osvByFile.get(fa.path) ?? []),
       ];
       if (extras.length === 0) continue;
+      const allowed = this.filterForPath(extras, fa.path);
+      if (allowed.length === 0) continue;
 
       // Batch findings arrive without content — enrich with knowledge + code
       // frame against the on-disk content read above
-      enrichIssues(extras, contentByPath.get(fa.path));
-      for (const iss of extras) {
+      enrichIssues(allowed, contentByPath.get(fa.path));
+      for (const iss of allowed) {
         if (!iss.code && iss.provenance?.startsWith("gitleaks")) {
           iss.code =
             contentByPath.get(fa.path)?.split("\n")[iss.line - 1]?.trim().slice(0, 120) ?? "";
         }
       }
 
-      const merged = dedupIssues([...fa.vulnerabilities, ...extras]);
+      const merged = dedupIssues([...fa.vulnerabilities, ...allowed]);
       mergedCount += merged.length - fa.vulnerabilities.length;
       merged.sort(
         (a, b) => SEVERITY_ORDER[a.severity] - SEVERITY_ORDER[b.severity] || a.line - b.line,

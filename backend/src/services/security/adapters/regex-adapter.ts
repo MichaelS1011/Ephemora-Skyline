@@ -2,8 +2,9 @@ import type { SecurityIssue } from "../../../models/index.js";
 import { detectLanguage, isDataFile, maskForScanning } from "../../analyzer/metrics.js";
 import { enrichIssues } from "../finding-knowledge.js";
 import type { ScannerAdapter } from "../adapter.js";
+import { languageOfPath, type CustomPattern } from "../scan-config.js";
 
-interface ScanPattern {
+export interface ScanPattern {
   regex: RegExp;
   type: string;
   severity: "P0" | "P1" | "P2";
@@ -15,6 +16,33 @@ interface ScanPattern {
    * about a manifest, not about a source file that happens to mention one.
    */
   paths?: RegExp;
+  /** Language names (`"typescript"`), empty = every language */
+  languages?: string[];
+  cwe?: string;
+}
+
+const CUSTOM_SCORE: Record<"P0" | "P1" | "P2", number> = { P0: 9, P1: 6, P2: 3 };
+
+/**
+ * A user rule becomes a scanner rule — the same shape, the same gates, the same
+ * suppression of comments. Validated before it gets here (`validateCustomPattern`
+ * compiles it and runs a ReDoS canary), so this is translation, not a checkpoint.
+ */
+export function toScanPattern(p: CustomPattern): ScanPattern {
+  const extensions = (p.fileExtensions ?? [])
+    .map((e) => e.trim().replace(/^\.+/, ""))
+    .filter(Boolean);
+  return {
+    regex: new RegExp(p.regex, `g${(p.flags ?? "").includes("i") ? "i" : ""}`),
+    type: p.id,
+    severity: p.severity,
+    message: p.message,
+    fix: p.fix,
+    score: CUSTOM_SCORE[p.severity],
+    paths: extensions.length ? new RegExp(`\\.(?:${extensions.join("|")})$`, "i") : undefined,
+    languages: (p.languages ?? []).map((l) => l.trim().toLowerCase()).filter(Boolean),
+    cwe: p.cwe,
+  };
 }
 
 export const REGEX_PATTERNS: ScanPattern[] = [
@@ -198,7 +226,20 @@ const OPERATIONAL_TYPES = new Set([
 
 export class RegexAdapter implements ScannerAdapter {
   readonly id = "regex";
+  private custom: ScanPattern[] = [];
   constructor(private patterns: ScanPattern[] = REGEX_PATTERNS) {}
+
+  /**
+   * User rules join the catalogue at scan time. They are appended, not
+   * substituted, so turning a custom rule on can never remove a built-in one.
+   */
+  setCustomPatterns(list: CustomPattern[]): void {
+    this.custom = list.map(toScanPattern);
+  }
+
+  get activePatterns(): ScanPattern[] {
+    return this.custom.length ? [...this.patterns, ...this.custom] : this.patterns;
+  }
 
   scanFile(filePath: string, content: string): SecurityIssue[] {
     const issues: SecurityIssue[] = [];
@@ -312,11 +353,16 @@ export class RegexAdapter implements ScannerAdapter {
       return low;
     };
 
-    for (const pattern of this.patterns) {
+    for (const pattern of this.activePatterns) {
       // Language gating: loose equality is a JavaScript-only pitfall — in
       // Python `==` is the correct operator (400+ false positives in real
       // Python projects otherwise)
       if (pattern.type === "LOOSE_EQUALITY" && !isJsFamily) continue;
+      if (
+        pattern.languages?.length &&
+        !pattern.languages.includes(languageOfPath(filePath).toLowerCase())
+      )
+        continue;
 
       // Path gating: an install hook is a fact about a manifest, not about a
       // source file that happens to name one.
@@ -380,6 +426,7 @@ export class RegexAdapter implements ScannerAdapter {
           code: lineContent.trim().slice(0, 120),
           message: pattern.message + (isTestFile ? " (in test file)" : ""),
           fix: pattern.fix,
+          cwe: pattern.cwe,
           provenance: "regex",
           ruleId: `regex:${pattern.type}`,
         } as SecurityIssue & { provenance: string; ruleId: string });
