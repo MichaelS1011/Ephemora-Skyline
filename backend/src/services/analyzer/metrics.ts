@@ -82,6 +82,34 @@ export function hasDataLines(filePath: string, language?: string): boolean {
   return DATA_LINE_LANGUAGES.has(language ?? detectLanguage(filePath)) || DATA_PATHS.test(filePath);
 }
 
+export type FileRole = "code" | "test";
+
+/**
+ * Test folders and test files, in the conventions the ecosystems actually use.
+ * Deliberately narrower than "contains the word test": `src/tests.ts` is a
+ * product route here, and calling it a test would silence real findings.
+ */
+const TEST_DIR = /(^|\/)(?:tests?|__tests__|spec|e2e|cypress)\//i;
+const TEST_FILE =
+  /(?:[-_.](?:test|spec|stories)\.[a-z]+$|^test_.+\.py$|_spec\.rb$|^conftest\.py$)/i;
+
+/**
+ * Which side of the codebase a file belongs to.
+ *
+ * A fixture that exists to demonstrate a vulnerable snippet is not evidence
+ * about the shipped code. Measured on the self-scan: 35 of 56 findings sat in
+ * `backend/tests/*.test.ts`, which made the tool call its own scanner test the
+ * highest-risk file in the project. Findings there stay visible — they only
+ * stop leading the ranking.
+ */
+export function roleOfPath(filePath: string): FileRole {
+  const normalized = filePath.replace(/\\/g, "/");
+  const base = normalized.split("/").pop() ?? normalized;
+  if (TEST_DIR.test(normalized)) return "test";
+  if (TEST_FILE.test(base)) return "test";
+  return "code";
+}
+
 /** Languages that comment with `#` instead of `//`. */
 function isHashCommentLanguage(language?: string): boolean {
   return language === "Python" || language === "Ruby" || language === "Shell";

@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   blockFootprint,
+  byRisk,
   resolveDir,
   getDirLayout,
   setLayoutMode,
@@ -10,7 +11,7 @@ import {
   landmarkFileId,
   tourStops,
 } from "../src/city/layout";
-import type { CityData, CityFile } from "../src/city/types";
+import type { CityData, CityFile, Severity } from "../src/city/types";
 
 function createMockCity(): CityData {
   const file1: CityFile = {
@@ -176,6 +177,51 @@ describe("City Layout Calculations", () => {
 
     expect(riskScore(stops[0]!.file)).toBe(10);
     expect(riskScore(stops[1]!.file)).toBe(3);
+  });
+});
+
+describe("test code in the risk ranking", () => {
+  function risky(id: string, path: string, role: "code" | "test", findings: Severity[]): CityFile {
+    return {
+      id,
+      name: path.split("/").pop() ?? path,
+      path,
+      language: "TypeScript",
+      linesOfCode: 100,
+      cyclomaticComplexity: 3,
+      threatLevel: findings.includes("P0") ? "critical" : "medium",
+      role,
+      findings: findings.map((severity, i) => ({
+        type: "SQL_INJECTION",
+        severity,
+        line: i + 1,
+        message: "m",
+      })),
+    };
+  }
+
+  it("puts shipped code above a fixture that scores higher", () => {
+    const shipped = risky("c1", "src/app.ts", "code", ["P2"]);
+    const fixture = risky("t1", "tests/app.test.ts", "test", ["P0", "P0", "P0"]);
+    expect(riskScore(fixture)).toBeGreaterThan(riskScore(shipped));
+    expect(byRisk(shipped, fixture)).toBeLessThan(0);
+    expect(byRisk(fixture, shipped)).toBeGreaterThan(0);
+  });
+
+  it("still ranks two fixtures against each other by their findings", () => {
+    const a = risky("t1", "tests/a.test.ts", "test", ["P2"]);
+    const b = risky("t2", "tests/b.test.ts", "test", ["P0"]);
+    expect(byRisk(b, a)).toBeLessThan(0);
+  });
+
+  it("names the shipped file as the city's landmark when a fixture outscores it", () => {
+    const city = createMockCity();
+    const fixture = risky("t9", "tests/fixture.test.ts", "test", ["P0", "P0", "P0"]);
+    const shipped = risky("c9", "src/real.ts", "code", ["P1"]);
+    city.tree.children[0]!.detailFiles = [fixture, shipped];
+    city.tree.children[0]!.districtFiles = [fixture, shipped];
+    expect(landmarkFileId(city)).toBe("c9");
+    expect(tourStops(city)[0]?.file.id).toBe("c9");
   });
 });
 

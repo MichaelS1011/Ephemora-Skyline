@@ -2,9 +2,9 @@ import { create } from "zustand";
 import type { CityData, ReviewStatus, SelectedUnit, Severity } from "../city/types";
 import {
   allFiles,
+  byRisk,
   findFileById,
   getDirLayout,
-  riskScore,
   tourStops,
   type CraneShot,
 } from "../city/layout";
@@ -295,7 +295,7 @@ function triageList(city: CityData, threat: Severity | "all", rule: string | nul
     (a, b) =>
       SEVERITY_RANK[a.file.findings[a.index]!.severity] -
         SEVERITY_RANK[b.file.findings[b.index]!.severity] ||
-      riskScore(b.file) - riskScore(a.file) ||
+      byRisk(a.file, b.file) ||
       a.file.path.localeCompare(b.file.path) ||
       a.file.findings[a.index]!.line - b.file.findings[b.index]!.line,
   );

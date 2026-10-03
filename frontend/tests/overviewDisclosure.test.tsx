@@ -213,6 +213,20 @@ describe("project overview", () => {
     expect(text).toContain("3 files and 1 folder kept out by .gitignore");
     expect(text).not.toContain("1 folders");
   });
+
+  it("says how many findings come from test code", async () => {
+    const city = cityData();
+    city.findingsInTests = 3;
+    city.tree.findingsInTests = 3;
+    const text = await show(<ContextCard />, city);
+    // 4 P0 + 3 P1 in the case book
+    expect(text).toContain("3 of 7 findings were found in test code");
+  });
+
+  it("says nothing about test code when a folder has none", async () => {
+    const text = await show(<ContextCard />, cityData());
+    expect(text).not.toContain("test code");
+  });
 });
 
 describe("scan summary", () => {

@@ -244,9 +244,8 @@ function buildSkyline(child: CityDir, blockW: number): BuildingPlacement[] {
   }
   const skylineFiles = [...reps]
     .sort((a, b) => {
-      const ra = riskScore(a);
-      const rb = riskScore(b);
-      if (rb !== ra) return rb - ra;
+      const byRiskFirst = byRisk(a, b);
+      if (byRiskFirst !== 0) return byRiskFirst;
       return b.linesOfCode - a.linesOfCode;
     })
     .slice(0, 6);
@@ -835,6 +834,20 @@ export function riskScore(file: CityFile): number {
   );
 }
 
+/**
+ * Compare two files for any "what is most risky" decision.
+ *
+ * A fixture that exists to show a vulnerable snippet outscored the shipped
+ * code in the first self-scan: 35 of 56 findings sat in `*.test.ts`, and the
+ * tool named its own scanner test as the project's highest risk. Test code is
+ * still scanned and still listed — it just stops leading.
+ */
+export function byRisk(a: CityFile, b: CityFile): number {
+  const aCode = a.role === "test" ? 0 : 1;
+  const bCode = b.role === "test" ? 0 : 1;
+  return bCode - aCode || riskScore(b) - riskScore(a);
+}
+
 /** Files with findings, most risky first — the Security Tour itinerary. */
 const tourStopsCache = new WeakMap<CityData, FileHit[]>();
 
@@ -845,8 +858,7 @@ export function tourStops(city: CityData): FileHit[] {
     .filter(({ file }) => file.findings.length > 0)
     .sort(
       (a, b) =>
-        riskScore(b.file) - riskScore(a.file) ||
-        threatRank(b.file.threatLevel) - threatRank(a.file.threatLevel),
+        byRisk(a.file, b.file) || threatRank(b.file.threatLevel) - threatRank(a.file.threatLevel),
     );
   tourStopsCache.set(city, stops);
   return stops;
@@ -857,7 +869,7 @@ export function landmarkFileId(city: CityData): string | null {
   let best: FileHit | null = null;
   for (const hit of allFiles(city)) {
     if (hit.file.findings.length === 0) continue;
-    if (!best || riskScore(hit.file) > riskScore(best.file)) best = hit;
+    if (!best || byRisk(hit.file, best.file) < 0) best = hit;
   }
   return best?.file.id ?? null;
 }
@@ -877,8 +889,8 @@ const SEVERITY_ORDER: Record<Severity, number> = { P0: 0, P1: 1, P2: 2 };
 function compareFindingHits(a: FindingHit, b: FindingHit): number {
   const bySeverity = SEVERITY_ORDER[a.finding.severity] - SEVERITY_ORDER[b.finding.severity];
   if (bySeverity !== 0) return bySeverity;
-  const byRisk = riskScore(b.file) - riskScore(a.file);
-  if (byRisk !== 0) return byRisk;
+  const byFileRisk = byRisk(a.file, b.file);
+  if (byFileRisk !== 0) return byFileRisk;
   const byMessage = a.finding.message.localeCompare(b.finding.message);
   if (byMessage !== 0) return byMessage;
   const byPath = a.file.path.localeCompare(b.file.path);

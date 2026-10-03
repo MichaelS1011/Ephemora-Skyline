@@ -32,13 +32,20 @@ export interface CityFinding {
   refUrl?: string;
   /** Code frame around the flagged line — where exactly the problem lives */
   snippet?: CitySnippet;
+  /** Found in test code — true statement about a fixture, weak one about the product */
+  inTest?: boolean;
 }
+
+/** Which side of the codebase a file belongs to. */
+export type FileRole = "code" | "test";
 
 export interface CityFile {
   id: string;
   name: string;
   path: string;
   language: string;
+  /** Absent in payloads mapped before the code/test split */
+  role?: FileRole;
   linesOfCode: number;
   cyclomaticComplexity: number;
   threatLevel: ThreatLevel;
@@ -82,7 +89,14 @@ export interface CityDir {
   /** language → data lines */
   dataLanguages?: Record<string, number>;
   findingsBySeverity: Record<Severity, number>;
+  /** Weighted risk of the findings in SHIPPED code (P0×10 + P1×7 + P2×3) */
   threatScore: number;
+  /** Files in the subtree that live in test code */
+  testFiles?: number;
+  /** Findings in the subtree that were found in test code */
+  findingsInTests?: number;
+  /** Weighted risk of those test-code findings */
+  testThreatScore?: number;
   topFindings: CityFinding[];
   children: CityDir[];
   detailFiles: CityFile[];
@@ -134,6 +148,10 @@ export interface CityData {
   languages: Record<string, number>;
   /** language → data lines, kept out of the bar above */
   dataLanguages?: Record<string, number>;
+  /** Findings found in test code — counted, not hidden */
+  findingsInTests?: number;
+  /** How many of `totalFiles` are test files */
+  testFiles?: number;
   tree: CityDir;
   fileConnections: FileConnection[];
   dirConnections: DirConnection[];

@@ -24,7 +24,7 @@
  */
 
 import path from "path";
-import { hasDataLines } from "../services/analyzer/metrics.js";
+import { hasDataLines, roleOfPath, type FileRole } from "../services/analyzer/metrics.js";
 import type { AnalysisResult, FileAnalysis, ProjectSummary } from "../models/index.js";
 
 export type Severity = "P0" | "P1" | "P2";
@@ -54,6 +54,12 @@ export interface CityFinding {
   refUrl?: string;
   /** Code frame around the flagged line — where exactly the problem lives */
   snippet?: CitySnippet;
+  /**
+   * Found inside test code. A fixture that shows a vulnerable snippet is a
+   * true statement about the fixture and a weak one about the product, so the
+   * panel says which of the two the user is looking at.
+   */
+  inTest?: boolean;
 }
 
 /**
@@ -74,6 +80,11 @@ export interface CityFile {
   name: string;
   path: string;
   language: string;
+  /**
+   * "test" for test folders and *.test.* files. Absent in payloads mapped
+   * before the split — the client then treats the file as code.
+   */
+  role?: FileRole;
   linesOfCode: number;
   cyclomaticComplexity: number;
   threatLevel: ThreatLevel;
@@ -120,7 +131,18 @@ export interface CityDir {
   /** language → data lines (subtree) — kept out of `languages` on purpose */
   dataLanguages: Record<string, number>;
   findingsBySeverity: Record<Severity, number>; // subtree finding counts
-  threatScore: number; // weighted: P0×10 + P1×7 + P2×3 (subtree)
+  /**
+   * Weighted risk of the findings this folder holds in shipped code
+   * (P0×10 + P1×7 + P2×3). Test fixtures are counted separately below, so a
+   * folder full of deliberate bad examples cannot outscore a real one.
+   */
+  threatScore: number;
+  /** Files in the subtree that live in test code */
+  testFiles: number;
+  /** Findings in the subtree that were found in test code */
+  findingsInTests: number;
+  /** Weighted risk of those test-code findings */
+  testThreatScore: number;
   topFindings: CityFinding[]; // worst findings in subtree (max 3)
   children: CityDir[]; // subdirectories (sorted by linesOfCode desc)
   detailFiles: CityFile[]; // files rendered as buildings when opened
@@ -158,6 +180,10 @@ export interface CityData {
   /** lines of translation catalogues, manifests and other data files */
   dataLines: number;
   findingsBySeverity: Record<Severity, number>;
+  /** Findings that were found in test code — still findings, different claim */
+  findingsInTests: number;
+  /** How many of `totalFiles` are test files */
+  testFiles: number;
   /** language → CODE lines — data files never show up here */
   languages: Record<string, number>;
   /** language → data lines, shown apart so the bar stays about code */
@@ -265,14 +291,20 @@ function findCircularFiles(files: FileAnalysis[], pathSet: Set<string>): Set<str
 /** Weight a subtree file for skyline selection: risk dominates, size breaks ties. */
 function skylineWeight(f: FileAnalysis): number {
   const risk = f.vulnerabilities.reduce((s, v) => s + (SEVERITY_SCORE[v.severity] ?? 0), 0);
-  return risk * 10_000 + Math.min(f.lines.code, 2000);
+  // A fixture never becomes the tower the user sees from orbit.
+  return roleWeight(f.path) * 100_000_000 + risk * 10_000 + Math.min(f.lines.code, 2000);
+}
+
+/** Test code ranks below shipped code, but never disappears. */
+function roleWeight(filePath: string): number {
+  return roleOfPath(filePath) === "test" ? 0 : 1;
 }
 
 function emptySeverityCount(): Record<Severity, number> {
   return { P0: 0, P1: 0, P2: 0 };
 }
 
-function toCityFinding(v: FileAnalysis["vulnerabilities"][number]): CityFinding {
+function toCityFinding(v: FileAnalysis["vulnerabilities"][number], inTest?: boolean): CityFinding {
   const enriched = v as unknown as {
     provenance?: string;
     ruleId?: string;
@@ -293,6 +325,7 @@ function toCityFinding(v: FileAnalysis["vulnerabilities"][number]): CityFinding 
     cwe: enriched.cwe,
     refUrl: enriched.refUrl,
     snippet: enriched.snippet,
+    inTest,
   };
 }
 
@@ -306,7 +339,7 @@ function threatLevelOf(findings: FileAnalysis["vulnerabilities"]): ThreatLevel {
 
 function fileSortKey(f: FileAnalysis): number {
   const worst = findingsSortKey(f.vulnerabilities);
-  return worst * 1000 + Math.min(f.lines.code, 1000);
+  return roleWeight(f.path) * 1_000_000 + worst * 1000 + Math.min(f.lines.code, 1000);
 }
 
 function findingsSortKey(findings: FileAnalysis["vulnerabilities"]): number {
@@ -394,8 +427,6 @@ function topLevelDirOf(filePath: string): string {
 // ── Dead-code heuristic ────────────────────────────────────────────────────
 
 const ENTRY_BASENAMES = /^(index|main|app|mod|lib|server|client|__init__|wsgi|manage)\./i;
-const TEST_PATH = /(^|\/)(tests?|__tests__|spec)\//i;
-const TEST_SUFFIX = /\.(test|spec|stories)\.[a-z]+$/i;
 
 /**
  * Files whose exports are never imported anywhere and which cannot be
@@ -407,7 +438,7 @@ function isDeadCodeCandidate(f: FileAnalysis, importedPaths: Set<string>): boole
   if (importedPaths.has(f.path)) return false;
   const base = path.posix.basename(f.path);
   if (ENTRY_BASENAMES.test(base)) return false;
-  if (TEST_PATH.test(f.path) || TEST_SUFFIX.test(base)) return false;
+  if (roleOfPath(f.path) === "test") return false;
   return true;
 }
 
@@ -466,6 +497,9 @@ export function mapResultToCityData(result: AnalysisResult): CityData {
       dataLanguages: {},
       findingsBySeverity: emptySeverityCount(),
       threatScore: 0,
+      testFiles: 0,
+      findingsInTests: 0,
+      testThreatScore: 0,
       topFindings: [],
       children: [],
       detailFiles: [],
@@ -485,12 +519,20 @@ export function mapResultToCityData(result: AnalysisResult): CityData {
         dirNode.codeLines += f.lines.code;
         dirNode.languages[f.language] = (dirNode.languages[f.language] ?? 0) + f.lines.code;
       }
+      const inTest = roleOfPath(f.path) === "test";
+      if (inTest) dirNode.testFiles += 1;
       for (const v of f.vulnerabilities) {
         dirNode.findingsBySeverity[v.severity] = (dirNode.findingsBySeverity[v.severity] ?? 0) + 1;
-        dirNode.threatScore += SEVERITY_SCORE[v.severity] ?? 0;
+        const score = SEVERITY_SCORE[v.severity] ?? 0;
+        if (inTest) {
+          dirNode.findingsInTests += 1;
+          dirNode.testThreatScore += score;
+        } else {
+          dirNode.threatScore += score;
+        }
       }
       if (f.vulnerabilities.length > 0) {
-        dirNode.topFindings.push(...f.vulnerabilities.map(toCityFinding));
+        dirNode.topFindings.push(...f.vulnerabilities.map((v) => toCityFinding(v, inTest)));
       }
     };
 
@@ -512,12 +554,19 @@ export function mapResultToCityData(result: AnalysisResult): CityData {
         dirNode.findingsBySeverity[sev] += cityChild.findingsBySeverity[sev];
       }
       dirNode.threatScore += cityChild.threatScore;
+      dirNode.testFiles += cityChild.testFiles;
+      dirNode.findingsInTests += cityChild.findingsInTests;
+      dirNode.testThreatScore += cityChild.testThreatScore;
       dirNode.topFindings.push(...cityChild.topFindings);
     });
 
     dirNode.children.sort((a, b) => b.linesOfCode - a.linesOfCode);
     dirNode.topFindings = dirNode.topFindings
-      .sort((a, b) => (SEVERITY_SCORE[b.severity] ?? 0) - (SEVERITY_SCORE[a.severity] ?? 0))
+      .sort(
+        (a, b) =>
+          (SEVERITY_SCORE[b.severity] ?? 0) - (SEVERITY_SCORE[a.severity] ?? 0) ||
+          Number(a.inTest === true) - Number(b.inTest === true),
+      )
       .slice(0, 3);
 
     // Detail files: the most security-relevant / largest files DIRECTLY in
@@ -646,6 +695,8 @@ export function mapResultToCityData(result: AnalysisResult): CityData {
     codeLines: tree.codeLines,
     dataLines: tree.dataLines,
     findingsBySeverity: tree.findingsBySeverity,
+    findingsInTests: tree.findingsInTests,
+    testFiles: tree.testFiles,
     languages: languageTotals,
     dataLanguages: dataLanguageTotals,
     tree,
@@ -683,7 +734,8 @@ function mapCityFile(
   const findings = [...f.vulnerabilities]
     .sort((a, b) => (SEVERITY_SCORE[b.severity] ?? 0) - (SEVERITY_SCORE[a.severity] ?? 0))
     .slice(0, FINDINGS_PER_FILE)
-    .map(toCityFinding);
+    // the file itself carries the role
+    .map((v) => toCityFinding(v));
   const churn = f.churn;
   const clonePartners = f.clonePartners?.map((p) => ({
     id: idByPath?.get(p.path) ?? p.path,
@@ -694,6 +746,7 @@ function mapCityFile(
     id,
     name: path.posix.basename(f.path),
     path: f.path,
+    role: roleOfPath(f.path),
     language: f.language,
     linesOfCode: f.lines.code,
     cyclomaticComplexity: f.complexity?.cyclomatic ?? 1,

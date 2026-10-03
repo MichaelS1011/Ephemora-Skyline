@@ -59,6 +59,11 @@ export function ContextCard() {
     .join(", ");
   const drawLines = explainDistrictDraw(dir, cityData.limits);
   const skipped = describeGitignoreSkips(cityData.skippedByGitignore);
+  const findingsInTests = dir.findingsInTests ?? 0;
+  const testLine =
+    findingsInTests > 0 && totalFindings > 0
+      ? `${findingsInTests} of ${totalFindings} findings were found in test code`
+      : "";
   const langs = topLanguages(dir.languages, 4);
   const totalLangLines = Object.values(dir.languages).reduce((sum, lines) => sum + lines, 0) || 1;
   const stops = tourStops(cityData);
@@ -147,7 +152,7 @@ export function ContextCard() {
         </div>
       </dl>
 
-      {(dataLines > 0 || drawLines.length > 0 || (isRoot && skipped !== "")) && (
+      {(dataLines > 0 || drawLines.length > 0 || testLine !== "" || (isRoot && skipped !== "")) && (
         <div className="-mt-1 mb-1 space-y-1.5">
           {dataLines > 0 && (
             <div
@@ -166,6 +171,15 @@ export function ContextCard() {
               title="Every folder's own .gitignore decides what the scan reads. What it keeps out is not part of this city."
             >
               {skipped} kept out by .gitignore
+            </div>
+          )}
+          {testLine !== "" && (
+            <div
+              className="text-[12px]"
+              style={{ color: "#aaa69c" }}
+              title="A fixture that exists to show a vulnerable snippet is a true finding about the fixture, not about the shipped code. These findings are still listed; they no longer lead the risk ranking."
+            >
+              {testLine}
             </div>
           )}
           {drawLines.map((line) => (
