@@ -1,5 +1,5 @@
 import type { SecurityIssue } from "../../../models/index.js";
-import { isDataFile } from "../../analyzer/metrics.js";
+import { detectLanguage, isDataFile, maskForScanning } from "../../analyzer/metrics.js";
 import { enrichIssues } from "../finding-knowledge.js";
 import type { ScannerAdapter } from "../adapter.js";
 
@@ -210,6 +210,10 @@ export class RegexAdapter implements ScannerAdapter {
     // catalogue: "does this line call eval?" reads values, not behaviour. Only
     // rules that name their file type (the `paths` gate) run on data.
     const dataFile = isDataFile(filePath);
+    // Patterns run against the file with its prose blanked out; line numbers
+    // and the shown code still come from the original text, which is the whole
+    // point of a mask that keeps its length.
+    const scannable = maskForScanning(content, detectLanguage(filePath));
 
     // Heuristic: findings in test/spec files are lower priority
     const isTestFile =
@@ -326,7 +330,7 @@ export class RegexAdapter implements ScannerAdapter {
       // Local regex instance prevents race conditions across concurrent file scans
       const regex = new RegExp(pattern.regex.source, pattern.regex.flags);
       let match: RegExpExecArray | null;
-      while ((match = regex.exec(content)) !== null) {
+      while ((match = regex.exec(scannable)) !== null) {
         const lineNum = findLineNum(match.index);
         // Never flag prose: comments, docstrings
         if (suppressedLines.has(lineNum)) {
@@ -334,11 +338,11 @@ export class RegexAdapter implements ScannerAdapter {
           continue;
         }
 
-        // SQL_INJECTION: skip parameterized queries
+        // SQL_INJECTION: skip parameterized queries. The placeholder has to be
+        // in the query itself — the 400 characters after the match are unrelated
+        // code, and any later ternary muted a real injection there.
         if (pattern.type === "SQL_INJECTION") {
-          const win = content.slice(match.index, match.index + 400);
-          const lineSlice = content.slice(match.index).split("\n")[0] ?? "";
-          if (win.includes("?") || /\$\d/.test(win) || /:\w+/.test(lineSlice)) {
+          if (/\?|\$\d|:\w+/.test(match[0])) {
             if (match[0].length === 0) regex.lastIndex++;
             continue;
           }

@@ -120,7 +120,16 @@ const REGEX_AFTER_KEYWORD = new Set([
  * Template `${…}` interpolations are code and get masked anyway, which
  * under-counts; masking the whole literal is the honest cheap side of that.
  */
-function maskNonCode(code: string, hashComments: boolean): string {
+interface MaskOptions {
+  /** `#` starts a line comment (Python, Ruby, Shell, PHP) */
+  hash: boolean;
+  /** `//` and `/* *\/` start comments; also enables regex-literal detection */
+  slash: boolean;
+  /** blank string contents, or leave them visible and only step over them */
+  blankStrings: boolean;
+}
+
+function maskNonCode(code: string, opts: MaskOptions): string {
   const out: string[] = [];
   const n = code.length;
   const blank = (ch: string): string => (ch === "\n" ? "\n" : " ");
@@ -139,38 +148,51 @@ function maskNonCode(code: string, hashComments: boolean): string {
     const ch = code[i]!;
     const next = code[i + 1];
 
-    if (ch === "#" && hashComments) {
-      while (i < n && code[i] !== "\n") i++;
+    if (ch === "#" && opts.hash) {
+      while (i < n && code[i] !== "\n") {
+        out.push(" ");
+        i++;
+      }
       continue;
     }
-    if (ch === "/" && next === "/" && !hashComments) {
-      while (i < n && code[i] !== "\n") i++;
+    if (ch === "/" && next === "/" && opts.slash) {
+      while (i < n && code[i] !== "\n") {
+        out.push(" ");
+        i++;
+      }
       continue;
     }
-    if (ch === "/" && next === "*") {
+    if (ch === "/" && next === "*" && opts.slash) {
+      out.push(" ", " ");
       i += 2;
       while (i < n && !(code[i] === "*" && code[i + 1] === "/")) {
         out.push(blank(code[i]!));
         i++;
       }
+      out.push(" ", " ");
       i += 2;
       continue;
     }
     if (ch === '"' || ch === "'" || ch === "`") {
       const triple = code[i + 1] === ch && code[i + 2] === ch;
       const term = triple ? ch + ch + ch : ch;
+      // Delimiters are always kept: the masked text must have the same length as
+      // the original, or every line number the scanner reports would drift.
+      for (const d of term) out.push(d);
       i += term.length;
       while (i < n) {
         if (code[i] === "\\") {
-          out.push(blank(code[i]!), blank(code[i + 1] ?? " "));
+          out.push(opts.blankStrings ? " " : code[i]!);
+          out.push(opts.blankStrings ? blank(code[i + 1] ?? " ") : (code[i + 1] ?? " "));
           i += 2;
           continue;
         }
         if (code.slice(i, i + term.length) === term) {
+          for (const d of term) out.push(d);
           i += term.length;
           break;
         }
-        out.push(blank(code[i]!));
+        out.push(opts.blankStrings ? blank(code[i]!) : code[i]!);
         i++;
       }
       // a closed literal is a value: the next `/` can only be division
@@ -178,7 +200,7 @@ function maskNonCode(code: string, hashComments: boolean): string {
       lastWord = "";
       continue;
     }
-    if (ch === "/" && !hashComments) {
+    if (ch === "/" && opts.slash) {
       const mayOpen =
         REGEX_CAN_START.has(prevSig) || REGEX_AFTER_KEYWORD.has(lastWord.toLowerCase());
       if (mayOpen) {
@@ -222,12 +244,46 @@ function maskNonCode(code: string, hashComments: boolean): string {
 }
 
 /**
+ * The scanner's view of the same file: comments and regex literals are prose
+ * about code, not code, so a finding cannot live in them — but strings stay
+ * visible, because that is exactly where an injected query is built. Complexity
+ * blanks strings; the finding path must not, or SQL_INJECTION would trade one
+ * wrong number for a much worse one.
+ */
+const SCAN_MASKS: Record<string, MaskOptions> = {
+  TypeScript: { hash: false, slash: true, blankStrings: false },
+  JavaScript: { hash: false, slash: true, blankStrings: false },
+  Java: { hash: false, slash: true, blankStrings: false },
+  Kotlin: { hash: false, slash: true, blankStrings: false },
+  Swift: { hash: false, slash: true, blankStrings: false },
+  CSharp: { hash: false, slash: true, blankStrings: false },
+  Cpp: { hash: false, slash: true, blankStrings: false },
+  Go: { hash: false, slash: true, blankStrings: false },
+  Rust: { hash: false, slash: true, blankStrings: false },
+  CSS: { hash: false, slash: true, blankStrings: false },
+  SCSS: { hash: false, slash: true, blankStrings: false },
+  PHP: { hash: true, slash: true, blankStrings: false },
+  Python: { hash: true, slash: false, blankStrings: false },
+  Ruby: { hash: true, slash: false, blankStrings: false },
+  Shell: { hash: true, slash: false, blankStrings: false },
+};
+
+export function maskForScanning(code: string, language: string): string {
+  const opts = SCAN_MASKS[language];
+  return opts ? maskNonCode(code, opts) : code;
+}
+
+/**
  * Cyclomatic complexity: 1 + one per decision point. The number ships as
  * `cyclomaticComplexity` and becomes building height in the city, so it counts
  * branches and nothing else — no comments, no string contents, no reformatting.
  */
 export function estimateCyclomaticComplexity(code: string, language?: string): number {
-  const src = maskNonCode(code, isHashCommentLanguage(language));
+  const src = maskNonCode(code, {
+    hash: isHashCommentLanguage(language),
+    slash: !isHashCommentLanguage(language),
+    blankStrings: true,
+  });
   const count = (re: RegExp): number => (src.match(re) ?? []).length;
 
   let decisions =
@@ -389,7 +445,11 @@ export function extractClasses(
 ): Array<{ name: string; line: number; methods: number }> {
   // Masked once, so a commented-out `class Foo` is not a class and a brace
   // inside a string cannot move a class boundary.
-  const lines = maskNonCode(content, false).split("\n");
+  const lines = maskNonCode(content, {
+    hash: false,
+    slash: true,
+    blankStrings: true,
+  }).split("\n");
   const classes: Array<{ name: string; line: number; methods: number }> = [];
 
   for (let i = 0; i < lines.length; i++) {
