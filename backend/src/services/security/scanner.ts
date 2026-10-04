@@ -19,7 +19,7 @@ import { RuffAdapter } from "./adapters/ruff-adapter.js";
 import { dedupIssues, SEVERITY_ORDER } from "./dedup.js";
 import { categoryOf } from "./categories.js";
 import { enrichIssues } from "./finding-knowledge.js";
-import { maskSecretText } from "./redact.js";
+import { maskIssueFrames, maskSecretText } from "./redact.js";
 import { resolveConfig, type ResolvedScanConfig } from "./scan-config.js";
 import { semgrepRuleDirs } from "./rule-packs.js";
 
@@ -194,6 +194,11 @@ export class SecurityScanner {
     deduped.sort(
       (a, b) => SEVERITY_ORDER[a.severity] - SEVERITY_ORDER[b.severity] || a.line - b.line,
     );
+    // The boundary masks, not only the enrichment pass. An adapter that reads
+    // the source line itself — gitleaks without its binary — never goes through
+    // enrichIssues, and its raw `code` is what a user then exports. Whatever an
+    // adapter forgets, nothing leaves this method carrying a credential value.
+    for (const issue of deduped) maskIssueFrames(issue);
     if (deduped.length > 0)
       this.logger.info({ filePath, issues: deduped.length }, "Security scan completed");
     return deduped;

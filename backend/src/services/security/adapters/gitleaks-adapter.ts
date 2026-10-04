@@ -7,6 +7,7 @@ import path from "path";
 import type { SecurityIssue } from "../../../models/index.js";
 import { relativeToClone } from "../adapter.js";
 import type { ScannerAdapter } from "../adapter.js";
+import { maskSecretText } from "../redact.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -302,7 +303,7 @@ export class GitleaksAdapter implements ScannerAdapter {
         severity: "P0",
         score: 10,
         line: lineNum,
-        code: (lines[lineNum - 1] ?? "").trim().slice(0, 120),
+        code: maskSecretText((lines[lineNum - 1] ?? "").trim().slice(0, 120)),
         message: "Hardcoded secret detected — high-entropy credential (gitleaks fallback)",
         fix: "Use environment variables or a secrets manager",
         provenance: "gitleaks-fallback",
@@ -320,7 +321,7 @@ export class GitleaksAdapter implements ScannerAdapter {
         severity: "P0",
         score: 10,
         line: lineNum,
-        code: (lines[lineNum - 1] ?? "").trim().slice(0, 120),
+        code: maskSecretText((lines[lineNum - 1] ?? "").trim().slice(0, 120)),
         message: "Hardcoded secret detected — known token pattern (AWS/GitHub/Slack)",
         fix: "Revoke and move to secrets manager",
         provenance: "gitleaks-fallback",

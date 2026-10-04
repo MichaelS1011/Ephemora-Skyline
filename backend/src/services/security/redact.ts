@@ -85,3 +85,27 @@ export function isSecretFinding(issue: { type?: string; provenance?: string }): 
     provenance.startsWith("gitleaks-")
   );
 }
+
+/**
+ * Mask every piece of source text a finding carries: the line it was found on
+ * and each line of its code frame.
+ *
+ * This is the one masking routine, and it runs at every boundary a finding
+ * crosses on its way out of the scanner — not only inside the enrichment pass.
+ * A frame reaches two lines past the finding, so a hygiene hit one line above
+ * a `DB_PASSWORD = …` carried the password into the city JSON the user exports;
+ * and an adapter that fills `code` itself (gitleaks' no-binary fallback reads
+ * the raw line) bypassed enrichment entirely, which is how the value reached a
+ * CI run. Masking at the call site of one adapter was not enough.
+ */
+export function maskIssueFrames(issue: {
+  code?: string;
+  snippet?: { line: string; before: string[]; after: string[] };
+}): void {
+  if (issue.code) issue.code = maskSecretText(issue.code);
+  if (issue.snippet) {
+    issue.snippet.line = maskSecretText(issue.snippet.line);
+    issue.snippet.before = issue.snippet.before.map((l) => maskSecretText(l));
+    issue.snippet.after = issue.snippet.after.map((l) => maskSecretText(l));
+  }
+}

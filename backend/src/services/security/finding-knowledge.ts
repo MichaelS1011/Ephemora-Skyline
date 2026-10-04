@@ -1,6 +1,6 @@
 import type { SecurityIssue } from "../../models/index.js";
 import { categoryOf } from "./categories.js";
-import { maskSecretText } from "./redact.js";
+import { maskIssueFrames } from "./redact.js";
 
 export interface FindingKnowledge {
   /** Plain-language: what does this finding mean for the code owner? */
@@ -238,11 +238,6 @@ export function enrichIssues(issues: SecurityIssue[], content?: string): void {
     // above a `DB_PASSWORD = …` carried the password into the city JSON the
     // user exports — measured on a two-file fixture: the credential findings
     // were clean, the CONSOLE_USAGE frame next to them was not.
-    if (issue.code) issue.code = maskSecretText(issue.code);
-    if (issue.snippet) {
-      issue.snippet.line = maskSecretText(issue.snippet.line);
-      issue.snippet.before = issue.snippet.before.map((l) => maskSecretText(l));
-      issue.snippet.after = issue.snippet.after.map((l) => maskSecretText(l));
-    }
+    maskIssueFrames(issue);
   }
 }

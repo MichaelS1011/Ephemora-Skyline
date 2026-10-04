@@ -7,6 +7,7 @@ import { enrichIssues } from "../src/services/security/finding-knowledge.js";
 import { detectLanguage, isDataFile } from "../src/services/analyzer/metrics.js";
 import { isScannedPath } from "../src/services/analyzer/orchestrator.js";
 import { SecurityScanner } from "../src/services/security/scanner.js";
+import { GitleaksAdapter } from "../src/services/security/adapters/gitleaks-adapter.js";
 import type { FileAnalysis, SecurityIssue } from "../src/models/index.js";
 
 /**
@@ -210,5 +211,50 @@ export { cfg };
     const frame = issues[0]!.snippet!;
     expect(frame.after.join("\n")).toContain("DB_PASSWORD");
     expect(JSON.stringify(frame)).not.toContain(VALUE);
+  });
+});
+
+/**
+ * Both cases below exist because the masking was once only a side effect of the
+ * enrichment pass: an adapter that reads the source line itself never reaches
+ * enrichment, and its raw line went straight into the exported city JSON. That
+ * was invisible on a machine with the gitleaks binary installed and red in CI
+ * without it — so these two force the paths instead of depending on what happens
+ * to be installed.
+ */
+describe("no adapter can hand a credential to the caller", () => {
+  it("masks the line the no-binary fallback reads for itself", () => {
+    const adapter = new GitleaksAdapter();
+    const fallback = (adapter as unknown as { fallbackScan: (c: string) => SecurityIssue[] })
+      .fallbackScan;
+    const issues = fallback.call(adapter, `DB_PASSWORD = "${VALUE}"\nconst x = 1;\n`);
+    expect(issues.length, "the fallback must find the credential").toBeGreaterThan(0);
+    expect(JSON.stringify(issues), "the value must not survive the fallback").not.toContain(VALUE);
+    expect(JSON.stringify(issues)).toContain("DB_PASSWORD");
+  });
+
+  it("masks at the scanner boundary, whatever an adapter forgot", async () => {
+    const scanner = new SecurityScanner();
+    // A finding whose text is a credential while the scanned file holds none —
+    // only the adapter can have put it there, so only the boundary can clean it.
+    (scanner as unknown as { adapters: unknown[] }).adapters.push({
+      id: "rogue",
+      scanFile: async () => [
+        {
+          type: "HARDCODED_SECRET",
+          severity: "P0",
+          score: 10,
+          line: 1,
+          code: `DB_PASSWORD = "${VALUE}"`,
+          message: "an adapter that forgot to mask",
+          provenance: "gitleaks-fallback",
+        } as unknown as SecurityIssue,
+      ],
+    });
+    const issues = await scanner.scanFile("src/db.ts", "const a = 1;\nconst b = 2;\n");
+    const rogue = issues.find((i) => i.message.includes("forgot to mask"));
+    expect(rogue, "the finding must survive, or the assertion below proves nothing").toBeTruthy();
+    expect(rogue!.code).not.toContain(VALUE);
+    expect(rogue!.code).toContain("DB_PASSWORD");
   });
 });
