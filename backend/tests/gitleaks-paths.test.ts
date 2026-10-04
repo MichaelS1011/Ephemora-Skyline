@@ -69,6 +69,11 @@ describe("GitleaksAdapter.scanRepository keys", () => {
         expect(findings[0]!.type).toBe("HARDCODED_SECRET");
         expect(findings[0]!.severity).toBe("P0");
         expect(findings[0]!.line).toBe(1);
+        // The matched value must reach the masking boundary. It was parsed out
+        // of gitleaks' JSON and dropped, which is how a token behind a name
+        // like `pat` left the machine unmasked in the panel, the city JSON and
+        // the SARIF. Masking itself happens at the scanner boundary.
+        expect(findings[0]!.secretValue).toBe("ghp_aB3dE5fG7hI9jK1lM3nO5pQ7rS9tU1vW3xY5");
         // the absolute key is what made the finding unreachable in the merge
         expect([...byFile!.keys()]).not.toContain(path.join(dir, "app", "config.ts"));
       } finally {

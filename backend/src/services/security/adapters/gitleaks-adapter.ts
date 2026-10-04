@@ -183,6 +183,7 @@ export class GitleaksAdapter implements ScannerAdapter {
           StartLine: number;
           File: string;
           Commit?: string;
+          Secret?: string;
         }>;
         for (const l of leaks) {
           // The two passes name files differently: the working-tree pass reports
@@ -193,15 +194,18 @@ export class GitleaksAdapter implements ScannerAdapter {
           const rel = leakPath(clonePath, l.File);
           if (!rel) continue;
           // history findings can duplicate the working-tree finding on the same line
-          if (pass.history && (byFile.get(rel) ?? []).some((i) => i.line === (l.StartLine ?? 1)))
-            continue;
           const list = byFile.get(rel) ?? [];
           list.push({
             type: "HARDCODED_SECRET",
             severity: "P0",
             score: 10,
             line: l.StartLine ?? 1,
-            code: "", // filled by the facade merge where file content is available
+            code: "", // historical findings must never borrow the current source line
+            // The matched secret still has to reach the masking boundary: this
+            // path is the one that reports real credentials from git history,
+            // and a later snippet fill would otherwise carry the raw value.
+            secretValue: l.Secret,
+            historyCommit: pass.history ? l.Commit : undefined,
             message: `Hardcoded secret detected (${l.RuleID}) — gitleaks${pass.history ? " (in git history)" : ""}`,
             fix: pass.history
               ? "The secret persists in git history — rotate the credential, then rewrite history (git filter-repo)"
@@ -258,7 +262,7 @@ export class GitleaksAdapter implements ScannerAdapter {
       if (!stdout?.trim()) return [];
       const leaks = JSON.parse(stdout) as Array<{
         RuleID: string;
-        Secret: string;
+        Secret?: string;
         StartLine: number;
         File: string;
       }>;
@@ -268,6 +272,10 @@ export class GitleaksAdapter implements ScannerAdapter {
         score: 10,
         line: l.StartLine ?? 1,
         code: (content.split("\n")[l.StartLine - 1] ?? "").trim().slice(0, 120),
+        // gitleaks tells us the secret itself; the masking boundary consumes it.
+        // Before that this field was parsed and dropped, which is how a token
+        // behind an innocuous name (`const pat = "ghp_…"`) left the machine.
+        secretValue: l.Secret,
         message: `Hardcoded secret detected (${l.RuleID}) — gitleaks`,
         fix: "Move to environment variable or secrets manager (Vault, AWS Secrets Manager)",
         provenance: "gitleaks",
@@ -303,7 +311,7 @@ export class GitleaksAdapter implements ScannerAdapter {
         severity: "P0",
         score: 10,
         line: lineNum,
-        code: maskSecretText((lines[lineNum - 1] ?? "").trim().slice(0, 120)),
+        code: maskSecretText((lines[lineNum - 1] ?? "").trim().slice(0, 120), secretVal),
         message: "Hardcoded secret detected — high-entropy credential (gitleaks fallback)",
         fix: "Use environment variables or a secrets manager",
         provenance: "gitleaks-fallback",
@@ -321,7 +329,7 @@ export class GitleaksAdapter implements ScannerAdapter {
         severity: "P0",
         score: 10,
         line: lineNum,
-        code: maskSecretText((lines[lineNum - 1] ?? "").trim().slice(0, 120)),
+        code: maskSecretText((lines[lineNum - 1] ?? "").trim().slice(0, 120), m[0]),
         message: "Hardcoded secret detected — known token pattern (AWS/GitHub/Slack)",
         fix: "Revoke and move to secrets manager",
         provenance: "gitleaks-fallback",

@@ -2,7 +2,11 @@ import { describe, it, expect } from "vitest";
 import { promises as fs } from "fs";
 import os from "os";
 import path from "path";
-import { isSecretFinding, maskSecretText } from "../src/services/security/redact.js";
+import {
+  isSecretFinding,
+  maskSecretText,
+  maskIssueFrames,
+} from "../src/services/security/redact.js";
 import { enrichIssues } from "../src/services/security/finding-knowledge.js";
 import { detectLanguage, isDataFile } from "../src/services/analyzer/metrics.js";
 import { isScannedPath } from "../src/services/analyzer/orchestrator.js";
@@ -256,5 +260,88 @@ describe("no adapter can hand a credential to the caller", () => {
     expect(rogue, "the finding must survive, or the assertion below proves nothing").toBeTruthy();
     expect(rogue!.code).not.toContain(VALUE);
     expect(rogue!.code).toContain("DB_PASSWORD");
+  });
+});
+
+/**
+ * The name rule alone was not enough, and the case that proved it was our own
+ * repository: `const pat = "ghp_…"` in a test fixture. `pat` is not a credential
+ * word, so nothing was masked, and the raw value travelled into the panel frame,
+ * the persisted city JSON and the SARIF export — the three places the product
+ * promises it does not go. gitleaks knew the value and handed it over; the
+ * scanner parsed it into `Secret` and dropped it on the floor.
+ */
+describe("a credential shape is masked whatever the name beside it says", () => {
+  const PAT = "ghp_aB3dE5fG7hI9jK1lM3nO5pQ7rS9tU1vW3xY5";
+
+  it("hides a GitHub token behind an innocuous variable name", () => {
+    const line = `const pat = "${PAT}";`;
+    const masked = maskSecretText(line);
+    expect(masked).not.toContain(PAT);
+    expect(masked).toContain("const pat");
+    expect(masked).toContain("‹hidden›");
+  });
+
+  it("hides the other shapes the same way", () => {
+    for (const token of [
+      "AKIAABCDEFGHIJKLMNOP",
+      "xoxb-1234567890-abcdefghij",
+      "AIzaSyD-abcdefghijklmnopqrstuvwxyz12345",
+      "sk_live_abcdefghijklmnopqrstuvwxyz",
+      "sk-ABCDEFGHIJKLMNOPQRSTUVWX",
+      "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.abcdefghijklmnopqrstuvwxyz123456",
+    ]) {
+      expect(maskSecretText(`cfg.put("${token}")`), token).not.toContain(token);
+    }
+    expect(maskSecretText("-----BEGIN RSA PRIVATE KEY-----")).not.toContain("BEGIN RSA");
+  });
+
+  it("does not eat ordinary code that merely looks close", () => {
+    for (const line of [
+      "const skillCount = 12;",
+      "import { task } from './tasks';",
+      "expect(res.status).toBe(200);",
+      "// the ask-architecture doc lists the endpoints",
+    ]) {
+      expect(maskSecretText(line)).toBe(line);
+    }
+  });
+
+  it("consumes the matched value and leaves no copy of it on the finding", () => {
+    const issue = {
+      type: "HARDCODED_SECRET",
+      line: 61,
+      code: `const pat = "${PAT}";`,
+      snippet: { line: `const pat = "${PAT}";`, before: ["// fixture"], after: ["export {};"] },
+      secretValue: PAT,
+    } as unknown as SecurityIssue;
+    maskIssueFrames(issue);
+    expect(JSON.stringify(issue)).not.toContain(PAT);
+    expect("secretValue" in issue, "the value must not survive into the result").toBe(false);
+    expect(issue.code).toContain("const pat");
+  });
+
+  it("masks at the boundary for an adapter that only reports the value", async () => {
+    const scanner = new SecurityScanner();
+    (scanner as unknown as { adapters: unknown[] }).adapters.push({
+      id: "value-only",
+      scanFile: async () => [
+        {
+          type: "HARDCODED_SECRET",
+          severity: "P0",
+          score: 10,
+          line: 1,
+          code: `const pat = "${PAT}";`,
+          message: "an adapter that names nothing and hands over the value",
+          provenance: "gitleaks",
+          secretValue: PAT,
+        } as unknown as SecurityIssue,
+      ],
+    });
+    const issues = await scanner.scanFile("tests/fixture.ts", "const a = 1;\n");
+    const hit = issues.find((i) => i.message.includes("names nothing"));
+    expect(hit, "the finding must survive, or the assertion below proves nothing").toBeTruthy();
+    expect(JSON.stringify(hit)).not.toContain(PAT);
+    expect(hit!.code).toContain("const pat");
   });
 });

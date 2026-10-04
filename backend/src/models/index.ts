@@ -112,6 +112,10 @@ export interface SecurityIssue {
   fix?: string;
   provenance?: string;
   ruleId?: string;
+  historyCommit?: string;
+  sourceSeverity?: string;
+  packageName?: string;
+  packageVersion?: string;
   /** Plain-language explanation of the finding class (curated knowledge) */
   explanation?: string;
   /** Standard taxonomy reference, e.g. "CWE-89" */
@@ -122,6 +126,12 @@ export interface SecurityIssue {
   refUrl?: string;
   /** Code frame around the flagged line — shows WHERE the problem lives */
   snippet?: CodeSnippet;
+  /**
+   * The exact credential string a scanner matched, when it reports one.
+   * Input to the masking boundary only: `maskIssueFrames` consumes it and
+   * removes it, so no result, city JSON or export ever carries it.
+   */
+  secretValue?: string;
 }
 
 export interface AnalysisResult {

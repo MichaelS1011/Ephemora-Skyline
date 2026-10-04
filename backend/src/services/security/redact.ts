@@ -44,6 +44,41 @@ export function looksLikeSecretName(name: string): boolean {
 }
 
 /**
+ * Credential SHAPES, independent of what the variable next to them is called.
+ *
+ * The name rule above cannot cover `const pat = "ghp_…"` — `pat` is not a
+ * credential word, and a test fixture, a docs snippet and a client's config
+ * class all name their tokens after whatever the author felt like. gitleaks
+ * knows the exact value it matched and hands it over as `knownValue`, but every
+ * other path (semgrep, the regex adapter, the gitleaks fallback, an adapter
+ * added next month) reports the line without telling us which substring is the
+ * secret. Shapes are the only thing those paths have in common, so the shapes
+ * are masked here, at the boundary, rather than in each adapter.
+ */
+const SECRET_SHAPES: RegExp[] = [
+  /\bgh[pousr]_[A-Za-z0-9]{20,}\b/g, // GitHub
+  /\bAKIA[0-9A-Z]{16}\b/g, // AWS access key id
+  /\bASIA[0-9A-Z]{16}\b/g, // AWS temporary key id
+  /\bxox[baprs]-[0-9A-Za-z-]{10,}\b/g, // Slack
+  /\bAIza[0-9A-Za-z_-]{30,}\b/g, // Google API key
+  /\b[ps]k_(?:live|test)_[0-9A-Za-z]{16,}\b/g, // Stripe
+  /\bsk-[A-Za-z0-9]{20,}\b/g, // OpenAI-style
+  /\b_npmp_[0-9a-f]{32,}\b/g, // npm
+  /\beyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\b/g, // JWT
+  /-----BEGIN [A-Z0-9 ]*PRIVATE KEY-----/g, // PEM key header
+];
+
+/** Mask every credential SHAPE in a piece of text. */
+function maskSecretShapes(text: string): string {
+  let out = text;
+  for (const shape of SECRET_SHAPES) {
+    shape.lastIndex = 0;
+    out = out.replace(shape, HIDDEN);
+  }
+  return out;
+}
+
+/**
  * Mask the value of every `NAME = value` / `"NAME": "value"` in a line whose
  * name looks like a credential. Quotes and spacing are kept so the line still
  * reads like the source it came from.
@@ -53,6 +88,7 @@ export function maskSecretText(text: string, knownValue?: string): string {
   let out = text;
   // gitleaks reports the exact string it matched — that is better than guessing
   if (knownValue && knownValue.length >= 6) out = out.split(knownValue).join(HIDDEN);
+  out = maskSecretShapes(out);
 
   const assign = /([A-Za-z_][A-Za-z0-9_.-]*)(\s*[:=]\s*)(["']?)/g;
   let match: RegExpExecArray | null;
@@ -101,11 +137,17 @@ export function isSecretFinding(issue: { type?: string; provenance?: string }): 
 export function maskIssueFrames(issue: {
   code?: string;
   snippet?: { line: string; before: string[]; after: string[] };
+  /** The exact value a scanner matched. Used for masking, then dropped: it must
+   *  never reach the persisted result, where it would be the thing we promised
+   *  not to store. */
+  secretValue?: string;
 }): void {
-  if (issue.code) issue.code = maskSecretText(issue.code);
+  const known = issue.secretValue;
+  if (issue.code) issue.code = maskSecretText(issue.code, known);
   if (issue.snippet) {
-    issue.snippet.line = maskSecretText(issue.snippet.line);
-    issue.snippet.before = issue.snippet.before.map((l) => maskSecretText(l));
-    issue.snippet.after = issue.snippet.after.map((l) => maskSecretText(l));
+    issue.snippet.line = maskSecretText(issue.snippet.line, known);
+    issue.snippet.before = issue.snippet.before.map((l) => maskSecretText(l, known));
+    issue.snippet.after = issue.snippet.after.map((l) => maskSecretText(l, known));
   }
+  if (known !== undefined) delete issue.secretValue;
 }
