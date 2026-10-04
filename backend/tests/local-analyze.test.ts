@@ -199,8 +199,10 @@ describe("handleLocalAnalyze", () => {
     );
     expect(res.statusCode).toBe(202);
     const id = (res.body as { id: string }).id;
-    // Wait for the background pipeline (clone-free, fast for one file)
-    for (let i = 0; i < 60 && store.get(id)?.status === "analyzing"; i++) {
+    // The real pipeline on one file: measured 23 s locally, and CI is slower
+    // than that — a 30 s wait budget timed out there while the run was still
+    // healthy, so the poll gets most of the test timeout instead of half of it.
+    for (let i = 0; i < 100 && store.get(id)?.status === "analyzing"; i++) {
       await new Promise((r) => setTimeout(r, 500));
     }
     const result = store.get(id);
@@ -214,7 +216,7 @@ describe("handleLocalAnalyze", () => {
       .then(() => true)
       .catch(() => false);
     expect(dirKept).toBe(true);
-  }, 60000);
+  }, 90000);
 
   /**
    * One scanner for the whole process meant the profile of the analysis that
