@@ -147,11 +147,17 @@ export function churnColor(score: number, colorblind = false): string {
 // ── Far-view heat-cell legibility (#30) ────────────────────────────────────
 
 /**
- * The far-zoom heat grid is unlit and sits on the dusk ground (ENV.ground
- * #24231e) and fog (#3a382f). Measured on the demo city the whole grid sat at
- * a relative luminance of ~0.035 (p50) — the calm `safe` cell (#3b4a63) only
- * cleared the ground by 1.76:1 and the fog by 1.31:1, so the city read as one
- * dark mass.
+ * The far-zoom heat grid is unlit and sits directly on ENV.ground, so it is
+ * coupled to the environment band: raise the ground and the calm tiles sink
+ * into it. Measured before any lift, the whole grid sat at a relative luminance
+ * of ~0.035 (p50) and the `safe` cell cleared the ground by only 1.76:1 — the
+ * city read as one dark mass.
+ *
+ * The number below is therefore not a style choice. hudLegibility.test.ts
+ * asserts ≥2.5:1 for the lifted `safe` tile against whatever ENV.ground currently
+ * is, and it failed at 2.37:1 when the band was lifted to dusk, which is why
+ * DUSK_LIFT moved 0.16 → 0.22. Change the ground and this constant has to be
+ * re-measured with it.
  *
  * `liftHexForDusk` raises every tile's HSL lightness by a CONSTANT offset.
  * Constant (not a floor) is deliberate: a flat floor would collapse `safe`
