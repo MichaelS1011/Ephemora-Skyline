@@ -3,6 +3,7 @@ import { useStore } from "../stores/useStore";
 import { useLocalAnalysis } from "../hooks/useLocalAnalysis";
 import { ProfileChips } from "./ProfileChips";
 import { SCAN_PROFILES } from "../config/scanProfiles";
+import { OUTBOUND_CALLS } from "../config/networkSurface";
 import { t, type Lang } from "../i18n";
 
 export const BRAND = { ink: "#F2EFE8", red: "#E8503C", bg: "#161614", panel: "#1C1C1A" };
@@ -309,6 +310,28 @@ export function Landing() {
           <p id="local-note" className="landing-privacy">
             {t(lang, "landing.privacy")}
           </p>
+          <details className="landing-network">
+            <summary>{t(lang, "landing.networkToggle")}</summary>
+            <p className="landing-network-lead">{t(lang, "landing.networkLead")}</p>
+            <ul className="landing-network-list">
+              {OUTBOUND_CALLS.map((call) => {
+                const copy = lang === "de" ? call.de : call;
+                return (
+                  <li key={`${call.host}|${call.by}`}>
+                    <code className="font-jetbrains">{call.host}</code> — {copy.what}
+                    <span className="landing-network-meta">
+                      {t(lang, "landing.networkMadeBy")}: {copy.by} ·{" "}
+                      {t(lang, "landing.networkWhen")}: {copy.when}
+                    </span>
+                  </li>
+                );
+              })}
+            </ul>
+            <p className="landing-network-lead">
+              <code className="font-jetbrains">SKYLINE_OFFLINE=1</code>{" "}
+              {t(lang, "landing.networkOfflineSuffix")}
+            </p>
+          </details>
           {error && (
             <div id="landing-error" role="alert" className="landing-error">
               {error}

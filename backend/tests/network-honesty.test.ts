@@ -195,4 +195,21 @@ describe("the fallbacks a profile never asks about", () => {
       .join("\n");
     expect(adapters.match(/isOffline\(\)/g)?.length ?? 0).toBeGreaterThanOrEqual(2);
   });
+
+  /**
+   * The landing page states this list before any backend answers, so it holds a
+   * second copy of it. Compared entry by entry against the policy the scanner
+   * enforces, because a copy that is friendlier than the original is how a
+   * privacy page starts to lie.
+   */
+  it("keeps the copy the UI shows identical to the one the code enforces", () => {
+    const entries = (file: string): string[] =>
+      [...read(file).matchAll(/host:\s*"([^"]+)",\s*by:\s*"([^"]+)"/g)].map(
+        (m) => `${m[1]}|${m[2]}`,
+      );
+    const policy = entries("backend/src/services/security/network-policy.ts").sort();
+    const shown = entries("frontend/src/config/networkSurface.ts").sort();
+    expect(policy.length).toBeGreaterThan(3);
+    expect(shown).toEqual(policy);
+  });
 });

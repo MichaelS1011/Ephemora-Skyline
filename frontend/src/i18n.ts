@@ -86,6 +86,42 @@ export const DICT = {
     en: "Your source code stays on this machine. No account needed.",
     de: "Dein Quellcode bleibt auf diesem Rechner. Kein Konto nötig.",
   },
+  /**
+   * The strongest claim on the entry screen, so the check is offered next to
+   * it rather than only in the repository.
+   */
+  "landing.networkToggle": {
+    en: "What does leave the machine",
+    de: "Was die Maschine verlässt",
+  },
+  "landing.networkLead": {
+    en: "Never your source. These are lookups the scanners make for themselves; each one carries a name, not code.",
+    de: "Niemals dein Quellcode. Das sind Nachfragen, die die Scanner selbst stellen; jede trägt einen Namen, keinen Code.",
+  },
+  "landing.networkMadeBy": {
+    en: "Made by",
+    de: "Gemacht von",
+  },
+  "landing.networkWhen": {
+    en: "When",
+    de: "Wann",
+  },
+  "landing.networkOfflineSuffix": {
+    en: "closes every row above.",
+    de: "schließt jede Zeile oben.",
+  },
+  /**
+   * The canvas is announced before a city exists too; the driving instructions
+   * belong to the version that has something to drive through.
+   */
+  "city.canvasAria": {
+    en: "3D city visualization. Arrow keys turn the camera around the city, W A S D and Q E walk it, bracket keys step through the buildings, Tab moves to the controls.",
+    de: "3D-Stadt-Visualisierung. Pfeiltasten drehen die Kamera um die Stadt, W A S D und Q E bewegen sie, eckige Klammern schalten die Gebäude durch, Tab erreicht die Bedienung.",
+  },
+  "city.canvasEmptyAria": {
+    en: "3D city visualization. Nothing is built here yet.",
+    de: "3D-Stadt-Visualisierung. Hier ist noch nichts gebaut.",
+  },
   "landing.demoError": {
     en: "The demo couldn't load. Check that the local server is running, then try again.",
     de: "Die Demo konnte nicht geladen werden. Prüfe, ob der lokale Server läuft, und versuche es erneut.",

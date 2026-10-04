@@ -53,7 +53,7 @@ Open **http://localhost:3010** and click **Choose project folder** — or **Expl
 ```bash
 npm run lint           # ESLint, zero warnings
 npm run type-check     # tsc --noEmit, both packages
-npm run test           # Vitest — 681 tests in 79 files (359 frontend, 322 backend)
+npm run test           # Vitest — 686 tests in 80 files (363 frontend, 323 backend)
 npm run build          # production build, both packages
 node scripts/audit-gate.mjs   # dependency audit, see below
 ```
@@ -62,7 +62,7 @@ The audit gate fails on every high or critical finding **except** those explicit
 
 ## Privacy model
 
-The backend binds to `127.0.0.1` by default, and the two routes that execute anything additionally refuse requests that a foreign web page sent (checked by `Origin` / `Sec-Fetch-Site`, so a random site you visit cannot make your local scanner run your tests).
+The backend binds to `127.0.0.1` by default, and the two routes that execute anything additionally refuse requests that a foreign web page sent (checked by `Origin` / `Sec-Fetch-Site`, so a random site you visit cannot make your local scanner run your tests). The table below is not only in this file — the entry screen of the app carries the same list, row for row, and a test fails if the two copies ever disagree.
 
 When you pick a folder, the **browser** reads it and posts the contents to the local backend over `127.0.0.1`: your source is never uploaded and never sent to a third party — it crosses the loopback interface and stops there. What does leave the machine are lookups the scanners make for themselves, and those carry names, never code:
 

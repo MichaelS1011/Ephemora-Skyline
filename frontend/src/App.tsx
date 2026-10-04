@@ -266,7 +266,7 @@ export default function App() {
       <div
         ref={canvasWrapperRef}
         tabIndex={inCity ? 0 : -1}
-        aria-label="3D city visualization. Arrow keys turn the camera around the city, W A S D and Q E walk it, bracket keys step through the buildings, Tab moves to the controls."
+        aria-label={t(lang, inCity ? "city.canvasAria" : "city.canvasEmptyAria")}
         role="application"
         className="city-canvas w-full h-full"
       >
