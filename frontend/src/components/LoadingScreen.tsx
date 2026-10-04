@@ -1,15 +1,17 @@
 import { useState, useEffect } from "react";
+import { useStore } from "../stores/useStore";
+import { t, type DictKey } from "../i18n";
 
 interface BootLine {
-  text: string;
+  text: DictKey;
   delay: number; // ms delay before this line appears
 }
 
 const BOOT_LINES: BootLine[] = [
-  { text: "> Starting Ephemora Skyline...", delay: 200 },
-  { text: "> Rendering your city in 3D...", delay: 900 },
-  { text: "> Positioning the fly-over camera...", delay: 1600 },
-  { text: "> Ready", delay: 2400 },
+  { text: "load.line1", delay: 200 },
+  { text: "load.line2", delay: 900 },
+  { text: "load.line3", delay: 1600 },
+  { text: "load.line4", delay: 2400 },
 ];
 
 interface LoadingScreenProps {
@@ -17,6 +19,7 @@ interface LoadingScreenProps {
 }
 
 export function LoadingScreen({ isVisible }: LoadingScreenProps) {
+  const lang = useStore((s) => s.prefs.lang);
   const [visibleLines, setVisibleLines] = useState<number[]>([]);
   const [isFadingOut, setIsFadingOut] = useState(false);
 
@@ -50,7 +53,7 @@ export function LoadingScreen({ isVisible }: LoadingScreenProps) {
     <div
       role="status"
       aria-live="polite"
-      aria-label="Loading Ephemora Skyline"
+      aria-label={t(lang, "load.aria")}
       className="loading-screen"
       style={{
         position: "fixed",
@@ -108,7 +111,7 @@ export function LoadingScreen({ isVisible }: LoadingScreenProps) {
                 : {}),
             }}
           >
-            {line.text}
+            {t(lang, line.text)}
             {/* Blinking cursor on the last visible line */}
             {index === Math.max(...visibleLines, -1) && visibleLines.includes(index) && (
               <span

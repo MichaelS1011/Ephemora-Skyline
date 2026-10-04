@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import { useStore } from "../stores/useStore";
+import { t } from "../i18n";
 import {
   ENGINES,
   PROFILE_DURATION,
@@ -27,6 +29,7 @@ interface ProfileConfirmDialogProps {
  * (see scanProfiles.ts); there is no second number anywhere.
  */
 export function ProfileConfirmDialog({ profile, onConfirm, onCancel }: ProfileConfirmDialogProps) {
+  const lang = useStore((s) => s.prefs.lang);
   const cardRef = useRef<HTMLElement>(null);
   const meta = SCAN_PROFILES.find((p) => p.id === profile) ?? SCAN_PROFILES[1]!;
   const activeEngines = new Set(PROFILE_ENGINES[profile]);
@@ -44,7 +47,7 @@ export function ProfileConfirmDialog({ profile, onConfirm, onCancel }: ProfileCo
       className="profile-detail"
       role="region"
       tabIndex={-1}
-      aria-label={`What the ${meta.label} scan checks`}
+      aria-label={t(lang, "detail.aria", { label: t(lang, meta.label) })}
       onKeyDown={(e) => {
         if (e.key === "Escape") {
           e.stopPropagation();
@@ -53,21 +56,16 @@ export function ProfileConfirmDialog({ profile, onConfirm, onCancel }: ProfileCo
       }}
     >
       <div className="profile-detail-head">
-        <h3>
-          {meta.icon} {meta.label} scan
-        </h3>
+        <h3>{t(lang, "detail.title", { icon: meta.icon, label: t(lang, meta.label) })}</h3>
         <button
           onClick={onCancel}
-          aria-label="Close without changing the profile"
+          aria-label={t(lang, "profile.closeAria")}
           className="btn-danger w-6 h-6 flex items-center justify-center !p-0 shrink-0"
         >
           ✕
         </button>
       </div>
-      <p className="profile-detail-lede">
-        Here is exactly what will be checked. Nothing is uploaded anywhere else — files stay on your
-        machine.
-      </p>
+      <p className="profile-detail-lede">{t(lang, "detail.lede")}</p>
 
       <div className="profile-detail-engines">
         {ENGINES.map((engine) => {
@@ -82,10 +80,12 @@ export function ProfileConfirmDialog({ profile, onConfirm, onCancel }: ProfileCo
                   <span aria-hidden="true" className="mr-1">
                     {engine.icon}
                   </span>
-                  {engine.name}
-                  <span className="profile-engine-state">{on ? "included" : "skipped"}</span>
+                  {t(lang, engine.name)}
+                  <span className="profile-engine-state">
+                    {t(lang, on ? "engine.included" : "engine.skipped")}
+                  </span>
                 </div>
-                <div className="profile-engine-what">{engine.what}</div>
+                <div className="profile-engine-what">{t(lang, engine.what)}</div>
               </div>
             </div>
           );
@@ -94,26 +94,25 @@ export function ProfileConfirmDialog({ profile, onConfirm, onCancel }: ProfileCo
 
       <div className="profile-detail-meta">
         <div>
-          <b>REPORT:</b> <span>{PROFILE_SCOPE[profile]}</span>
+          <b>{t(lang, "detail.report")}</b> <span>{t(lang, PROFILE_SCOPE[profile])}</span>
         </div>
         <div>
-          <b>TIME:</b> <span>{PROFILE_DURATION[profile]}</span>
+          <b>{t(lang, "detail.time")}</b> <span>{PROFILE_DURATION[profile]}</span>
         </div>
       </div>
 
       {custom && (
         <p className="profile-detail-note" role="note">
-          ⚠ The custom pattern editor is coming soon — choosing it for now runs the standard
-          profile.
+          {t(lang, "detail.customNote")}
         </p>
       )}
 
       <div className="profile-detail-actions">
         <button onClick={onConfirm} className="profile-detail-use">
-          ✓ USE THIS PROFILE
+          {t(lang, "detail.use")}
         </button>
         <button onClick={onCancel} className="profile-detail-close">
-          ← KEEP CURRENT
+          {t(lang, "detail.keep")}
         </button>
       </div>
     </aside>

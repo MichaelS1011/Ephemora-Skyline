@@ -1290,6 +1290,758 @@ export const DICT = {
     en: "No .git folder in this upload — churn and author districts need the project’s git metadata",
     de: "Kein .git-Ordner in diesem Upload — Churn- und Autor-Bezirke brauchen die Git-Metadaten des Projekts",
   },
+
+  // ── First-visit primer (CoachMarks) ───────────────────────────────────────
+  "coach.regionAria": {
+    en: "Getting started",
+    de: "Erste Schritte",
+  },
+  "coach.title": {
+    en: "Explore your codebase",
+    de: "Erkunde deine Codebasis",
+  },
+  "coach.dismissAria": {
+    en: "Dismiss getting started guide",
+    de: "Einblendung zu den ersten Schritten schließen",
+  },
+  "coach.dismissTip": {
+    en: "Hide guide. The city legend remains available in Project overview.",
+    de: "Einblendung ausblenden. Die Stadt-Legende bleibt in der Projektübersicht.",
+  },
+  "coach.hintTurn": {
+    en: "Arrow keys turn the view",
+    de: "Pfeiltasten drehen die Ansicht",
+  },
+  "coach.hintTurnDetail": {
+    en: "Drag to look, scroll to fly in",
+    de: "Ziehen zum Umschauen, Scrollen zum Hineinfliegen",
+  },
+  "coach.hintDistrict": {
+    en: "Open a district",
+    de: "Bezirk öffnen",
+  },
+  "coach.hintDistrictDetail": {
+    en: "Click a folder block",
+    de: "Klick auf einen Ordnerblock",
+  },
+  "coach.hintFile": {
+    en: "Inspect a file",
+    de: "Datei prüfen",
+  },
+  "coach.hintFileDetail": {
+    en: "Click a building",
+    de: "Klick auf ein Gebäude",
+  },
+  "coach.hintKeys": {
+    en: "Keyboard shortcuts",
+    de: "Tastenkürzel",
+  },
+  "coach.hintKeysDetail": {
+    en: "Press ? for the full guide",
+    de: "? drücken für die vollständige Übersicht",
+  },
+  "coach.legendToggle": {
+    en: "What do the city markers mean?",
+    de: "Was bedeuten die Marker in der Stadt?",
+  },
+
+  // ── Marker legend (shared by primer and Project overview) ─────────────────
+  "legend.height": {
+    en: "Building height",
+    de: "Gebäudehöhe",
+  },
+  "legend.heightMeaning": {
+    en: "Code complexity and file size",
+    de: "Code-Komplexität und Dateigröße",
+  },
+  "legend.footprint": {
+    en: "Footprint size",
+    de: "Grundfläche",
+  },
+  "legend.footprintMeaning": {
+    en: "Number of exported symbols",
+    de: "Anzahl exportierter Symbole",
+  },
+  "legend.monolith": {
+    en: "Windowless monolith",
+    de: "Monolith ohne Fenster",
+  },
+  "legend.monolithMeaning": {
+    en: "Large file, 150 KB or more",
+    de: "Große Datei, 150 KB oder mehr",
+  },
+  "legend.glass": {
+    en: "Glass building",
+    de: "Glasgebäude",
+  },
+  "legend.glassMeaning": {
+    en: "Never imported; may be unused",
+    de: "Nirgends importiert; kann toter Code sein",
+  },
+  "legend.redWindows": {
+    en: "Red pulsing windows",
+    de: "Pulsende rote Fenster",
+  },
+  "legend.redWindowsMeaning": {
+    en: "Critical or high security findings",
+    de: "Kritische oder hohe Sicherheitsfunde",
+  },
+  "legend.scaffolding": {
+    en: "Orange scaffolding",
+    de: "Orangenes Gerüst",
+  },
+  "legend.scaffoldingMeaning": {
+    en: "Frequently changed in Git",
+    de: "In Git häufig geändert",
+  },
+  "legend.shield": {
+    en: "Translucent shield",
+    de: "Durchscheinender Schild",
+  },
+  "legend.shieldMeaning": {
+    en: "At least 80% test coverage",
+    de: "Mindestens 80 % Testabdeckung",
+  },
+  "legend.ring": {
+    en: "Red ring at the base",
+    de: "Roter Ring am Sockel",
+  },
+  "legend.ringMeaning": {
+    en: "Circular import: A → B → A",
+    de: "Zirkulärer Import: A → B → A",
+  },
+  "legend.laser": {
+    en: "Yellow flickering laser",
+    de: "Flackernder gelber Laser",
+  },
+  "legend.laserMeaning": {
+    en: "Duplicated code across files",
+    de: "Doppelt vorhandener Code über Dateien",
+  },
+  "legend.streams": {
+    en: "Cyan / violet streams",
+    de: "Cyan- und violette Bahnen",
+  },
+  "legend.streamsMeaning": {
+    en: "Incoming / outgoing imports",
+    de: "Eingehende / ausgehende Importe",
+  },
+  "legend.heat": {
+    en: "Heat cells (zoomed out)",
+    de: "Heat-Zellen (ausgezoomt)",
+  },
+  "legend.heatMeaning": {
+    en: "Risk, complexity or change frequency",
+    de: "Risiko, Komplexität oder Änderungshäufigkeit",
+  },
+  "legend.authors": {
+    en: "Author colors",
+    de: "Autorenfarben",
+  },
+  "legend.authorsMeaning": {
+    en: "Main contributor to each area",
+    de: "Hauptbeitragender je Bereich",
+  },
+  "legend.citizens": {
+    en: "Citizens, taxi, bus",
+    de: "Einwohner, Taxi, Bus",
+  },
+  "legend.citizensMeaning": {
+    en: "Ambient city life",
+    de: "Stadtleben nebenbei",
+  },
+
+  // ── Project / district overview (ContextCard) ─────────────────────────────
+  "ctx.showAria": {
+    en: "Show project overview",
+    de: "Projektübersicht einblenden",
+  },
+  "ctx.project": {
+    en: "Project overview",
+    de: "Projektübersicht",
+  },
+  "ctx.district": {
+    en: "District overview",
+    de: "Bezirksübersicht",
+  },
+  "ctx.collapseAria": {
+    en: "Collapse project overview",
+    de: "Übersicht einklappen",
+  },
+  "ctx.collapseTip": {
+    en: "Collapse overview",
+    de: "Übersicht einklappen",
+  },
+  "ctx.files": {
+    en: "Files",
+    de: "Dateien",
+  },
+  "ctx.filesTip": {
+    en: "Each source file is a building in your city.",
+    de: "Jede Quelldatei ist ein Gebäude in deiner Stadt.",
+  },
+  "ctx.codeLines": {
+    en: "Lines of code",
+    de: "Codezeilen",
+  },
+  "ctx.codeLinesTip": {
+    en: "Lines of code, excluding comments, blank lines and data files.",
+    de: "Codezeilen ohne Kommentare, Leerzeilen und Datendateien.",
+  },
+  "ctx.dataLines": {
+    en: "{count} lines of data{labels}",
+    de: "{count} Zeilen Daten{labels}",
+  },
+  "ctx.dataLinesTip": {
+    en: "Translation catalogues, manifests and generated JSON have lines but no behaviour. They are counted apart from the code, never inside it.",
+    de: "Übersetzungskataloge, Manifeste und erzeugtes JSON haben Zeilen, aber kein Verhalten. Sie zählen getrennt vom Code, nie darin.",
+  },
+  "ctx.keptOut": {
+    en: "{skipped} kept out by .gitignore",
+    de: "{skipped} von .gitignore ausgeschlossen",
+  },
+  "ctx.keptOutTip": {
+    en: "Every folder's own .gitignore decides what the scan reads. What it keeps out is not part of this city.",
+    de: "Die .gitignore jedes Ordners entscheidet, was der Scan liest. Was sie ausschließt, gehört nicht zu dieser Stadt.",
+  },
+  "ctx.uncheckedDemo": {
+    en: "No scanner looked at this city — it is a demo",
+    de: "Kein Scanner hat diese Stadt angesehen — es ist eine Demo",
+  },
+  "ctx.unchecked": {
+    en: "{unverified} of {total} files here were never checked{by}",
+    de: "{unverified} von {total} Dateien hier wurden nie geprüft{by}",
+  },
+  "ctx.uncheckedBy": {
+    en: " by {engines}",
+    de: " von {engines}",
+  },
+  "ctx.uncheckedTip": {
+    en: "No engine that covers these languages ran in this scan. The files are not clean — they are unread.",
+    de: "Kein Engine für diese Sprachen lief in diesem Scan. Die Dateien sind nicht sauber — sie sind ungelesen.",
+  },
+  "ctx.kindsTip": {
+    en: "What this folder is actually full of. Severity says how bad a finding is; this says what kind of work it is.",
+    de: "Womit dieser Ordner wirklich voll ist. Der Schweregrad sagt, wie übel ein Fund ist; hier steht, welche Art Arbeit es ist.",
+  },
+  "ctx.blind": {
+    en: "Nobody looked for: {list}",
+    de: "Danach hat niemand gesucht: {list}",
+  },
+  "ctx.blindTip": {
+    en: "No engine that could report on these ran in this scan. Zero findings here is a blind spot, not a clean result.",
+    de: "Keine Engine, die das melden könnte, lief in diesem Scan. Null Funde sind hier eine Lücke, kein sauberes Ergebnis.",
+  },
+  "ctx.testTip": {
+    en: "A fixture that exists to show a vulnerable snippet is a true finding about the fixture, not about the shipped code. These findings are still listed; they no longer lead the risk ranking.",
+    de: "Ein Fixture, das nur einen verletzlichen Schnipsel zeigt, ist ein echter Fund über das Fixture — nicht über den ausgelieferten Code. Diese Funde stehen weiter in der Liste; sie führen das Risiko-Ranking nicht mehr.",
+  },
+  "ctx.testFindings": {
+    en: "{inTests} of {total} findings were found in test code",
+    de: "{inTests} von {total} Funden stammen aus Testcode",
+  },
+  "ctx.drawTip": {
+    en: "One building per file that fits the plots of this view. The rest are represented by a district plot or a podium marker, and every finding is still counted.",
+    de: "Ein Gebäude pro Datei, auf die die Plätze dieser Ansicht passen. Der Rest steckt auf einem Bezirksplatz oder einem Sockel-Marker, und jeder Fund bleibt gezählt.",
+  },
+  "ctx.findingsOne": {
+    en: "1 finding to review",
+    de: "1 Fund zur Prüfung",
+  },
+  "ctx.findingsMany": {
+    en: "{count} findings to review",
+    de: "{count} Funde zur Prüfung",
+  },
+  "ctx.reviewFileTip": {
+    en: "Review {path}",
+    de: "Prüfen: {path}",
+  },
+  "ctx.reviewHighest": {
+    en: "Review highest-risk file",
+    de: "Riskanteste Datei prüfen",
+  },
+  "ctx.noFindings": {
+    en: "No findings in this view",
+    de: "Keine Funde in dieser Ansicht",
+  },
+  "ctx.languages": {
+    en: "Languages",
+    de: "Sprachen",
+  },
+  "ctx.langShare": {
+    en: "{name}: {pct}% of lines",
+    de: "{name}: {pct} % der Zeilen",
+  },
+  "ctx.authorship": {
+    en: "Authorship — git blame across this view",
+    de: "Autorschaft — git blame über diese Ansicht",
+  },
+  "ctx.authored": {
+    en: "{author} authored {pct}% of files in this view",
+    de: "{author} hat {pct} % der Dateien in dieser Ansicht geschrieben",
+  },
+  "ctx.topContributor": {
+    en: "Top contributor:",
+    de: "Meiste Beiträge:",
+  },
+  "ctx.shareOfFiles": {
+    en: "· {pct}% of files",
+    de: "· {pct} % der Dateien",
+  },
+  "ctx.legendToggle": {
+    en: "City legend",
+    de: "Stadt-Legende",
+  },
+
+  // ── .gitignore skip count (provenance helper) ─────────────────────────────
+  "prov.skipFile": {
+    en: "{n} file",
+    de: "{n} Datei",
+  },
+  "prov.skipFiles": {
+    en: "{n} files",
+    de: "{n} Dateien",
+  },
+  "prov.skipFolder": {
+    en: "{n} folder",
+    de: "{n} Ordner",
+  },
+  "prov.skipFolders": {
+    en: "{n} folders",
+    de: "{n} Ordner",
+  },
+  "prov.skipJoin": {
+    en: " and ",
+    de: " und ",
+  },
+
+  // ── Why a district draws fewer buildings (layout helper) ──────────────────
+  "layout.drawnHere": {
+    en: "{drawn} of {files} files here stand as buildings — a folder draws at most {cap}, the rest share one podium marker.",
+    de: "{drawn} von {files} Dateien hier stehen als Gebäude — ein Ordner zeichnet höchstens {cap}, der Rest teilt sich einen Sockel-Marker.",
+  },
+  "layout.subDistrictsOne": {
+    en: "{below} files live in {plots} sub-district; each plot shows up to {towers} of its most at-risk files.",
+    de: "{below} Dateien liegen in {plots} Unterbezirk; jeder Platz zeigt bis zu {towers} seiner riskantesten Dateien.",
+  },
+  "layout.subDistrictsMany": {
+    en: "{below} files live in {plots} sub-districts; each plot shows up to {towers} of its most at-risk files.",
+    de: "{below} Dateien liegen in {plots} Unterbezirken; jeder Platz zeigt bis zu {towers} seiner riskantesten Dateien.",
+  },
+
+  // ── Boot screen ───────────────────────────────────────────────────────────
+  "load.aria": {
+    en: "Loading Ephemora Skyline",
+    de: "Ephemora Skyline lädt",
+  },
+  "load.line1": {
+    en: "> Starting Ephemora Skyline...",
+    de: "> Ephemora Skyline startet...",
+  },
+  "load.line2": {
+    en: "> Rendering your city in 3D...",
+    de: "> Deine Stadt wird in 3D gebaut...",
+  },
+  "load.line3": {
+    en: "> Positioning the fly-over camera...",
+    de: "> Flugkamera wird positioniert...",
+  },
+  "load.line4": {
+    en: "> Ready",
+    de: "> Bereit",
+  },
+
+  // ── Scan-complete toast ───────────────────────────────────────────────────
+  "summary.allClear": {
+    en: "✓ All clear — no issues found",
+    de: "✓ Alles frei — keine Funde",
+  },
+  "summary.noFindingsMissing": {
+    en: "◈ No findings — {missing} did not run",
+    de: "◈ Keine Funde — {missing} lief nicht",
+  },
+  "summary.depthUnknown": {
+    en: "◈ No findings — scan depth unknown",
+    de: "◈ Keine Funde — Scan-Tiefe unbekannt",
+  },
+  "summary.complete": {
+    en: "◈ Scan complete",
+    de: "◈ Scan abgeschlossen",
+  },
+  "summary.filesAnalyzed": {
+    en: "{count} files analyzed",
+    de: "{count} Dateien analysiert",
+  },
+  "summary.sevRisk": {
+    en: "{label} security risk",
+    de: "Sicherheitsrisiko: {label}",
+  },
+  "summary.dismissAria": {
+    en: "Dismiss scan summary",
+    de: "Scan-Zusammenfassung schließen",
+  },
+
+  // ── Scan profile chips ────────────────────────────────────────────────────
+  "profile.chipsAria": {
+    en: "Scan profile",
+    de: "Scan-Profil",
+  },
+  "profile.lastKindSuffix": {
+    en: " — the last kind stays on; a scan of nothing is no scan",
+    de: " — die letzte Art bleibt an; ein Scan ohne alles ist kein Scan",
+  },
+  "profile.closeAria": {
+    en: "Close without changing the profile",
+    de: "Schließen, ohne das Profil zu ändern",
+  },
+
+  // ── Small chrome strings ──────────────────────────────────────────────────
+  "minimap.aria": {
+    en: "City minimap — click to fly, or press Enter to go to city overview",
+    de: "Stadt-Minimap — Klick fliegt hin, Enter geht zur Stadtübersicht",
+  },
+  "crumbs.navAria": {
+    en: "Breadcrumb",
+    de: "Brotpfad",
+  },
+  "crumbs.upAria": {
+    en: "Up one level",
+    de: "Eine Ebene höher",
+  },
+  "crumbs.rootTip": {
+    en: "Root level",
+    de: "Wurzelebene",
+  },
+  "ide.pathAria": {
+    en: "Absolute workspace root path",
+    de: "Absoluter Pfad zum Arbeitsverzeichnis",
+  },
+  "ide.setup": {
+    en: "OPEN IN EDITOR — SET WORKSPACE ROOT (ONCE)",
+    de: "IM EDITOR ÖFFNEN — ARBEITSVERZEICHNIS SETZEN (EINMALIG)",
+  },
+  "ide.save": {
+    en: "SAVE",
+    de: "SPEICHERN",
+  },
+  "ide.invalidHint": {
+    en: "⚠ Path must be absolute — start with “/” (macOS/Linux) or a drive letter like “C:\\”",
+    de: "⚠ Der Pfad muss absolut sein — beginne mit “/” (macOS/Linux) oder einem Laufwerksbuchstaben wie “C:\\”",
+  },
+  "ide.openIn": {
+    en: "⤢ OPEN IN {editor}",
+    de: "⤢ IN {editor} ÖFFNEN",
+  },
+  "ide.openAria": {
+    en: "Open {path} in {editor}",
+    de: "{path} in {editor} öffnen",
+  },
+  "ide.openAriaLine": {
+    en: "Open {path} in {editor} at line {line}",
+    de: "{path} in {editor}, Zeile {line} öffnen",
+  },
+  "ide.switchAria": {
+    en: "Switch editor to {editor}",
+    de: "Editor auf {editor} wechseln",
+  },
+  "minimap.title": {
+    en: "CITY MAP",
+    de: "STADTKARTE",
+  },
+  "app.dismissAria": {
+    en: "Dismiss message",
+    de: "Meldung schließen",
+  },
+  "minimap.overview": {
+    en: "· OVERVIEW",
+    de: "· ÜBERSICHT",
+  },
+  "landing.dismissNoteAria": {
+    en: "Dismiss update note",
+    de: "Hinweis zur Aktualisierung schließen",
+  },
+
+  // ── Scan profiles (the chips on the landing screen) ───────────────────────
+  "profile.quick": {
+    en: "Quick",
+    de: "Schnell",
+  },
+  "profile.quickSummary": {
+    en: "critical findings only — fastest scan",
+    de: "nur kritische Funde — der schnellste Scan",
+  },
+  "profile.standard": {
+    en: "Standard",
+    de: "Standard",
+  },
+  "profile.standardSummary": {
+    en: "all scanners — secrets, AST, CVEs, heuristics",
+    de: "alle Scanner — Secrets, AST, CVEs, Heuristiken",
+  },
+  "profile.deep": {
+    en: "Deep",
+    de: "Tief",
+  },
+  "profile.deepSummary": {
+    en: "standard + git-history secret scan",
+    de: "Standard + Secret-Scan der Git-Historie",
+  },
+  "profile.security": {
+    en: "Security",
+    de: "Sicherheit",
+  },
+  "profile.securitySummary": {
+    en: "only security findings, no style noise",
+    de: "nur Sicherheitsfunde, kein Stil-Rauschen",
+  },
+  "profile.quality": {
+    en: "Quality",
+    de: "Qualität",
+  },
+  "profile.qualitySummary": {
+    en: "dead code & hygiene only",
+    de: "nur toter Code und Hygiene",
+  },
+  "profile.custom": {
+    en: "Custom",
+    de: "Eigene",
+  },
+  "profile.customSummary": {
+    en: "your own configuration (coming soon)",
+    de: "deine eigene Konfiguration (kommt noch)",
+  },
+
+  // ── What each profile reports (detail card) ───────────────────────────────
+  "scope.quick": {
+    en: "shows only P0 critical findings — triage, not a full report",
+    de: "zeigt nur P0-kritische Funde — Triage, kein vollständiger Bericht",
+  },
+  "scope.standard": {
+    en: "shows all findings, P0 to P2 (critical → hygiene)",
+    de: "zeigt alle Funde, P0 bis P2 (kritisch → Hygiene)",
+  },
+  "scope.deep": {
+    en: "shows all findings P0 to P2, including historical secrets",
+    de: "zeigt alle Funde P0 bis P2, inklusive Secrets aus der Historie",
+  },
+  "scope.securityOnly": {
+    en: "shows all findings, minus style-noise categories",
+    de: "zeigt alle Funde ohne die Stil-Rauschen-Arten",
+  },
+  "scope.qualityOnly": {
+    en: "shows only hygiene findings (dead code, console, style)",
+    de: "zeigt nur Hygiene-Funde (toter Code, console, Stil)",
+  },
+  "scope.custom": {
+    en: "shows all findings, P0 to P2",
+    de: "zeigt alle Funde, P0 bis P2",
+  },
+
+  // ── Engines (detail card rows) ────────────────────────────────────────────
+  "engine.heuristics": {
+    en: "Code patterns",
+    de: "Code-Muster",
+  },
+  "engine.heuristicsWhat": {
+    en: "scans every file for risky code patterns (injection, XSS, unsafe storage…)",
+    de: "liest jede Datei nach riskanten Mustern ab (Injection, XSS, unsichere Ablage…)",
+  },
+  "engine.secrets": {
+    en: "Secrets",
+    de: "Secrets",
+  },
+  "engine.secretsWhat": {
+    en: "finds API keys, passwords and tokens committed in your files",
+    de: "findet API-Keys, Passwörter und Token in deinen committeten Dateien",
+  },
+  "engine.ast": {
+    en: "Deep AST rules",
+    de: "Tiefe AST-Regeln",
+  },
+  "engine.astWhat": {
+    en: "syntax-tree analysis for injection and XSS flows the regexes can't see",
+    de: "Syntaxbaum-Analyse für Injection- und XSS-Wege, die keine Regex sieht",
+  },
+  "engine.deps": {
+    en: "Dependency audit",
+    de: "Abhängigkeits-Prüfung",
+  },
+  "engine.depsWhat": {
+    en: "checks npm packages against the known-vulnerability database",
+    de: "gleicht npm-Pakete gegen die bekannte-Schwachstellen-Datenbank ab",
+  },
+  "engine.osv": {
+    en: "OSV database",
+    de: "OSV-Datenbank",
+  },
+  "engine.osvWhat": {
+    en: "cross-checks dependencies against the open-source CVE database",
+    de: "prüft Abhängigkeiten gegen die Open-Source-CVE-Datenbank",
+  },
+  "engine.ruff": {
+    en: "Python lint",
+    de: "Python-Lint",
+  },
+  "engine.ruffWhat": {
+    en: "quality and hygiene checks for Python files",
+    de: "Qualitäts- und Hygieneprüfung für Python-Dateien",
+  },
+  "engine.secretsHistory": {
+    en: "Git history secrets",
+    de: "Secrets in der Git-Historie",
+  },
+  "engine.secretsHistoryWhat": {
+    en: "walks the full commit history — finds keys you deleted long ago",
+    de: "geht die komplette Commit-Historie durch — findet längst gelöschte Keys",
+  },
+  "engine.duplicates": {
+    en: "Copy-paste clones",
+    de: "Copy-Paste-Klone",
+  },
+  "engine.duplicatesWhat": {
+    en: "finds duplicated code blocks — yellow lasers connect the clones",
+    de: "findet doppelte Code-Blöcke — gelbe Laser verbinden die Klone",
+  },
+  "engine.cycles": {
+    en: "Circular imports",
+    de: "Zirkuläre Importe",
+  },
+  "engine.cyclesWhat": {
+    en: "detects import loops — red rings mark the files that block the system",
+    de: "erkennt Import-Schleifen — rote Ringe markieren die blockierenden Dateien",
+  },
+  "engine.coverage": {
+    en: "Test coverage",
+    de: "Testabdeckung",
+  },
+  "engine.coverageWhat": {
+    en: "reads the repo's own lcov report — well-tested files get a blue shield",
+    de: "liest den lcov-Bericht des Repos — gut getestete Dateien erhalten einen blauen Schild",
+  },
+  "engine.blame": {
+    en: "Author map",
+    de: "Autoren-Karte",
+  },
+  "engine.blameWhat": {
+    en: "colors districts by the developers who own them (git history)",
+    de: "färbt Bezirke nach den Entwicklerinnen und Entwicklern, die sie besitzen (Git-Historie)",
+  },
+  "engine.included": {
+    en: "included",
+    de: "dabei",
+  },
+  "engine.skipped": {
+    en: "skipped",
+    de: "fehlt",
+  },
+
+  // ── Finding categories (the kinds of mistakes to look for) ────────────────
+  "cat.injection": {
+    en: "Injection & execution",
+    de: "Injection & Ausführung",
+  },
+  "cat.injectionMeaning": {
+    en: "Data reaches a place that runs it: shell, SQL, eval, deserialization.",
+    de: "Daten landen an einer Stelle, die sie ausführt: Shell, SQL, eval, Deserialisierung.",
+  },
+  "cat.secrets": {
+    en: "Secrets",
+    de: "Secrets",
+  },
+  "cat.secretsMeaning": {
+    en: "Credentials, tokens and keys that are stored in the code or its history.",
+    de: "Zugangsdaten, Token und Keys, die im Code oder seiner Historie stehen.",
+  },
+  "cat.crypto": {
+    en: "Cryptography",
+    de: "Kryptografie",
+  },
+  "cat.cryptoMeaning": {
+    en: "Weak algorithms and short keys — the maths that pretends to protect something.",
+    de: "Schwache Verfahren und kurze Keys — die Rechenkunst, die Schutz vorgaukelt.",
+  },
+  "cat.transport": {
+    en: "Transport & certificates",
+    de: "Transport & Zertifikate",
+  },
+  "cat.transportMeaning": {
+    en: "Cleartext network calls and certificate checks that were switched off.",
+    de: "Klartext-Netzwerkaufrufe und abgeschaltete Zertifikatsprüfungen.",
+  },
+  "cat.exposure": {
+    en: "Data exposure",
+    de: "Daten-Lecks",
+  },
+  "cat.exposureMeaning": {
+    en: "Sensitive values written where they can be read: logs, browser storage, dumps.",
+    de: "Sensible Werte, die lesbar abgelegt werden: Logs, Browser-Speicher, Dumps.",
+  },
+  "cat.dependencies": {
+    en: "Dependencies & supply chain",
+    de: "Abhängigkeiten & Lieferkette",
+  },
+  "cat.dependenciesMeaning": {
+    en: "Known-bad packages, install hooks and code pulled in without verification.",
+    de: "Bekannte schlechte Pakete, Install-Hooks und ungeprüft gezogener Code.",
+  },
+  "cat.permissions": {
+    en: "Permissions & destructive actions",
+    de: "Rechte & zerstörerische Aktionen",
+  },
+  "cat.permissionsMeaning": {
+    en: "World-writable paths and commands that delete or overwrite more than intended.",
+    de: "Für alle schreibbare Pfade und Befehle, die mehr löschen oder überschreiben als geplant.",
+  },
+  "cat.hygiene": {
+    en: "Code hygiene",
+    de: "Code-Hygiene",
+  },
+  "cat.hygieneMeaning": {
+    en: "Not a vulnerability: dead imports, wrong comparisons, shadowed names.",
+    de: "Keine Schwachstelle: tote Importe, falsche Vergleiche, verdeckte Namen.",
+  },
+  "cat.unclassified": {
+    en: "Not classified",
+    de: "Nicht eingeordnet",
+  },
+  "cat.unclassifiedMeaning": {
+    en: "A finding whose rule carries no CWE the categories know.",
+    de: "Ein Fund, dessen Regel keine CWE trägt, die die Arten kennen.",
+  },
+
+  // ── Profile detail card ───────────────────────────────────────────────────
+  "detail.aria": {
+    en: "What the {label} scan checks",
+    de: "Was der {label}-Scan prüft",
+  },
+  "detail.title": {
+    en: "{icon} {label} scan",
+    de: "{icon} {label}-Scan",
+  },
+  "detail.lede": {
+    en: "Here is exactly what will be checked. Nothing is uploaded anywhere else — files stay on your machine.",
+    de: "Hier steht genau, was geprüft wird. Nichts wird woanders hochgeladen — die Dateien bleiben auf deinem Rechner.",
+  },
+  "detail.report": {
+    en: "REPORT:",
+    de: "BERICHT:",
+  },
+  "detail.time": {
+    en: "TIME:",
+    de: "DAUER:",
+  },
+  "detail.customNote": {
+    en: "⚠ The custom pattern editor is coming soon — choosing it for now runs the standard profile.",
+    de: "⚠ Der Editor für eigene Muster kommt noch — wer ihn jetzt wählt, läuft den Standard-Scan.",
+  },
+  "detail.use": {
+    en: "✓ USE THIS PROFILE",
+    de: "✓ DIESES PROFIL NEHMEN",
+  },
+  "detail.keep": {
+    en: "← KEEP CURRENT",
+    de: "← AKTUELLES BEHALTEN",
+  },
 } satisfies Record<string, { en: string; de: string }>;
 
 export type DictKey = keyof typeof DICT;

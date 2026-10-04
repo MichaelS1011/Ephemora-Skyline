@@ -5,6 +5,7 @@
 
 import { enabledCategoriesPayload } from "./findingCategories";
 import type { FindingCategory } from "../city/types";
+import type { DictKey } from "../i18n";
 
 export type ScanProfile =
   "quick" | "standard" | "deep" | "security-only" | "quality-only" | "custom";
@@ -12,33 +13,45 @@ export type ScanProfile =
 export interface ScanProfileMeta {
   id: ScanProfile;
   icon: string;
-  label: string;
+  /** Dictionary keys — the chip row is a decision surface and must speak the
+   * display language, so these tables carry keys, not prose. */
+  label: DictKey;
   /** One-line summary shown under the chip row */
-  summary: string;
+  summary: DictKey;
 }
 
 export const SCAN_PROFILES: ScanProfileMeta[] = [
   {
     id: "quick",
     icon: "⚡",
-    label: "Quick",
-    summary: "critical findings only — fastest scan",
+    label: "profile.quick",
+    summary: "profile.quickSummary",
   },
   {
     id: "standard",
     icon: "⚖",
-    label: "Standard",
-    summary: "all scanners — secrets, AST, CVEs, heuristics",
+    label: "profile.standard",
+    summary: "profile.standardSummary",
   },
-  { id: "deep", icon: "🔬", label: "Deep", summary: "standard + git-history secret scan" },
+  { id: "deep", icon: "🔬", label: "profile.deep", summary: "profile.deepSummary" },
   {
     id: "security-only",
     icon: "🛡",
-    label: "Security",
-    summary: "only security findings, no style noise",
+    label: "profile.security",
+    summary: "profile.securitySummary",
   },
-  { id: "quality-only", icon: "🧹", label: "Quality", summary: "dead code & hygiene only" },
-  { id: "custom", icon: "✏", label: "Custom", summary: "your own configuration (coming soon)" },
+  {
+    id: "quality-only",
+    icon: "🧹",
+    label: "profile.quality",
+    summary: "profile.qualitySummary",
+  },
+  {
+    id: "custom",
+    icon: "✏",
+    label: "profile.custom",
+    summary: "profile.customSummary",
+  },
 ];
 
 /**
@@ -62,77 +75,77 @@ export type EngineId =
 export interface EngineMeta {
   id: EngineId;
   icon: string;
-  name: string;
+  name: DictKey;
   /** Plain-language: what does this engine actually look for? */
-  what: string;
+  what: DictKey;
 }
 
 export const ENGINES: EngineMeta[] = [
   {
     id: "heuristics",
     icon: "🔎",
-    name: "Code patterns",
-    what: "scans every file for risky code patterns (injection, XSS, unsafe storage…)",
+    name: "engine.heuristics",
+    what: "engine.heuristicsWhat",
   },
   {
     id: "secrets",
     icon: "🔑",
-    name: "Secrets",
-    what: "finds API keys, passwords and tokens committed in your files",
+    name: "engine.secrets",
+    what: "engine.secretsWhat",
   },
   {
     id: "ast",
     icon: "🌳",
-    name: "Deep AST rules",
-    what: "syntax-tree analysis for injection and XSS flows the regexes can't see",
+    name: "engine.ast",
+    what: "engine.astWhat",
   },
   {
     id: "deps",
     icon: "📦",
-    name: "Dependency audit",
-    what: "checks npm packages against the known-vulnerability database",
+    name: "engine.deps",
+    what: "engine.depsWhat",
   },
   {
     id: "osv",
     icon: "🌐",
-    name: "OSV database",
-    what: "cross-checks dependencies against the open-source CVE database",
+    name: "engine.osv",
+    what: "engine.osvWhat",
   },
   {
     id: "ruff",
     icon: "🐍",
-    name: "Python lint",
-    what: "quality and hygiene checks for Python files",
+    name: "engine.ruff",
+    what: "engine.ruffWhat",
   },
   {
     id: "secretsHistory",
     icon: "🕰️",
-    name: "Git history secrets",
-    what: "walks the full commit history — finds keys you deleted long ago",
+    name: "engine.secretsHistory",
+    what: "engine.secretsHistoryWhat",
   },
   {
     id: "duplicates",
     icon: "🧬",
-    name: "Copy-paste clones",
-    what: "finds duplicated code blocks — yellow lasers connect the clones",
+    name: "engine.duplicates",
+    what: "engine.duplicatesWhat",
   },
   {
     id: "cycles",
     icon: "♻️",
-    name: "Circular imports",
-    what: "detects import loops — red rings mark the files that block the system",
+    name: "engine.cycles",
+    what: "engine.cyclesWhat",
   },
   {
     id: "coverage",
     icon: "🛡️",
-    name: "Test coverage",
-    what: "reads the repo's own lcov report — well-tested files get a blue shield",
+    name: "engine.coverage",
+    what: "engine.coverageWhat",
   },
   {
     id: "blame",
     icon: "👥",
-    name: "Author map",
-    what: "colors districts by the developers who own them (git history)",
+    name: "engine.blame",
+    what: "engine.blameWhat",
   },
 ];
 
@@ -191,13 +204,13 @@ export const PROFILE_ENGINES: Record<ScanProfile, EngineId[]> = {
 };
 
 /** What the findings report shows per profile (severity gate / focus). */
-export const PROFILE_SCOPE: Record<ScanProfile, string> = {
-  quick: "shows only P0 critical findings — triage, not a full report",
-  standard: "shows all findings, P0 to P2 (critical → hygiene)",
-  deep: "shows all findings P0 to P2, including historical secrets",
-  "security-only": "shows all findings, minus style-noise categories",
-  "quality-only": "shows only hygiene findings (dead code, console, style)",
-  custom: "shows all findings, P0 to P2",
+export const PROFILE_SCOPE: Record<ScanProfile, DictKey> = {
+  quick: "scope.quick",
+  standard: "scope.standard",
+  deep: "scope.deep",
+  "security-only": "scope.securityOnly",
+  "quality-only": "scope.qualityOnly",
+  custom: "scope.custom",
 };
 
 /**

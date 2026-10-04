@@ -72,19 +72,29 @@ describe("scanVerdict", () => {
 
 describe("describeGitignoreSkips", () => {
   it("counts in the grammatical number the scan found", () => {
-    expect(describeGitignoreSkips({ files: 3, directories: 1 })).toBe("3 files and 1 folder");
-    expect(describeGitignoreSkips({ files: 1, directories: 1 })).toBe("1 file and 1 folder");
-    expect(describeGitignoreSkips({ files: 49, directories: 3 })).toBe("49 files and 3 folders");
+    expect(describeGitignoreSkips({ files: 3, directories: 1 }, "en")).toBe("3 files and 1 folder");
+    expect(describeGitignoreSkips({ files: 1, directories: 1 }, "en")).toBe("1 file and 1 folder");
+    expect(describeGitignoreSkips({ files: 49, directories: 3 }, "en")).toBe(
+      "49 files and 3 folders",
+    );
+  });
+
+  it("counts in German when German is the display language", () => {
+    expect(describeGitignoreSkips({ files: 49, directories: 3 }, "de")).toBe(
+      "49 Dateien und 3 Ordner",
+    );
+    expect(describeGitignoreSkips({ files: 1, directories: 1 }, "de")).toBe("1 Datei und 1 Ordner");
+    expect(describeGitignoreSkips({ files: 7, directories: 0 }, "de")).toBe("7 Dateien");
   });
 
   it("names only what was actually kept out", () => {
-    expect(describeGitignoreSkips({ files: 0, directories: 2 })).toBe("2 folders");
-    expect(describeGitignoreSkips({ files: 7, directories: 0 })).toBe("7 files");
-    expect(describeGitignoreSkips({ files: 0, directories: 0 })).toBe("");
+    expect(describeGitignoreSkips({ files: 0, directories: 2 }, "en")).toBe("2 folders");
+    expect(describeGitignoreSkips({ files: 7, directories: 0 }, "en")).toBe("7 files");
+    expect(describeGitignoreSkips({ files: 0, directories: 0 }, "en")).toBe("");
   });
 
   it("stays silent for a result scanned before the counter existed", () => {
-    expect(describeGitignoreSkips(undefined)).toBe("");
+    expect(describeGitignoreSkips(undefined, "en")).toBe("");
   });
 });
 

@@ -307,7 +307,7 @@ export default function App() {
               <span>{permalinkError}</span>
               <button
                 onClick={() => setPermalinkError("")}
-                aria-label="Dismiss message"
+                aria-label={t(lang, "app.dismissAria")}
                 className="cursor-pointer shrink-0 hover:brightness-125"
                 style={{ color: "#ff8f9a" }}
               >

@@ -211,8 +211,10 @@ export function Landing() {
     }
   };
   const isCollecting = state === "collecting";
-  const profileName =
-    SCAN_PROFILES.find((profile) => profile.id === scanProfile)?.label ?? "Standard";
+  const profileName = t(
+    lang,
+    SCAN_PROFILES.find((profile) => profile.id === scanProfile)?.label ?? "profile.standard",
+  );
   const error = demoError || (state === "error" ? errorMessage : "");
 
   return (
@@ -243,7 +245,7 @@ export function Landing() {
               localStorage.setItem("codecity-update-dismissed", update.latest);
               setUpdate(null);
             }}
-            aria-label="Dismiss update note"
+            aria-label={t(lang, "landing.dismissNoteAria")}
           >
             ✕
           </button>

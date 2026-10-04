@@ -2,6 +2,7 @@ import { useEffect, useRef, useCallback } from "react";
 import { useStore } from "../stores/useStore";
 import { getDirLayout } from "../city/layout";
 import { languageColor, ENV, SEVERITY_COLOR } from "../city/palette";
+import { t } from "../i18n";
 
 /**
  * City map — shows the CURRENT semantic-zoom level with the REAL camera
@@ -13,6 +14,7 @@ const MAP_SIZE = 190;
 const PADDING = 12;
 
 export function Minimap({ show = true }: { show?: boolean }) {
+  const lang = useStore((s) => s.prefs.lang);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const cityData = useStore((s) => s.cityData);
   const focusPath = useStore((s) => s.focusPath);
@@ -149,7 +151,8 @@ export function Minimap({ show = true }: { show?: boolean }) {
         className="font-mono text-[11px] tracking-widest mb-1 px-0.5"
         style={{ color: "rgba(232,80,60,0.5)" }}
       >
-        CITY MAP {focusPath.length > 0 ? `· /${focusPath.join("/")}` : "· OVERVIEW"}
+        {t(lang, "minimap.title")}{" "}
+        {focusPath.length > 0 ? `· /${focusPath.join("/")}` : t(lang, "minimap.overview")}
       </div>
       <canvas
         ref={canvasRef}
@@ -160,7 +163,7 @@ export function Minimap({ show = true }: { show?: boolean }) {
         onKeyDown={handleKey}
         tabIndex={0}
         role="button"
-        aria-label="City minimap — click to fly, or press Enter to go to city overview"
+        aria-label={t(lang, "minimap.aria")}
       />
     </div>
   );

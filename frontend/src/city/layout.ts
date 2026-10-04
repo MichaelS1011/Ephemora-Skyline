@@ -18,6 +18,7 @@
  */
 
 import type { CityData, CityDir, CityFile, CityFinding, Severity } from "./types";
+import { t, type Lang } from "../i18n";
 import { languageColor, threatRank } from "./palette";
 import {
   blockFootprint as blockFootprintOf,
@@ -762,18 +763,24 @@ export function districtDraw(dir: CityDir, limits?: CityDrawLimits): DistrictDra
  * Say why a district with 92 files draws 6 buildings — in the words the
  * numbers support. Returns nothing when the view draws every file it holds.
  */
-export function explainDistrictDraw(dir: CityDir, limits?: CityDrawLimits): string[] {
+export function explainDistrictDraw(
+  dir: CityDir,
+  limits: CityDrawLimits | undefined,
+  lang: Lang,
+): string[] {
   const draw = districtDraw(dir, limits);
   const lines: string[] = [];
   if (draw.folded > 0) {
     const cap = limits?.buildingsPerDirectory ?? draw.drawnHere;
-    lines.push(
-      `${draw.drawnHere} of ${draw.filesHere} files here stand as buildings — a folder draws at most ${cap}, the rest share one podium marker.`,
-    );
+    lines.push(t(lang, "layout.drawnHere", { drawn: draw.drawnHere, files: draw.filesHere, cap }));
   }
   if (draw.plots > 0 && draw.filesBelow > 0) {
     lines.push(
-      `${draw.filesBelow} files live in ${draw.plots} sub-district${draw.plots === 1 ? "" : "s"}; each plot shows up to ${draw.skylineTowers} of its most at-risk files.`,
+      t(lang, draw.plots === 1 ? "layout.subDistrictsOne" : "layout.subDistrictsMany", {
+        below: draw.filesBelow,
+        plots: draw.plots,
+        towers: draw.skylineTowers,
+      }),
     );
   }
   return lines;

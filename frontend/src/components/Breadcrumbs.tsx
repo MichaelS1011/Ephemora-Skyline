@@ -32,18 +32,18 @@ export function Breadcrumbs() {
   const focusedLine = selectedFile ? lineSegmentFor(focusedFindingKey, selectedFile) : null;
 
   return (
-    <nav aria-label="Breadcrumb" className="workspace-breadcrumbs">
+    <nav aria-label={t(lang, "crumbs.navAria")} className="workspace-breadcrumbs">
       {focusPath.length > 0 && (
         <button
           onClick={drillOut}
-          aria-label="Up one level"
+          aria-label={t(lang, "crumbs.upAria")}
           className="font-mono text-[11px] px-1.5 py-0.5"
           style={{
             border: "1px solid rgba(165,158,144,0.4)",
             color: "#cfcabe",
             background: "rgba(16,16,14,0.8)",
           }}
-          title="Up one level"
+          title={t(lang, "crumbs.upAria")}
         >
           ↑
         </button>
@@ -51,7 +51,7 @@ export function Breadcrumbs() {
       <button
         onClick={() => setFocusPath([])}
         aria-current={focusPath.length === 0 ? "location" : undefined}
-        title="Root level"
+        title={t(lang, "crumbs.rootTip")}
         className="font-mono text-[11px] px-2 py-0.5 transition-colors"
         style={{
           border: `1px solid ${focusPath.length === 0 ? "#f2d5a0" : "rgba(165,158,144,0.35)"}`,

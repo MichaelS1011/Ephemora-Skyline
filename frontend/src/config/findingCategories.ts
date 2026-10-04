@@ -7,12 +7,15 @@
  * drift apart — a chip that filters nothing is worse than no chip.
  */
 import type { FindingCategory } from "../city/types";
+import type { DictKey } from "../i18n";
 
 export interface CategoryMeta {
   id: FindingCategory;
-  label: string;
+  /** Dictionary keys: which kinds to look for is a decision, and a decision
+   * has to read like the rest of the UI. */
+  label: DictKey;
   /** Shown as the tooltip on the chip and as the line in the overview. */
-  meaning: string;
+  meaning: DictKey;
   /**
    * Engines that could produce a finding here, by the same key the scan
    * reports them under in `scanProvenance` / `unverifiedEngines`. A category
@@ -36,56 +39,56 @@ export const ENGINE_LABEL: Record<EngineKey, string> = {
 export const FINDING_CATEGORIES: readonly CategoryMeta[] = [
   {
     id: "injection",
-    label: "Injection & execution",
-    meaning: "Data reaches a place that runs it: shell, SQL, eval, deserialization.",
+    label: "cat.injection",
+    meaning: "cat.injectionMeaning",
     engines: ["regex", "semgrep"],
   },
   {
     id: "secrets",
-    label: "Secrets",
-    meaning: "Credentials, tokens and keys that are stored in the code or its history.",
+    label: "cat.secrets",
+    meaning: "cat.secretsMeaning",
     engines: ["gitleaks", "regex"],
   },
   {
     id: "crypto",
-    label: "Cryptography",
-    meaning: "Weak algorithms and short keys — the maths that pretends to protect something.",
+    label: "cat.crypto",
+    meaning: "cat.cryptoMeaning",
     engines: ["regex", "semgrep"],
   },
   {
     id: "transport",
-    label: "Transport & certificates",
-    meaning: "Cleartext network calls and certificate checks that were switched off.",
+    label: "cat.transport",
+    meaning: "cat.transportMeaning",
     engines: ["regex", "semgrep"],
   },
   {
     id: "exposure",
-    label: "Data exposure",
-    meaning: "Sensitive values written where they can be read: logs, browser storage, dumps.",
+    label: "cat.exposure",
+    meaning: "cat.exposureMeaning",
     engines: ["regex", "semgrep"],
   },
   {
     id: "dependencies",
-    label: "Dependencies & supply chain",
-    meaning: "Known-bad packages, install hooks and code pulled in without verification.",
+    label: "cat.dependencies",
+    meaning: "cat.dependenciesMeaning",
     engines: ["dependencies", "semgrep", "regex"],
   },
   {
     id: "permissions",
-    label: "Permissions & destructive actions",
-    meaning: "World-writable paths and commands that delete or overwrite more than intended.",
+    label: "cat.permissions",
+    meaning: "cat.permissionsMeaning",
     engines: ["regex", "semgrep"],
   },
   {
     id: "hygiene",
-    label: "Code hygiene",
-    meaning: "Not a vulnerability: dead imports, wrong comparisons, shadowed names.",
+    label: "cat.hygiene",
+    meaning: "cat.hygieneMeaning",
     engines: ["regex", "ruff"],
   },
   {
     id: "unclassified",
-    label: "Not classified",
-    meaning: "A finding whose rule carries no CWE the categories know.",
+    label: "cat.unclassified",
+    meaning: "cat.unclassifiedMeaning",
     engines: ["regex", "gitleaks", "semgrep", "dependencies", "ruff"],
   },
 ] as const;

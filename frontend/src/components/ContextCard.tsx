@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useStore } from "../stores/useStore";
+import { t } from "../i18n";
 import { explainDistrictDraw, resolveDir, tourStops } from "../city/layout";
 import { describeGitignoreSkips } from "../city/provenance";
 import { blindCategories, categoryMeta, summarizeCategories } from "../config/findingCategories";
@@ -10,6 +11,7 @@ const startCollapsed = () =>
   typeof window !== "undefined" && (window.matchMedia?.("(max-width: 767px)").matches ?? false);
 
 export function ContextCard() {
+  const lang = useStore((s) => s.prefs.lang);
   const cityData = useStore((s) => s.cityData);
   const buildPhase = useStore((s) => s.buildPhase);
   const focusPath = useStore((s) => s.focusPath);
@@ -37,12 +39,12 @@ export function ContextCard() {
           boxShadow: "0 6px 20px rgba(0,0,0,0.22)",
         }}
         aria-expanded={false}
-        aria-label="Show project overview"
+        aria-label={t(lang, "ctx.showAria")}
       >
         <span aria-hidden style={{ color: "#e8503c" }}>
           ▦
         </span>
-        Project overview
+        {t(lang, "ctx.project")}
       </button>
     );
   }
@@ -58,8 +60,8 @@ export function ContextCard() {
   const dataLabels = topLanguages(dir.dataLanguages ?? {}, 2)
     .map((language) => language.name)
     .join(", ");
-  const drawLines = explainDistrictDraw(dir, cityData.limits);
-  const skipped = describeGitignoreSkips(cityData.skippedByGitignore);
+  const drawLines = explainDistrictDraw(dir, cityData.limits, lang);
+  const skipped = describeGitignoreSkips(cityData.skippedByGitignore, lang);
   const findingsInTests = dir.findingsInTests ?? 0;
   const unverified = dir.unverifiedFiles ?? 0;
   const engines = cityData.unverifiedEngines ?? [];
@@ -69,18 +71,21 @@ export function ContextCard() {
   const uncheckedLine =
     unverified > 0
       ? nothingScanned
-        ? "No scanner looked at this city — it is a demo"
-        : `${unverified} of ${dir.fileCount} files here were never checked${
-            engines.length > 0 ? ` by ${engines.join(", ")}` : ""
-          }`
+        ? t(lang, "ctx.uncheckedDemo")
+        : t(lang, "ctx.unchecked", {
+            unverified,
+            total: dir.fileCount,
+            by:
+              engines.length > 0 ? t(lang, "ctx.uncheckedBy", { engines: engines.join(", ") }) : "",
+          })
       : "";
   const testLine =
     findingsInTests > 0 && totalFindings > 0
-      ? `${findingsInTests} of ${totalFindings} findings were found in test code`
+      ? t(lang, "ctx.testFindings", { inTests: findingsInTests, total: totalFindings })
       : "";
   const kinds = summarizeCategories(dir.findingsByCategory);
   const blind = isRoot
-    ? blindCategories(cityData.unverifiedEngines ?? []).map((id) => categoryMeta(id).label)
+    ? blindCategories(cityData.unverifiedEngines ?? []).map((id) => t(lang, categoryMeta(id).label))
     : [];
   const langs = topLanguages(dir.languages, 4);
   const totalLangLines = Object.values(dir.languages).reduce((sum, lines) => sum + lines, 0) || 1;
@@ -107,12 +112,12 @@ export function ContextCard() {
         backdropFilter: "blur(20px)",
       }}
       role="region"
-      aria-label={isRoot ? "Project overview" : "District overview"}
+      aria-label={t(lang, isRoot ? "ctx.project" : "ctx.district")}
     >
       <div className="flex items-start justify-between gap-2 mb-4">
         <div className="min-w-0 flex-1">
           <div className="text-[12px] mb-1" style={{ color: "#aaa69c" }}>
-            {isRoot ? "Project overview" : "District overview"}
+            {t(lang, isRoot ? "ctx.project" : "ctx.district")}
           </div>
           <h2
             className="font-jetbrains text-[15px] font-semibold truncate"
@@ -132,8 +137,8 @@ export function ContextCard() {
         </div>
         <button
           onClick={() => setCollapsed(true)}
-          aria-label="Collapse project overview"
-          title="Collapse overview"
+          aria-label={t(lang, "ctx.collapseAria")}
+          title={t(lang, "ctx.collapseTip")}
           className="btn-ghost shrink-0 w-8 h-8 flex items-center justify-center !p-0"
         >
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
@@ -152,17 +157,17 @@ export function ContextCard() {
         className="grid grid-cols-2 gap-4 pb-4"
         style={{ borderBottom: "1px solid rgba(150,142,128,0.18)" }}
       >
-        <div title="Each source file is a building in your city.">
+        <div title={t(lang, "ctx.filesTip")}>
           <dt className="text-[12px] mb-1" style={{ color: "#aaa69c" }}>
-            Files
+            {t(lang, "ctx.files")}
           </dt>
           <dd className="text-[22px] font-semibold leading-none tabular-nums">
             {dir.fileCount.toLocaleString()}
           </dd>
         </div>
-        <div title="Lines of code, excluding comments, blank lines and data files.">
+        <div title={t(lang, "ctx.codeLinesTip")}>
           <dt className="text-[12px] mb-1" style={{ color: "#aaa69c" }}>
-            Lines of code
+            {t(lang, "ctx.codeLines")}
           </dt>
           <dd className="text-[22px] font-semibold leading-none tabular-nums">
             {codeLines >= 1000 ? `${(codeLines / 1000).toFixed(1)}k` : codeLines.toLocaleString()}
@@ -182,26 +187,28 @@ export function ContextCard() {
             <div
               className="text-[12px]"
               style={{ color: "#aaa69c" }}
-              title="Translation catalogues, manifests and generated JSON have lines but no behaviour. They are counted apart from the code, never inside it."
+              title={t(lang, "ctx.dataLinesTip")}
             >
-              {dataLines.toLocaleString()} lines of data
-              {dataLabels ? ` (${dataLabels})` : ""}
+              {t(lang, "ctx.dataLines", {
+                count: dataLines.toLocaleString(),
+                labels: dataLabels ? ` (${dataLabels})` : "",
+              })}
             </div>
           )}
           {isRoot && skipped !== "" && (
             <div
               className="text-[12px]"
               style={{ color: "#aaa69c" }}
-              title="Every folder's own .gitignore decides what the scan reads. What it keeps out is not part of this city."
+              title={t(lang, "ctx.keptOutTip")}
             >
-              {skipped} kept out by .gitignore
+              {t(lang, "ctx.keptOut", { skipped })}
             </div>
           )}
           {uncheckedLine !== "" && (
             <div
               className="text-[12px]"
               style={{ color: "#8f8b82" }}
-              title="No engine that covers these languages ran in this scan. The files are not clean — they are unread."
+              title={t(lang, "ctx.uncheckedTip")}
             >
               {uncheckedLine}
             </div>
@@ -210,7 +217,7 @@ export function ContextCard() {
             <div
               className="text-[12px]"
               style={{ color: "#aaa69c" }}
-              title="What this folder is actually full of. Severity says how bad a finding is; this says what kind of work it is."
+              title={t(lang, "ctx.kindsTip")}
             >
               {kinds}
             </div>
@@ -219,16 +226,16 @@ export function ContextCard() {
             <div
               className="text-[12px]"
               style={{ color: "#8f8b82" }}
-              title="No engine that could report on these ran in this scan. Zero findings here is a blind spot, not a clean result."
+              title={t(lang, "ctx.blindTip")}
             >
-              Nobody looked for: {blind.join(", ")}
+              {t(lang, "ctx.blind", { list: blind.join(", ") })}
             </div>
           )}
           {testLine !== "" && (
             <div
               className="text-[12px]"
               style={{ color: "#aaa69c" }}
-              title="A fixture that exists to show a vulnerable snippet is a true finding about the fixture, not about the shipped code. These findings are still listed; they no longer lead the risk ranking."
+              title={t(lang, "ctx.testTip")}
             >
               {testLine}
             </div>
@@ -238,7 +245,7 @@ export function ContextCard() {
               key={line}
               className="text-[12px]"
               style={{ color: "#aaa69c" }}
-              title="One building per file that fits the plots of this view. The rest are represented by a district plot or a podium marker, and every finding is still counted."
+              title={t(lang, "ctx.drawTip")}
             >
               {line}
             </div>
@@ -250,24 +257,32 @@ export function ContextCard() {
         {totalFindings > 0 ? (
           <>
             <div className="text-[13px] font-medium mb-2.5">
-              {totalFindings.toLocaleString()} finding{totalFindings !== 1 ? "s" : ""} to review
+              {totalFindings === 1
+                ? t(lang, "ctx.findingsOne")
+                : t(lang, "ctx.findingsMany", { count: totalFindings.toLocaleString() })}
             </div>
             <div className="flex gap-x-3 gap-y-2 flex-wrap">
-              {(["P0", "P1", "P2"] as const).map((severity) =>
-                findings[severity] > 0 ? (
+              {(
+                [
+                  { sev: "P0", key: "hud.sevCritical" },
+                  { sev: "P1", key: "hud.sevHigh" },
+                  { sev: "P2", key: "hud.sevMedium" },
+                ] as const
+              ).map(({ sev, key }) =>
+                findings[sev] > 0 ? (
                   <span
-                    key={severity}
+                    key={sev}
                     className="inline-flex items-center gap-1.5 text-[12px]"
                     style={{ color: "#c5c0b5" }}
                   >
                     <span
                       className="w-1.5 h-1.5 rounded-full"
-                      style={{ background: SEVERITY_COLOR[severity] }}
+                      style={{ background: SEVERITY_COLOR[sev] }}
                       aria-hidden
                     />
-                    {severity === "P0" ? "Critical" : severity === "P1" ? "High" : "Medium"}
+                    {t(lang, key)}
                     <span className="tabular-nums" style={{ color: "#f2efe8" }}>
-                      {findings[severity]}
+                      {findings[sev]}
                     </span>
                   </span>
                 ) : null,
@@ -281,10 +296,10 @@ export function ContextCard() {
                   border: "1px solid rgba(232,80,60,0.3)",
                   background: "rgba(232,80,60,0.06)",
                 }}
-                title={`Review ${inScope.file.path}`}
+                title={t(lang, "ctx.reviewFileTip", { path: inScope.file.path })}
               >
                 <div className="text-[12px] font-medium mb-1" style={{ color: "#f18a7b" }}>
-                  Review highest-risk file
+                  {t(lang, "ctx.reviewHighest")}
                 </div>
                 <div className="font-jetbrains text-[12px] truncate">{inScope.file.name}</div>
               </button>
@@ -292,7 +307,7 @@ export function ContextCard() {
           </>
         ) : (
           <div className="text-[13px] flex items-center gap-2" style={{ color: "#a2d4b4" }}>
-            <span aria-hidden>✓</span> No findings in this view
+            <span aria-hidden>✓</span> {t(lang, "ctx.noFindings")}
           </div>
         )}
       </div>
@@ -300,7 +315,7 @@ export function ContextCard() {
       {langs.length > 0 && (
         <div className="pt-4">
           <div className="text-[12px] mb-2.5" style={{ color: "#aaa69c" }}>
-            Languages
+            {t(lang, "ctx.languages")}
           </div>
           <div className="flex h-1.5 rounded-full overflow-hidden mb-3" aria-hidden>
             {langs.map((language) => (
@@ -318,7 +333,10 @@ export function ContextCard() {
               <div
                 key={language.name}
                 className="flex items-center gap-1.5 min-w-0 text-[12px]"
-                title={`${language.name}: ${Math.round((language.lines / totalLangLines) * 100)}% of lines`}
+                title={t(lang, "ctx.langShare", {
+                  name: language.name,
+                  pct: Math.round((language.lines / totalLangLines) * 100),
+                })}
               >
                 <span
                   className="w-1.5 h-1.5 rounded-full shrink-0"
@@ -345,11 +363,14 @@ export function ContextCard() {
           {/* #52: a person does not belong between language shares — own
               block with a heading that says what the number means. */}
           <div className="text-[12px] mb-2.5" style={{ color: "#aaa69c" }}>
-            Authorship — git blame across this view
+            {t(lang, "ctx.authorship")}
           </div>
           <div
             className="flex items-center gap-2 text-[12px]"
-            title={`${dir.topAuthor} authored ${Math.round((dir.topAuthorShare ?? 0) * 100)}% of files in this view`}
+            title={t(lang, "ctx.authored", {
+              author: dir.topAuthor,
+              pct: Math.round((dir.topAuthorShare ?? 0) * 100),
+            })}
           >
             <span
               className="w-2 h-2 rounded-full shrink-0"
@@ -357,10 +378,11 @@ export function ContextCard() {
               aria-hidden
             />
             <span className="truncate" style={{ color: "#aaa69c" }}>
-              Top contributor: <span style={{ color: "#c5c0b5" }}>{dir.topAuthor}</span>
+              {t(lang, "ctx.topContributor")}{" "}
+              <span style={{ color: "#c5c0b5" }}>{dir.topAuthor}</span>
               {dir.topAuthorShare != null && (
                 <span className="ml-1 tabular-nums">
-                  · {Math.round(dir.topAuthorShare * 100)}% of files
+                  {t(lang, "ctx.shareOfFiles", { pct: Math.round(dir.topAuthorShare * 100) })}
                 </span>
               )}
             </span>
@@ -376,7 +398,7 @@ export function ContextCard() {
           className="w-full flex items-center justify-between gap-2 text-[13px] py-2 text-left"
           style={{ color: "#c5c0b5" }}
         >
-          City legend
+          {t(lang, "ctx.legendToggle")}
           <span aria-hidden>{legendOpen ? "−" : "+"}</span>
         </button>
         {legendOpen && (

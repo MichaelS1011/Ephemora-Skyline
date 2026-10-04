@@ -1,6 +1,8 @@
 "use client";
 
 import { useState } from "react";
+import { useStore } from "../stores/useStore";
+import { t } from "../i18n";
 import {
   editorDeepLink,
   openDeepLink,
@@ -20,9 +22,9 @@ import {
 
 /** A usable workspace root must be absolute: "/…" or a drive root like "C:\…". */
 const looksAbsolute = (p: string): boolean => {
-  const t = p.trim();
-  if (!t) return false;
-  return t.startsWith("/") || /^[a-zA-Z]:[\\/]/.test(t);
+  const trimmed = p.trim();
+  if (!trimmed) return false;
+  return trimmed.startsWith("/") || /^[a-zA-Z]:[\\/]/.test(trimmed);
 };
 
 export function OpenInIde({
@@ -34,6 +36,7 @@ export function OpenInIde({
   line?: number;
   repoKey?: string;
 }) {
+  const lang = useStore((s) => s.prefs.lang);
   const [root, setRoot] = useState(getWorkspaceRoot(repoKey));
   const [editor, setEditor] = useState<EditorId>(getPreferredEditor());
   const [configured, setConfigured] = useState(getWorkspaceRoot(repoKey) !== "");
@@ -55,14 +58,14 @@ export function OpenInIde({
           className="font-jetbrains text-[11px] tracking-widest mb-1.5"
           style={{ color: "#d8c9a3" }}
         >
-          OPEN IN EDITOR — SET WORKSPACE ROOT (ONCE)
+          {t(lang, "ide.setup")}
         </div>
         <div className="flex gap-1">
           <input
             value={draftRoot}
             onChange={(e) => setDraftRoot(e.target.value)}
             placeholder="/absolute/path/to/repo"
-            aria-label="Absolute workspace root path"
+            aria-label={t(lang, "ide.pathAria")}
             aria-invalid={invalid || undefined}
             aria-describedby={invalid ? "workspace-root-hint" : undefined}
             className="flex-1 min-w-0 font-jetbrains text-[11px] px-1.5 py-1 rounded-sm"
@@ -89,7 +92,7 @@ export function OpenInIde({
               color: "#f2d5a0",
             }}
           >
-            SAVE
+            {t(lang, "ide.save")}
           </button>
         </div>
         {invalid && (
@@ -99,7 +102,7 @@ export function OpenInIde({
             className="font-jetbrains text-[11px] mt-1.5"
             style={{ color: "#ff6688" }}
           >
-            ⚠ Path must be absolute — start with “/” (macOS/Linux) or a drive letter like “C:\”
+            {t(lang, "ide.invalidHint")}
           </div>
         )}
       </div>
@@ -111,7 +114,11 @@ export function OpenInIde({
       <button
         onClick={() => link && openDeepLink(link)}
         disabled={!link}
-        aria-label={`Open ${filePath} in ${EDITOR_LABELS[editor]}${line ? ` at line ${line}` : ""}`}
+        aria-label={
+          line != null
+            ? t(lang, "ide.openAriaLine", { path: filePath, editor: EDITOR_LABELS[editor], line })
+            : t(lang, "ide.openAria", { path: filePath, editor: EDITOR_LABELS[editor] })
+        }
         className="inline-flex items-center gap-1.5 font-jetbrains text-[11px] tracking-wide px-2 py-1 rounded-sm
                    transition-opacity hover:opacity-80 disabled:opacity-40 cursor-pointer"
         style={{
@@ -120,7 +127,7 @@ export function OpenInIde({
           background: "rgba(232,178,60,0.07)",
         }}
       >
-        ⤢ OPEN IN {EDITOR_LABELS[editor].toUpperCase()}
+        {t(lang, "ide.openIn", { editor: EDITOR_LABELS[editor].toUpperCase() })}
       </button>
       <button
         onClick={() => {
@@ -128,7 +135,9 @@ export function OpenInIde({
           setPreferredEditor(next);
           setEditor(next);
         }}
-        aria-label={`Switch editor to ${EDITOR_LABELS[editor === "vscode" ? "cursor" : "vscode"]}`}
+        aria-label={t(lang, "ide.switchAria", {
+          editor: EDITOR_LABELS[editor === "vscode" ? "cursor" : "vscode"],
+        })}
         className="font-jetbrains text-[11px] px-1.5 py-1 rounded-sm cursor-pointer hover:opacity-80"
         style={{ color: "var(--meta)", border: "1px solid rgba(150,142,128,0.3)" }}
       >

@@ -1,4 +1,5 @@
 import type { ScanProvenance } from "./types";
+import { t, type Lang } from "../i18n";
 
 /**
  * What the scan can honestly claim.
@@ -34,16 +35,25 @@ const SECURITY_ENGINES: { key: keyof ScanProvenance; label: string; needs?: RegE
  * the same scan, and the count is what the user weighs. Both panels read this
  * so the wording cannot drift apart between them.
  */
-export function describeGitignoreSkips(skipped?: { files: number; directories: number }): string {
+export function describeGitignoreSkips(
+  skipped: { files: number; directories: number } | undefined,
+  lang: Lang,
+): string {
   if (!skipped) return "";
   const parts: string[] = [];
   if (skipped.files > 0)
-    parts.push(`${skipped.files.toLocaleString()} ${skipped.files === 1 ? "file" : "files"}`);
+    parts.push(
+      t(lang, skipped.files === 1 ? "prov.skipFile" : "prov.skipFiles", {
+        n: skipped.files.toLocaleString(),
+      }),
+    );
   if (skipped.directories > 0)
     parts.push(
-      `${skipped.directories.toLocaleString()} ${skipped.directories === 1 ? "folder" : "folders"}`,
+      t(lang, skipped.directories === 1 ? "prov.skipFolder" : "prov.skipFolders", {
+        n: skipped.directories.toLocaleString(),
+      }),
     );
-  return parts.join(" and ");
+  return parts.join(t(lang, "prov.skipJoin"));
 }
 
 /**

@@ -146,7 +146,7 @@ describe("districtDraw", () => {
 
 describe("explainDistrictDraw", () => {
   it("explains a district that shows six buildings for ninety-two files", () => {
-    const lines = explainDistrictDraw(frontendLike(), LIMITS);
+    const lines = explainDistrictDraw(frontendLike(), LIMITS, "en");
     expect(lines).toHaveLength(1);
     expect(lines[0]).toContain("86 files live in 2 sub-districts");
     expect(lines[0]).toContain("6");
@@ -159,7 +159,7 @@ describe("explainDistrictDraw", () => {
       detailFiles: Array.from({ length: 35 }, (_, i) => file(`app/f${i}.ts`)),
       remainingFiles: 25,
     });
-    const lines = explainDistrictDraw(capped, LIMITS);
+    const lines = explainDistrictDraw(capped, LIMITS, "en");
     expect(lines).toHaveLength(1);
     expect(lines[0]).toContain("35 of 60 files here stand as buildings");
     expect(lines[0]).toContain("podium");
@@ -171,11 +171,28 @@ describe("explainDistrictDraw", () => {
       fileCount: 3,
       detailFiles: [file("app/a.ts"), file("app/b.ts"), file("app/c.ts")],
     });
-    expect(explainDistrictDraw(open, LIMITS)).toEqual([]);
+    expect(explainDistrictDraw(open, LIMITS, "en")).toEqual([]);
   });
 
   it("derives the skyline number from the payload when the city ships no limits", () => {
-    const lines = explainDistrictDraw(frontendLike());
+    const lines = explainDistrictDraw(frontendLike(), undefined, "en");
     expect(lines[0]).toContain("each plot shows up to 6 of its most at-risk files");
+  });
+
+  it("says the same thing in German when German is the display language", () => {
+    const lines = explainDistrictDraw(frontendLike(), LIMITS, "de");
+    expect(lines[0]).toContain("86 Dateien liegen in 2 Unterbezirken");
+    expect(lines[0]).toContain("bis zu 6 seiner riskantesten Dateien");
+    const one = explainDistrictDraw(
+      dir({
+        path: "app",
+        fileCount: 60,
+        detailFiles: Array.from({ length: 35 }, (_, i) => file(`app/f${i}.ts`)),
+        remainingFiles: 25,
+      }),
+      LIMITS,
+      "de",
+    );
+    expect(one[0]).toContain("35 von 60 Dateien hier stehen als Gebäude");
   });
 });

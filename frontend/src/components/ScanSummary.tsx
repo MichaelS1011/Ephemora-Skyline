@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useStore } from "../stores/useStore";
 import { SEVERITY_COLOR } from "../city/palette";
 import { describeGitignoreSkips, scanVerdict } from "../city/provenance";
+import { t } from "../i18n";
 
 /* Tiny CSS-only confetti burst (3 squares, purely decorative) */
 function ConfettiBurst() {
@@ -27,6 +28,7 @@ function ConfettiBurst() {
 }
 
 export function ScanSummary() {
+  const lang = useStore((s) => s.prefs.lang);
   const analysisId = useStore((s) => s.analysisId);
   const cityData = useStore((s) => s.cityData);
   const buildPhase = useStore((s) => s.buildPhase);
@@ -51,7 +53,7 @@ export function ScanSummary() {
   const total = f.P0 + f.P1 + f.P2;
   // The scan is only complete for what the project itself called source.
   // Say what the .gitignore kept out while the user is still reading this.
-  const skipped = describeGitignoreSkips(cityData.skippedByGitignore);
+  const skipped = describeGitignoreSkips(cityData.skippedByGitignore, lang);
   const verdict = scanVerdict(cityData.scanProvenance, total, cityData.languages);
   const clean = verdict.kind === "clear";
   // "no findings" is only a result if something looked. An unverified scan
@@ -72,12 +74,12 @@ export function ScanSummary() {
 
   const status =
     verdict.kind === "clear"
-      ? "✓ All clear — no issues found"
+      ? t(lang, "summary.allClear")
       : verdict.kind === "shallow"
-        ? `◈ No findings — ${verdict.missing.join(", ")} did not run`
+        ? t(lang, "summary.noFindingsMissing", { missing: verdict.missing.join(", ") })
         : verdict.kind === "unknown"
-          ? "◈ No findings — scan depth unknown"
-          : "◈ Scan complete";
+          ? t(lang, "summary.depthUnknown")
+          : t(lang, "summary.complete");
 
   return (
     <div
@@ -108,18 +110,18 @@ export function ScanSummary() {
 
         {/* File count */}
         <span className="font-jetbrains text-[11px]" style={{ color: "#8f8b82" }}>
-          {cityData.totalFiles.toLocaleString()} files analyzed
+          {t(lang, "summary.filesAnalyzed", { count: cityData.totalFiles.toLocaleString() })}
         </span>
 
         {/* What the project's own .gitignore kept out — "complete" is only
             complete for the files that were allowed in. */}
         {skipped !== "" && (
           <span
-            title="Every folder's own .gitignore decides what the scan reads. What it keeps out is not in this city."
+            title={t(lang, "ctx.keptOutTip")}
             className="font-jetbrains text-[11px]"
             style={{ color: "#8f8b82" }}
           >
-            {skipped} kept out by .gitignore
+            {t(lang, "ctx.keptOut", { skipped })}
           </span>
         )}
 
@@ -128,18 +130,18 @@ export function ScanSummary() {
           <div className="flex items-center gap-1.5">
             {(
               [
-                { sev: "P0", label: "Critical" },
-                { sev: "P1", label: "High" },
-                { sev: "P2", label: "Medium" },
+                { sev: "P0", key: "hud.sevCritical" },
+                { sev: "P1", key: "hud.sevHigh" },
+                { sev: "P2", key: "hud.sevMedium" },
               ] as const
-            ).map(({ sev, label }) =>
+            ).map(({ sev, key }) =>
               f[sev] > 0 ? (
                 <span
                   key={sev}
-                  title={`${label} security risk`}
+                  title={t(lang, "summary.sevRisk", { label: t(lang, key) })}
                   className={`chip-${sev.toLowerCase()} font-jetbrains text-[11px] px-1.5 py-px rounded`}
                 >
-                  {label}: {f[sev]}
+                  {t(lang, key)}: {f[sev]}
                 </span>
               ) : null,
             )}
@@ -149,7 +151,7 @@ export function ScanSummary() {
         <button
           onClick={() => setVisible(false)}
           className="btn-ghost w-7 h-7 flex items-center justify-center !p-0 text-[11px] pointer-events-auto"
-          aria-label="Dismiss scan summary"
+          aria-label={t(lang, "summary.dismissAria")}
         >
           ✕
         </button>

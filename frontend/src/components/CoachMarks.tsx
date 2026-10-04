@@ -1,25 +1,28 @@
 import { useEffect, useState } from "react";
 import type { CSSProperties, ReactNode } from "react";
 import { useStore } from "../stores/useStore";
+import { t, type DictKey } from "../i18n";
 
 // v3: the arrow keys became the camera turntable, so the primer is shown
 // once more — otherwise nobody discovers the new binding.
 const COACH_KEY = "codecity-coach-v3";
 
-const HINTS = [
-  { icon: "↻", text: "Arrow keys turn the view", detail: "Drag to look, scroll to fly in" },
-  { icon: "▦", text: "Open a district", detail: "Click a folder block" },
-  { icon: "▣", text: "Inspect a file", detail: "Click a building" },
-  { icon: "?", text: "Keyboard shortcuts", detail: "Press ? for the full guide" },
+const HINTS: { icon: string; text: DictKey; detail: DictKey }[] = [
+  { icon: "↻", text: "coach.hintTurn", detail: "coach.hintTurnDetail" },
+  { icon: "▦", text: "coach.hintDistrict", detail: "coach.hintDistrictDetail" },
+  { icon: "▣", text: "coach.hintFile", detail: "coach.hintFileDetail" },
+  { icon: "?", text: "coach.hintKeys", detail: "coach.hintKeysDetail" },
 ];
 
 /* ── Marker legend — "What am I looking at?" ───────────────────────────────
  * Every semantic visual in the city, one row each. Pure-CSS swatches.
  * Shared with ContextCard (its collapsible LEGEND section) so the wording
- * never drifts between the first-visit primer and the always-available copy. */
+ * never drifts between the first-visit primer and the always-available copy.
+ * The two texts per row are dictionary keys, so the legend speaks the same
+ * language as the rest of the panels. */
 export interface LegendMarker {
-  label: string;
-  meaning: string;
+  label: DictKey;
+  meaning: DictKey;
   swatch: CSSProperties;
   glyph?: string;
   secondSwatch?: CSSProperties;
@@ -33,81 +36,84 @@ const sw = (background: string, extra?: CSSProperties): CSSProperties => ({
 
 export const MARKER_LEGEND: LegendMarker[] = [
   {
-    label: "Building height",
-    meaning: "Code complexity and file size",
+    label: "legend.height",
+    meaning: "legend.heightMeaning",
     swatch: sw("rgba(232,178,60,0.1)", { border: "1px solid rgba(232,178,60,0.3)" }),
     glyph: "⬍",
   },
   {
-    label: "Footprint size",
-    meaning: "Number of exported symbols",
+    label: "legend.footprint",
+    meaning: "legend.footprintMeaning",
     swatch: sw("rgba(167,139,250,0.1)", { border: "1px solid rgba(167,139,250,0.35)" }),
     glyph: "▭",
   },
   {
-    label: "Windowless monolith",
-    meaning: "Large file, 150 KB or more",
+    label: "legend.monolith",
+    meaning: "legend.monolithMeaning",
     swatch: sw("#17171a", { border: "1px solid #3a3a40" }),
   },
   {
-    label: "Glass building",
-    meaning: "Never imported; may be unused",
+    label: "legend.glass",
+    meaning: "legend.glassMeaning",
     swatch: sw("rgba(216,205,180,0.22)", { border: "1px solid rgba(216,205,180,0.55)" }),
   },
   {
-    label: "Red pulsing windows",
-    meaning: "Critical or high security findings",
+    label: "legend.redWindows",
+    meaning: "legend.redWindowsMeaning",
     swatch: sw("#ff2e4d", { boxShadow: "0 0 5px rgba(255,46,77,0.7)" }),
   },
   {
-    label: "Orange scaffolding",
-    meaning: "Frequently changed in Git",
+    label: "legend.scaffolding",
+    meaning: "legend.scaffoldingMeaning",
     swatch: sw("#ff9a3d"),
   },
   {
-    label: "Translucent shield",
-    meaning: "At least 80% test coverage",
+    label: "legend.shield",
+    meaning: "legend.shieldMeaning",
     swatch: sw("rgba(216,201,163,0.08)", {
       border: "1px dashed rgba(216,201,163,0.6)",
       borderRadius: 4,
     }),
   },
   {
-    label: "Red ring at the base",
-    meaning: "Circular import: A → B → A",
+    label: "legend.ring",
+    meaning: "legend.ringMeaning",
     swatch: sw("transparent", { border: "2px solid #ff2e4d", borderRadius: "50%" }),
   },
   {
-    label: "Yellow flickering laser",
-    meaning: "Duplicated code across files",
+    label: "legend.laser",
+    meaning: "legend.laserMeaning",
     swatch: sw("#ffe14d", { height: 4, marginTop: 4 }),
   },
   {
-    label: "Cyan / violet streams",
-    meaning: "Incoming / outgoing imports",
+    label: "legend.streams",
+    meaning: "legend.streamsMeaning",
     swatch: sw("#37e6ff"),
     secondSwatch: sw("#b06bff"),
   },
   {
-    label: "Heat cells (zoomed out)",
-    meaning: "Risk, complexity or change frequency",
+    label: "legend.heat",
+    meaning: "legend.heatMeaning",
     swatch: sw("linear-gradient(90deg, #3dd6c4, #ffd23f, #ff2ea6)"),
   },
   {
-    label: "Author colors",
-    meaning: "Main contributor to each area",
+    label: "legend.authors",
+    meaning: "legend.authorsMeaning",
     swatch: sw("#ff6b9d", { borderRadius: "50%" }),
     secondSwatch: sw("#4de3ff", { borderRadius: "50%" }),
   },
   {
-    label: "Citizens, taxi, bus",
-    meaning: "Ambient city life",
+    label: "legend.citizens",
+    meaning: "legend.citizensMeaning",
     swatch: sw("rgba(150,142,128,0.15)", { border: "1px solid rgba(150,142,128,0.35)" }),
     glyph: "···",
   },
 ];
 
 export function LegendRow({ marker }: { marker: LegendMarker }) {
+  const lang = useStore((s) => s.prefs.lang);
+  const label = t(lang, marker.label);
+  const meaning = t(lang, marker.meaning);
   let swatches: ReactNode = (
     <span className="w-4 h-4 shrink-0 inline-block" style={marker.swatch}>
       {marker.glyph && (
@@ -129,7 +135,7 @@ export function LegendRow({ marker }: { marker: LegendMarker }) {
     );
   }
   return (
-    <div className="flex items-start gap-2.5" title={`${marker.label} = ${marker.meaning}`}>
+    <div className="flex items-start gap-2.5" title={`${label} = ${meaning}`}>
       <span className="mt-0.5 shrink-0 inline-flex">{swatches}</span>
       <span
         className="text-[12px] leading-relaxed flex-1 min-w-0"
@@ -139,9 +145,9 @@ export function LegendRow({ marker }: { marker: LegendMarker }) {
         }}
       >
         <span className="block" style={{ color: "#e0dbcf" }}>
-          {marker.label}
+          {label}
         </span>
-        <span>{marker.meaning}</span>
+        <span>{meaning}</span>
       </span>
     </div>
   );
@@ -162,6 +168,7 @@ export function MarkerLegend({ columns = 2 }: { columns?: 1 | 2 }) {
 }
 
 export function CoachMarks() {
+  const lang = useStore((s) => s.prefs.lang);
   const tourActive = useStore((s) => s.tourActive);
   const focusPath = useStore((s) => s.focusPath);
   const buildPhase = useStore((s) => s.buildPhase);
@@ -213,17 +220,17 @@ export function CoachMarks() {
           fontFamily: "var(--font-sans, ui-sans-serif, system-ui, sans-serif)",
         }}
         role="region"
-        aria-label="Getting started"
+        aria-label={t(lang, "coach.regionAria")}
       >
         <div className="flex items-center justify-between gap-3 mb-3">
           <h2 className="text-[14px] font-semibold" style={{ color: "#f2efe8" }}>
-            Explore your codebase
+            {t(lang, "coach.title")}
           </h2>
           <button
             onClick={dismiss}
             className="btn-ghost shrink-0 w-8 h-8 flex items-center justify-center !p-0"
-            aria-label="Dismiss getting started guide"
-            title="Hide guide. The city legend remains available in Project overview."
+            aria-label={t(lang, "coach.dismissAria")}
+            title={t(lang, "coach.dismissTip")}
           >
             <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
               <path
@@ -247,10 +254,10 @@ export function CoachMarks() {
               </span>
               <div className="text-[12px] leading-snug">
                 <div className="font-medium" style={{ color: "#e8e4da" }}>
-                  {hint.text}
+                  {t(lang, hint.text)}
                 </div>
                 <div className="mt-0.5" style={{ color: "#aaa69c" }}>
-                  {hint.detail}
+                  {t(lang, hint.detail)}
                 </div>
               </div>
             </div>
@@ -263,7 +270,7 @@ export function CoachMarks() {
           className="w-full flex items-center justify-between gap-2 mt-3 pt-3 text-[12px] text-left"
           style={{ color: "#c5c0b5", borderTop: "1px solid rgba(150,142,128,0.18)" }}
         >
-          What do the city markers mean?
+          {t(lang, "coach.legendToggle")}
           <span aria-hidden>{primerOpen ? "−" : "+"}</span>
         </button>
         {primerOpen && (

@@ -25,21 +25,21 @@ export function ProfileChips({ variant }: { variant: "landing" | "analyze-panel"
   const onlyOneLeft = scanCategories.length === 1;
   return (
     <div className={`profile-picker profile-picker-${variant}`}>
-      <div className="profile-options" aria-label="Scan profile">
+      <div className="profile-options" aria-label={t(lang, "profile.chipsAria")}>
         {SCAN_PROFILES.map((profile) => (
           <button
             key={profile.id}
             onClick={() => setDetailFor(profile.id)}
             aria-pressed={profile.id === active}
-            title={`${profile.label}: ${profile.summary}`}
+            title={`${t(lang, profile.label)}: ${t(lang, profile.summary)}`}
           >
             {profile.id === active && <span aria-hidden="true">✓ </span>}
-            {profile.label}
+            {t(lang, profile.label)}
           </button>
         ))}
       </div>
       <p className="profile-description">
-        {meta.summary}{" "}
+        {t(lang, meta.summary)}{" "}
         <span>{t(lang, "profile.estimated", { time: PROFILE_DURATION[active] })}</span>
       </p>
       {/* The detail card sits in the normal flow, directly under the chips it
@@ -66,12 +66,12 @@ export function ProfileChips({ variant }: { variant: "landing" | "analyze-panel"
               aria-pressed={on}
               disabled={!on && onlyOneLeft}
               title={
-                category.meaning +
-                (on && onlyOneLeft ? " — the last kind stays on; a scan of nothing is no scan" : "")
+                t(lang, category.meaning) +
+                (on && onlyOneLeft ? t(lang, "profile.lastKindSuffix") : "")
               }
             >
               {on && <span aria-hidden="true">✓ </span>}
-              {category.label}
+              {t(lang, category.label)}
             </button>
           );
         })}
