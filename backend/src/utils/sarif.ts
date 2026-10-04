@@ -1,5 +1,6 @@
 import type { AnalysisResult } from "../models/index.js";
 import { APP_VERSION } from "../version.js";
+import { findingFingerprint } from "../services/security/finding-identity.js";
 
 export function resultToSarif(result: AnalysisResult) {
   const rulesMap = new Map<string, { name: string; desc: string }>();
@@ -15,6 +16,9 @@ export function resultToSarif(result: AnalysisResult) {
     version: "2.1.0",
     runs: [
       {
+        // Which scan this report came out of. Without it a SARIF file is a
+        // pile of findings with no stated provenance.
+        automationDetails: { id: result.id },
         tool: {
           driver: {
             name: "Ephemora Skyline",
@@ -31,19 +35,41 @@ export function resultToSarif(result: AnalysisResult) {
         results: result.files.flatMap((f) =>
           f.vulnerabilities.map((v) => ({
             ruleId: (v as unknown as { ruleId?: string }).ruleId ?? v.type,
+            // Same value the panel and the city JSON call this finding —
+            // minted once in finding-identity.ts, never re-derived here.
+            partialFingerprints: {
+              primaryLocationLineHash: findingFingerprint({
+                path: f.path,
+                type: v.type,
+                ruleId: (v as unknown as { ruleId?: string }).ruleId,
+                line: v.line,
+                code: v.code,
+                provenance: v.provenance,
+                historyCommit: v.historyCommit,
+              }),
+            },
             level: v.severity === "P0" ? "error" : v.severity === "P1" ? "warning" : "note",
             message: { text: `${v.type}: ${v.message}` },
-            locations: [
-              {
-                physicalLocation: {
-                  artifactLocation: { uri: f.path },
-                  region: { startLine: v.line, snippet: { text: v.code } },
-                },
-              },
-            ],
+            locations:
+              v.provenance === "gitleaks-history"
+                ? []
+                : [
+                    {
+                      physicalLocation: {
+                        artifactLocation: { uri: f.path },
+                        region: { startLine: v.line, snippet: { text: v.code } },
+                      },
+                    },
+                  ],
             properties: {
               severity: v.severity,
               score: v.score,
+              historyCommit: v.historyCommit,
+              historicalPath: v.provenance === "gitleaks-history" ? f.path : undefined,
+              historicalLine: v.provenance === "gitleaks-history" ? v.line : undefined,
+              sourceSeverity: v.sourceSeverity,
+              packageName: v.packageName,
+              packageVersion: v.packageVersion,
               provenance: (v as unknown as { provenance?: string }).provenance,
             },
           })),

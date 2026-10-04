@@ -40,6 +40,10 @@ export interface CityFinding {
   fix?: string;
   provenance?: string;
   ruleId?: string;
+  historyCommit?: string;
+  sourceSeverity?: string;
+  packageName?: string;
+  packageVersion?: string;
   /** Plain-language explanation of the finding class */
   explanation?: string;
   /** Standard taxonomy reference, e.g. "CWE-89" */
@@ -50,6 +54,13 @@ export interface CityFinding {
   snippet?: CitySnippet;
   /** Found in test code — true statement about a fixture, weak one about the product */
   inTest?: boolean;
+  /**
+   * Stable identity of this finding across re-scans of the same code — see
+   * `backend/src/services/security/finding-identity.ts`. The same value the
+   * SARIF export puts in `partialFingerprints.primaryLocationLineHash`, so a
+   * verdict taken in the panel can be pointed at in a report and by an agent.
+   */
+  fingerprint?: string;
 }
 
 /**
@@ -124,6 +135,8 @@ export interface CityDir {
   testFiles?: number;
   /** Findings in the subtree that were found in test code */
   findingsInTests?: number;
+  /** Findings in the subtree that sit in data files (lockfiles, env, schemas) */
+  findingsInData?: number;
   /** Clean-looking files the switched-off engines would have covered */
   unverifiedFiles?: number;
   /** Weighted risk of those test-code findings */
@@ -165,7 +178,14 @@ export interface ScanProvenance {
 }
 
 export interface CityData {
+  additionalFiles?: CityFile[];
   repo: { owner: string; name: string; branch: string };
+  /**
+   * Which scan produced this city. Every export and every deep link names the
+   * scan it came from, so a stale city can be called stale. Absent in payloads
+   * written before the field existed.
+   */
+  analysisId?: string;
   totalFiles: number;
   renderedFiles: number;
   /** Σ lines the scanner read as code-shaped, data catalogues included */
@@ -183,6 +203,8 @@ export interface CityData {
   dataLanguages?: Record<string, number>;
   /** Findings found in test code — counted, not hidden */
   findingsInTests?: number;
+  /** Findings in data files — a lockfile finding is not a code finding */
+  findingsInData?: number;
   /** How many of `totalFiles` are test files */
   testFiles?: number;
   /** Buildings that look clean but were never seen by an engine covering them */

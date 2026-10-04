@@ -3,8 +3,9 @@
  *
  * GET /api/result/:id/source/:fileId → 200 { path, language, lines: string[] }
  *
- * fileId is the CityFile id minted by cityMapper (`f-<index>` into
- * result.files); the file's own relative path is accepted as well. The
+ * fileId is the CityFile id minted by cityMapper (`fileIdForPath`: `f-` plus a
+ * SHA-256 prefix of the file's relative path); the file's own relative path and
+ * the legacy positional `f-<index>` form are accepted as well. The
  * content is read from the staged upload copy — the same mechanism the
  * test runner uses (getStagedDir). There is no other source directory
  * (the GitHub-clone flow was removed), so a missing staged copy answers
@@ -16,6 +17,7 @@ import path from "path";
 import type { Request, Response } from "express";
 import type { AnalysisResult } from "../../models/index.js";
 import { getStagedDir } from "./local-analyze.js";
+import { fileIdForPath } from "../../utils/cityMapper.js";
 
 /** Structural subset of the analysis store the handler needs */
 type ResultStore = {
@@ -23,9 +25,9 @@ type ResultStore = {
 };
 
 /**
- * fileId → analyzed file entry. `f-<index>` follows cityMapper's id
- * contract (allIds: `f-${i}` by result.files position); a literal
- * relative path from the analyzed file set works too.
+ * fileId → analyzed file entry. `f-<sha256(path) prefix>` follows cityMapper's
+ * id contract (`fileIdForPath`); a literal relative path from the analyzed file
+ * set works too, as does the legacy positional `f-<index>` form.
  */
 function resolveFileEntry(
   result: AnalysisResult,
@@ -33,7 +35,7 @@ function resolveFileEntry(
 ): AnalysisResult["files"][number] | undefined {
   const indexMatch = /^f-(\d+)$/.exec(fileId);
   if (indexMatch) return result.files[Number(indexMatch[1])];
-  return result.files.find((f) => f.path === fileId);
+  return result.files.find((f) => f.path === fileId || fileIdForPath(f.path) === fileId);
 }
 
 /** Split file content into lines without line endings (CRLF-safe) */

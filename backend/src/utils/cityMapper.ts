@@ -24,12 +24,30 @@
  */
 
 import path from "path";
+import { createHash } from "crypto";
 import { hasDataLines, roleOf, roleOfPath, type FileRole } from "../services/analyzer/metrics.js";
 import { missingEnginesFor } from "../services/security/scan-depth.js";
+import {
+  findingFingerprint,
+  normalizeIdentityPath,
+} from "../services/security/finding-identity.js";
 import type { FindingCategory } from "../models/index.js";
 import type { AnalysisResult, FileAnalysis, ProjectSummary } from "../models/index.js";
 
 export type Severity = "P0" | "P1" | "P2";
+
+/**
+ * The id of one analyzed file.
+ *
+ * Derived from the path, so the same file in the same project keeps the same
+ * id across scans however the filesystem chose to order its directory read.
+ * Twelve hex characters of SHA-256 are far past what a few thousand files need
+ * to stay unique, and short enough to stay readable in a URL.
+ */
+export function fileIdForPath(filePath: string): string {
+  const normalized = normalizeIdentityPath(filePath);
+  return `f-${createHash("sha256").update(normalized).digest("hex").slice(0, 12)}`;
+}
 
 export type ThreatLevel = "critical" | "high" | "medium" | "low" | "safe";
 
@@ -50,6 +68,10 @@ export interface CityFinding {
   fix?: string;
   provenance?: string;
   ruleId?: string;
+  historyCommit?: string;
+  sourceSeverity?: string;
+  packageName?: string;
+  packageVersion?: string;
   /** Plain-language explanation of the finding class */
   explanation?: string;
   /** Standard taxonomy reference, e.g. "CWE-89" */
@@ -64,6 +86,12 @@ export interface CityFinding {
    * panel says which of the two the user is looking at.
    */
   inTest?: boolean;
+  /**
+   * Stable identity across re-scans — minted once in
+   * `services/security/finding-identity.ts` and shared with the SARIF export's
+   * `partialFingerprints.primaryLocationLineHash`.
+   */
+  fingerprint?: string;
 }
 
 /**
@@ -167,6 +195,8 @@ export interface CityDir {
   unverifiedFiles: number;
   /** Findings in the subtree that were found in test code */
   findingsInTests: number;
+  /** Findings in the subtree that sit in data files — a lockfile finding is not a code finding */
+  findingsInData: number;
   /** Weighted risk of those test-code findings */
   testThreatScore: number;
   topFindings: CityFinding[]; // worst findings in subtree (max 3)
@@ -196,6 +226,10 @@ export interface DirConnection {
 }
 
 export interface CityData {
+  /** Which scan produced this city; every export names it. */
+  analysisId?: string;
+  /** Complete searchable files that are outside the 3D rendering budget. */
+  additionalFiles?: CityFile[];
   repo: { owner: string; name: string; branch: string };
   totalFiles: number; // full analyzed file count (uncapped)
   renderedFiles: number; // Σ detailFiles across the tree
@@ -209,6 +243,8 @@ export interface CityData {
   findingsByCategory: Record<FindingCategory, number>;
   /** Findings that were found in test code — still findings, different claim */
   findingsInTests: number;
+  /** Findings that sit in data files (lockfiles, env files, generated schemas) */
+  findingsInData: number;
   /** How many of `totalFiles` are test files */
   testFiles: number;
   /** Buildings that look clean but were never seen by an engine covering them */
@@ -263,8 +299,6 @@ export interface CityData {
 const DETAIL_FILES_PER_DIR = 35;
 /** Global budget for individually rendered files across the whole city. */
 const DETAIL_FILES_TOTAL = 1400;
-/** Findings listed per file in the UI (rest still counted in aggregates). */
-const FINDINGS_PER_FILE = 6;
 /** File-level connection edges shipped to the client (dir edges separate). */
 const FILE_CONNECTIONS_MAX = 400;
 const DIR_CONNECTIONS_MAX = 200;
@@ -358,7 +392,11 @@ function emptyCategoryCount(): Record<FindingCategory, number> {
   };
 }
 
-function toCityFinding(v: FileAnalysis["vulnerabilities"][number], inTest?: boolean): CityFinding {
+function toCityFinding(
+  v: FileAnalysis["vulnerabilities"][number],
+  inTest?: boolean,
+  path?: string,
+): CityFinding {
   const enriched = v as unknown as {
     provenance?: string;
     ruleId?: string;
@@ -366,15 +404,32 @@ function toCityFinding(v: FileAnalysis["vulnerabilities"][number], inTest?: bool
     cwe?: string;
     refUrl?: string;
     snippet?: CityFinding["snippet"];
+    code?: string;
   };
   return {
     type: v.type,
     severity: v.severity,
     line: v.line,
+    // One identity, shared with the SARIF export: see finding-identity.ts.
+    fingerprint: path
+      ? findingFingerprint({
+          path,
+          type: v.type,
+          ruleId: enriched.ruleId,
+          line: v.line,
+          code: enriched.code,
+          provenance: enriched.provenance,
+          historyCommit: v.historyCommit,
+        })
+      : undefined,
     message: v.message,
     fix: v.fix,
     provenance: enriched.provenance,
     ruleId: enriched.ruleId,
+    historyCommit: v.historyCommit,
+    sourceSeverity: v.sourceSeverity,
+    packageName: v.packageName,
+    packageVersion: v.packageVersion,
     explanation: enriched.explanation,
     cwe: enriched.cwe,
     refUrl: enriched.refUrl,
@@ -531,10 +586,14 @@ export function mapResultToCityData(result: AnalysisResult): CityData {
     return missing;
   };
 
+  const allIds = new Map<string, string>();
   // Stable ids for every analyzed file (detail or not — dir-level
   // aggregation uses ALL resolved edges, not just rendered buildings).
-  const allIds = new Map<string, string>();
-  files.forEach((f, i) => allIds.set(f.path, `f-${i}`));
+  // The id is derived from the PATH, not from the walk position: a second scan
+  // of an unchanged folder used to hand every id to a different file the moment
+  // the filesystem returned its entries in another order, and anything keyed on
+  // the old id — a review verdict, a deep link — pointed somewhere else.
+  files.forEach((f) => allIds.set(f.path, fileIdForPath(f.path)));
 
   // Per-directory detail cap so the global building budget holds.
   const trie = buildTrie(files);
@@ -567,6 +626,7 @@ export function mapResultToCityData(result: AnalysisResult): CityData {
       testFiles: 0,
       unverifiedFiles: 0,
       findingsInTests: 0,
+      findingsInData: 0,
       testThreatScore: 0,
       topFindings: [],
       children: [],
@@ -588,6 +648,7 @@ export function mapResultToCityData(result: AnalysisResult): CityData {
         dirNode.languages[f.language] = (dirNode.languages[f.language] ?? 0) + f.lines.code;
       }
       const inTest = roleOfPath(f.path) === "test";
+      const inData = !inTest && roleOf(f.path, f.language) === "data";
       if (inTest) dirNode.testFiles += 1;
       if (f.vulnerabilities.length === 0 && missingFor(f.language).length > 0)
         dirNode.unverifiedFiles += 1;
@@ -600,10 +661,11 @@ export function mapResultToCityData(result: AnalysisResult): CityData {
           dirNode.testThreatScore += score;
         } else {
           dirNode.threatScore += score;
+          if (inData) dirNode.findingsInData += 1;
         }
       }
       if (f.vulnerabilities.length > 0) {
-        dirNode.topFindings.push(...f.vulnerabilities.map((v) => toCityFinding(v, inTest)));
+        dirNode.topFindings.push(...f.vulnerabilities.map((v) => toCityFinding(v, inTest, f.path)));
       }
     };
 
@@ -631,6 +693,7 @@ export function mapResultToCityData(result: AnalysisResult): CityData {
       dirNode.testFiles += cityChild.testFiles;
       dirNode.unverifiedFiles += cityChild.unverifiedFiles;
       dirNode.findingsInTests += cityChild.findingsInTests;
+      dirNode.findingsInData += cityChild.findingsInData;
       dirNode.testThreatScore += cityChild.testThreatScore;
       dirNode.topFindings.push(...cityChild.topFindings);
     });
@@ -652,7 +715,7 @@ export function mapResultToCityData(result: AnalysisResult): CityData {
       .map((f) =>
         mapCityFile(
           f,
-          allIds.get(f.path) ?? `f-${f.path}`,
+          allIds.get(f.path) ?? fileIdForPath(f.path),
           deadCodeCandidates,
           circular,
           allIds,
@@ -687,7 +750,7 @@ export function mapResultToCityData(result: AnalysisResult): CityData {
       .map((f) =>
         mapCityFile(
           f,
-          allIds.get(f.path) ?? `f-${f.path}`,
+          allIds.get(f.path) ?? fileIdForPath(f.path),
           deadCodeCandidates,
           circular,
           allIds,
@@ -773,11 +836,25 @@ export function mapResultToCityData(result: AnalysisResult): CityData {
   }
 
   return {
+    // The city names the scan it came from, everywhere it is shared.
+    analysisId: result.id,
     repo: {
       owner: result.repo.owner,
       name: result.repo.name,
       branch: result.repo.branch,
     },
+    additionalFiles: result.files
+      .filter((f) => !renderedIds.has(allIds.get(f.path) ?? fileIdForPath(f.path)))
+      .map((f) =>
+        mapCityFile(
+          f,
+          allIds.get(f.path) ?? fileIdForPath(f.path),
+          deadCodeCandidates,
+          circular,
+          allIds,
+          missingFor,
+        ),
+      ),
     totalFiles: tree.fileCount,
     renderedFiles,
     totalLines: tree.linesOfCode,
@@ -786,6 +863,7 @@ export function mapResultToCityData(result: AnalysisResult): CityData {
     findingsBySeverity: tree.findingsBySeverity,
     findingsByCategory: tree.findingsByCategory,
     findingsInTests: tree.findingsInTests,
+    findingsInData: tree.findingsInData,
     testFiles: tree.testFiles,
     unverifiedFiles: tree.unverifiedFiles,
     unverifiedEngines: [
@@ -829,9 +907,8 @@ function mapCityFile(
   const unverifiedBy = missingFor?.(f.language) ?? [];
   const findings = [...f.vulnerabilities]
     .sort((a, b) => (SEVERITY_SCORE[b.severity] ?? 0) - (SEVERITY_SCORE[a.severity] ?? 0))
-    .slice(0, FINDINGS_PER_FILE)
     // the file itself carries the role
-    .map((v) => toCityFinding(v));
+    .map((v) => toCityFinding(v, undefined, f.path));
   const churn = f.churn;
   const clonePartners = f.clonePartners?.map((p) => ({
     id: idByPath?.get(p.path) ?? p.path,

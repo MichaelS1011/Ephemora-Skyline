@@ -442,6 +442,10 @@ export class AnalysisOrchestrator {
     }
 
     const entries = await fs.readdir(currentPath, { withFileTypes: true });
+    // Deterministic walk. Directory read order is not sorted by the OS, and the
+    // city used to inherit it: the same folder scanned twice produced different
+    // file ids, and anything keyed on them moved.
+    entries.sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
 
     for (const entry of entries) {
       const fullPath = path.join(currentPath, entry.name);
