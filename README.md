@@ -53,7 +53,7 @@ Open **http://localhost:3010** and click **Choose project folder** — or **Expl
 ```bash
 npm run lint           # ESLint, zero warnings
 npm run type-check     # tsc --noEmit, both packages
-npm run test           # Vitest — 671 tests in 77 files (355 frontend, 316 backend)
+npm run test           # Vitest — 675 tests in 78 files (359 frontend, 316 backend)
 npm run build          # production build, both packages
 node scripts/audit-gate.mjs   # dependency audit, see below
 ```
@@ -117,15 +117,15 @@ A pack is a directory with a `pack.json` manifest and rule YAML beside it. The m
 
 ## The look
 
-| Entry                                                                                                          | Security mode                                   |
-| -------------------------------------------------------------------------------------------------------------- | ----------------------------------------------- |
-| ![Entry screen: profile choice and the folder action, with an annotated sample district](docs/assets/hero.png) | ![Security mode](docs/assets/ui-security.png)   |
-| What the tool is, in one screen, before it has anything of yours.                                              | The city dims so the beacons carry the picture. |
+| Entry                                                                                                          | One district, security mode                                      |
+| -------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------- |
+| ![Entry screen: profile choice and the folder action, with an annotated sample district](docs/assets/hero.png) | ![A district in security mode](docs/assets/ui-security.png)      |
+| What the tool is, in one screen, before it has anything of yours.                                              | One directory in: the towers that hold findings carry the beams. |
 
-| A finding you can check                                                                  | On a phone                                                  |
-| ---------------------------------------------------------------------------------------- | ----------------------------------------------------------- |
-| ![A finding with its file, line, code frame and explanation](docs/assets/ui-finding.png) | ![The same city on a phone](docs/assets/ui-mobile.png)      |
-| File, line, the surrounding code, why it matters, and which rule fired.                  | Panels stay inside the viewport; the city stays explorable. |
+| A building and its file card                                                         | On a phone                                                  |
+| ------------------------------------------------------------------------------------ | ----------------------------------------------------------- |
+| ![A selected file with its findings](docs/assets/ui-finding.png)                     | ![The same city on a phone](docs/assets/ui-mobile.png)      |
+| Size, complexity, every section, and each finding with the line and rule that fired. | Panels stay inside the viewport; the city stays explorable. |
 
 The interface speaks English and German; the switch is in the header and the choice is remembered.
 

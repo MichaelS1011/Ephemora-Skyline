@@ -16,7 +16,7 @@ The app was started locally at http://localhost:3010 with its backend on port 40
 
 - `npm run lint`: passed.
 - `npm run type-check`: passed.
-- `npm run test`: 671 passed (355 frontend, 316 backend) in 77 files. DOM interaction tests cover search and workspace controls.
+- `npm run test`: 675 passed (359 frontend, 316 backend) in 78 files. DOM interaction tests cover search and workspace controls.
 - `npm run build`: passed.
 - `git diff --check`: passed.
 - Browser checks: desktop 1440 × 900, mobile 390 × 844, narrow landing 320 × 740; no horizontal document overflow observed.
