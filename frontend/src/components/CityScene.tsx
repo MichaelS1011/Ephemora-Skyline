@@ -93,10 +93,10 @@ export function CityScene() {
       {/* The canvas has no clear colour of its own, so past the edge of the
           ground plane the world dissolved into the HUD's page charcoal. */}
       <color attach="background" args={[ENV.skyTop]} />
-      <hemisphereLight args={["#5d594d", "#2a2823", 1.2]} />
-      <directionalLight position={[60, 55, 30]} intensity={0.9} color="#ffd9a8" />
-      <directionalLight position={[-45, 35, -35]} intensity={0.5} color="#e8c890" />
-      <ambientLight intensity={0.5} />
+      <hemisphereLight args={["#8a8272", "#4a463c", 1.25]} />
+      <directionalLight position={[60, 55, 30]} intensity={1.05} color="#ffd9a8" />
+      <directionalLight position={[-45, 35, -35]} intensity={0.55} color="#e8c890" />
+      <ambientLight intensity={0.55} />
       {/* Warm city glow pooling over the plaza — deepens the dusk, no shadows */}
       <pointLight
         position={[0, 16, 0]}
@@ -109,7 +109,9 @@ export function CityScene() {
       {/* Atmosphere scales with the current district size. `near` starts past
           the far edge of the plaza, so the city itself is never hazed away. */}
       <fog attach="fog" args={[ENV.fog, bounds * 2.2, bounds * 4 + 220]} />
-      <Stars radius={260} depth={70} count={2600} factor={3.4} saturation={0} fade speed={0.6} />
+      {/* A lifted dusk sky cannot hold 2 600 stars — a sky bright enough to see
+          the streets by is a sky where only the first stars have come out. */}
+      <Stars radius={260} depth={70} count={700} factor={1.5} saturation={0} fade speed={0.6} />
 
       {/* Asphalt ground */}
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.05, 0]}>

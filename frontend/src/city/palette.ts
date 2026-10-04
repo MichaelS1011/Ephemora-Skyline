@@ -160,7 +160,7 @@ export function churnColor(score: number, colorblind = false): string {
  * exactly, and because it is monotonic it can never reorder the ramp — P0 stays
  * hotter than P1, `unchecked` stays lighter than `safe`.
  */
-export const DUSK_LIFT = 0.16;
+export const DUSK_LIFT = 0.22;
 
 function hexToHsl(hex: string): { h: number; s: number; l: number } {
   const r = parseInt(hex.slice(1, 3), 16) / 255;
@@ -236,19 +236,25 @@ export function authorColor(name: string): string {
   return AUTHOR_PALETTE[h % AUTHOR_PALETTE.length]!;
 }
 
-// ── Environment (corporate dusk: charcoal world, vermilion glow) ──────────
+// ── Environment (corporate dusk: a warm world before dark, vermilion glow) ─
+// Measured on a built city: with the previous band (sky 30, ground 35, road 29
+// in luminance) 88 % of all pixels sat in the darkest eighth of the range, so
+// the scene read as night rather than dusk and the geometry had no shape at
+// orbit distance. The lift keeps the ordering that carries the legibility —
+// road < ground < plot, and fog above every surface it hides, so distance
+// hazes into a glowing horizon instead of flattening into black.
 
 export const ENV = {
-  skyTop: "#1f1e1b",
+  skyTop: "#443f35",
   // Fog sits ABOVE every surface it hides, or distance flattens into black
   // instead of lifting into haze.
-  fog: "#3a382f",
-  ground: "#24231e",
-  plot: "#2d2c26",
-  plotEdge: "#5c574c",
-  road: "#1e1d1a",
-  curb: "#4a4840",
-  crosswalk: "#9d9889",
+  fog: "#5b5647",
+  ground: "#3a372d",
+  plot: "#47443a",
+  plotEdge: "#6d675a",
+  road: "#2f2d27",
+  curb: "#605c50",
+  crosswalk: "#b3ad9c",
   laneDash: "#e2c069",
   streetlight: "#ffd9a0",
   windowWarm: "#ffc470",
