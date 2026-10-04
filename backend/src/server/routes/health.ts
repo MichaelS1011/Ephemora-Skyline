@@ -1,3 +1,5 @@
+import { APP_VERSION } from "../../version.js";
+
 export interface HealthResponse {
   status: "ok";
   uptime: number;
@@ -10,6 +12,6 @@ export async function getHealth(): Promise<HealthResponse> {
     status: "ok",
     uptime: Math.floor(process.uptime()),
     timestamp: new Date().toISOString(),
-    version: "1.0.0",
+    version: APP_VERSION,
   };
 }

@@ -1,4 +1,5 @@
 import type { AnalysisResult } from "../models/index.js";
+import { APP_VERSION } from "../version.js";
 
 export function resultToSarif(result: AnalysisResult) {
   const rulesMap = new Map<string, { name: string; desc: string }>();
@@ -16,9 +17,9 @@ export function resultToSarif(result: AnalysisResult) {
       {
         tool: {
           driver: {
-            name: "CodeCity CyberDefense",
-            version: "0.1.0",
-            informationUri: "https://github.com/codecity-cyberdefense",
+            name: "Ephemora Skyline",
+            version: APP_VERSION,
+            informationUri: "https://github.com/MichaelS1011/Ephemora-Skyline",
             rules: [...rulesMap.entries()].map(([id, r]) => ({
               id,
               name: r.name,
