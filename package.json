@@ -17,7 +17,7 @@
     "type-check": "turbo run type-check",
     "test": "turbo run test",
     "clean": "rm -rf */dist .turbo node_modules */node_modules",
-    "format": "prettier --write \"src/**/*.{ts,tsx,json}\"",
+    "format": "prettier --write \"{frontend,backend}/{src,tests}/**/*.{ts,tsx,json}\"",
     "prepare": "husky install"
   },
   "workspaces": [

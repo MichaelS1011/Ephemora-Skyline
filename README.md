@@ -12,7 +12,7 @@
   <img alt="License BSL-1.1" src="https://img.shields.io/badge/license-BSL--1.1-informational?style=flat">
 </p>
 
-> No CI badge yet, on purpose: a badge is only worth adding once a green run exists on `main`. The gates below are exactly what CI enforces — run them locally first.
+> No CI badge yet, on purpose: `main` has been green since run [37195376374](https://github.com/MichaelS1011/Ephemora-Skyline/actions/runs/37195376374), but this repository is still private, and a badge served by GitHub only renders for someone who can already read the repo. The badge goes in the day it goes public. The gates below are exactly what CI enforces — run them locally first.
 
 ## Why it is different
 
@@ -58,7 +58,7 @@ npm run build          # production build, both packages
 node scripts/audit-gate.mjs   # dependency audit, see below
 ```
 
-The audit gate fails on every high or critical finding **except** those explicitly accepted in `scripts/audit-gate.mjs` with a reason and a re-check date. Today one advisory is accepted: `braces` (GHSA-vfj7-8cjw-p6xm) has no fixed release, and it reaches the tree only through `tailwindcss`' build-time file watcher. It is named in the gate rather than hidden by a lowered threshold.
+The audit gate fails on every high or critical finding **except** those explicitly accepted in `scripts/audit-gate.mjs` with a reason and a re-check date. Today one advisory is accepted: `braces` (GHSA-vfj7-8cjw-p6xm) has no fixed release, and it reaches the tree only through the file watcher that Tailwind's build depends on. It is named in the gate rather than hidden by a lowered threshold.
 
 ## Privacy model
 
