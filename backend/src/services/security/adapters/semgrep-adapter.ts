@@ -17,6 +17,17 @@ const SEMGREP_DOCKER_IMAGE = process.env.SEMGREP_DOCKER_IMAGE || "semgrep/semgre
 // Same minimal-PATH reasoning as gitleaks: try known prefixes, too
 const SEMGREP_BIN_FALLBACKS = ["/opt/homebrew/bin/semgrep", "/usr/local/bin/semgrep"];
 
+/**
+ * semgrep asks "is there a newer version?" on every start, which is an outbound
+ * call nobody asked for and a reason for the probe to be slow. `--metrics=off`
+ * covers the other one.
+ */
+const SEMGREP_ENV = {
+  ...process.env,
+  SEMGREP_ENABLE_VERSION_CHECK: "0",
+  SEMGREP_SEND_METRICS: "off",
+};
+
 export class SemgrepAdapter implements ScannerAdapter {
   readonly id = "semgrep";
   private logger = pino({ name: "semgrep-adapter" });
@@ -62,12 +73,19 @@ export class SemgrepAdapter implements ScannerAdapter {
     if (this.resolvedBinary) return this.resolvedBinary;
     for (const candidate of ["semgrep", ...SEMGREP_BIN_FALLBACKS]) {
       try {
-        await execFileAsync(candidate, ["--version"], { timeout: 5000 });
+        await execFileAsync(candidate, ["--version"], { timeout: 15000, env: SEMGREP_ENV });
         this.resolvedBinary = candidate;
         this.logger.info({ binary: candidate }, "semgrep binary found");
         return candidate;
-      } catch {
-        // try next candidate
+      } catch (e) {
+        // Only "no such file" means the binary is not here. A slow start — the
+        // probe is a Python process, and several scans resolve at once — must
+        // not turn into "semgrep is not installed", because that silently drops
+        // every AST finding while the scan still reports success.
+        if ((e as NodeJS.ErrnoException).code === "ENOENT") continue;
+        this.logger.warn({ candidate, err: e }, "semgrep version probe failed; using it anyway");
+        this.resolvedBinary = candidate;
+        return candidate;
       }
     }
     return null;
@@ -101,6 +119,10 @@ export class SemgrepAdapter implements ScannerAdapter {
     contentByPath?: Map<string, string>,
   ): Promise<SecurityIssue[] | null> {
     if (this.binaryAvailable === false) return null;
+    // A directory per run, not a name to the millisecond: two scans in flight
+    // used to write the same SARIF file, and whichever finished first deleted
+    // the other's report — findings that silently go missing under load.
+    let outDir: string | null = null;
     try {
       const bin = await this.resolveBinary();
       if (!bin) {
@@ -108,7 +130,8 @@ export class SemgrepAdapter implements ScannerAdapter {
         return null;
       }
       this.binaryAvailable = true;
-      const tmpOut = path.join(tmpdir(), `codecity-semgrep-${Date.now()}.sarif`);
+      outDir = await mkdtemp(path.join(tmpdir(), "codecity-semgrep-"));
+      const tmpOut = path.join(outDir, "run.sarif");
       const configArgs = this.configArgs();
       try {
         await execFileAsync(
@@ -125,6 +148,7 @@ export class SemgrepAdapter implements ScannerAdapter {
           {
             timeout: parseInt(process.env.SEMGREP_TIMEOUT || "120", 10) * 1000,
             maxBuffer: 10 * 1024 * 1024,
+            env: SEMGREP_ENV,
           },
         );
       } catch (e) {
@@ -138,6 +162,7 @@ export class SemgrepAdapter implements ScannerAdapter {
             {
               timeout: parseInt(process.env.SEMGREP_TIMEOUT || "120", 10) * 1000,
               maxBuffer: 10 * 1024 * 1024,
+              env: SEMGREP_ENV,
             },
           ).catch((ex) => {
             const x = ex as { stdout?: string; code?: number };
@@ -153,15 +178,19 @@ export class SemgrepAdapter implements ScannerAdapter {
       }
       try {
         const raw = await readFile(tmpOut, "utf-8");
-        await rm(tmpOut, { force: true }).catch(() => {});
         if (!raw.trim()) return [];
         return sarifToIssues(JSON.parse(raw), contentByPath);
       } catch {
         return [];
       }
-    } catch {
-      this.binaryAvailable = false;
+    } catch (e) {
+      // An engine that fails silently is an engine that reports "clean". The
+      // binary stays available: one failed run is not proof it is gone, and
+      // switching it off for the rest of the process would hide the failure.
+      this.logger.warn({ err: e, clonePath }, "semgrep binary run failed");
       return null;
+    } finally {
+      if (outDir) await rm(outDir, { recursive: true, force: true }).catch(() => {});
     }
   }
 
@@ -170,12 +199,14 @@ export class SemgrepAdapter implements ScannerAdapter {
     contentByPath?: Map<string, string>,
   ): Promise<SecurityIssue[] | null> {
     if (this.dockerAvailable === false) return null;
+    let outDir: string | null = null;
     try {
       if (this.dockerAvailable === null) {
         await execFileAsync("docker", ["--version"], { timeout: 3000 });
         this.dockerAvailable = true;
       }
-      const tmpOut = path.join(tmpdir(), `codecity-semgrep-docker-${Date.now()}.sarif`);
+      outDir = await mkdtemp(path.join(tmpdir(), "codecity-semgrep-docker-"));
+      const tmpOut = path.join(outDir, "run.sarif");
       const { args: configArgs, mounts } = this.dockerConfigArgs();
       // mount clonePath as /src
       await execFileAsync(
@@ -209,7 +240,6 @@ export class SemgrepAdapter implements ScannerAdapter {
       });
       try {
         const raw = await readFile(tmpOut, "utf-8");
-        await rm(tmpOut, { force: true }).catch(() => {});
         if (!raw.trim()) return [];
         return sarifToIssues(JSON.parse(raw), contentByPath);
       } catch {
@@ -218,6 +248,8 @@ export class SemgrepAdapter implements ScannerAdapter {
     } catch {
       this.dockerAvailable = false;
       return null;
+    } finally {
+      if (outDir) await rm(outDir, { recursive: true, force: true }).catch(() => {});
     }
   }
 

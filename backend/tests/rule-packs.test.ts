@@ -219,6 +219,27 @@ describe("der Scan läuft ohne Netz gegen das lokale Pack", () => {
   );
 
   it.skipIf(!SEMGREP_BIN)(
+    "zwei Läufe gleichzeitig verlieren keine Funde — der SARIF-Pfad ist pro Lauf einzigartig",
+    async () => {
+      // Vor dem Fix hieß die Ausgabedatei `codecity-semgrep-<Date.now()>.sarif`;
+      // zwei gleichzeitig gestartete Läufe trafen dieselbe Millisekunde und der
+      // schnellere löschte den Bericht des langsameren. Zwei Läufe reichen als
+      // Nachweis — mehr davon würden die übrige Suite aus dem Zeitfenster heben.
+      const runs = await Promise.all(
+        Array.from({ length: 2 }, async () => {
+          const adapter = new SemgrepAdapter();
+          adapter.setRuleDirs([packDir]);
+          return adapter.scanBatch(fixtureDir);
+        }),
+      );
+      const counts = runs.map((r) => r.length);
+      expect(Math.min(...counts)).toBe(Math.max(...counts));
+      expect(counts[0]).toBeGreaterThanOrEqual(11);
+    },
+    300000,
+  );
+
+  it.skipIf(!SEMGREP_BIN)(
     "trägt die Funde in die Kategorienachse ein, weil die CWE stimmt",
     async () => {
       const adapter = new SemgrepAdapter();
