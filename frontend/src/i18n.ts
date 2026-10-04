@@ -955,6 +955,30 @@ export const DICT = {
     en: "Show only {rule} findings",
     de: "Nur {rule}-Funde anzeigen",
   },
+  /**
+   * The list counts files the city draws; the priority chips count the scan.
+   * When those differ the panel says so instead of showing two totals.
+   */
+  "findings.undrawn": {
+    en: "{count} more sit on files this view does not draw",
+    de: "{count} weitere liegen auf Dateien, die diese Ansicht nicht zeichnet",
+  },
+  "findings.moreRules": {
+    en: "+{count} rules",
+    de: "+{count} Regeln",
+  },
+  "findings.moreRulesTitle": {
+    en: "Show every rule",
+    de: "Alle Regeln anzeigen",
+  },
+  "findings.fewerRules": {
+    en: "fewer rules",
+    de: "weniger Regeln",
+  },
+  "findings.fewerRulesTitle": {
+    en: "Show only the most frequent rules",
+    de: "Nur die häufigsten Regeln anzeigen",
+  },
   "findings.priorityGroupAria": {
     en: "Filter findings by priority",
     de: "Funde nach Priorität filtern",

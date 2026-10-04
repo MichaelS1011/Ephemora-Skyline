@@ -63,6 +63,8 @@ export function FindingsPanel() {
   const setRuleFilter = useStore((s) => s.setRuleFilter);
   const reviews = useStore((s) => s.reviews);
   const closeRef = useRef<HTMLButtonElement>(null);
+  /** Rule chips show the frequent ones; this reveals the long tail. */
+  const [showAllRules, setShowAllRules] = useState(false);
 
   // Pass 1: severity filter only — the rule chips count over this pool so
   // their counts stay stable while a rule chip is toggled.
@@ -115,21 +117,34 @@ export function FindingsPanel() {
   }, [severityGroups]);
 
   const ruleChips = useMemo(() => {
-    const top = [...ruleCounts.entries()]
-      .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
-      .slice(0, RULE_CHIP_LIMIT);
+    const ranked = [...ruleCounts.entries()].sort(
+      (a, b) => b[1] - a[1] || a[0].localeCompare(b[0]),
+    );
+    const top = showAllRules ? ranked : ranked.slice(0, RULE_CHIP_LIMIT);
     // An active filter must stay reachable even when it fell out of the top
     // slice (e.g. after narrowing the severity), otherwise it cannot be cleared.
     if (ruleFilter && !top.some(([rule]) => rule === ruleFilter)) {
       top.push([ruleFilter, ruleCounts.get(ruleFilter) ?? 0]);
     }
     return top;
-  }, [ruleCounts, ruleFilter]);
+  }, [ruleCounts, ruleFilter, showAllRules]);
 
   const totalFindings = groups.reduce((sum, group) => sum + group.count, 0);
   // Rule-independent total — the "All rules" chip must not shrink when a rule
   // chip is active, otherwise it would advertise a filtered count.
   const severityTotal = severityGroups.reduce((sum, group) => sum + group.count, 0);
+  /**
+   * Findings the scan reported but this list cannot show because their file is
+   * not drawn in the current view. Only stated unfiltered: under a severity or
+   * rule filter the scan total has no comparable counterpart.
+   */
+  const scanTotal = cityData
+    ? cityData.findingsBySeverity.P0 +
+      cityData.findingsBySeverity.P1 +
+      cityData.findingsBySeverity.P2
+    : 0;
+  const undrawn =
+    threatFilter === "all" && ruleFilter === null ? Math.max(0, scanTotal - severityTotal) : 0;
   const rowRefs = useRef<Map<string, HTMLDivElement>>(new Map());
   const selectedId = selectedUnit?.kind === "file" ? selectedUnit.id : null;
 
@@ -220,6 +235,11 @@ export function FindingsPanel() {
           <p className="mt-1 text-xs" style={{ color: "#bab7ae" }}>
             {t(lang, summaryKey, { count: totalFindings, files: groups.length })}
           </p>
+          {undrawn > 0 && (
+            <p className="mt-1 text-xs" style={{ color: "#8f8b82" }}>
+              {t(lang, "findings.undrawn", { count: undrawn })}
+            </p>
+          )}
         </div>
         <button
           ref={closeRef}
@@ -279,6 +299,19 @@ export function FindingsPanel() {
               </button>
             );
           })}
+          {ruleCounts.size > RULE_CHIP_LIMIT && (
+            <button
+              type="button"
+              onClick={() => setShowAllRules((v) => !v)}
+              title={t(lang, showAllRules ? "findings.fewerRulesTitle" : "findings.moreRulesTitle")}
+              className="min-h-9 rounded-lg px-3 text-xs font-medium hover:bg-white/5"
+              style={{ color: "#8f8b82", border: "1px solid transparent" }}
+            >
+              {showAllRules
+                ? t(lang, "findings.fewerRules")
+                : t(lang, "findings.moreRules", { count: ruleCounts.size - RULE_CHIP_LIMIT })}
+            </button>
+          )}
         </div>
       )}
 
