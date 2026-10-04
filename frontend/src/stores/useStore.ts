@@ -18,7 +18,7 @@ import { findVoxelForLine } from "../city/voxels";
 import { loadSavedProfile, saveProfile, type ScanProfile } from "../config/scanProfiles";
 import { loadSavedCategories, saveCategories } from "../config/findingCategories";
 import { loadSavedPacks, savePacks, type RulePackInfo } from "../config/rulePacks";
-import { findingKey, loadReviews, saveReviews } from "../reviews";
+import { countOrphanedReviews, findingKey, loadReviews, projectKey, saveReviews } from "../reviews";
 import { loadPrefs, savePrefs, type Prefs } from "../prefs";
 
 export interface FlyRequest {
@@ -138,6 +138,11 @@ interface AppState {
   requestFly: (req: FlyOptions) => void;
   cameraInfo: CameraInfo;
   setCameraInfo: (info: CameraInfo) => void;
+  /** The pilot has flown so far that no corner of the level is in frame. The
+   *  rig reports it; the HUD offers the way back, because a double-Escape
+   *  within 500 ms is not a discovery a person makes under their own hands. */
+  cityLostView: boolean;
+  setCityLostView: (lost: boolean) => void;
   /** epoch-ms of the last moment a hand took the camera. The construction crane
    *  yields to a pilot: once the user drives during a build, the crane stops
    *  flying for the rest of that build. */
@@ -191,6 +196,8 @@ interface AppState {
 
   // ── Review states (local-first, persisted per analysis id) ─────────────
   reviews: Record<string, ReviewStatus>;
+  /** Verdicts sitting in a pre-fingerprint bucket this project cannot read. */
+  orphanedReviews: number;
   setReview: (key: string, status: ReviewStatus | null) => void;
 
   // ── User preferences (lang, rendering effects, CVD palette) ────────────
@@ -321,6 +328,42 @@ function triageList(city: CityData, threat: Severity | "all", rule: string | nul
   );
 }
 
+/**
+ * Re-point a running triage at the queue the CURRENT filters produce.
+ *
+ * The queue is derived from `threatFilter` + `ruleFilter`, but the cursor and
+ * the total were only ever recomputed on start/next/prev. Switching a filter
+ * mid-queue therefore left the stepper saying "4 of 11" over a queue of three,
+ * and the next click jumped from a position in the old list to one in the new —
+ * silently skipping the entries at the front. A queue that the filter empties
+ * ends the triage rather than counting down to nothing.
+ */
+function reanchorTriage(set: (partial: Partial<AppState>) => void, get: () => AppState): void {
+  const { cityData, triageActive, triageCursor, triageTotal, focusedFindingKey } = get();
+  if (!cityData || !triageActive) return;
+  const list = triageList(cityData, get().threatFilter, get().ruleFilter);
+  if (list.length === 0) {
+    set({ triageActive: false, triageCursor: 0, triageTotal: 0, focusedFindingKey: null });
+    return;
+  }
+  const still = list.findIndex((e) => findingKey(e.file.id, e.index) === focusedFindingKey);
+  const at = still >= 0 ? still : Math.min(list.length - 1, triageCursor);
+  if (at === triageCursor && list.length === triageTotal) return;
+  const target = list[at]!;
+  set({
+    triageCursor: at,
+    triageTotal: list.length,
+    focusedFindingKey: findingKey(target.file.id, target.index),
+  });
+  // Only a changed target may move the camera: a filter chip that leaves this
+  // finding in the queue must not fly the pilot somewhere else.
+  if (still !== at || focusedFindingKey !== findingKey(target.file.id, target.index)) {
+    get().navigateToFile(target.file.id);
+    const line = target.file.findings[target.index]?.line;
+    if (line !== undefined) flyToVoxel(set, cityData, target.file.id, line);
+  }
+}
+
 export const useStore = create<AppState>((set, get) => ({
   cityData: null,
   buildPhase: "empty",
@@ -328,7 +371,7 @@ export const useStore = create<AppState>((set, get) => ({
   buildDuration: 0,
   constructionTotal: 0,
   constructionDone: 0,
-  setCityData: (data) =>
+  setCityData: (data) => {
     set({
       cityData: data,
       focusPath: [],
@@ -350,16 +393,29 @@ export const useStore = create<AppState>((set, get) => ({
       triageTotal: 0,
       focusedFindingKey: null,
       cameraMode: "free",
-      // The demo city has no analysis id — its review state persists under
-      // the stable "demo" key so triage progress survives reloads there too.
-      reviews: data ? (data.repo.name === "demo-city" ? loadReviews("demo") : {}) : {},
+      // Review state belongs to the PROJECT, not to the scan that happened to
+      // produce this city: a re-scan reads back the same verdicts. The demo
+      // carries the stable name "demo-city" and so keeps one bucket of its own.
+      reviews: data ? loadReviews(projectKey(data.repo)) : {},
+      orphanedReviews: data ? countOrphanedReviews(projectKey(data.repo)) : 0,
       testRun: { status: "idle", stage: "" },
       testResults: {},
       buildPhase: data ? "constructing" : "empty",
       buildStartedAt: data ? Date.now() : 0,
       constructionDone: 0,
       constructionTotal: 0,
-    }),
+    });
+    // The address names the city that is on screen, so a reload comes back to
+    // it instead of the empty world. Written from the payload's own scan id —
+    // which is why every city, the demo included, now carries one.
+    if (typeof window === "undefined") return;
+    const url = new URL(window.location.href);
+    if (data?.analysisId) url.searchParams.set("city", data.analysisId);
+    else url.searchParams.delete("city");
+    if (url.pathname + url.search !== window.location.pathname + window.location.search) {
+      window.history.replaceState({}, "", url.toString());
+    }
+  },
 
   /** Tear the city down and return to the Landing screen ("start over"). */
   resetToLanding: () => {
@@ -425,6 +481,8 @@ export const useStore = create<AppState>((set, get) => ({
     if (placement) {
       const dist = Math.max(14, placement.h * 2.6 + 12);
       set({ flyRequest: { x: placement.x, z: placement.z, distance: dist, nonce: ++flyNonce } });
+    } else {
+      flyToDirOverview(set, cityData, hit.chain);
     }
   },
 
@@ -466,6 +524,11 @@ export const useStore = create<AppState>((set, get) => ({
     set({ flyRequest: { ...rest, distance, nonce: ++flyNonce } }),
   cameraInfo: { x: 0, z: 60, angle: 0, dist: 80 },
   setCameraInfo: (info) => set({ cameraInfo: info }),
+  cityLostView: false,
+  setCityLostView: (lost) => {
+    if (get().cityLostView === lost) return;
+    set({ cityLostView: lost });
+  },
   cameraManualAt: 0,
   // throttled: the walk path calls this every frame a key is held down
   noteCameraManual: () => {
@@ -486,10 +549,16 @@ export const useStore = create<AppState>((set, get) => ({
   },
 
   threatFilter: "all",
-  setThreatFilter: (f) => set({ threatFilter: f }),
+  setThreatFilter: (f) => {
+    set({ threatFilter: f });
+    reanchorTriage(set, get);
+  },
 
   ruleFilter: null,
-  setRuleFilter: (rule) => set({ ruleFilter: rule }),
+  setRuleFilter: (rule) => {
+    set({ ruleFilter: rule });
+    reanchorTriage(set, get);
+  },
 
   heatChannel: "threat",
   setHeatChannel: (c) => set({ heatChannel: c }),
@@ -578,13 +647,13 @@ export const useStore = create<AppState>((set, get) => ({
   },
 
   reviews: {},
+  orphanedReviews: 0,
   setReview: (key, status) => {
-    const { reviews, analysisId, cityData } = get();
+    const { reviews, cityData } = get();
     const next = { ...reviews };
     if (status === null) delete next[key];
     else next[key] = status;
-    const storageId = analysisId ?? (cityData?.repo.name === "demo-city" ? "demo" : "");
-    saveReviews(storageId, next);
+    if (cityData) saveReviews(projectKey(cityData.repo), next);
     set({ reviews: next });
   },
 
@@ -681,10 +750,10 @@ export const useStore = create<AppState>((set, get) => ({
   setAnalysisStage: (s) => set({ analysisStage: s }),
   analysisId: null,
   setAnalysisId: (id) => {
-    // Reviews are per-analysis and local-first: swap the map when the id
-    // changes so a new scan starts unreviewed and a permalink reload
-    // restores the reviewer's previous progress.
-    set({ analysisId: id, reviews: id ? loadReviews(id) : {} });
+    // Provenance only. Review state is keyed by project and fingerprint, so a
+    // new scan of the same folder must NOT reset the map — that reset is what
+    // made every verdict die with its per-scan uuid.
+    set({ analysisId: id });
   },
 }));
 

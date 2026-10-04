@@ -196,9 +196,12 @@ describe("findings panel", () => {
 
   it("synchronizes priority filters and offers recovery from an empty filter", async () => {
     await click(button("Findings"));
-    await click(button("P1"));
+    // The chip is labelled in the vocabulary the header uses; P0/P1/P2 stay in
+    // the data and in the tooltip.
+    expect(button("High")).toBeTruthy();
+    await click(button("High"));
     expect(useStore.getState().threatFilter).toBe("P1");
-    expect(container.textContent).toContain("No P1 findings in this scan.");
+    expect(container.textContent).toContain("No High findings in this scan.");
     await click(button("Show all priorities"));
     expect(useStore.getState().threatFilter).toBe("all");
     expect(container.textContent).toContain(

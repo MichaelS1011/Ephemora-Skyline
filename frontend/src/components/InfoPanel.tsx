@@ -6,7 +6,8 @@ import type { VoxelSectionSpec } from "../city/voxels";
 import { OpenInIde } from "./OpenInIde";
 import { useTestRunner } from "../hooks/useTestRunner";
 import { fixFor, type FixSuggestion } from "../findings/fixes";
-import { findingKey } from "../reviews";
+import { findingKey, reviewKeyFor } from "../reviews";
+import { findingContext } from "../findings/context";
 import { t, type DictKey } from "../i18n";
 import type { CityFile, CityFinding, ReviewStatus } from "../city/types";
 
@@ -59,6 +60,7 @@ export function findingsBySection(
   const result: SectionWithFindings[] = sections.map((section) => ({ section, findings: [] }));
   const outside: CityFinding[] = [];
   for (const finding of findings) {
+    if (finding.historyCommit || finding.provenance === "gitleaks-history") continue;
     const idx = sections.findIndex((s) => finding.line >= s.start && finding.line <= s.end);
     if (idx >= 0) result[idx]!.findings.push(finding);
     else outside.push(finding);
@@ -82,7 +84,11 @@ export interface SourceLineView {
 
 /** Mark the source lines a finding flags (finding.line is 1-based). */
 export function highlightSourceLines(lines: string[], findings: CityFinding[]): SourceLineView[] {
-  const findingLines = new Set(findings.map((f) => f.line));
+  const findingLines = new Set(
+    findings
+      .filter((f) => !f.historyCommit && f.provenance !== "gitleaks-history")
+      .map((f) => f.line),
+  );
   return lines.map((text, i) => ({
     text,
     kind: findingLines.has(i + 1) ? ("finding" as const) : ("code" as const),
@@ -101,6 +107,7 @@ export function findingContextRanges(
 ): Array<[number, number]> {
   if (findings.length === 0 || totalLines <= 0) return [];
   const windows = findings
+    .filter((f) => !f.historyCommit && f.provenance !== "gitleaks-history")
     .map((f) => [Math.max(1, f.line - context), Math.min(totalLines, f.line + context)] as const)
     .sort((a, b) => a[0] - b[0]);
   const merged: Array<[number, number]> = [];
@@ -163,15 +170,32 @@ export function lineSegmentFor(
 ): number | null {
   const parsed = parseFocusedKey(key);
   if (!parsed || parsed.fileId !== file.id) return null;
-  return file.findings[parsed.index]?.line ?? null;
+  const finding = file.findings[parsed.index];
+  if (finding?.historyCommit || finding?.provenance === "gitleaks-history") return null;
+  return finding?.line ?? null;
 }
 
 /* ── Severity chip ─────────────────────────────────────────────────────── */
+/**
+ * Severity in the one vocabulary the product uses out loud. P0/P1/P2 stay in
+ * the data and in tooltips; a badge a person reads has to say the same thing
+ * the header count above it says.
+ */
+const SEVERITY_WORD: Record<"P0" | "P1" | "P2", DictKey> = {
+  P0: "hud.sevCritical",
+  P1: "hud.sevHigh",
+  P2: "hud.sevMedium",
+};
+
 function SevChip({ severity }: { severity: "P0" | "P1" | "P2" }) {
+  const lang = useStore((s) => s.prefs.lang);
   const cls = severity === "P0" ? "chip-p0" : severity === "P1" ? "chip-p1" : "chip-p2";
   return (
-    <span className={`${cls} font-jetbrains text-[11px] px-1.5 py-px rounded-sm font-semibold`}>
-      {severity}
+    <span
+      className={`${cls} font-jetbrains text-[11px] px-1.5 py-px rounded-sm font-semibold`}
+      title={severity}
+    >
+      {t(lang, SEVERITY_WORD[severity])}
     </span>
   );
 }
@@ -326,7 +350,7 @@ function FindingRow({
   finding: CityFinding;
   index: number;
   filePath: string;
-  /** findingKey(fileId, index) — the key the review store and triage use. */
+  /** `reviewKeyFor(...)` — the fingerprint key the review store uses. */
   reviewKey: string;
   review: ReviewStatus | null;
   /** True while the triage queue targets this finding. */
@@ -347,11 +371,21 @@ function FindingRow({
   // no-op unless this row is the focused one.
   useEffect(() => {
     if (!focused) return;
+    setExpanded(true);
     rowRef.current?.scrollIntoView({ block: "nearest", behavior: "smooth" });
   }, [focused]);
 
   const copy = async (): Promise<void> => {
-    const text = `${finding.severity} ${finding.type} — ${filePath}:${finding.line}\n${finding.message}${finding.fix ? `\nFix: ${finding.fix}` : ""}${finding.refUrl ? `\nReference: ${finding.refUrl}` : ""}`;
+    const s = useStore.getState();
+    const text = findingContext(
+      finding,
+      filePath,
+      // A demo city was never "analyzed", but the scan that produced it still
+      // has an id — the handoff must name it rather than say null.
+      s.analysisId ?? s.cityData?.analysisId ?? null,
+      reviewKey,
+      review,
+    );
     try {
       await navigator.clipboard.writeText(text);
       setCopied(true);
@@ -436,6 +470,21 @@ function FindingRow({
         </div>
       </div>
 
+      {finding.historyCommit && (
+        <p className="finding-context">
+          {t(lang, "panel.historyCommit")} <code>{finding.historyCommit.slice(0, 12)}</code>
+          <br />
+          {t(lang, "panel.historyEvidence")}
+        </p>
+      )}
+      {finding.packageName && (
+        <p className="finding-context">
+          <strong>
+            {finding.packageName} {finding.packageVersion}
+          </strong>{" "}
+          · {t(lang, "panel.sourceSeverity")} {finding.sourceSeverity ?? "UNKNOWN"}
+        </p>
+      )}
       {/* Message (always visible) */}
       <p
         className="font-jetbrains text-[11px] mt-1.5 leading-relaxed"
@@ -465,7 +514,7 @@ function FindingRow({
                   : t(lang, "panel.reviewMarkTitle", { label })
               }
               onClick={() => setReview(reviewKey, active ? null : segment.status)}
-              className="font-jetbrains text-[9.5px] px-1.5 py-0.5 transition-colors"
+              className="font-jetbrains text-[11px] leading-none min-h-7 px-2 py-1 transition-colors"
               style={{
                 color: active ? "#141412" : REVIEW_COLOR[segment.status],
                 background: active ? REVIEW_COLOR[segment.status] : "rgba(255,255,255,0.03)",
@@ -544,7 +593,6 @@ export function InfoPanel() {
   const analysisId = useStore((s) => s.analysisId);
   const reviews = useStore((s) => s.reviews);
   const focusedFindingKey = useStore((s) => s.focusedFindingKey);
-  const triageActive = useStore((s) => s.triageActive);
   const closeRef = useRef<HTMLButtonElement>(null);
   const selectedId = selectedUnit?.kind === "file" ? selectedUnit.id : null;
 
@@ -844,35 +892,6 @@ export function InfoPanel() {
         </a>
       )}
 
-      {/* Jump straight into the code at the first finding's line */}
-      <OpenInIde
-        filePath={file.path}
-        line={file.findings.length > 0 ? file.findings[0]!.line : undefined}
-        repoKey={(() => {
-          const city = useStore.getState().cityData;
-          return city ? `${city.repo.owner}/${city.repo.name}` : undefined;
-        })()}
-      />
-
-      <RunTestsButton filePath={file.path} />
-      <TestResultsBlock filePath={file.path} />
-
-      {/* Honest-building structure — sections + voxel legend (only when the
-          payload carries section data) */}
-      <VoxelStructureBlock file={file} />
-
-      {/* Real source with flagged finding lines — lazy, one fetch per file
-          (keyed by file.id so the cache resets on building change). While the
-          triage targets this file, the source auto-loads and the focused
-          finding's line is scrolled into view. */}
-      <SourceBlock
-        file={file}
-        analysisId={analysisId}
-        key={file.id}
-        autoLoad={triageActive || focusedLine !== null}
-        scrollToLine={focusedLine}
-      />
-
       {/* Divider */}
       <div style={{ height: 1, background: "rgba(232,178,60,0.1)", marginBottom: "0.75rem" }} />
 
@@ -895,18 +914,12 @@ export function InfoPanel() {
               style={{ color: "var(--meta-strong)" }}
               title={t(lang, "panel.provTitle")}
             >
-              {hasAst && hasSecrets
-                ? t(lang, "panel.provAstHeurSecrets")
-                : hasAst
-                  ? t(lang, "panel.provAstHeur")
-                  : hasSecrets
-                    ? t(lang, "panel.provHeurSecrets")
-                    : t(lang, "panel.provHeur")}
+              {[...new Set(file.findings.map((f) => f.provenance ?? "unknown"))].join(" · ")}
             </span>
           </div>
           <div className="flex flex-col gap-1">
             {file.findings.map((f, i) => {
-              const key = findingKey(file.id, i);
+              const key = reviewKeyFor(file, i, f);
               return (
                 <FindingRow
                   key={i}
@@ -932,6 +945,39 @@ export function InfoPanel() {
           </span>
         </div>
       )}
+      <div className="mt-4">
+        {/* Jump straight into the code at the first finding's line */}
+        <OpenInIde
+          filePath={file.path}
+          line={
+            focusedLine ??
+            file.findings.find((f) => !f.historyCommit && f.provenance !== "gitleaks-history")?.line
+          }
+          repoKey={(() => {
+            const city = useStore.getState().cityData;
+            return city ? `${city.repo.owner}/${city.repo.name}` : undefined;
+          })()}
+        />
+
+        <RunTestsButton filePath={file.path} />
+        <TestResultsBlock filePath={file.path} />
+
+        {/* Honest-building structure — sections + voxel legend (only when the
+          payload carries section data) */}
+        <VoxelStructureBlock file={file} />
+
+        {/* Real source with flagged finding lines — lazy, one fetch per file
+          (keyed by file.id so the cache resets on building change). While the
+          triage targets this file, the source auto-loads and the focused
+          finding's line is scrolled into view. */}
+        <SourceBlock
+          file={file}
+          analysisId={analysisId}
+          key={file.id}
+          autoLoad={focusedLine !== null}
+          scrollToLine={focusedLine}
+        />
+      </div>
     </div>
   );
 }

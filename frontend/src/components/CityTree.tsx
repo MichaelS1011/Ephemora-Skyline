@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useFrame, useThree } from "@react-three/fiber";
+import { useFrame } from "@react-three/fiber";
 import { Html } from "@react-three/drei";
 import { useStore } from "../stores/useStore";
 import {
@@ -13,7 +13,7 @@ import {
 } from "../city/layout";
 import { buildSidewalkNetwork, plazaLanes } from "../city/sidewalks";
 import { ENV } from "../city/palette";
-import { findingKey } from "../reviews";
+import { reviewKeyFor } from "../reviews";
 import type { CityFile } from "../city/types";
 import { RoadSystem } from "./RoadSystem";
 import { District } from "./District";
@@ -22,7 +22,6 @@ import { CityConnections } from "./CityConnections";
 import { DependencyFlows } from "./DependencyFlows";
 import { CloneLasers } from "./CloneLasers";
 import { HeatCells } from "./HeatCells";
-import { ModeBar } from "./ModeBar";
 import { Pedestrians } from "./Pedestrians";
 import { useLodLevel } from "../hooks/useLodLevel";
 import { computeFocusTiers, type FocusTier } from "../city/focus";
@@ -51,8 +50,6 @@ export function CityTree() {
   const focusedFindingKey = useStore((s) => s.focusedFindingKey);
   // View mode (spec §14): gates the dependency arcs + highlights them
   const viewMode = useStore((s) => s.viewMode);
-  // Canvas size only — feeds the screen-fixed ModeBar anchor (no camera math)
-  const size = useThree((s) => s.size);
 
   const layout = useMemo(
     () => (cityData ? getDirLayout(cityData, focusPath) : null),
@@ -102,7 +99,9 @@ export function CityTree() {
     const index = Number(focusedFindingKey.slice(sep + 1));
     if (!Number.isInteger(index) || index < 0) return null;
     const placement = layout.buildings.find((b) => b.file.id === fileId);
-    const line = placement?.file.findings[index]?.line;
+    const finding = placement?.file.findings[index];
+    if (finding?.historyCommit || finding?.provenance === "gitleaks-history") return null;
+    const line = finding?.line;
     return placement && typeof line === "number" ? { fileId, line } : null;
   }, [focusedFindingKey, layout]);
 
@@ -257,7 +256,7 @@ export function CityTree() {
   // A file whose findings ALL carry a review status calms its beacons down.
   // Per-file cost is trivial — findings arrays are small.
   const fullyReviewed = (file: CityFile): boolean =>
-    file.findings.every((_, i) => reviews[findingKey(file.id, i)] !== undefined);
+    file.findings.every((f, i) => reviews[reviewKeyFor(file, i, f)] !== undefined);
 
   const podiumVisible = !animating || Date.now() >= podiumAppear;
 
@@ -396,22 +395,6 @@ export function CityTree() {
         selectedFileId={selectedFileId}
         highlight={viewMode === "dependencies"}
       />
-
-      {/* Mode bar (spec §14) — screen-fixed top center, on the same row as
-          the workspace search. Only once the city stands: during the
-          construction cinematic there is no mode to choose yet. The constant
-          calculatePosition pins the Html overlay to the viewport (top-center
-          row of the canvas) instead of projecting a world point, so it never
-          drifts while the camera orbits. */}
-      {buildPhase === "built" && (
-        <Html
-          calculatePosition={() => [size.width / 2, 0]}
-          zIndexRange={[35, 10]}
-          style={{ top: 78, left: 0, transform: "translateX(-50%)" }}
-        >
-          <ModeBar />
-        </Html>
-      )}
 
       {/* Directed particle streams for the selected building */}
       <DependencyFlows layout={layout} fileConnections={cityData.fileConnections} />

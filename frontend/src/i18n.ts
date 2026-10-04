@@ -12,6 +12,12 @@ export type Lang = "en" | "de";
 
 /** The full UI dictionary — exported so tests can audit key coverage. */
 export const DICT = {
+  "panel.historyCommit": { en: "Found in commit", de: "Fund in Commit" },
+  "panel.historyEvidence": {
+    en: "Historical finding. Inspect this revision; the current file is not its evidence.",
+    de: "Historischer Fund. Prüfe diese Revision; die aktuelle Datei ist nicht der Beleg.",
+  },
+  "panel.sourceSeverity": { en: "Advisory severity:", de: "Schwere laut Advisory:" },
   // ── Landing ───────────────────────────────────────────────────────────────
   "landing.homeAria": {
     en: "Ephemora Skyline home",
@@ -122,9 +128,17 @@ export const DICT = {
     en: "3D city visualization. Nothing is built here yet.",
     de: "3D-Stadt-Visualisierung. Hier ist noch nichts gebaut.",
   },
+  "city.rescueFrame": {
+    en: "City out of view — bring it back",
+    de: "Stadt außer Sicht — zurück ins Bild",
+  },
   "landing.demoError": {
     en: "The demo couldn't load. Check that the local server is running, then try again.",
     de: "Die Demo konnte nicht geladen werden. Prüfe, ob der lokale Server läuft, und versuche es erneut.",
+  },
+  "app.permalinkError": {
+    en: "The local server has no city under this link. Scans live in memory and are gone after a restart — open the folder again to rebuild the city.",
+    de: "Der lokale Server kennt keine Stadt unter diesem Link. Scans liegen im Speicher und sind nach einem Neustart weg — Ordner erneut öffnen, um die Stadt neu zu bauen.",
   },
   "landing.progressCollecting": {
     en: "Reading your folder · {count} files",
@@ -425,6 +439,14 @@ export const DICT = {
   "actions.colorblindPalette": {
     en: "Colorblind-safe palette",
     de: "Farbsichere Palette",
+  },
+  "actions.language": {
+    en: "Switch language (Deutsch)",
+    de: "Sprache wechseln (English)",
+  },
+  "actions.languageSwitched": {
+    en: "Language switched to English",
+    de: "Sprache auf Deutsch umgestellt",
   },
   "actions.runTests": {
     en: "Run tests",
@@ -999,6 +1021,10 @@ export const DICT = {
     en: "{count} more sit on files this view does not draw",
     de: "{count} weitere liegen auf Dateien, die diese Ansicht nicht zeichnet",
   },
+  "findings.orphanedReviews": {
+    en: "{count} verdicts come from an older scan and could not be carried over",
+    de: "{count} Bewertungen stammen aus einem früheren Scan und ließen sich nicht übernehmen",
+  },
   "findings.moreRules": {
     en: "+{count} rules",
     de: "+{count} Regeln",
@@ -1126,8 +1152,8 @@ export const DICT = {
     de: "Dateien, Pfade, Sprachen suchen…",
   },
   "search.inputAria": {
-    en: "Search buildings",
-    de: "Gebäude durchsuchen",
+    en: "Search files by name, path or language",
+    de: "Dateien nach Name, Pfad oder Sprache durchsuchen",
   },
   "search.inputTitle": {
     en: "Search files by name, path or language — picking a result flies the camera to its building",
@@ -1593,8 +1619,8 @@ export const DICT = {
     de: "Keine Engine, die das melden könnte, lief in diesem Scan. Null Funde sind hier eine Lücke, kein sauberes Ergebnis.",
   },
   "ctx.testTip": {
-    en: "A fixture that exists to show a vulnerable snippet is a true finding about the fixture, not about the shipped code. These findings are still listed; they no longer lead the risk ranking.",
-    de: "Ein Fixture, das nur einen verletzlichen Schnipsel zeigt, ist ein echter Fund über das Fixture — nicht über den ausgelieferten Code. Diese Funde stehen weiter in der Liste; sie führen das Risiko-Ranking nicht mehr.",
+    en: "Test findings can describe intentional fixtures or real executed code. Review the evidence before treating them as product vulnerabilities. They remain listed and have lower priority in the overview.",
+    de: "Funde in Tests können absichtliche Beispiele oder tatsächlich ausgeführten Code betreffen. Prüfe den Beleg, bevor du daraus eine Produktlücke ableitest. Sie bleiben sichtbar und werden in der Übersicht nachrangig gewichtet.",
   },
   "ctx.testFindings": {
     en: "{inTests} of {total} findings were found in test code",
@@ -1617,8 +1643,8 @@ export const DICT = {
     de: "Prüfen: {path}",
   },
   "ctx.reviewHighest": {
-    en: "Review highest-risk file",
-    de: "Riskanteste Datei prüfen",
+    en: "Review priority finding",
+    de: "Priorisierten Fund prüfen",
   },
   "ctx.noFindings": {
     en: "No findings in this view",

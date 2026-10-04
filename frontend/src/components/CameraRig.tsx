@@ -240,6 +240,66 @@ export function craneAdvance(
   };
 }
 
+// ── "Have I flown away from the city?" ─────────────────────────────────────
+// The tallest framing any overview flight reaches is 129 (mapping.ts caps a
+// building at 34, voxels at 1.4x), and nothing the pilot flies through goes
+// below GROUND_Y — so the level's box spans that band in y and ±bounds in x/z.
+const CITY_TOP = 130;
+const _projView = new THREE.Matrix4();
+const _frustum = new THREE.Frustum();
+const _corner = new THREE.Vector3();
+
+/**
+ * How much of the level is inside `test`?
+ *
+ * A 3×3 grid across the ground footprint plus the four corners of its
+ * silhouette at `CITY_TOP`. The eight hull corners alone were wrong in both
+ * directions: a pilot standing in the middle of the city looking at the
+ * horizon has every corner beside or behind them and would be told they had
+ * lost the city, while a single far corner poking into frame is not a city
+ * worth looking at. The grid asks the question the screen actually answers: how
+ * much of the town square do I see?
+ */
+function cityPointsInFrustum(bounds: number, test: (p: THREE.Vector3) => boolean): number {
+  let seen = 0;
+  for (const sx of [-1, 0, 1])
+    for (const sz of [-1, 0, 1]) {
+      _corner.set(sx * bounds, GROUND_Y, sz * bounds);
+      if (test(_corner)) seen++;
+    }
+  for (const sx of [-1, 1])
+    for (const sz of [-1, 1]) {
+      _corner.set(sx * bounds, CITY_TOP, sz * bounds);
+      if (test(_corner)) seen++;
+    }
+  return seen;
+}
+
+/**
+ * Did the pilot lose the city, and is it back?
+ *
+ * Lost once nothing of the level's ground grid or silhouette reaches the
+ * frustum; found again once a third of it does (3 of the 9 ground points). The
+ * two bars differ on purpose — a city that flickers across the threshold at the
+ * edge of frame would hand out a hint the user learns to ignore. Measured on
+ * the demo city: eight wheel notches over open ground take the frame from 333
+ * distinct colours to 49, and the same collapse happens flying 8+ notches INTO
+ * a building, which is why the hint is not a pure zoom-out story.
+ */
+export function cityFrameState(
+  camera: THREE.Camera,
+  bounds: number | null,
+  wasLost: boolean,
+): "lost" | "found" {
+  if (bounds === null) return "found";
+  _frustum.setFromProjectionMatrix(
+    _projView.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse),
+  );
+  const seen = cityPointsInFrustum(bounds, (p) => _frustum.containsPoint(p));
+  if (wasLost) return seen >= 3 ? "found" : "lost";
+  return seen >= 1 ? "found" : "lost";
+}
+
 /** Half-extent of the level the pilot is in, or null with no city loaded. */
 function useCityBounds(): number | null {
   const cityData = useStore((s) => s.cityData);
@@ -267,6 +327,7 @@ export function CameraRig() {
   const { camera, gl } = useThree();
   const flyRequest = useStore((s) => s.flyRequest);
   const setCameraInfo = useStore((s) => s.setCameraInfo);
+  const setCityLostView = useStore((s) => s.setCityLostView);
   const cityData = useStore((s) => s.cityData);
   const cameraMode = useStore((s) => s.cameraMode);
   const tourActive = useStore((s) => s.tourActive);
@@ -279,6 +340,10 @@ export function CameraRig() {
   const tweenRef = useRef<Tween | null>(null);
   const lastNonce = useRef(-1);
   const frameCount = useRef(0);
+  /** Last answer the rig gave about the city being out of frame. */
+  const lostRef = useRef(false);
+  /** Seconds accumulated since that question was last asked. */
+  const lostCheckAt = useRef(0);
   /** The pose last handed to the HUD — the frame loop only writes when it moved. */
   const lastReported = useRef<CameraInfo | null>(null);
   // The first flight after a fresh city load has no user-established
@@ -299,7 +364,9 @@ export function CameraRig() {
   // A fresh city resets the viewpoint: the next flight uses the fallback.
   useEffect(() => {
     firstFlightRef.current = true;
-  }, [cityData]);
+    lostRef.current = false;
+    setCityLostView(false);
+  }, [cityData, setCityLostView]);
 
   // A skip hands control back immediately: no flight scripted for the
   // cinematic may keep gliding while the user has already skipped it
@@ -612,6 +679,21 @@ export function CameraRig() {
     }
 
     frameCount.current++;
+    // The pilot's one question they cannot ask themselves: is the city still
+    // in my frame? A quarter-second beat, counted in seconds and not in
+    // frames — a frame-count beat is 0.5 s on a machine drawing 60 fps and 3 s
+    // on a software renderer, and the answer must not depend on which one the
+    // user happens to be on.
+    lostCheckAt.current += delta;
+    if (lostCheckAt.current >= 0.25) {
+      lostCheckAt.current = 0;
+      const lost = cityFrameState(camera, boundsRef.current, lostRef.current) === "lost";
+      if (lost !== lostRef.current) {
+        lostRef.current = lost;
+        setCityLostView(lost);
+      }
+    }
+
     if (frameCount.current % 6 === 0) {
       const reported: CameraInfo = free
         ? (() => {

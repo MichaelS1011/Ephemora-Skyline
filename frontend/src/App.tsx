@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { Canvas } from "@react-three/fiber";
 import { EffectComposer, Bloom } from "@react-three/postprocessing";
+import { ModeBar } from "./components/ModeBar";
 import { CityScene } from "./components/CityScene";
 import { Landing } from "./components/Landing";
 import { InfoPanel } from "./components/InfoPanel";
@@ -30,6 +31,7 @@ export default function App() {
   const resetFocus = useStore((s) => s.resetFocus);
   const setIsLoading = useStore((s) => s.setIsLoading);
   const selectedUnit = useStore((s) => s.selectedUnit);
+  const cityLostView = useStore((s) => s.cityLostView);
   const setSelectedUnit = useStore((s) => s.setSelectedUnit);
   const navigateToFile = useStore((s) => s.navigateToFile);
   const drillOut = useStore((s) => s.drillOut);
@@ -71,13 +73,12 @@ export default function App() {
           setApiStatus("live");
         }
       } catch {
-        // Permalink expired (in-memory store) — land on the empty world,
-        // but tell the user why instead of showing a silent empty city
+        // The id resolved to nothing. Say what is true rather than guessing:
+        // it may never have existed (a mistyped or stale link) or its scan may
+        // have been dropped — the store is in-memory with a 24 h ceiling.
         if (!cancelled) {
           setApiStatus("demo");
-          setPermalinkError(
-            "This city link has expired — analysis results are kept in memory and disappear when the backend restarts. Analyze the repository again to rebuild it.",
-          );
+          setPermalinkError(t(lang, "app.permalinkError"));
         }
       } finally {
         if (!cancelled) setIsLoading(false);
@@ -96,6 +97,12 @@ export default function App() {
     if (cityData.repo.owner === "local") setApiStatus("live");
     else if (cityData.repo.name === "demo-city") setApiStatus("demo");
   }, [cityData]);
+
+  // The document promised English in index.html and never revises it, so a
+  // German screen keeps the wrong language for assistive technology.
+  useEffect(() => {
+    document.documentElement.lang = lang;
+  }, [lang]);
 
   // ── Keyboard navigation ──────────────────────────────────────────────────
   const handleKeyDown = useCallback(
@@ -280,7 +287,7 @@ export default function App() {
               post-processing step — and caps the pixel ratio above. */}
           {!gfxLite && (
             <EffectComposer enableNormalPass={false}>
-              <Bloom luminanceThreshold={0.55} intensity={0.55} mipmapBlur />
+              <Bloom luminanceThreshold={0.9} intensity={0.22} mipmapBlur />
             </EffectComposer>
           )}
         </Canvas>
@@ -332,6 +339,11 @@ export default function App() {
                 buildPhase === "constructing" ? "construction-dim" : ""
               }`}
             >
+              {buildPhase === "built" && (
+                <div className="workspace-modes">
+                  <ModeBar />
+                </div>
+              )}
               <div className="workspace-search">
                 <SearchBar />
               </div>
@@ -344,6 +356,24 @@ export default function App() {
               <ContextCard />
               <Minimap show />
               <CoachMarks />
+
+              {/* The wheel can throw the pilot past the fog ceiling in eight
+                  notches, and from out there the screen is one flat colour
+                  with no clue what it used to be. The way back is a
+                  double-Escape inside 500 ms — nobody finds that by hand. */}
+              {cityLostView && (
+                <div className="camera-rescue">
+                  <button
+                    onClick={() => {
+                      resetFocus();
+                      canvasWrapperRef.current?.focus();
+                    }}
+                    className="rescue-button"
+                  >
+                    ◎ {t(lang, "city.rescueFrame")}
+                  </button>
+                </div>
+              )}
 
               <div className="workspace-heatmap">
                 <HeatmapToggle />

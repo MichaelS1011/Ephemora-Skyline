@@ -200,6 +200,34 @@ export function CoachMarks() {
     if (focusPath.length > 0) dismiss();
   }, [focusPath.length]);
 
+  // Escape on a visible primer means "I have read this", not "close the panel
+  // behind it". Same protocol as the tour: capture phase plus
+  // stopImmediatePropagation, so the app-level chain never sees the key.
+  // Without this the only way out was the ✕ — measured on a 1024×680 screen,
+  // where the primer sat on top of the action dock and swallowed its clicks.
+  useEffect(() => {
+    if (!visible) return;
+    const onKey = (e: globalThis.KeyboardEvent): void => {
+      // A keydown whose target is the window itself has no element to ask —
+      // fall back to the body, which owns nothing, rather than throwing on
+      // `closest`.
+      const t = e.target instanceof Element ? e.target : document.body;
+      // Same ownership rule as the tour: whatever the person types into, and
+      // every menu / modal / panel that handles Escape itself, keeps the key.
+      if (
+        t.closest(
+          'input, textarea, select, [contenteditable="true"], [aria-modal="true"], [role="menu"], #analyze-panel',
+        )
+      )
+        return;
+      if (e.key !== "Escape") return;
+      e.stopImmediatePropagation();
+      dismiss();
+    };
+    window.addEventListener("keydown", onKey, true);
+    return () => window.removeEventListener("keydown", onKey, true);
+  }, [visible, dismiss]);
+
   // Hidden while the tour runs AND while the construction progress bar
   // occupies the same bottom-center slot during the build cinematic
   if (!visible || tourActive || buildPhase === "constructing") return null;

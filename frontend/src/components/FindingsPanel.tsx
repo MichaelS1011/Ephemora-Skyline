@@ -3,7 +3,7 @@ import { useStore } from "../stores/useStore";
 import { allFiles } from "../city/layout";
 import { SEVERITY_COLOR, languageColor } from "../city/palette";
 import type { CityFile, CityFinding, ReviewStatus, Severity } from "../city/types";
-import { findingKey } from "../reviews";
+import { findingKey, reviewKeyFor } from "../reviews";
 import { t, type DictKey } from "../i18n";
 
 const SEVERITY_RANK: Record<Severity, number> = { P0: 0, P1: 1, P2: 2 };
@@ -52,6 +52,7 @@ function ruleIdOf(finding: CityFinding): string {
 /** Findings grouped by file, with severity + rule filters combined (AND). */
 export function FindingsPanel() {
   const lang = useStore((s) => s.prefs.lang);
+  const orphanedReviews = useStore((s) => s.orphanedReviews);
   const cityData = useStore((s) => s.cityData);
   const showFindings = useStore((s) => s.showFindings);
   const setShowFindings = useStore((s) => s.setShowFindings);
@@ -240,6 +241,11 @@ export function FindingsPanel() {
               {t(lang, "findings.undrawn", { count: undrawn })}
             </p>
           )}
+          {orphanedReviews > 0 && (
+            <p className="mt-1 text-xs" style={{ color: "#8f8b82" }}>
+              {t(lang, "findings.orphanedReviews", { count: orphanedReviews })}
+            </p>
+          )}
         </div>
         <button
           ref={closeRef}
@@ -255,7 +261,7 @@ export function FindingsPanel() {
 
       {ruleChips.length > 0 && (
         <div
-          className="flex shrink-0 flex-wrap gap-1 px-3 pb-2"
+          className="finding-rule-filters flex shrink-0 flex-wrap gap-1 px-3 pb-2"
           role="group"
           aria-label={t(lang, "findings.ruleGroupAria")}
         >
@@ -343,7 +349,9 @@ export function FindingsPanel() {
                 border: `1px solid ${active ? "rgba(232,80,60,0.4)" : "transparent"}`,
               }}
             >
-              {priority === "all" ? t(lang, "findings.allPriorities") : priority}
+              {priority === "all"
+                ? t(lang, "findings.allPriorities")
+                : t(lang, SEVERITY_LABEL_KEY[priority as Severity])}
               <span className="ml-1.5 tabular-nums" style={{ opacity: 0.75 }}>
                 {priority === "all"
                   ? cityData.findingsBySeverity.P0 +
@@ -368,11 +376,13 @@ export function FindingsPanel() {
                   ? t(lang, "findings.emptyRule", { rule: ruleFilter })
                   : t(lang, "findings.emptyRulePriority", {
                       rule: ruleFilter,
-                      priority: threatFilter,
+                      priority: t(lang, SEVERITY_LABEL_KEY[threatFilter as Severity]),
                     })
                 : threatFilter === "all"
                   ? t(lang, "findings.emptyAll")
-                  : t(lang, "findings.emptyPriority", { priority: threatFilter })}
+                  : t(lang, "findings.emptyPriority", {
+                      priority: t(lang, SEVERITY_LABEL_KEY[threatFilter as Severity]),
+                    })}
             </p>
             {(threatFilter !== "all" || ruleFilter !== null) && (
               <div className="mt-3 flex flex-wrap justify-center gap-2">
@@ -408,7 +418,7 @@ export function FindingsPanel() {
           const accent = SEVERITY_COLOR[fileSeverity];
           const isSelected = selectedUnit?.kind === "file" && selectedUnit.id === file.id;
           const reviewedCount = groupFindings.filter(
-            ({ index }) => reviews[findingKey(file.id, index)],
+            ({ index, finding }) => reviews[reviewKeyFor(file, index, finding)],
           ).length;
           return (
             <div
@@ -478,12 +488,15 @@ export function FindingsPanel() {
                       a.finding.line - b.finding.line,
                   )
                   .map(({ finding, index }) => {
-                    const review = reviews[findingKey(file.id, index)];
+                    const review = reviews[reviewKeyFor(file, index, finding)];
                     return (
                       <button
                         key={index}
                         type="button"
-                        onClick={() => navigateToFile(file.id)}
+                        onClick={() => {
+                          navigateToFile(file.id);
+                          useStore.getState().setFocusedFindingKey(findingKey(file.id, index));
+                        }}
                         className="flex min-h-10 w-full items-start gap-2 border-t border-white/5 py-2.5 text-left hover:bg-white/5"
                         title={t(lang, "findings.findingTitle", {
                           name: file.name,
@@ -498,14 +511,15 @@ export function FindingsPanel() {
                           />
                         )}
                         <span
-                          className="mt-px shrink-0 rounded px-1.5 py-0.5 text-xs font-medium"
+                          className="mt-px shrink-0 whitespace-nowrap rounded px-1.5 py-0.5 text-xs font-medium"
                           style={{
                             color: SEVERITY_COLOR[finding.severity],
                             background: `${SEVERITY_COLOR[finding.severity]}12`,
                             border: `1px solid ${SEVERITY_COLOR[finding.severity]}44`,
                           }}
+                          title={finding.severity}
                         >
-                          {finding.severity}
+                          {t(lang, SEVERITY_LABEL_KEY[finding.severity])}
                         </span>
                         <span
                           className="min-w-0 text-[13px] leading-relaxed"

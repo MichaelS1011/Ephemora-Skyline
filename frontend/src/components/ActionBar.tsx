@@ -60,6 +60,29 @@ export function ActionBar() {
   const moreRef = useRef<HTMLDivElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const moreButtonRef = useRef<HTMLButtonElement>(null);
+  /**
+   * The dock's live height, published as `--dock-h`. It wraps to a second row
+   * on narrow screens, and the onboarding primer has to clear it — a fixed
+   * `bottom: 90px` in CSS is how the primer ended up sitting on top of
+   * Triage/Security tour/Findings/Overview at 1024×680 and swallowing their
+   * clicks (measured: three centered clicks, zero reaction).
+   */
+  const dockRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const el = dockRef.current;
+    if (!el) return;
+    const write = (): void => {
+      const h = Math.round(el.getBoundingClientRect().height);
+      if (h > 0) document.documentElement.style.setProperty("--dock-h", `${h}px`);
+    };
+    write();
+    // Environments without the observer (the node test runner) keep the CSS
+    // default for --dock-h; the measurement is a refinement, not a contract.
+    if (typeof ResizeObserver === "undefined") return;
+    const ro = new ResizeObserver(write);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
 
   useEffect(() => {
     if (!menuOpen) return;
@@ -159,6 +182,7 @@ export function ActionBar() {
 
   return (
     <div
+      ref={dockRef}
       className="action-dock absolute bottom-4 left-1/2 z-30 flex -translate-x-1/2 flex-col items-center gap-2 pointer-events-auto"
       style={{ maxWidth: "calc(100vw - 24px)" }}
     >
@@ -403,6 +427,22 @@ export function ActionBar() {
               >
                 <span aria-hidden="true">{colorblind ? "◉" : "○"}</span>
                 {t(lang, "actions.colorblindPalette")}
+              </button>
+              {/* The language control used to exist only on the landing screen,
+                  so anyone who had already entered a city had to leave it — via
+                  the logo — to read the tool in their own language. */}
+              <button
+                role="menuitem"
+                type="button"
+                onClick={() => {
+                  const next = lang === "de" ? "en" : "de";
+                  setPref("lang", next);
+                  setFeedback({ message: t(next, "actions.languageSwitched"), error: false });
+                }}
+                className="flex min-h-10 w-full items-center gap-3 rounded-lg px-3 text-left hover:bg-white/5"
+              >
+                <span aria-hidden="true">⇄</span>
+                {t(lang, "actions.language")}
               </button>
               <button
                 role="menuitem"

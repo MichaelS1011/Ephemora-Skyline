@@ -1,4 +1,5 @@
 import { describe, it, expect } from "vitest";
+import * as THREE from "three";
 import {
   approachFromCurrentDirection,
   CRANE_ELEVATION,
@@ -6,6 +7,7 @@ import {
   flightDuration,
   turntableStep,
   clampToCity,
+  cityFrameState,
   GROUND_Y,
   PIVOT_Y,
   TURN_MAX_PHI,
@@ -308,5 +310,59 @@ describe("craneAdvance", () => {
     // 3.5 units of framing per 100 ms at the steepest — a glide, not a jump
     expect(maxStep).toBeLessThan(0.2);
     expect(prev).toBeGreaterThan(75);
+  });
+});
+
+// ── cityFrameState — "hat der Pilot die Stadt verloren?" ───────────────────
+function camAt(
+  pos: XYZ,
+  look: XYZ,
+  opts: { fov?: number; near?: number; far?: number } = {},
+): THREE.PerspectiveCamera {
+  const cam = new THREE.PerspectiveCamera(
+    opts.fov ?? 45,
+    16 / 9,
+    opts.near ?? 0.1,
+    opts.far ?? 4000,
+  );
+  cam.position.set(pos.x, pos.y, pos.z);
+  cam.lookAt(look.x, look.y, look.z);
+  cam.updateMatrixWorld(true);
+  return cam;
+}
+
+describe("cityFrameState", () => {
+  it("says found while the overview framing still holds the city", () => {
+    const cam = camAt({ x: 0, y: 60, z: 200 }, { x: 0, y: 1.5, z: 0 });
+    expect(cityFrameState(cam, 60, false)).toBe("found");
+    expect(cityFrameState(cam, 60, true)).toBe("found");
+  });
+
+  it("says lost once the camera looks away from every corner of the level", () => {
+    // eight wheel notches over open ground land the pilot here: above the
+    // city, pointed at the sky
+    const cam = camAt({ x: 0, y: 900, z: 0 }, { x: 0, y: 901, z: 0 });
+    expect(cityFrameState(cam, 60, false)).toBe("lost");
+  });
+
+  it("keeps a city it already declared lost until a third of its ground grid is back", () => {
+    // The near corner and its ground point sit inside the far plane (410), the
+    // rest of the level behind it (414+) — two points seen, and the recovery
+    // bar is three. That gap is the hysteresis.
+    const cam = camAt({ x: 300, y: 65.5, z: 300 }, { x: 20, y: 65.5, z: 20 }, { far: 410 });
+    expect(cityFrameState(cam, 20, false)).toBe("found");
+    expect(cityFrameState(cam, 20, true)).toBe("lost");
+  });
+
+  it("never declares a loss for a world that has no city", () => {
+    const cam = camAt({ x: 0, y: 900, z: 0 }, { x: 0, y: 901, z: 0 });
+    expect(cityFrameState(cam, null, true)).toBe("found");
+  });
+
+  it("does not call a street-level view from inside the city a loss", () => {
+    // The pilot stands in the middle of the level and looks at the horizon:
+    // every hull corner is behind them, the ground centre is straight ahead-down
+    const cam = camAt({ x: 0, y: 5, z: 0 }, { x: 0, y: 4, z: -50 }, { far: 1600 });
+    expect(cityFrameState(cam, 60, false)).toBe("found");
   });
 });

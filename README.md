@@ -31,9 +31,9 @@ Most security tooling is a list of findings you scroll. Ephemora Skyline makes a
 - **It builds in front of you.** Every visit starts on an empty lot. Pick a folder and the city assembles — roads, plots, buildings — while the Ephe's, the citizens who do the construction, explain what they are raising.
 - **Scale-independent semantic zoom.** The overview shows one block per top-level folder whether the repo has 100 files or 50,000. Click into a block to open it as its own district. Files that are not drawn show honestly as a podium ("+N more files"), never silently dropped.
 - **Security Tour.** The camera flies finding to finding, highest risk first, with a plain-language explanation and a fix suggestion.
-- **Findings you can verify.** Every finding carries its file, its line, a two-line code frame and a link to the rule that fired. Open the file in your editor from the card.
+- **Findings you can verify.** Every finding carries its file, its line, a two-line code frame and a link to the rule that fired. Open the file in your editor from the card. Each one also carries a fingerprint — rule, path, line and the (masked) line itself — so a verdict you record survives scanning the same folder again, and the same finding can be named in a report, in the city JSON and by an agent. A finding that moves to another line or into a renamed file counts as a new one, and says so.
 - **Orientation, always.** Breadcrumbs, a minimap showing the real camera position, search-to-fly, keyboard navigation.
-- **Shareable.** PNG export of the current view, SARIF export of the findings, and a `?city=<id>` link for the person already running the same backend.
+- **Shareable.** PNG export of the current view, SARIF 2.1.0 export of the findings (with the scan's id and each finding's fingerprint as `partialFingerprints`), and a `?city=<id>` link for the person already running the same backend.
 
 ## Quick start
 
@@ -42,7 +42,7 @@ Requires **Node >= 20** and **npm >= 10**. Optional: `gitleaks`, `semgrep`, `osv
 ```bash
 git clone https://github.com/MichaelS1011/Ephemora-Skyline.git
 cd Ephemora-Skyline
-npm install            # 538 packages
+npm install            # workspaces: frontend + backend
 npm run dev            # backend on :4000 + frontend on :3010
 ```
 
@@ -53,7 +53,7 @@ Open **http://localhost:3010** and click **Choose project folder** — or **Expl
 ```bash
 npm run lint           # ESLint, zero warnings
 npm run type-check     # tsc --noEmit, both packages
-npm run test           # Vitest — 686 tests in 80 files (363 frontend, 323 backend)
+npm run test           # Vitest — 732 tests in 86 files (388 frontend, 344 backend)
 npm run build          # production build, both packages
 node scripts/audit-gate.mjs   # dependency audit, see below
 ```
@@ -62,7 +62,7 @@ The audit gate fails on every high or critical finding **except** those explicit
 
 ## Privacy model
 
-The backend binds to `127.0.0.1` by default, and the two routes that execute anything additionally refuse requests that a foreign web page sent (checked by `Origin` / `Sec-Fetch-Site`, so a random site you visit cannot make your local scanner run your tests). The table below is not only in this file — the entry screen of the app carries the same list, row for row, and a test fails if the two copies ever disagree.
+The backend binds to `127.0.0.1` by default, and the two routes that execute anything additionally refuse requests that a foreign web page sent (checked by `Origin` / `Sec-Fetch-Site`, so a random site you visit cannot make your local scanner run your tests). The table below is not decoration: the entry screen of the app renders the same list from the same declaration the backend obeys (`OUTBOUND_CALLS`), and a test fails if the two ever name different hosts. What that test pins is the host set — the wording of each row is written twice, so it can drift while the hosts still match. The browser asks nothing of the network before you do anything: the UI font ships inside the app, and a separate test fails if the entry document ever references a third-party host.
 
 When you pick a folder, the **browser** reads it and posts the contents to the local backend over `127.0.0.1`: your source is never uploaded and never sent to a third party — it crosses the loopback interface and stops there. What does leave the machine are lookups the scanners make for themselves, and those carry names, never code:
 

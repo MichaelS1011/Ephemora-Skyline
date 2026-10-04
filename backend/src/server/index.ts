@@ -177,6 +177,9 @@ app.get("/api/demo", (_req: Request, res: Response): void => {
 app.get("/api/cities/default", (_req: Request, res: Response): void => {
   try {
     const demo = getDemoResult();
+    // Register it under its own id, so `?city=demo-001` resolves like any other
+    // city and a reload lands back on the demo instead of the empty world.
+    if (!analysisStore.get(demo.id)) analysisStore.set(demo.id, demo);
     res.json(mapResultToCityData(demo));
   } catch {
     res.status(500).json({ error: "Internal server error" });

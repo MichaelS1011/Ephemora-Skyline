@@ -2,7 +2,9 @@
 @tailwind components;
 @tailwind utilities;
 
-/* ── Google Fonts — JetBrains Mono (loaded once via index.html <link>, with preconnect) ── */
+/* ── JetBrains Mono — self-hosted via @fontsource (latin 400/500/600/700, imported in main.tsx).
+     Nothing here reaches a third-party host: the font used to come from Google Fonts
+     with a preconnect, which was the one request the browser made before any user action. ── */
 
 /* ── CSS Custom Properties ───────────────────────────────────── */
 :root {
@@ -1144,7 +1146,11 @@ button:disabled {
   font-size: 12px;
 }
 .city-coach {
-  bottom: 90px !important;
+  /* clear the dock: its 20px offset + its live height (ActionBar publishes
+     --dock-h) + a gap. The old fixed 90px landed inside the dock's band on a
+     680px-tall screen and made its four controls unclickable. */
+  bottom: calc(32px + var(--dock-h, 96px)) !important;
+  max-height: calc(100dvh - (32px + var(--dock-h, 96px)) - 130px);
 }
 /* #17: the scan-summary toast is centered at top:96px — exactly the band the
    ModeBar (STRUCTURE/SECURITY/DEPENDENCIES, top:78px, bottom:115px) occupies.
@@ -1437,4 +1443,149 @@ div[role="status"].animate-toast-in {
 }
 .landing-update-banner button:hover {
   color: #f2efe8;
+}
+
+/* Daylight workspace: the city has its own unobstructed viewport. */
+.workspace-modes {
+  position: absolute;
+  z-index: 35;
+  top: 78px;
+  left: 50%;
+  transform: translateX(-50%);
+  pointer-events: auto;
+}
+.workspace-modes .glass {
+  background: #243747;
+  border-color: #819aa8;
+}
+/* ── The way back, once the wheel has thrown the city out of frame ─────── */
+.camera-rescue {
+  position: absolute;
+  z-index: 38;
+  top: 126px;
+  left: 50%;
+  transform: translateX(-50%);
+  pointer-events: auto;
+}
+.rescue-button {
+  font-family: var(--font-mono);
+  font-size: var(--fs-small);
+  /* ≥40 px hoch — eine Meldung, die man mit einer Hand wegklicken will, darf
+     selbst kein 32-px-Ziel sein (Persona-C, Befund 16) */
+  min-height: 40px;
+  padding: 9px 16px;
+  border-radius: 999px;
+  cursor: pointer;
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--glass-shadow);
+  color: var(--color-text);
+  transition:
+    border-color 0.15s ease,
+    color 0.15s ease;
+}
+.rescue-button:hover,
+.rescue-button:focus-visible {
+  border-color: #e8b23c;
+  color: #f6e3b0;
+  outline: none;
+}
+.workspace-breadcrumbs {
+  max-width: calc(50% - 178px);
+}
+.finding-rule-filters {
+  max-height: 116px;
+  overflow-y: auto;
+}
+.finding-context {
+  margin: 8px 0;
+  color: #bfd3dd;
+  font-size: 12px;
+  line-height: 1.5;
+}
+.panel-info {
+  width: 400px !important;
+  background: #20313e !important;
+}
+.panel-findings {
+  background: #20313e !important;
+}
+.panel-info:has(~ .panel-findings) {
+  right: 390px !important;
+}
+.panel-info .font-jetbrains {
+  font-size: max(12px, 0.78rem);
+}
+.panel-info button {
+  min-width: 30px;
+}
+.panel-context-card {
+  background: rgba(32, 49, 62, 0.96) !important;
+}
+@media (min-width: 1201px) {
+  .app-shell:has(.panel-info) .city-canvas {
+    width: calc(100% - 436px) !important;
+  }
+  .app-shell:has(.panel-findings) .city-canvas {
+    width: calc(100% - 386px) !important;
+  }
+  .app-shell:has(.panel-info):has(.panel-findings) .city-canvas {
+    width: calc(100% - 806px) !important;
+  }
+  /* The left context card is opaque (α0.96) and takes pointer events, so the
+     strip of city behind it was neither seen nor clickable — measured at
+     1024×680 with the canvas still 1024 wide under a 272px card at left:22.
+     It reserves its space the way the right-hand panels do. */
+  .app-shell:has(.panel-context-card) .city-canvas {
+    margin-left: 316px !important;
+    width: calc(100% - 316px) !important;
+  }
+  .app-shell:has(.panel-info, .panel-findings) .panel-context-card {
+    display: none;
+  }
+}
+@media (min-width: 901px) and (max-width: 1200px) {
+  .app-shell:has(.panel-info, .panel-findings) .city-canvas {
+    width: calc(100% - 426px) !important;
+  }
+  .app-shell:has(.panel-context-card) .city-canvas {
+    margin-left: 316px !important;
+    width: calc(100% - 316px) !important;
+  }
+  .panel-info:has(~ .panel-findings) {
+    right: 22px !important;
+  }
+  .app-shell:has(.panel-info) .panel-findings {
+    visibility: hidden;
+    pointer-events: none;
+  }
+  .app-shell:has(.panel-info, .panel-findings) .panel-context-card {
+    display: none;
+  }
+}
+
+/* Secondary labels remain readable on both the daylight world and dark tools. */
+.app-shell {
+  --meta-strong: #d7e2e9;
+  --meta: #becdd7;
+  --meta-faint: #a9bdca;
+  --glass-bg: rgba(32, 49, 62, 0.97);
+  --glass-border: rgba(182, 205, 220, 0.3);
+  --glass-shadow: 0 8px 28px rgba(26, 48, 66, 0.2);
+}
+.city-legend {
+  color: #334e60;
+  font-size: 12px;
+}
+.workspace-shortcuts > button {
+  color: #334e60 !important;
+  opacity: 1 !important;
+}
+.workspace-modes button {
+  min-height: 30px;
+}
+.workspace-modes button[aria-checked="true"] {
+  color: #fff !important;
+  background: #45667f !important;
+  border-color: #91b4cb !important;
 }

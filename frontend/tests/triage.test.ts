@@ -149,3 +149,53 @@ describe("triage queue", () => {
     expect(useStore.getState().triageActive).toBe(false);
   });
 });
+
+/**
+ * Persona B, 2026-10-04: with a triage running, a filter switch left the
+ * stepper reading "Finding 4 of 11" over a queue the panel called 3 — the
+ * cursor and the total were only recomputed on the next click, so the first
+ * entries of the new queue were skipped without anyone seeing it.
+ */
+describe("a filter switch inside a running triage", () => {
+  beforeEach(() => {
+    useStore.getState().resetToLanding();
+    useStore.getState().setCityData(makeCity());
+    useStore.getState().setBuildPhase("built");
+  });
+
+  it("re-anchors cursor and total at the moment the filter changes", () => {
+    const s = useStore.getState();
+    s.startTriage(); // P0 evil#0, P1 warn#0, P2 evil#1, P2 odd#0
+    s.nextTriage();
+    s.nextTriage();
+    s.nextTriage(); // cursor 3 → src/odd.ts finding #0 (P2)
+    expect(useStore.getState().triageTotal).toBe(4);
+
+    s.setThreatFilter("P2");
+    const after = useStore.getState();
+    expect(after.triageTotal, "the queue is two P2 findings now").toBe(2);
+    expect(after.triageCursor, "the focused P2 is the second of them").toBe(1);
+    expect(after.focusedFindingKey).toBe(findingKey("file:odd.ts", 0));
+  });
+
+  it("does not move the camera when the focused finding survives the filter", () => {
+    const s = useStore.getState();
+    s.startTriage();
+    s.nextTriage();
+    s.nextTriage();
+    s.nextTriage(); // on src/odd.ts (P2)
+    const selectedBefore = JSON.stringify(useStore.getState().selectedUnit);
+    s.setThreatFilter("P2");
+    expect(JSON.stringify(useStore.getState().selectedUnit)).toBe(selectedBefore);
+  });
+
+  it("ends the triage instead of counting a queue that no longer exists", () => {
+    const s = useStore.getState();
+    s.startTriage();
+    s.setRuleFilter("RULE_THAT_MATCHES_NOTHING");
+    const after = useStore.getState();
+    expect(after.triageActive).toBe(false);
+    expect(after.triageTotal).toBe(0);
+    expect(after.focusedFindingKey).toBeNull();
+  });
+});
