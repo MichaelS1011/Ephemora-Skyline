@@ -64,7 +64,7 @@ The audit gate fails on every high or critical finding **except** those explicit
 
 The backend binds to `127.0.0.1` by default, and the two routes that execute anything additionally refuse requests that a foreign web page sent (checked by `Origin` / `Sec-Fetch-Site`, so a random site you visit cannot make your local scanner run your tests).
 
-When you pick a folder, the **browser** reads it and posts the contents to the local backend over `127.0.0.1`. Nothing goes to a third party. What does leave the machine are lookups the scanners make for themselves, and they carry no source code:
+When you pick a folder, the **browser** reads it and posts the contents to the local backend over `127.0.0.1`: your source is never uploaded and never sent to a third party — it crosses the loopback interface and stops there. What does leave the machine are lookups the scanners make for themselves, and those carry names, never code:
 
 | Host                   | Made by                             | Leaves the machine                                          | When                                                  |
 | ---------------------- | ----------------------------------- | ----------------------------------------------------------- | ----------------------------------------------------- |
@@ -117,12 +117,15 @@ A pack is a directory with a `pack.json` manifest and rule YAML beside it. The m
 
 ## The look
 
-|                                                                                                                |                                                                                                         |
-| -------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
-| ![Entry screen: profile choice and the folder action, with an annotated sample district](docs/assets/hero.png) | **Entry.** What the tool is, in one screen, before you have given it anything.                          |
-| ![Security mode: the city dims and the findings glow](docs/assets/ui-security.png)                             | **Security mode.** The city dims so the beacons carry the picture.                                      |
-| ![A finding with its file, line, code frame and explanation](docs/assets/ui-finding.png)                       | **A finding you can check.** File, line, the surrounding code, why it matters, and the rule that fired. |
-| ![The same city on a phone](docs/assets/ui-mobile.png)                                                         | **Small screens.** Panels stay inside the viewport; the city stays explorable.                          |
+| Entry                                                                                                          | Security mode                                   |
+| -------------------------------------------------------------------------------------------------------------- | ----------------------------------------------- |
+| ![Entry screen: profile choice and the folder action, with an annotated sample district](docs/assets/hero.png) | ![Security mode](docs/assets/ui-security.png)   |
+| What the tool is, in one screen, before it has anything of yours.                                              | The city dims so the beacons carry the picture. |
+
+| A finding you can check                                                                  | On a phone                                                  |
+| ---------------------------------------------------------------------------------------- | ----------------------------------------------------------- |
+| ![A finding with its file, line, code frame and explanation](docs/assets/ui-finding.png) | ![The same city on a phone](docs/assets/ui-mobile.png)      |
+| File, line, the surrounding code, why it matters, and which rule fired.                  | Panels stay inside the viewport; the city stays explorable. |
 
 The interface speaks English and German; the switch is in the header and the choice is remembered.
 
