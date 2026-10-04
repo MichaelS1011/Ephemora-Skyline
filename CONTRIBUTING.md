@@ -6,7 +6,7 @@ Thanks for your interest. Ephemora Skyline is a focused 3D visualizer — small,
 
 - **Local-first, always.** Nothing here should send analyzed file content off the machine. A PR that introduces network egress for code that was analyzed from a local folder is a security bug, not a feature.
 - **The name stays.** `Ephemora Skyline` and the BSL-1.1 license are non-negotiable.
-- **UI strings are English.**
+- **UI strings need both languages.** Every interface string lives in `frontend/src/i18n.ts` with an English and a German entry; a key that exists in one language only falls back to printing its own name, which is a visible bug, not a missing translation.
 - **3D / render-critical files** (`CityScene`, `Building`, `District`, `RoadSystem`, `ParticleField`, the `renderer/` folder) need a real-GPU screenshot in the PR before they are reviewed — the headless CI cannot render WebGL.
 
 ## Getting set up
@@ -18,11 +18,7 @@ npm install                 # requires Node >= 20, npm >= 10
 npm run dev                 # backend :4000 + frontend :3010
 ```
 
-Optional for higher GitHub rate limits when using the remote-repo path:
-
-```bash
-export GITHUB_TOKEN=your_token
-```
+Optional, for the deeper scans: put `gitleaks`, `semgrep`, `osv-scanner` and `ruff` on your `PATH`. Without them the corresponding checks report themselves as skipped — they never pretend to have run.
 
 ## Before you open a PR — the four gates
 
@@ -31,11 +27,11 @@ These are exactly what CI enforces. Run them clean first:
 ```bash
 npm run lint          # ESLint, zero warnings
 npm run type-check    # tsc --noEmit across both packages
-npm run test          # Vitest (120 tests: 36 frontend + 84 backend)
+npm run test          # Vitest — 671 tests in 77 files (355 frontend, 316 backend)
 npm run build         # production build, both packages
 ```
 
-A fifth check runs in CI: `npm audit --audit-level high` must report no high-severity advisories.
+A fifth check runs in CI: `node scripts/audit-gate.mjs`. It fails on every high or critical advisory except those explicitly accepted in the script with a reason and a re-check date — an accepted finding stays visible instead of being hidden behind a lowered threshold.
 
 ## Commit & PR conventions
 

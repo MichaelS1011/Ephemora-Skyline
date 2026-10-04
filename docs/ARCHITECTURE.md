@@ -38,49 +38,63 @@ codecity-cyberdefense/          # internal package name (owner-locked)
 ```
 backend/src/
 ├── server/
-│   ├── index.ts            # Express app + HTTP server
+│   ├── index.ts             # Express app, rate limits, route wiring
+│   ├── bind-address.ts      # loopback by default; HOST overrides deliberately
+│   ├── local-only.ts        # refuses writes that a foreign web page sent
 │   └── routes/
-│       ├── analyze.ts      # POST /api/analyze handler
-│       ├── demo.ts         # GET /api/demo — demo data
-│       └── health.ts       # GET /api/health handler
+│       ├── local-analyze.ts # POST /api/analyze-local — staging + job start
+│       ├── status.ts        # GET /api/status/:id (polled)
+│       ├── job-progress.ts  # progress map, skeleton, failure marking
+│       ├── source.ts        # GET /api/result/:id/source/:fileId
+│       ├── tests.ts         # POST /api/tests/:id/run — the project's own tests
+│       ├── update-check.ts  # GET /api/update/check (the one self-request)
+│       ├── demo.ts          # GET /api/demo, /api/cities/default
+│       └── health.ts        # GET /api/health
 ├── services/
-│   ├── github/
-│   │   ├── client.ts       # GitHub API client (node-fetch)
-│   │   └── clone-manager.ts # Repository cloning (system git via execFile)
 │   ├── analyzer/
-│   │   └── orchestrator.ts # Analysis orchestrator (coordinates the pipeline)
+│   │   ├── orchestrator.ts  # the pipeline: enumerate → parse → scan → aggregate
+│   │   ├── metrics.ts       # lines, complexity, sections, imports, env/data files
+│   │   ├── git-churn.ts     # churn and author districts, from the staged history
+│   │   ├── duplicates.ts    # clone detection, drawn as yellow lasers
+│   │   ├── coverage.ts      # lcov reader, drawn as blue shields
+│   │   └── gitignore.ts     # ignored paths stay out of the scan surface
 │   └── security/
-│       └── scanner.ts      # Security issue scanner
-├── models/
-│   └── index.ts            # TypeScript interfaces
-│       ├── GitHubRepo
-│       ├── FileAnalysis
-│       ├── SecurityIssue
-│       ├── AnalysisResult
-│       ├── ProjectSummary
-│       └── ProgressEvent
-├── parser/                 # Code parser: lines, complexity, functions
-├── scanner/                # Security pattern matching
-├── ai/                     # AI integration (future)
-└── utils/                  # Helper functions
+│       ├── scanner.ts       # facade: per-run config, filters, dedup, masking
+│       ├── adapter.ts       # the adapter contract all engines implement
+│       ├── adapters/        # regex, gitleaks, semgrep, dependency, osv, ruff
+│       ├── categories.ts    # CWE clusters, selectable per scan
+│       ├── scan-config.ts   # profiles, tool toggles, custom patterns, validation
+│       ├── rule-packs.ts    # local rule bundles and their manifest check
+│       ├── scan-depth.ts    # what a profile actually switches on
+│       ├── dedup.ts         # one finding per file/line/type across engines
+│       ├── redact.ts        # credential values erased before storage
+│       ├── finding-knowledge.ts # explanation, CWE, reference link, category
+│       ├── sarif-mapper.ts  # SARIF 2.1.0 from engine output
+│       └── network-policy.ts# the SKYLINE_OFFLINE switch
+├── models/index.ts          # GitHubRepo, FileAnalysis, SecurityIssue, AnalysisResult
+└── utils/
+    ├── cityMapper.ts        # analysis → city payload (districts, plots, LOD)
+    └── sarif.ts             # SARIF envelope
 ```
 
 ### Analysis Pipeline
 
 ```
-1. CloneManager → clone the repository (system git, shallow by default; fullHistory option for history secret scan)
-2. File Parser → per file: lines, languages, cyclomatic/cognitive complexity
-3. SecurityScanner → pattern matching for vulnerabilities (P0/P1/P2)
-4. Analyzer Orchestrator → aggregate the result → AnalysisResult
-5. Progress events → job-progress map → the frontend polls GET /api/status/:id
+1. Staging        → the browser-posted files are written to an owner-only temp copy
+2. Enumerate      → supported extensions, env files, manifests; caps and skips applied
+3. Parse          → per file: lines, languages, complexity, sections, imports
+4. Deep scan      → semgrep (local pack or registry), gitleaks, ruff, dependency audit
+5. Aggregate      → AnalysisResult: summary, provenance, findings per file
+6. Map            → cityMapper builds the city payload the renderer consumes
+Progress events go to the job-progress map; the frontend polls GET /api/status/:id.
 ```
 
 ### API Design
 
-- **Asynchronous**: `POST /api/analyze` starts the analysis in the background and returns an `analysisId` immediately
-- **Polling**: `GET /api/result/:id/city` and `GET /api/status/:id` for status queries
-- **Progress**: `GET /api/status/:id` only — there is no socket, the frontend polls it every 2 s
-- **In-memory store**: `Map<string, AnalysisResult>` — no persistence (for PoC/development)
+- **Asynchronous**: `POST /api/analyze-local` stages the picked folder, answers `202 { id, statusUrl }` immediately, and runs the analysis in the background
+- **Polling**: `GET /api/status/:id` for progress, `GET /api/result/:id/city` for the finished city — there is no socket, the frontend polls
+- **One orchestrator per request**: the scanner holds the resolved config and per-run adapter state, so two analyses running at once cannot answer with each other's profile
+- **In-memory results**: the last 20 cities for 24 hours. A `?city=<id>` link is a pointer into the running process, not an archive — PNG and SARIF export are the artefacts that outlive it
 
 ### Security Middleware
 
@@ -126,13 +140,14 @@ frontend/src/
 ### State Flow
 
 ```
-User enters a GitHub URL
-  → Zustand: setAnalysisUrl(url)
-  → Backend: POST /api/analyze
-  → Zustand: polling /api/status/:id
-  → Zustand: setAnalysisResult(result)
-  → React Three Fiber: render buildings based on DirectorySummary
-  → InfoPanel: details on building click
+User picks a folder in the browser
+  → the page reads the files client-side (File System Access API, input fallback)
+  → Zustand: pickFolder() → POST /api/analyze-local { name, files, config }
+  → Backend: 202 { id } and the pipeline starts on the staged copy
+  → Zustand: polling /api/status/:id → progress and stage in the HUD
+  → Zustand: fetch /api/result/:id/city → setCityData(), URL becomes ?city=<id>
+  → React Three Fiber: the city builds, then the camera rises to the overview
+  → InfoPanel / ContextCard: details on building click
 ```
 
 ## Deployment Architecture

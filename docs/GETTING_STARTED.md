@@ -66,37 +66,42 @@ curl http://localhost:4000/api/health
 
 ## Configuration
 
-### GitHub token — remote path only (optional)
+### No token, no account
 
-The local folder path — the primary way to use Ephemora Skyline — **works fully without any token**. Nothing is configured, nothing is uploaded.
+Ephemora Skyline needs no credentials to run a scan. You pick a folder, the browser reads it, and the local backend analyses it. There is no remote-repository path — nothing to authorise, nothing to upload.
 
-The `GITHUB_TOKEN` (a GitHub Personal Access Token) applies **only** to the separate remote path (`POST /api/analyze`, which clones a public repository via the GitHub API) and is used **only to raise API rate limits**:
+The one place a GitHub token is used at all is the maintainer script that reads clone statistics (`GH_TOKEN=*** node scripts/clone-stats.mjs`). It never affects a scan.
+
+### Switching the network off
 
 ```bash
-# Optional — remote public-repo path only
-echo 'GITHUB_TOKEN=ghp_...' >> .env
+SKYLINE_OFFLINE=1 npm run dev
 ```
 
-|                      | Local folder path (primary)         | Remote public-repo path                  |
-| -------------------- | ----------------------------------- | ---------------------------------------- |
-| How                  | **Choose project folder** in the UI | `POST /api/analyze`                      |
-| Token required       | No                                  | No (recommended for higher rate limits)  |
-| Where your code goes | Stays on your machine               | Only public repos are cloned from GitHub |
+That answers the update check offline, keeps the OSV and dependency checks from running, and keeps Semgrep off unless you selected a rule pack that is already on disk. The city then reports what it could not check through `scanProvenance` and paints those buildings the colour of ground no scanner looked at. It is an environment variable; there is no switch for it in the interface yet.
+
+|                      | Local folder path (the only path)                                               |
+| -------------------- | ------------------------------------------------------------------------------- |
+| How                  | **Choose project folder** in the UI                                             |
+| Token required       | No                                                                              |
+| Where your code goes | Stays on your machine; the backend stages a private copy in your temp directory |
 
 ### Security scanners (optional, recommended)
 
-Without external binaries the scanner degrades quietly to regex heuristics — scan quality is noticeably lower. The `scanProvenance` field in every result reports honestly which scanners actually ran. The wired adapters are **gitleaks**, **semgrep**, and **npm audit**; install them via Homebrew:
+Without these binaries the scanner does not fail — it reports the affected checks as skipped, and `scanProvenance` in every result says honestly which engines actually ran. Install what you want with Homebrew:
 
 ```bash
-brew install gitleaks semgrep   # macOS (Homebrew) — optional, improves scan quality
+brew install gitleaks semgrep osv-scanner ruff   # macOS — optional, improves scan quality
 ```
 
-| Scanner           | Task                                                                                                               | Without the binary     |
-| ----------------- | ------------------------------------------------------------------------------------------------------------------ | ---------------------- |
-| Regex (always on) | Heuristics: injection, XSS, eval, …                                                                                | —                      |
-| **gitleaks**      | Secrets in the working tree (and optionally Git history)                                                           | entropy-regex fallback |
-| **semgrep**       | AST scan — registry ruleset (`p/security-audit`) or a local [rule pack](../README.md#rule-packs), binary or Docker | skipped                |
-| **npm audit**     | CVEs in dependencies (requires `package-lock.json`)                                                                | skipped                |
+| Scanner           | Task                                                                                                               | Without the binary                                       |
+| ----------------- | ------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------- |
+| Regex (always on) | Heuristics: injection, XSS, eval, unsafe storage, …                                                                | —                                                        |
+| **gitleaks**      | Secrets in the working tree (and in Git history on the deep profile)                                               | entropy-regex fallback, marked as such                   |
+| **semgrep**       | AST scan — registry ruleset (`p/security-audit`) or a local [rule pack](../README.md#rule-packs), binary or Docker | skipped                                                  |
+| **osv-scanner**   | CVEs for every lockfile format it understands                                                                      | falls back to `pip-audit` for Python, `npm audit` for JS |
+| **npm audit**     | CVEs in npm dependencies (requires `package-lock.json`)                                                            | skipped                                                  |
+| **ruff**          | Python lint, contributing to the hygiene category                                                                  | skipped                                                  |
 
 ## Development workflow
 
@@ -210,7 +215,8 @@ docker build -f docker/Dockerfile.frontend -t ephemora-skyline-frontend .
 1. Open the [Render dashboard](https://dashboard.render.com/) → **New +** → **Public Git Repository**.
 2. Select your `Ephemora-Skyline` repository.
 3. Set environment variables:
-   - `GITHUB_TOKEN` (GitHub PAT — optional, raises remote-path rate limits only)
+   - `HOST` — the backend binds `127.0.0.1` by default; a deployed backend has to bind the interface its platform routes to, and the local-only guard on the code-running routes is what still refuses a foreign page's write
+   - `PORT` — the platform's assigned port (default `4000`)
    - `VITE_API_URL` → your backend URL (e.g. `https://ephemora-skyline-backend.onrender.com`)
 4. `render.yaml` is detected automatically and creates:
    - `ephemora-skyline-backend` (Node.js web service)

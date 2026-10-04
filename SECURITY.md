@@ -4,9 +4,10 @@ This document covers **how to report a vulnerability** in Ephemora Skyline itsel
 
 ## How the project is designed to be safe
 
-- **Local-first by design.** When you pick a local folder, file contents are read in-process by the backend on your own machine and never sent to a third party. The remote path (`POST /api/analyze`) is an explicit, separate action that clones a public repo via the GitHub API.
+- **Local-first by design.** When you pick a local folder, the browser reads it and posts the contents to the backend on `127.0.0.1`. Nothing is sent to a third party. There is no remote-repository path in this program: no clone, no upload, no account.
+- **The backend binds to loopback** (`127.0.0.1` by default; `HOST` overrides it deliberately), and the two routes that execute anything reject writes that came from a foreign web page — checked on `Origin` and `Sec-Fetch-Site`, because CORS limits what a page may read, not what it may send.
 - **No shell interpolation for git.** Git runs through `execFile` with an argument array, never a shell string, so file/folder names cannot be used to inject commands.
-- **Bounded input.** Local analysis is capped at 3000 files / 40 MB and skips `node_modules`, `.git`, and build directories.
+- **Bounded input.** Local analysis is capped at 3000 files / 40 MB / 2 MB per file and skips `node_modules`, build output and other directories that hold no relevant source. `.git` is **not** skipped — it arrives within its own 20 MB budget because churn, author districts and the deep profile's history scan need commit history. The staged copy is written owner-only (`0700`) under `$TMPDIR/codecity-uploads/<id>` and swept after a TTL.
 - **Secret scanning.** Findings come from regex heuristics plus `gitleaks` (secrets), `semgrep` (AST), and dependency audit — surfaced as beacons, not silently.
 
 ## Reporting a vulnerability
