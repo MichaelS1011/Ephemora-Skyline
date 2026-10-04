@@ -80,24 +80,40 @@ export function projectKey(repo: { owner: string; name: string }): string {
 }
 
 /**
- * Verdicts stored under an older, per-scan key that the current project bucket
- * cannot reach. Reported so the panel can say "these exist and did not carry
- * over" instead of looking like the reviewer never triaged anything.
+ * Verdicts in this project's bucket that no finding in the city on screen
+ * carries any more.
+ *
+ * That is what actually happens after a rename or a rewrite: the fingerprint
+ * moves, the verdict stays behind, and nothing about it is visible — the panel
+ * reads as if the person had never triaged. Reported so the panel can say it,
+ * rather than letting the work look lost or the count look right.
  */
-export function countOrphanedReviews(currentKey: string): number {
-  if (typeof window === "undefined") return 0;
-  let total = 0;
-  try {
-    for (let i = 0; i < window.localStorage.length; i++) {
-      const key = window.localStorage.key(i);
-      if (!key?.startsWith(PREFIX) || key === PREFIX + currentKey) continue;
-      const raw = window.localStorage.getItem(key);
-      if (!raw) continue;
-      const parsed = JSON.parse(raw) as Record<string, ReviewStatus>;
-      total += Object.keys(parsed).length;
+export function countStrandedVerdicts(
+  reviews: Record<string, ReviewStatus>,
+  city: unknown,
+): number {
+  const getragen = new Set<string>();
+  const stack: unknown[] = [city];
+  const gesehen = new WeakSet<object>();
+  while (stack.length) {
+    const n = stack.pop();
+    if (!n || typeof n !== "object" || gesehen.has(n as object)) continue;
+    gesehen.add(n as object);
+    if (Array.isArray(n)) {
+      for (const k of n) stack.push(k);
+      continue;
     }
-  } catch {
-    return 0;
+    const o = n as Record<string, unknown>;
+    if (Array.isArray(o.findings)) {
+      for (const v of o.findings as { fingerprint?: string }[]) {
+        if (v?.fingerprint) getragen.add(v.fingerprint);
+      }
+    }
+    for (const v of Object.values(o)) stack.push(v);
   }
-  return total;
+  let stranded = 0;
+  for (const key of Object.keys(reviews)) {
+    if (key.startsWith("fp:") ? !getragen.has(key.slice(3)) : true) stranded++;
+  }
+  return stranded;
 }

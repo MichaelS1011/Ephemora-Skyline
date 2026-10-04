@@ -1,12 +1,13 @@
 // @vitest-environment jsdom
 import { describe, it, expect, beforeEach } from "vitest";
+import { useStore } from "../src/stores/useStore";
 import {
   findingKey,
   reviewKeyFor,
   projectKey,
   loadReviews,
   saveReviews,
-  countOrphanedReviews,
+  countStrandedVerdicts,
 } from "../src/reviews";
 
 /**
@@ -47,18 +48,84 @@ describe("review storage", () => {
     );
   });
 
-  it("counts verdicts it cannot reach, so the panel can say so", () => {
-    const alt = projectKey({ owner: "local", name: "anderes" });
-    saveReviews(alt, { "fp:1": "reviewed", "fp:2": "to-fix" });
-    const eigen = projectKey({ owner: "local", name: "eigenes" });
-    expect(countOrphanedReviews(eigen)).toBe(2);
-    saveReviews(eigen, { "fp:3": "reviewed" });
-    expect(countOrphanedReviews(eigen), "the current bucket is not an orphan").toBe(2);
+  it("counts verdicts that match no finding in the city on screen", () => {
+    const stadt = {
+      path: "src/db.ts",
+      findings: [
+        { line: 2, fingerprint: "aaa" },
+        { line: 7, fingerprint: "bbb" },
+      ],
+      children: [{ path: "src/x.ts", findings: [{ line: 1, fingerprint: "ccc" }] }],
+    };
+    expect(countStrandedVerdicts({ "fp:aaa": "reviewed", "fp:ccc": "to-fix" }, stadt)).toBe(0);
+    expect(
+      countStrandedVerdicts(
+        { "fp:aaa": "reviewed", "fp:xyz": "to-fix", "alt:1": "reviewed" },
+        stadt,
+      ),
+    ).toBe(2);
   });
 
-  it("ignores garbage in storage instead of throwing", () => {
+  it("reads garbage in storage as nothing rather than throwing", () => {
     localStorage.setItem("codecity-reviews:kaputt", "{not json");
-    expect(countOrphanedReviews(projectKey({ owner: "o", name: "n" }))).toBe(0);
     expect(loadReviews("kaputt")).toEqual({});
+    expect(loadReviews("codecity-reviews:kaputt")).toEqual({});
+  });
+});
+
+/**
+ * The helper is not the feature — the panel reads `orphanedReviews`, and only
+ * the store knows both the bucket and the city. This is the wiring test.
+ */
+describe("the store reports stranded verdicts when a city loads", () => {
+  const stadt = (name: string) =>
+    ({
+      repo: { owner: "local", name, branch: "local" },
+      analysisId: "scan-1",
+      totalFiles: 1,
+      renderedFiles: 1,
+      totalLines: 10,
+      findingsBySeverity: { P0: 1, P1: 0, P2: 0 },
+      languages: { TypeScript: 10 },
+      fileConnections: [],
+      dirConnections: [],
+      meta: {},
+      tree: { name, path: "", children: [], detailFiles: [], districtFiles: [], remainingFiles: 0 },
+      additionalFiles: [
+        {
+          id: "f-abc",
+          name: "db.ts",
+          path: "src/db.ts",
+          language: "TypeScript",
+          linesOfCode: 10,
+          cyclomaticComplexity: 1,
+          threatLevel: "high",
+          findings: [
+            { type: "EVAL_USAGE", severity: "P0", line: 4, message: "m", fingerprint: "aaa" },
+          ],
+        },
+      ],
+    }) as never;
+
+  it("counts the verdict that no finding carries", () => {
+    localStorage.clear();
+    useStore.getState().resetToLanding();
+    const st = stadt("wiring-projekt");
+    saveReviews(projectKey({ owner: "local", name: "wiring-projekt" }), {
+      "fp:aaa": "to-fix",
+      "fp:weg": "reviewed",
+      "f-1#0": "false-positive",
+    });
+    useStore.getState().setCityData(st);
+    const s = useStore.getState();
+    expect(s.reviews["fp:aaa"], "the matching verdict is live").toBe("to-fix");
+    expect(s.orphanedReviews).toBe(2);
+  });
+
+  it("reports nothing stranded for a city without verdicts", () => {
+    localStorage.clear();
+    useStore.getState().resetToLanding();
+    useStore.getState().setCityData(stadt("frisch-projekt"));
+    expect(useStore.getState().orphanedReviews).toBe(0);
   });
 });

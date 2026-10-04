@@ -18,7 +18,13 @@ import { findVoxelForLine } from "../city/voxels";
 import { loadSavedProfile, saveProfile, type ScanProfile } from "../config/scanProfiles";
 import { loadSavedCategories, saveCategories } from "../config/findingCategories";
 import { loadSavedPacks, savePacks, type RulePackInfo } from "../config/rulePacks";
-import { countOrphanedReviews, findingKey, loadReviews, projectKey, saveReviews } from "../reviews";
+import {
+  countStrandedVerdicts,
+  findingKey,
+  loadReviews,
+  projectKey,
+  saveReviews,
+} from "../reviews";
 import { loadPrefs, savePrefs, type Prefs } from "../prefs";
 
 export interface FlyRequest {
@@ -372,6 +378,9 @@ export const useStore = create<AppState>((set, get) => ({
   constructionTotal: 0,
   constructionDone: 0,
   setCityData: (data) => {
+    // Review state belongs to the PROJECT, not to the scan that happened to
+    // produce this city: a re-scan reads back the same verdicts.
+    const reviews = data ? loadReviews(projectKey(data.repo)) : {};
     set({
       cityData: data,
       focusPath: [],
@@ -393,11 +402,8 @@ export const useStore = create<AppState>((set, get) => ({
       triageTotal: 0,
       focusedFindingKey: null,
       cameraMode: "free",
-      // Review state belongs to the PROJECT, not to the scan that happened to
-      // produce this city: a re-scan reads back the same verdicts. The demo
-      // carries the stable name "demo-city" and so keeps one bucket of its own.
-      reviews: data ? loadReviews(projectKey(data.repo)) : {},
-      orphanedReviews: data ? countOrphanedReviews(projectKey(data.repo)) : 0,
+      reviews,
+      orphanedReviews: countStrandedVerdicts(reviews, data),
       testRun: { status: "idle", stage: "" },
       testResults: {},
       buildPhase: data ? "constructing" : "empty",

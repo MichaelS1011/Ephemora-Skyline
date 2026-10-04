@@ -1022,8 +1022,8 @@ export const DICT = {
     de: "{count} weitere liegen auf Dateien, die diese Ansicht nicht zeichnet",
   },
   "findings.orphanedReviews": {
-    en: "{count} verdicts come from an older scan and could not be carried over",
-    de: "{count} Bewertungen stammen aus einem früheren Scan und ließen sich nicht übernehmen",
+    en: "Recorded verdicts with no matching finding here: {count} — a renamed file or a rewritten line moves a finding",
+    de: "Gespeicherte Bewertungen ohne passenden Fund in dieser Stadt: {count} — eine umbenannte Datei oder eine umgeschriebene Zeile verschiebt einen Fund",
   },
   "findings.moreRules": {
     en: "+{count} rules",
