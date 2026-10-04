@@ -71,7 +71,7 @@ function getFacadeTextures(
   const tintHex = `#${tint.getHexString()}`;
   const seam = `#${tint.clone().multiplyScalar(1.16).getHexString()}`;
   const floorSeam = `#${tint.clone().multiplyScalar(0.88).getHexString()}`;
-  const glass = "#3c414c"; // dark glazed slot multiplier
+  const glass = "#839fae"; // dark glazed slot multiplier
   const litColor = alarm ? ENV.windowAlarm : ENV.windowWarm;
   const litCool = alarm ? "#ff8f9a" : ENV.windowCool;
 
@@ -501,21 +501,21 @@ export function Building({
     if (monolith) {
       // Bloat monolith: near-black, featureless slab — reads as wasted space
       const side = new THREE.MeshStandardMaterial({
-        color: "#0c0c0b",
+        color: "#5d7180",
         roughness: 0.35,
         metalness: 0.55,
         transparent: dimmed || voxelStage,
         opacity: dimmed ? 0.12 : voxelStage ? 0.3 : 1,
       });
       const roof = new THREE.MeshStandardMaterial({
-        color: "#0a0a09",
+        color: "#445b6b",
         roughness: 0.3,
         metalness: 0.6,
         transparent: dimmed || voxelStage,
         opacity: dimmed ? 0.1 : voxelStage ? 0.26 : 1,
       });
-      side.userData.baseColor = "#0c0c0b";
-      roof.userData.baseColor = "#0a0a09";
+      side.userData.baseColor = "#5d7180";
+      roof.userData.baseColor = "#445b6b";
       return [side, side, roof, roof, side, side];
     }
     if (matState === "glass") {
@@ -540,7 +540,7 @@ export function Building({
     }
     // Dark-metal body: graphite panels, faint env response, calm raster glow
     const side = new THREE.MeshStandardMaterial({
-      color: "#23252b",
+      color: "#a6b9c7",
       map: facade!.map,
       emissiveMap: facade!.emissive,
       emissive: new THREE.Color(0xffffff),
@@ -554,15 +554,15 @@ export function Building({
       opacity: dimmed ? 0.12 : voxelStage ? 0.32 : 1,
     });
     const roof = new THREE.MeshStandardMaterial({
-      color: erosion === "stable" || erosion === "unknown" ? "#191917" : "#171310",
+      color: erosion === "stable" || erosion === "unknown" ? "#748c9e" : "#84796c",
       roughness: 0.9,
       metalness: 0.2,
       transparent: dimmed || voxelStage,
       opacity: dimmed ? 0.12 : voxelStage ? 0.26 : 1,
     });
-    side.userData.baseColor = "#23252b";
+    side.userData.baseColor = "#a6b9c7";
     side.userData.baseEmissive = voxelStage ? 0.15 : matState === "alarm" ? 1.15 : 0.55;
-    roof.userData.baseColor = erosion === "stable" || erosion === "unknown" ? "#191917" : "#171310";
+    roof.userData.baseColor = erosion === "stable" || erosion === "unknown" ? "#748c9e" : "#84796c";
     return [side, side, roof, roof, side, side];
   }, [voxelBody, facade, dimmed, matState, erosion, monolith, voxelStage]);
 

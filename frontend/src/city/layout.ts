@@ -811,6 +811,10 @@ export function allFiles(city: CityData): FileHit[] {
   if (cached) return cached;
   const out: FileHit[] = [];
   walkFiles(city.tree, [], out);
+  const seen = new Set(out.map((hit) => hit.file.id));
+  for (const file of city.additionalFiles ?? []) {
+    if (!seen.has(file.id)) out.push({ file, chain: file.path.split("/").slice(0, -1) });
+  }
   allFilesCache.set(city, out);
   return out;
 }

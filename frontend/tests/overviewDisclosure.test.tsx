@@ -255,7 +255,7 @@ describe("project overview", () => {
       unclassified: 0,
     };
     const text = await show(<ContextCard />, city);
-    expect(text).toContain("injection 4 · hygiene 3");
+    expect(text).toContain("Injection & execution 4 · Code hygiene 3");
   });
 
   it("names the kinds nobody looked for when their engines were off", async () => {

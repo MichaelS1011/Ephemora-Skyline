@@ -156,6 +156,26 @@ describe("mapResultToCityData", () => {
     expect(result.totalFiles).toBe(60);
   });
 
+  it("preserves all findings and files beyond the visual budget", () => {
+    const files = Array.from({ length: 60 }, (_, i) =>
+      makeFile({
+        path: `big/f${i}.ts`,
+        vulnerabilities: Array.from({ length: 9 }, (_, line) => ({
+          type: "EVAL_USAGE",
+          severity: "P0" as const,
+          score: 10,
+          line: line + 1,
+          code: "eval(input)",
+          message: "Review execution",
+        })),
+      }),
+    );
+    const city = mapResultToCityData(makeResult(files));
+    const all = [...city.tree.children[0]!.detailFiles, ...(city.additionalFiles ?? [])];
+    expect(new Set(all.map((f) => f.id)).size).toBe(60);
+    expect(all.reduce((n, f) => n + f.findings.length, 0)).toBe(540);
+  });
+
   it("never double-counts remainingFiles in nested trees", () => {
     // 21 files across backend/src/{server/routes(8), services(10), models(3)}
     // — all rendered (under the cap), so NO level may report remaining files.

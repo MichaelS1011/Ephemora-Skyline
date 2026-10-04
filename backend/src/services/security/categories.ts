@@ -125,9 +125,10 @@ const CWE_TO_CATEGORY: Readonly<Record<number, FindingCategory>> = {
 
 /** Types that are a category by definition and carry no CWE to derive from. */
 const TYPE_TO_CATEGORY: Readonly<Record<string, FindingCategory>> = {
+  VULNERABLE_DEPENDENCY: "dependencies",
   LOOSE_EQUALITY: "hygiene",
   DESTRUCTIVE_COMMAND: "permissions",
-  CONSOLE_USAGE: "exposure",
+  CONSOLE_USAGE: "hygiene",
 };
 
 /**

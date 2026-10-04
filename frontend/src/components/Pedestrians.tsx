@@ -87,14 +87,14 @@ interface Ephe {
 }
 
 const WALKER_COLORS = [
-  "#f2efe8",
-  "#e0d8c8",
-  "#c9c4b8",
-  "#d8cdb4",
-  "#e8503c",
-  "#e8b23c",
-  "#a8a49a",
-  "#9a8f7d",
+  "#527f93",
+  "#658c7b",
+  "#7487b3",
+  "#d2a55d",
+  "#7b96a6",
+  "#a4869a",
+  "#437d80",
+  "#ac8260",
 ];
 const WALK_SPEED = 2.3;
 const TURN_SPEED = 3.4;
@@ -219,6 +219,9 @@ export function Pedestrians({
 }) {
   const bodyRef = useRef<THREE.InstancedMesh>(null);
   const headRef = useRef<THREE.InstancedMesh>(null);
+  const faceRef = useRef<THREE.InstancedMesh>(null);
+  const eyeRef = useRef<THREE.InstancedMesh>(null);
+  const footRef = useRef<THREE.InstancedMesh>(null);
   const hatRef = useRef<THREE.InstancedMesh>(null);
   const cargoRef = useRef<THREE.InstancedMesh>(null);
   const taxiRef = useRef<THREE.Group>(null);
@@ -348,9 +351,12 @@ export function Pedestrians({
 
   const dummy = useMemo(() => new THREE.Object3D(), []);
   const scratchColor = useMemo(() => new THREE.Color(), []);
-  const bodyGeo = useMemo(() => new THREE.CapsuleGeometry(0.17, 0.42, 3, 8), []);
-  const headGeo = useMemo(() => new THREE.SphereGeometry(0.14, 8, 6), []);
-  const hatGeo = useMemo(() => new THREE.ConeGeometry(0.16, 0.22, 8), []);
+  const bodyGeo = useMemo(() => new THREE.CapsuleGeometry(0.2, 0.38, 4, 10), []);
+  const headGeo = useMemo(() => new THREE.SphereGeometry(0.23, 12, 8), []);
+  const faceGeo = useMemo(() => new THREE.SphereGeometry(1, 10, 6), []);
+  const eyeGeo = useMemo(() => new THREE.SphereGeometry(0.028, 6, 4), []);
+  const footGeo = useMemo(() => new THREE.SphereGeometry(1, 8, 6), []);
+  const hatGeo = useMemo(() => new THREE.ConeGeometry(0.25, 0.2, 12), []);
   // One full-size building block, not a pebble: at the framing the build
   // plays in, a 0.3-unit cube is three pixels and the choreography is lost.
   const cargoGeo = useMemo(() => new THREE.BoxGeometry(0.82, 0.82, 0.82), []);
@@ -1047,10 +1053,42 @@ export function Pedestrians({
       dummy.updateMatrix();
       heads.setMatrixAt(i, dummy.matrix);
 
+      // A cream head, dark face and two eyes give each Ephe a readable direction.
+      // All residents share five instanced meshes; no per-resident draw calls.
+      const forwardX = Math.sin(e.angle);
+      const forwardZ = Math.cos(e.angle);
+      const width = e.fat * grow * visibleScale;
+      const headY = y + 0.46 * e.tall * grow;
+      dummy.rotation.set(0, e.angle, 0);
+      dummy.position.set(e.x + forwardX * 0.19 * width, headY, e.z + forwardZ * 0.19 * width);
+      dummy.scale.set(0.17 * width, 0.12 * vScale, 0.07 * width);
+      dummy.updateMatrix();
+      faceRef.current?.setMatrixAt(i, dummy.matrix);
+      for (let side = 0; side < 2; side++) {
+        const lateral = side === 0 ? -1 : 1;
+        dummy.position.set(
+          e.x + (forwardX * 0.252 + forwardZ * lateral * 0.065) * width,
+          headY + 0.016 * vScale,
+          e.z + (forwardZ * 0.252 - forwardX * lateral * 0.065) * width,
+        );
+        dummy.scale.setScalar(vScale);
+        dummy.updateMatrix();
+        eyeRef.current?.setMatrixAt(i * 2 + side, dummy.matrix);
+        const step = moving ? Math.sin(now * 7 * e.tall + e.phase) * lateral : 0;
+        dummy.position.set(
+          e.x + (forwardZ * lateral * 0.12 + forwardX * step * 0.1) * width,
+          (0.075 + Math.max(0, step) * 0.05) * vScale,
+          e.z + (-forwardX * lateral * 0.12 + forwardZ * step * 0.1) * width,
+        );
+        dummy.scale.set(0.1 * width, 0.075 * vScale, 0.16 * width);
+        dummy.updateMatrix();
+        footRef.current?.setMatrixAt(i * 2 + side, dummy.matrix);
+      }
+
       if (hats) {
         // only builders wear the hat; everyone else collapses to scale 0
         const builder = (e.mode === "work" || e.mode === "toSite") && visibleScale > 0;
-        dummy.position.set(e.x, y + 0.46 * e.tall * grow + 0.16 * vScale, e.z);
+        dummy.position.set(e.x, y + 0.46 * e.tall * grow + 0.24 * vScale, e.z);
         dummy.rotation.set(0, 0, 0);
         dummy.scale.setScalar(builder ? vScale : 0);
         dummy.updateMatrix();
@@ -1098,6 +1136,9 @@ export function Pedestrians({
     });
     bodies.instanceMatrix.needsUpdate = true;
     heads.instanceMatrix.needsUpdate = true;
+    for (const mesh of [faceRef.current, eyeRef.current, footRef.current]) {
+      if (mesh) mesh.instanceMatrix.needsUpdate = true;
+    }
     if (hats) hats.instanceMatrix.needsUpdate = true;
   });
 
@@ -1107,7 +1148,17 @@ export function Pedestrians({
         <meshStandardMaterial roughness={0.85} metalness={0.02} />
       </instancedMesh>
       <instancedMesh ref={headRef} args={[headGeo, undefined, count]} frustumCulled={false}>
-        <meshStandardMaterial color="#e8d8b0" roughness={0.7} />
+        <meshStandardMaterial color="#f6ead4" roughness={0.8} />
+      </instancedMesh>
+
+      <instancedMesh ref={faceRef} args={[faceGeo, undefined, count]} frustumCulled={false}>
+        <meshStandardMaterial color="#263e4b" roughness={0.75} />
+      </instancedMesh>
+      <instancedMesh ref={eyeRef} args={[eyeGeo, undefined, count * 2]} frustumCulled={false}>
+        <meshBasicMaterial color="#f8fcff" />
+      </instancedMesh>
+      <instancedMesh ref={footRef} args={[footGeo, undefined, count * 2]} frustumCulled={false}>
+        <meshStandardMaterial color="#354b59" roughness={0.9} />
       </instancedMesh>
 
       {/* Builder hats — only in the scene while build sites are scheduled */}

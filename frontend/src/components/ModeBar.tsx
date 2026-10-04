@@ -11,7 +11,7 @@ import { t, type DictKey } from "../i18n";
  * - SECURITY      the city darkens, only the alarm buildings stay lit
  * - DEPENDENCIES  the buildings recede, the dependency veins glow
  *
- * Rendered by CityTree as a screen-fixed drei Html overlay (top center, on
+ * Rendered by App outside the canvas as a screen-fixed DOM control (top center, on
  * the same row as the workspace search), only once the construction
  * cinematic has finished. Nothing else lives here — the mode bar is pure
  * intent, the scene reacts through the store.
@@ -44,8 +44,11 @@ export function ModeBar() {
             aria-checked={active}
             title={t(lang, tipKey)}
             data-tip={t(lang, tipKey)}
-            onClick={() => setViewMode(id)}
-            className="font-mono text-[11px] tracking-wider px-1.5 py-0.5 rounded transition-all duration-150
+            onClick={(event) => {
+              event.stopPropagation();
+              setViewMode(id);
+            }}
+            className="font-mono text-[12px] px-1.5 py-0.5 rounded transition-all duration-150
                        focus:outline-none focus:ring-1 focus:ring-[#e8503c] cursor-pointer
                        hover:brightness-125 active:scale-[0.96]"
             style={{

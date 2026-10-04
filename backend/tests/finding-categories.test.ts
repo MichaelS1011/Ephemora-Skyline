@@ -161,7 +161,7 @@ describe("the city publishes its categories", () => {
     } as never);
     expect(city.findingsByCategory.injection).toBe(1);
     expect(city.findingsByCategory.secrets).toBe(1);
-    expect(city.findingsByCategory.exposure).toBe(1);
+    expect(city.findingsByCategory.hygiene).toBe(1);
     const src = city.tree.children.find((d) => d.name === "src");
     expect(src?.findingsByCategory.injection).toBe(1);
     expect(city.findingsByCategory.unclassified).toBe(0);

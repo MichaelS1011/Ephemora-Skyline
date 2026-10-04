@@ -147,13 +147,13 @@ describe("new finding types on the code the scan already sees", () => {
    * A fixture string that describes a destructive command is not a machine
    * about to run one.
    */
-  it("reads runtime danger in a test file as a smell, not an alarm", () => {
+  it("does not mistake quoted fixture text for an executed shell command", () => {
     const findings = adapter.scanFile(
       "tests/fixtures.sh.test.ts",
       'expect(run("rm -rf / --no-preserve-root")).toBe(false);\n',
     );
     const hit = findings.find((f) => f.type === "DESTRUCTIVE_COMMAND");
-    expect(hit?.severity).toBe("P2");
+    expect(hit).toBeUndefined();
   });
 
   it("keeps the same command outside a test file an alarm", () => {

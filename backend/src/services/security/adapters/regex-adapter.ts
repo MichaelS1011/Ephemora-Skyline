@@ -1,3 +1,4 @@
+import { syntaxContext } from "../syntax-context.js";
 import type { SecurityIssue } from "../../../models/index.js";
 import {
   detectLanguage,
@@ -142,7 +143,7 @@ export const REGEX_PATTERNS: ScanPattern[] = [
     regex: /console\.(?:log|debug|info|warn)\s*\(/g,
     type: "CONSOLE_USAGE",
     severity: "P2",
-    message: "console statement — may leak sensitive data in production",
+    message: "Console output — review logged values (informational)",
     fix: "Use a structured logger (pino, winston) with log levels",
     score: 3,
   },
@@ -159,10 +160,10 @@ export const REGEX_PATTERNS: ScanPattern[] = [
     score: 2,
   },
   {
-    regex: /localStorage\.(?:getItem|setItem|removeItem)\s*\(/g,
+    regex: /localStorage\.setItem\s*\(/g,
     type: "LOCALSTORAGE_USAGE",
     severity: "P2",
-    message: "localStorage usage — sensitive data should not be stored client-side",
+    message: "Potential sensitive value written to localStorage — verify the stored data",
     fix: "Use httpOnly cookies or secure server-side storage",
     score: 3,
   },
@@ -265,6 +266,7 @@ export class RegexAdapter implements ScannerAdapter {
     // and the shown code still come from the original text, which is the whole
     // point of a mask that keeps its length.
     const scannable = maskForScanning(content, detectLanguage(filePath));
+    const syntax = isJsFamily ? syntaxContext(filePath, content) : null;
 
     // Heuristic: findings in test/spec files are lower priority
     const isTestFile =
@@ -395,6 +397,10 @@ export class RegexAdapter implements ScannerAdapter {
       let match: RegExpExecArray | null;
       while ((match = regex.exec(scannable)) !== null) {
         const lineNum = findLineNum(match.index);
+        if (syntax && !syntax.allows(match.index, pattern.type)) {
+          if (match[0].length === 0) regex.lastIndex++;
+          continue;
+        }
         // Never flag prose: comments, docstrings
         if (suppressedLines.has(lineNum)) {
           if (match[0].length === 0) regex.lastIndex++;

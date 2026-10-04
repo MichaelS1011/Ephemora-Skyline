@@ -127,8 +127,8 @@ function getVoxelGeometry(voxelSize: number): THREE.BoxGeometry {
 
 // ── Material variants (voxel-body mode: the blocks ARE the building) ────────
 // Three semantic variants, mirroring the legacy silhouette's material states:
-//  - normal    graphite blocks (healthy structure)
-//  - monolith  near-black featureless blocks (bloat LOC ≥ 150 KB)
+//  - normal    blue-gray blocks (healthy structure)
+//  - monolith  dark slate featureless blocks (bloat LOC ≥ 150 KB)
 //  - glass     translucent blocks (dead code)
 // Dimming composes the focus-tier and view-mode brightness multipliers into
 // ONE factor applied as a color multiply — never opacity, which sorts wrong.
@@ -140,8 +140,8 @@ function getVoxelGeometry(voxelSize: number): THREE.BoxGeometry {
 export type VoxelVariant = "normal" | "monolith" | "glass";
 
 const BASE_VOXEL_COLORS: Record<VoxelVariant, string> = {
-  normal: "#2e3138",
-  monolith: "#0c0c0b",
+  normal: "#a6b9c7",
+  monolith: "#5d7180",
   glass: "#8ea4b8",
 };
 

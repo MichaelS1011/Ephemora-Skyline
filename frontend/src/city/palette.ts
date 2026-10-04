@@ -1,5 +1,5 @@
 /**
- * City palette — SimCity@Dusk.
+ * City palette — a daylight architectural model.
  *
  * Encoding rules (meaning never carried by colour alone):
  * - Facade colour encodes the file's LANGUAGE (colorblind-safe hues).
@@ -242,26 +242,20 @@ export function authorColor(name: string): string {
   return AUTHOR_PALETTE[h % AUTHOR_PALETTE.length]!;
 }
 
-// ── Environment (corporate dusk: a warm world before dark, vermilion glow) ─
-// Measured on a built city: with the previous band (sky 30, ground 35, road 29
-// in luminance) 88 % of all pixels sat in the darkest eighth of the range, so
-// the scene read as night rather than dusk and the geometry had no shape at
-// orbit distance. The lift keeps the ordering that carries the legibility —
-// road < ground < plot, and fog above every surface it hides, so distance
-// hazes into a glowing horizon instead of flattening into black.
+// Daylight environment: slate roads, pale plots and cool atmospheric haze.
 
 export const ENV = {
-  skyTop: "#443f35",
+  skyTop: "#dcecf5",
   // Fog sits ABOVE every surface it hides, or distance flattens into black
   // instead of lifting into haze.
-  fog: "#5b5647",
-  ground: "#3a372d",
-  plot: "#47443a",
-  plotEdge: "#6d675a",
-  road: "#2f2d27",
-  curb: "#605c50",
-  crosswalk: "#b3ad9c",
-  laneDash: "#e2c069",
+  fog: "#dcecf5",
+  ground: "#b7c9d2",
+  plot: "#d5e0e4",
+  plotEdge: "#91a5b1",
+  road: "#718591",
+  curb: "#b6c7cc",
+  crosswalk: "#f2f6f6",
+  laneDash: "#e6d9ac",
   streetlight: "#ffd9a0",
   windowWarm: "#ffc470",
   windowCool: "#e8d8b0",

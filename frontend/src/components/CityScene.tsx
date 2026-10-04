@@ -1,19 +1,17 @@
 "use client";
 
 import { useEffect, useMemo, useRef } from "react";
-import { Stars } from "@react-three/drei";
 import { useThree } from "@react-three/fiber";
 import { useStore } from "../stores/useStore";
 import { getDirLayout, OVERVIEW_FACTOR } from "../city/layout";
 import { ENV } from "../city/palette";
 import { CameraRig } from "./CameraRig";
 import { CityTree } from "./CityTree";
-import { ParticleField } from "./ParticleField";
 import { Pedestrians } from "./Pedestrians";
 
 /**
- * The city at dusk: hemisphere skylight, warm key light, cool fill,
- * stars, fog that scales with the district you are in, and the ground.
+ * A daylight city: broad skylight, warm key light, cool fill,
+ * distant haze that scales with the district you are in, and the ground.
  */
 export function CityScene() {
   const cityData = useStore((s) => s.cityData);
@@ -23,12 +21,9 @@ export function CityScene() {
   const buildPhase = useStore((s) => s.buildPhase);
   const { camera, gl } = useThree();
 
-  // ACES has a toe steep enough to floor an entire dusk scene: measured on a
-  // built city it left 78 % of all pixels under 20/255, so nothing had shape.
-  // The exposure lifts the mid-tones out of the toe while leaving the
-  // highlight rolloff that keeps the lit windows from clipping.
+  // Preserve daylight midtones without clipping light facades.
   useEffect(() => {
-    gl.toneMappingExposure = 1.35;
+    gl.toneMappingExposure = 1.1;
     return () => {
       gl.toneMappingExposure = 1;
     };
@@ -89,30 +84,17 @@ export function CityScene() {
     <>
       <CameraRig />
 
-      {/* Corporate dusk: warm charcoal sky, ember sun, vermilion city glow */}
+      {/* Soft daylight keeps buildings and citizens readable without glow. */}
       {/* The canvas has no clear colour of its own, so past the edge of the
           ground plane the world dissolved into the HUD's page charcoal. */}
       <color attach="background" args={[ENV.skyTop]} />
-      <hemisphereLight args={["#8a8272", "#4a463c", 1.25]} />
-      <directionalLight position={[60, 55, 30]} intensity={1.05} color="#ffd9a8" />
-      <directionalLight position={[-45, 35, -35]} intensity={0.55} color="#e8c890" />
-      <ambientLight intensity={0.55} />
-      {/* Warm city glow pooling over the plaza — deepens the dusk, no shadows */}
-      <pointLight
-        position={[0, 16, 0]}
-        color="#e8a070"
-        intensity={bounds * 2.4}
-        distance={bounds * 2.2 + 60}
-        decay={2}
-      />
-
+      <hemisphereLight args={["#e5f4ff", "#9caeb2", 2.2]} />
+      <directionalLight position={[60, 55, 30]} intensity={2.1} color="#fff4df" />
+      <directionalLight position={[-45, 35, -35]} intensity={0.85} color="#c6e4ff" />
+      <ambientLight intensity={0.65} />
       {/* Atmosphere scales with the current district size. `near` starts past
           the far edge of the plaza, so the city itself is never hazed away. */}
       <fog attach="fog" args={[ENV.fog, bounds * 2.2, bounds * 4 + 220]} />
-      {/* A lifted dusk sky cannot hold 2 600 stars — a sky bright enough to see
-          the streets by is a sky where only the first stars have come out. */}
-      <Stars radius={260} depth={70} count={700} factor={1.5} saturation={0} fade speed={0.6} />
-
       {/* Asphalt ground */}
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.05, 0]}>
         <planeGeometry args={[1200, 1200]} />
@@ -124,8 +106,6 @@ export function CityScene() {
       {!cityData && <Pedestrians streets={null} count={46} bounds={42} />}
 
       {cityData && <CityTree />}
-
-      <ParticleField count={200} bounds={bounds} />
     </>
   );
 }

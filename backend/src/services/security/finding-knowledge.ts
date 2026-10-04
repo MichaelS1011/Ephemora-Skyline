@@ -81,13 +81,13 @@ export const FINDING_KNOWLEDGE: Record<string, FindingKnowledge> = {
   },
   VULNERABLE_DEPENDENCY: {
     explain:
-      "One of your dependencies has a known vulnerability (CVE). You are vulnerable just by importing it — update to the fixed version.",
+      "The installed package version matches a published vulnerability advisory. Check whether the affected API and inputs are reachable, including in build tools. Review the advisory for a fix or mitigation.",
     cwe: "CWE-1104",
     refUrl: "https://osv.dev/",
   },
   CONSOLE_USAGE: {
     explain:
-      "console output can leak internal data in production and adds noise. Use a structured logger with levels and strip debug logs from shipped code.",
+      "This rule detects console output, not a proven data leak. Inspect the logged values and the runtime context. Ordinary status messages may need no change; redact sensitive data and use log levels where appropriate.",
     cwe: "CWE-532",
     refUrl: "https://cwe.mitre.org/data/definitions/532.html",
   },
@@ -230,7 +230,18 @@ export function enrichIssues(issues: SecurityIssue[], content?: string): void {
     // After the knowledge pass, because the category is derived from the CWE
     // this is the place that attaches.
     if (!issue.category) issue.category = categoryOf(issue.type, issue.cwe);
-    if (!issue.snippet) {
+    if (content && issue.packageName && !issue.snippet) {
+      const lines = content.split("\n");
+      const needle = JSON.stringify(`node_modules/${issue.packageName}`);
+      const row = lines.findIndex(
+        (line, i) =>
+          line.includes(needle) &&
+          (!issue.packageVersion ||
+            lines.slice(i, i + 5).some((l) => l.includes(JSON.stringify(issue.packageVersion)))),
+      );
+      if (row >= 0) issue.line = row + 1;
+    }
+    if (!issue.snippet && !issue.historyCommit && issue.provenance !== "gitleaks-history") {
       issue.snippet = buildSnippet(content, issue.line);
     }
     // Every code frame is masked, not only the credential finding's own.

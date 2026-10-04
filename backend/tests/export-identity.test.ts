@@ -45,3 +45,14 @@ describe("the product's own identity", () => {
     expect((await getHealth()).version).not.toBe("1.0.0");
   });
 });
+
+it("exports history as historical evidence, never as a current source location", () => {
+  const historical = structuredClone(result);
+  historical.files[0]!.vulnerabilities[0]!.provenance = "gitleaks-history";
+  historical.files[0]!.vulnerabilities[0]!.historyCommit = "abc123";
+  const finding = resultToSarif(historical).runs[0]!.results[0]!;
+  expect(finding.locations).toEqual([]);
+  expect(finding.properties.historyCommit).toBe("abc123");
+  expect(finding.properties.historicalPath).toBe("src/a.ts");
+  expect(finding.properties.historicalLine).toBe(3);
+});

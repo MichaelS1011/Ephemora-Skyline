@@ -268,7 +268,7 @@ describe("die Messregel selbst (#49)", () => {
       "49 files and 3 folders",
       "No scanner looked at this city — it is a demo",
       "Nobody looked for: Secrets",
-      "Review highest-risk file",
+      "Review priority finding",
       "Here is exactly what will be checked. Nothing is uploaded anywhere else — files stay on your machine.",
       "✓ USE THIS PROFILE",
       "City minimap — click to fly, or press Enter to go to city overview",
@@ -371,8 +371,8 @@ describe("die Hilfstexte sprechen die gewählte Sprache", () => {
   it("die Karte zur riskantesten Datei heißt, wie sie soll", () => {
     // Der Knopf braucht eine Tour-Station im Fixture und fällt im Render-Test
     // weg — die Zeile selbst ist hier pinned.
-    expect(t("en", "ctx.reviewHighest")).toBe("Review highest-risk file");
-    expect(t("de", "ctx.reviewHighest")).toBe("Riskanteste Datei prüfen");
+    expect(t("en", "ctx.reviewHighest")).toBe("Review priority finding");
+    expect(t("de", "ctx.reviewHighest")).toBe("Priorisierten Fund prüfen");
   });
 
   it("describeGitignoreSkips und explainDistrictDraw folgen dem Lang-Parameter", () => {
@@ -409,7 +409,7 @@ describe("die Panels antworten in der gewählten Sprache", () => {
     expect(s).toContain("7 findings to review");
     expect(s).toContain("49 files and 3 folders kept out by .gitignore");
     expect(s).toContain("84 of 92 files here were never checked by semgrep");
-    expect(s).toContain("unclassified 7 · injection 4 · hygiene 3");
+    expect(s).toContain("Not classified 7 · Injection & execution 4 · Code hygiene 3");
     expect(s).toContain("Top contributor:");
   });
 

@@ -83,7 +83,9 @@ export function ContextCard() {
     findingsInTests > 0 && totalFindings > 0
       ? t(lang, "ctx.testFindings", { inTests: findingsInTests, total: totalFindings })
       : "";
-  const kinds = summarizeCategories(dir.findingsByCategory);
+  const kinds = summarizeCategories(dir.findingsByCategory, (id) =>
+    t(lang, categoryMeta(id).label),
+  );
   const blind = isRoot
     ? blindCategories(cityData.unverifiedEngines ?? []).map((id) => t(lang, categoryMeta(id).label))
     : [];

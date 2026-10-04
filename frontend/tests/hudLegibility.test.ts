@@ -28,7 +28,7 @@ function contrast(a: string, b: string): number {
 }
 
 describe("#30 far-view heat-cell legibility lift", () => {
-  const ground = ENV.ground;
+  const ground = "#3a372d"; // Legacy dusk helper remains available.
   const safe = THREAT_COLOR.safe;
   const unchecked = UNCHECKED_COLOR;
 
@@ -131,4 +131,10 @@ describe("#16c landmark resolves to the riskiest file (cached)", () => {
     expect(first).toBe("f1");
     expect(second).toBe(first);
   });
+});
+
+// Daylight cells use the unmodified semantic colors.
+it("keeps calm and unchecked cells readable on daylight ground", () => {
+  expect(contrast(THREAT_COLOR.safe, ENV.ground)).toBeGreaterThanOrEqual(2.5);
+  expect(contrast(UNCHECKED_COLOR, ENV.ground)).toBeGreaterThanOrEqual(2.5);
 });

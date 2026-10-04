@@ -104,12 +104,15 @@ export function categoryMeta(id: FindingCategory): CategoryMeta {
  * first. A finding list sorted by severity alone cannot answer "what am I full
  * of?", which is the question a developer asks before they decide to care.
  */
-export function summarizeCategories(counts?: Record<FindingCategory, number>): string {
+export function summarizeCategories(
+  counts?: Record<FindingCategory, number>,
+  label?: (id: FindingCategory) => string,
+): string {
   if (!counts) return "";
   return FINDING_CATEGORIES.map((c) => ({ id: c.id, n: counts[c.id] ?? 0 }))
     .filter((row) => row.n > 0)
     .sort((a, b) => b.n - a.n || a.id.localeCompare(b.id))
-    .map((row) => `${row.id} ${row.n}`)
+    .map((row) => `${label ? label(row.id) : row.id} ${row.n}`)
     .join(" · ");
 }
 

@@ -216,3 +216,11 @@ describe("lineSegmentFor", () => {
     expect(lineSegmentFor(null, file)).toBeNull();
   });
 });
+
+it("never maps historical findings onto current source or current sections", () => {
+  const history = { ...finding(2), provenance: "gitleaks-history", historyCommit: "abc123" };
+  expect(highlightSourceLines(["a", "b"], [history])[1]!.kind).toBe("code");
+  expect(findingContextRanges([history], 100, 40)).toEqual([]);
+  expect(findingsBySection([section("now", 1, 10)], [history])[0]!.findings).toEqual([]);
+  expect(lineSegmentFor("file#0", { id: "file", findings: [history] })).toBeNull();
+});

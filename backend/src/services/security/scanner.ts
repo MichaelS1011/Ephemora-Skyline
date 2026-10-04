@@ -439,7 +439,11 @@ export class SecurityScanner {
       // frame against the on-disk content read above
       enrichIssues(allowed, contentByPath.get(fa.path));
       for (const iss of allowed) {
-        if (!iss.code && iss.provenance?.startsWith("gitleaks")) {
+        if (
+          !iss.code &&
+          iss.provenance?.startsWith("gitleaks") &&
+          iss.provenance !== "gitleaks-history"
+        ) {
           // This is the line the report will show. gitleaks only names the file
           // and line, so the text has to be read from disk here — and it must
           // arrive masked, because enrichIssues ran before this fill.

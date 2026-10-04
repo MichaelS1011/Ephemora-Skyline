@@ -32,22 +32,37 @@ interface OsvResult {
 }
 
 /** CVSS string → severity bucket, shared with the pip-audit fallback */
-function bucketSeverity(sev: string | undefined): { severity: "P0" | "P1" | "P2"; score: number } {
+export function bucketSeverity(sev: string | undefined): {
+  severity: "P0" | "P1" | "P2";
+  score: number;
+} {
   const s = (sev ?? "").toLowerCase();
-  if (s.includes("critical") || s.includes("high")) return { severity: "P0", score: 9 };
-  if (s.includes("moderate") || s.includes("medium")) return { severity: "P1", score: 6 };
-  return { severity: "P2", score: 3 };
+  if (s === "critical") return { severity: "P0", score: 9 };
+  if (s === "high") return { severity: "P1", score: 7 };
+  if (s === "moderate" || s === "medium") return { severity: "P2", score: 5 };
+  if (s === "low") return { severity: "P2", score: 3 };
+  // Missing metadata needs review; it is not evidence of low severity.
+  return { severity: "P1", score: 0 };
 }
 
 function cvssSeverity(vuln: OsvVulnerability): string | undefined {
-  // Prefer explicit severity array (CVSS vector), fall back to database_specific
-  const score = vuln.severity?.[0]?.score;
-  if (score && /^CVSS:3\.[01]\/\S*(C|H|M|L):/.test(score)) {
-    const m = score.match(/AV:.*?\/.*?(C|H|M|L):/);
-    if (m)
-      return { C: "critical", H: "high", M: "medium", L: "low" }[m[1] as "C" | "H" | "M" | "L"];
-  }
-  return vuln.database_specific?.severity;
+  // C:/I:/A: in a CVSS vector describe impact components, not its severity.
+  // Never reinterpret a component letter as the overall CVSS rating.
+  const explicit = vuln.database_specific?.severity?.toUpperCase();
+  if (explicit && ["CRITICAL", "HIGH", "MODERATE", "MEDIUM", "LOW"].includes(explicit))
+    return explicit;
+  const numeric = vuln.severity
+    ?.map((s) => Number(s.score))
+    .find((n) => Number.isFinite(n) && n > 0 && n <= 10);
+  return numeric === undefined
+    ? undefined
+    : numeric >= 9
+      ? "CRITICAL"
+      : numeric >= 7
+        ? "HIGH"
+        : numeric >= 4
+          ? "MEDIUM"
+          : "LOW";
 }
 
 function toIssue(
@@ -67,6 +82,9 @@ function toIssue(
     message: `${vuln.id ?? "vulnerability"} in ${pkgName}${vuln.summary ? ` — ${vuln.summary}` : ""}`,
     fix: "Check the advisory for a patched version (open the reference link)",
     provenance,
+    sourceSeverity: cvssSeverity(vuln) ?? "UNKNOWN",
+    packageName: pkgName,
+    packageVersion: pkgVersion,
     ruleId: vuln.id ?? `${provenance}:${pkgName}`,
     explanation: knowledge.explain,
     cwe: vuln.database_specific?.cwe_ids?.[0] ?? knowledge.cwe,

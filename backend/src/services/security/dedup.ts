@@ -30,14 +30,14 @@ export function dedupIssues(issues: SecurityIssue[]): SecurityIssue[] {
   const result: SecurityIssue[] = [];
   for (const i of sorted) {
     const ruleId = (i as unknown as { ruleId?: string }).ruleId ?? "";
-    const k = `${i.line}:${i.type}:${ruleId}`;
+    const k = `${i.historyCommit ?? "working"}:${i.line}:${i.type}:${ruleId}`;
     if (seen.has(k)) continue;
     const fallbackSecret =
       i.type === "HARDCODED_SECRET" &&
       (ruleId === "gitleaks:generic-api-key" ||
         (i as unknown as { provenance?: string }).provenance === "gitleaks-fallback");
     if (fallbackSecret && gitleaksLines.has(`${i.line}`)) continue;
-    const lt = `${i.line}:${i.type}`;
+    const lt = `${i.historyCommit ?? "working"}:${i.line}:${i.type}`;
     if (seenLineType.has(lt) && ruleId !== "HARDCODED_SECRET") {
       // same line+type from another scanner — keep the first (better) one
       continue;

@@ -10,7 +10,6 @@ import {
   complexityColor,
   churnColor,
   severityColor,
-  liftHexForDusk,
   THREAT_COLOR,
   UNCHECKED_COLOR,
 } from "../city/palette";
@@ -38,8 +37,8 @@ function fileHeatColor(
   },
   colorblind: boolean,
 ): THREE.Color {
-  // Every far-view tile is lifted off the dusk ground (see liftHexForDusk).
-  const tile = (hex: string): THREE.Color => new THREE.Color(liftHexForDusk(hex));
+  // Keep the dark semantic tiles distinct from the daylight ground.
+  const tile = (hex: string): THREE.Color => new THREE.Color(hex);
   if (channel === "threat") {
     const worst = file.findings.reduce(
       (max, f) => Math.max(max, f.severity === "P0" ? 3 : f.severity === "P1" ? 2 : 1),
@@ -113,7 +112,7 @@ export function HeatCells({ layout }: { layout: DirLayout }) {
       dummy.scale.set(blk.w * 1.35, 1, blk.d * 1.35);
       dummy.updateMatrix();
       mesh.setMatrixAt(i, dummy.matrix);
-      mesh.setColorAt(i, new THREE.Color(liftHexForDusk(color)));
+      mesh.setColorAt(i, new THREE.Color(color));
       i++;
     }
     mesh.instanceMatrix.needsUpdate = true;
