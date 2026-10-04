@@ -65,9 +65,22 @@ export class SecurityScanner {
   /**
    * Which rules semgrep loads is decided per scan, not per process: a selected
    * pack reads off the local disk, no selection keeps the registry default.
+   *
+   * A selection that resolves to nothing switches the engine off rather than
+   * falling through to the registry — a pack disappearing between "the config
+   * was valid" and "the scan runs" must not turn into a network fetch the user
+   * never asked for, nor into a scan that quietly widened itself.
    */
   private applyRulePacks(): void {
-    this.semgrepAdapter?.setRuleDirs(semgrepRuleDirs(this.config.rulePacks));
+    const dirs = semgrepRuleDirs(this.config.rulePacks);
+    if (this.config.rulePacks.length > 0 && dirs.length === 0) {
+      this.logger.warn(
+        { selected: this.config.rulePacks },
+        "selected rule packs are no longer on disk — semgrep stays off for this scan",
+      );
+      this.config.tools.semgrep = false;
+    }
+    this.semgrepAdapter?.setRuleDirs(dirs);
   }
 
   /**

@@ -73,13 +73,19 @@ interface RawManifest {
   note?: unknown;
 }
 
-/** Every `id:` line in the pack's YAML files — the number a manifest has to match. */
+/**
+ * Every rule id in the pack's YAML files — the number a manifest has to match.
+ * Anchored to a bare identifier so a message line that happens to read "id: …"
+ * inside a folded block cannot inflate the count.
+ */
+const RULE_ID_LINE = /^[ \t]*-[ \t]+id:[ \t]*[A-Za-z0-9][A-Za-z0-9._-]*[ \t]*$/gm;
+
 function countRules(dir: string): number {
   let n = 0;
   for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
     if (!entry.isFile() || !/\.ya?ml$/.test(entry.name)) continue;
     const text = fs.readFileSync(path.join(dir, entry.name), "utf-8");
-    n += [...text.matchAll(/^\s*-?\s*id:\s*\S/gm)].length;
+    n += [...text.matchAll(RULE_ID_LINE)].length;
   }
   return n;
 }

@@ -21,12 +21,14 @@ const SEMGREP_BIN_FALLBACKS = ["/opt/homebrew/bin/semgrep", "/usr/local/bin/semg
  * semgrep asks "is there a newer version?" on every start, which is an outbound
  * call nobody asked for and a reason for the probe to be slow. `--metrics=off`
  * covers the other one.
+ *
+ * Read at call time, not at import: a snapshot taken when this module loads
+ * freezes the environment of whoever imported first, and a scan that later
+ * inherits a proxy from its caller would silently run without it.
  */
-const SEMGREP_ENV = {
-  ...process.env,
-  SEMGREP_ENABLE_VERSION_CHECK: "0",
-  SEMGREP_SEND_METRICS: "off",
-};
+function semgrepEnv(): NodeJS.ProcessEnv {
+  return { ...process.env, SEMGREP_ENABLE_VERSION_CHECK: "0", SEMGREP_SEND_METRICS: "off" };
+}
 
 export class SemgrepAdapter implements ScannerAdapter {
   readonly id = "semgrep";
@@ -73,7 +75,7 @@ export class SemgrepAdapter implements ScannerAdapter {
     if (this.resolvedBinary) return this.resolvedBinary;
     for (const candidate of ["semgrep", ...SEMGREP_BIN_FALLBACKS]) {
       try {
-        await execFileAsync(candidate, ["--version"], { timeout: 15000, env: SEMGREP_ENV });
+        await execFileAsync(candidate, ["--version"], { timeout: 15000, env: semgrepEnv() });
         this.resolvedBinary = candidate;
         this.logger.info({ binary: candidate }, "semgrep binary found");
         return candidate;
@@ -148,7 +150,7 @@ export class SemgrepAdapter implements ScannerAdapter {
           {
             timeout: parseInt(process.env.SEMGREP_TIMEOUT || "120", 10) * 1000,
             maxBuffer: 10 * 1024 * 1024,
-            env: SEMGREP_ENV,
+            env: semgrepEnv(),
           },
         );
       } catch (e) {
@@ -162,7 +164,7 @@ export class SemgrepAdapter implements ScannerAdapter {
             {
               timeout: parseInt(process.env.SEMGREP_TIMEOUT || "120", 10) * 1000,
               maxBuffer: 10 * 1024 * 1024,
-              env: SEMGREP_ENV,
+              env: semgrepEnv(),
             },
           ).catch((ex) => {
             const x = ex as { stdout?: string; code?: number };
@@ -214,6 +216,12 @@ export class SemgrepAdapter implements ScannerAdapter {
         [
           "run",
           "--rm",
+          // Same two asks as the binary path, and inside a container the only
+          // way to stop them is to tell the container.
+          "-e",
+          "SEMGREP_ENABLE_VERSION_CHECK=0",
+          "-e",
+          "SEMGREP_SEND_METRICS=off",
           "-v",
           `${clonePath}:/src:ro`,
           "-v",
