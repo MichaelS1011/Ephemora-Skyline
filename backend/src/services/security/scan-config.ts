@@ -1,6 +1,7 @@
 import { ENV_FILE } from "../analyzer/metrics.js";
 import { CATEGORY_IDS } from "./categories.js";
 import { isOffline } from "./network-policy.js";
+import { validatePackIds } from "./rule-packs.js";
 import type { FindingCategory } from "../../models/index.js";
 
 /**
@@ -50,6 +51,13 @@ export interface ScanConfig {
    */
   enabledCategories: FindingCategory[];
   customPatterns: CustomPattern[];
+  /**
+   * Rule packs to load instead of the registry config. Empty keeps today's
+   * behavior (`p/security-audit`, fetched from semgrep.dev while the scan
+   * runs). Non-empty means the rules come off the local disk, which is also
+   * what makes a deep scan possible with the network switched off.
+   */
+  rulePacks: string[];
   severityThreshold: "P0" | "P1" | "P2";
   languageScope: string[];
   excludePaths: string[];
@@ -112,6 +120,7 @@ export function defaultScanConfig(): ScanConfig {
     enabledCategories: [],
     disabledFindingTypes: [],
     customPatterns: [],
+    rulePacks: [],
     severityThreshold: "P2",
     languageScope: [],
     excludePaths: [],
@@ -236,10 +245,14 @@ export interface ResolveResult {
  * about the machine, and a claim you cannot switch off is not a claim. The
  * three engines it stops are the ones that read a rule pack or an advisory
  * database over the network; the file never leaves, but a name does.
+ *
+ * semgrep is the exception that proves the claim: with a local rule pack
+ * selected there is nothing to fetch, so switching the engine off would be a
+ * lie about the network rather than a protection from it.
  */
 function applyOffline(config: ScanConfig): ScanConfig {
   if (isOffline()) {
-    config.tools.semgrep = false;
+    if (config.rulePacks.length === 0) config.tools.semgrep = false;
     config.tools.osv = false;
     config.tools.dependencies = false;
   }
@@ -299,6 +312,7 @@ export function resolveConfig(input?: unknown): ResolveResult {
     config.enabledFindingTypes = preset.enabledFindingTypes;
   }
   config.languageScope = strArray(raw["languageScope"], MAX_LANGUAGES, "languageScope", errors);
+  config.rulePacks = validatePackIds(raw["rulePacks"], errors);
   config.excludePaths = strArray(raw["excludePaths"], MAX_EXCLUDE_PATHS, "excludePaths", errors);
   config.severityThreshold = severityOf(
     raw["severityThreshold"],

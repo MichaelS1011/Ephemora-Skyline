@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useStore } from "../stores/useStore";
 import {
   SCAN_PROFILES,
@@ -8,7 +8,8 @@ import {
   loadSavedProfile,
   type ScanProfile,
 } from "../config/scanProfiles";
-import { FINDING_CATEGORIES } from "../config/findingCategories";
+import { FINDING_CATEGORIES, categoryMeta } from "../config/findingCategories";
+import { fetchRulePacks } from "../config/rulePacks";
 import { ProfileConfirmDialog } from "./ProfileConfirmDialog";
 import "../design/profile-picker.css";
 import { t } from "../i18n";
@@ -19,10 +20,27 @@ export function ProfileChips({ variant }: { variant: "landing" | "analyze-panel"
   const setScanProfile = useStore((s) => s.setScanProfile);
   const scanCategories = useStore((s) => s.scanCategories);
   const toggleScanCategory = useStore((s) => s.toggleScanCategory);
+  const scanPacks = useStore((s) => s.scanPacks);
+  const toggleScanPack = useStore((s) => s.toggleScanPack);
+  const availablePacks = useStore((s) => s.availablePacks);
+  const setAvailablePacks = useStore((s) => s.setAvailablePacks);
   const [detailFor, setDetailFor] = useState<ScanProfile | null>(null);
   const active = scanProfile ?? loadSavedProfile();
   const meta = SCAN_PROFILES.find((p) => p.id === active) ?? SCAN_PROFILES[1]!;
   const onlyOneLeft = scanCategories.length === 1;
+
+  // Which packs exist is a question about the disk, so it is asked of the
+  // backend once per mount. A backend that answers nothing shows no chips —
+  // an empty choice is honest, a fake one is not.
+  useEffect(() => {
+    let cancelled = false;
+    void fetchRulePacks().then((packs) => {
+      if (!cancelled) setAvailablePacks(packs);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [setAvailablePacks]);
   return (
     <div className={`profile-picker profile-picker-${variant}`}>
       <div className="profile-options" aria-label={t(lang, "profile.chipsAria")}>
@@ -76,6 +94,48 @@ export function ProfileChips({ variant }: { variant: "landing" | "analyze-panel"
           );
         })}
       </div>
+      {availablePacks.length > 0 && (
+        <>
+          <p className="category-caption">{t(lang, "profile.packsCaption")}</p>
+          <div className="profile-options pack-options" aria-label={t(lang, "profile.packsAria")}>
+            <button
+              onClick={() => scanPacks.forEach((id) => toggleScanPack(id))}
+              aria-pressed={scanPacks.length === 0}
+              title={t(lang, "profile.packNoneTip")}
+            >
+              {scanPacks.length === 0 && <span aria-hidden="true">✓ </span>}
+              {t(lang, "profile.packNone")}
+            </button>
+            {availablePacks.map((pack) => {
+              const on = scanPacks.includes(pack.id);
+              return (
+                <button
+                  key={pack.id}
+                  onClick={() => toggleScanPack(pack.id)}
+                  aria-pressed={on}
+                  title={
+                    t(lang, "profile.packTip", {
+                      count: pack.ruleCount,
+                      source: pack.source,
+                      license: pack.license,
+                      version: pack.version,
+                    }) +
+                    ` · ${t(lang, pack.origin === "shipped" ? "profile.packShipped" : "profile.packFetched")} · ${pack.categories
+                      .map((c) => t(lang, categoryMeta(c).label))
+                      .join(", ")}`
+                  }
+                >
+                  {on && <span aria-hidden="true">✓ </span>}
+                  {pack.name} · {pack.ruleCount}
+                </button>
+              );
+            })}
+          </div>
+          {scanPacks.length > 0 && (
+            <p className="profile-description pack-note">{t(lang, "profile.packOffline")}</p>
+          )}
+        </>
+      )}
     </div>
   );
 }

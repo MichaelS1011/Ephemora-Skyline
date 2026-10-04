@@ -1,0 +1,131 @@
+rules:
+  - id: ephemora-python-command-injection
+    languages: [python]
+    severity: ERROR
+    message: >-
+      A shell command is built from a variable (or run with shell=True). The
+      argument is not escaped, so anything in it runs as a command (CWE-78).
+      Pass an argument list and leave shell off.
+    metadata:
+      category: security
+      cwe:
+        - "CWE-78: Improper Neutralization of Special Elements used in an OS Command ('OS Command Injection')"
+      ephemora-category: injection
+      technology:
+        - python
+      confidence: MEDIUM
+    patterns:
+      - pattern-either:
+          - pattern: os.system($CMD)
+          - pattern: os.popen($CMD)
+          - pattern: subprocess.$F($CMD, ...)
+      - pattern-not: os.system("...")
+      - pattern-not: os.popen("...")
+      - pattern-not: subprocess.$F("...", ...)
+      - pattern-not: subprocess.$F([...], ...)
+
+  - id: ephemora-python-shell-true
+    languages: [python]
+    severity: ERROR
+    message: >-
+      shell=True routes the command through /bin/sh, which re-parses every
+      metacharacter in it (CWE-78). Drop shell=True and pass a list.
+    metadata:
+      category: security
+      cwe:
+        - "CWE-78: Improper Neutralization of Special Elements used in an OS Command ('OS Command Injection')"
+      ephemora-category: injection
+      confidence: HIGH
+    pattern: subprocess.$F(..., shell=True, ...)
+
+  - id: ephemora-python-sql-injection
+    languages: [python]
+    severity: ERROR
+    message: >-
+      The query string is built with interpolation instead of query parameters,
+      so values are parsed as SQL (CWE-89). Pass the values as parameters.
+    metadata:
+      category: security
+      cwe:
+        - "CWE-89: Improper Neutralization of Special Elements used in an SQL Command ('SQL Injection')"
+      ephemora-category: injection
+      confidence: MEDIUM
+    patterns:
+      - pattern-either:
+          - pattern: $CUR.execute(f"...")
+          - pattern: $CUR.execute($Q % $V)
+          - pattern: $CUR.execute($A + $B)
+          - pattern: $CUR.executemany(f"...")
+
+  - id: ephemora-python-tls-verification-disabled
+    languages: [python]
+    severity: ERROR
+    message: >-
+      verify=False (or an unverified SSL context) accepts any certificate, so the
+      connection is not authenticated and not confidential (CWE-295).
+    metadata:
+      category: security
+      cwe:
+        - "CWE-295: Improper Certificate Validation"
+      ephemora-category: transport
+      confidence: HIGH
+    pattern-either:
+      - pattern: $REQ.get(..., verify=False, ...)
+      - pattern: $REQ.post(..., verify=False, ...)
+      - pattern: $REQ.request(..., verify=False, ...)
+      - pattern: ssl._create_unverified_context(...)
+
+  - id: ephemora-python-weak-hash
+    languages: [python]
+    severity: WARNING
+    message: >-
+      MD5 and SHA-1 are broken for integrity and far too fast for passwords. Use
+      hashlib.sha256 for checksums and bcrypt/argon2/scrypt for credentials
+      (CWE-327).
+    metadata:
+      category: security
+      cwe:
+        - "CWE-327: Use of a Broken or Risky Cryptographic Algorithm"
+      ephemora-category: crypto
+      confidence: HIGH
+    pattern-either:
+      - pattern: hashlib.md5(...)
+      - pattern: hashlib.sha1(...)
+
+  - id: ephemora-python-world-writable-file
+    languages: [python]
+    severity: WARNING
+    message: >-
+      Mode 0o777 / 0o666 makes the file writable by every account on the machine,
+      so any local process can replace its content (CWE-732).
+    metadata:
+      category: security
+      cwe:
+        - "CWE-732: Incorrect Permission Assignment for Critical Resource"
+      ephemora-category: permissions
+      confidence: HIGH
+    patterns:
+      - pattern-either:
+          - pattern: os.chmod($P, $MODE)
+          - pattern: os.makedirs($P, mode = $MODE, ...)
+      - metavariable-regex:
+          metavariable: $MODE
+          regex: "^0o?6{3}$|^0o?7{3}$"
+
+  - id: ephemora-python-hardcoded-temp-path
+    languages: [python]
+    severity: INFO
+    message: >-
+      Writing under /tmp by name is a symlink target: use tempfile so the path is
+      created privately (CWE-379).
+    metadata:
+      category: security
+      cwe:
+        - "CWE-379: Creation of Temporary File in Directory with Insecure Permissions"
+      ephemora-category: permissions
+      confidence: LOW
+    patterns:
+      - pattern-either:
+          - pattern: open("/tmp/...", $MODE)
+          - pattern: open(f"/tmp/...", $MODE)
+      - pattern-not: open("/tmp/...", "r")

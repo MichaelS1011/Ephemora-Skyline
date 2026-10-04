@@ -31,17 +31,29 @@ Local analysis reads file contents in-process on your own machine through the `l
 | Host                 | Made by                | Leaves the machine                                          | When                                                 |
 | -------------------- | ---------------------- | ----------------------------------------------------------- | ---------------------------------------------------- |
 | `api.github.com`     | the app (update check) | one anonymous request for the newest release tag            | once an hour, if the app checks for an update        |
-| `semgrep.dev`        | `semgrep`              | the name of the rule pack it downloads (`p/security-audit`) | first scan of a session with Semgrep switched on     |
+| `semgrep.dev`        | `semgrep`              | the name of the rule pack it downloads (`p/security-audit`) | a Semgrep scan with no local rule pack selected      |
 | `api.osv.dev`        | `osv-scanner`          | package names and versions read out of your lockfiles       | a scan with the dependency engine switched on        |
 | `registry.npmjs.org` | `npm audit`            | the same dependency names, via npm's own advisory path      | dependency engine on, but no `osv-scanner` installed |
 
 Measured, not assumed: a scan of a 11-file fixture on the `standard` profile produced 8 connection attempts to `semgrep.dev`; a scan of this repository produced 25 to `api.osv.dev` plus the same 8. Nothing else reached out. The harness is `.qoder-scratch/net-probe.mts` — a logging proxy in front of the real scanner; the same command works for any folder.
 
-**None of this is required.** `SKYLINE_OFFLINE=1` closes every path above: the update check answers offline and the Semgrep, OSV and `npm audit` engines do not run. The city then reports them through `scanProvenance` and paints the buildings the colour of ground no scanner looked at, instead of pretending they came back clean. Git runs through `execFile` with an argument array (never a shell string), so file names cannot inject commands. Local analysis is bounded at **3000 files / 40 MB** and skips `node_modules`, `.git`, and build dirs. The remote path (`POST /api/analyze`, public-repo clone via the GitHub API) is an explicit, separate action. See [SECURITY.md](./SECURITY.md) for the reporting process.
+**None of this is required.** `SKYLINE_OFFLINE=1` closes every path above: the update check answers offline, the OSV and `npm audit` engines do not run, and Semgrep runs only against a rule pack that is already on your disk. The city then reports them through `scanProvenance` and paints the buildings the colour of ground no scanner looked at, instead of pretending they came back clean. Git runs through `execFile` with an argument array (never a shell string), so file names cannot inject commands. Local analysis is bounded at **3000 files / 40 MB** and skips `node_modules`, `.git`, and build dirs. The remote path (`POST /api/analyze`, public-repo clone via the GitHub API) is an explicit, separate action. See [SECURITY.md](./SECURITY.md) for the reporting process.
 
 **Telemetry: none.** Ephemora Skyline ships no analytics and no beacon of its own — the only request it makes is the anonymous release check in the table above, and `SKYLINE_OFFLINE=1` switches that off too. Maintainers measure adoption through [GitHub's built-in traffic & clone statistics](https://docs.github.com/en/rest/metrics/traffic) (`GH_TOKEN=... node scripts/clone-stats.mjs`) — which count clones without ever identifying a user.
 
 **What the saved city carries.** A finding stores the line it was found on plus a two-line code frame, and the whole result is written to a JSON file you can export and share. So the value of any credential-shaped assignment (`NAME = "…"`, `"NAME": "…"`) is erased to `‹hidden›` before the finding is kept — the name stays, because the name is what tells you where to fix it. Masking is not limited to secret findings: it runs on every frame, because a `console.log` one line above a password carries that password in its neighbour lines. `.env`, `.env.production` and friends are in the scan surface **because** of that masking, and are read as data — no complexity, no code shape questions.
+
+### Rule packs
+
+The deep AST scan needs rules, and where those rules come from is a decision with a licence attached to it. The Semgrep registry is the obvious source and the measured answer is that we may not ship it: the Semgrep Rules License v1.0 states "This license does not allow you to distribute the rules, or to make them available to others as a service." So the registry stays what it always was — fetched by `semgrep` itself, by you, at scan time — and what ships in this repository is rules we wrote and own.
+
+| Pack                     | Where it lives                         | Rules | Licence                                              |
+| ------------------------ | -------------------------------------- | ----- | ---------------------------------------------------- |
+| `ephemora-core`          | `backend/rules/ephemora-core/`         | 12    | BSL-1.1, same as the program — ours to ship and grow |
+| _(nothing selected)_     | `semgrep.dev`, during the scan         | 225   | Semgrep Rules License v1.0 — not redistributable     |
+| your own, if you add one | `~/.ephemora-skyline/rule-packs/<id>/` | any   | yours                                                |
+
+A pack is a directory with a `pack.json` manifest and rule YAML next to it. The manifest's `ruleCount` is checked against the files at load time and a pack whose manifest lies is not offered at all. The scan selects packs **by id**; a path is rejected, because a client-supplied directory would be a directory the scanner reads rules from anywhere on the machine. Selecting a pack is also what makes a deep scan possible with the network switched off — `SKYLINE_OFFLINE=1` keeps Semgrep on then, and off when the rules would still have to be fetched.
 
 ## Quick start
 

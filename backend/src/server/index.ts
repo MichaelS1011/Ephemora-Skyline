@@ -27,6 +27,8 @@ import { bindHost, isLoopbackHost } from "./bind-address.js";
 import { handleLocalAnalyze, pruneStaleUploadDirs } from "./routes/local-analyze.js";
 import { handleSource } from "./routes/source.js";
 import { handleUpdateCheck } from "./routes/update-check.js";
+import { listPacks } from "../services/security/rule-packs.js";
+import { isOffline } from "../services/security/network-policy.js";
 import { handleTestRun, handleTestStatus } from "./routes/tests.js";
 import { mapResultToCityData } from "../utils/cityMapper.js";
 import { resultToSarif } from "../utils/sarif.js";
@@ -252,9 +254,20 @@ app.get("/api/result/:id/sarif", (req: Request, res: Response): void => {
   res.json(resultToSarif(result));
 });
 
-// GET /api/result/:id/source/:fileId — raw source of one analyzed file
+// GET /api/update/check — the one outbound question the app asks about itself
 app.get("/api/update/check", readLimiter, (req: Request, res: Response): void => {
   void handleUpdateCheck(req, res);
+});
+
+// GET /api/rule-packs — which rule bundles exist, where they came from, and
+// under what license. The UI cannot offer a pack it has not seen here, and a
+// pack whose manifest lies about its rule count is not in this list. The
+// absolute directory stays server-side: the client selects by id, never by path.
+app.get("/api/rule-packs", readLimiter, (_req: Request, res: Response): void => {
+  res.json({
+    offline: isOffline(),
+    packs: listPacks().map(({ dir: _dir, ...publicPack }) => publicPack),
+  });
 });
 
 app.get("/api/result/:id/source/:fileId", readLimiter, (req: Request, res: Response): void => {

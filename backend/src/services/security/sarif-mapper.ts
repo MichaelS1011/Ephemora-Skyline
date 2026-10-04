@@ -9,6 +9,8 @@ type Sarif = {
           shortDescription?: { text: string };
           help?: { text: string };
           helpUri?: string;
+          /** semgrep carries the rule's CWE list here, as "CWE-78: …" strings */
+          properties?: { tags?: string[] };
         }>;
       };
     };
@@ -38,11 +40,16 @@ export function sarifToIssues(sarif: Sarif, contentByPath?: Map<string, string>)
   const issues: SecurityIssue[] = [];
   for (const run of sarif.runs ?? []) {
     const ruleHelp = new Map<string, string>();
+    const ruleCwe = new Map<string, string>();
     const ruleUri = new Map<string, string>();
     for (const r of run.tool.driver.rules ?? []) {
       if (!r.id) continue;
       ruleHelp.set(r.id, r.help?.text ?? r.shortDescription?.text ?? "");
       if (r.helpUri) ruleUri.set(r.id, r.helpUri);
+      // A rule's own CWE beats any name heuristic: it is what the rule author
+      // claims, and the category axis is a claim the user filters on.
+      const cweTag = (r.properties?.tags ?? []).find((t) => /^CWE-\d+/.test(t));
+      if (cweTag) ruleCwe.set(r.id, cweTag);
     }
     for (const res of run.results ?? []) {
       const loc = res.locations?.[0]?.physicalLocation;
@@ -65,6 +72,7 @@ export function sarifToIssues(sarif: Sarif, contentByPath?: Map<string, string>)
         fix: ruleHelp.get(res.ruleId),
         provenance: "semgrep",
         ruleId: res.ruleId,
+        cwe: ruleCwe.get(res.ruleId),
         refUrl: ruleUri.get(res.ruleId),
       } as SecurityIssue);
       // attach hidden file path for batch dedup (overwritten below)

@@ -263,11 +263,15 @@ export function useLocalAnalysis() {
       setAnalysisStage("Uploading files…");
       setState("analyzing");
       try {
-        const { scanProfile: profile, scanCategories } = useStore.getState();
+        const { scanProfile: profile, scanCategories, scanPacks } = useStore.getState();
         const res = await fetch("/api/analyze-local", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ name, files, config: configPayload(profile, scanCategories) }),
+          body: JSON.stringify({
+            name,
+            files,
+            config: configPayload(profile, scanCategories, scanPacks),
+          }),
           signal,
         });
         if (!res.ok) {

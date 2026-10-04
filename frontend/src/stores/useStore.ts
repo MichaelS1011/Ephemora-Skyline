@@ -17,6 +17,7 @@ import {
 import { findVoxelForLine } from "../city/voxels";
 import { loadSavedProfile, saveProfile, type ScanProfile } from "../config/scanProfiles";
 import { loadSavedCategories, saveCategories } from "../config/findingCategories";
+import { loadSavedPacks, savePacks, type RulePackInfo } from "../config/rulePacks";
 import { findingKey, loadReviews, saveReviews } from "../reviews";
 import { loadPrefs, savePrefs, type Prefs } from "../prefs";
 
@@ -213,6 +214,15 @@ interface AppState {
   /** Which kinds of mistakes the user wants reported (all = no filter) */
   scanCategories: FindingCategory[];
   toggleScanCategory: (c: FindingCategory) => void;
+  /**
+   * Local rule packs the deep scan should load. Empty = today's behavior (the
+   * registry config, fetched during the scan). The list itself is answered by
+   * the backend — a pack is a fact about the disk, not a frontend string.
+   */
+  scanPacks: string[];
+  availablePacks: RulePackInfo[];
+  setAvailablePacks: (packs: RulePackInfo[]) => void;
+  toggleScanPack: (id: string) => void;
 
   tourActive: boolean;
   tourIndex: number;
@@ -614,6 +624,24 @@ export const useStore = create<AppState>((set, get) => ({
   setScanProfile: (p) => {
     saveProfile(p);
     set({ scanProfile: p });
+  },
+
+  scanPacks: loadSavedPacks(),
+  availablePacks: [],
+  setAvailablePacks: (packs) => {
+    // A saved id for a pack that is no longer on disk must not silently vanish
+    // from the scan: drop it and say which ones remain.
+    const known = new Set(packs.map((p) => p.id));
+    const before = get().scanPacks;
+    const kept = before.filter((id) => known.has(id));
+    if (kept.length !== before.length) savePacks(kept);
+    set({ availablePacks: packs, scanPacks: kept });
+  },
+  toggleScanPack: (id) => {
+    const current = get().scanPacks;
+    const next = current.includes(id) ? current.filter((x) => x !== id) : [...current, id];
+    savePacks(next);
+    set({ scanPacks: next });
   },
 
   tourActive: false,

@@ -23,8 +23,39 @@ export class SemgrepAdapter implements ScannerAdapter {
   private binaryAvailable: boolean | null = null;
   private resolvedBinary: string | null = null;
   private dockerAvailable: boolean | null = null;
+  /**
+   * Local rule-pack directories for the current scan. Empty means "no pack
+   * selected", which is the registry string above — and that string is a
+   * network fetch during the scan, so the difference is not cosmetic.
+   */
+  private ruleDirs: string[] = [];
   /** Whether the last scanBatch() call actually executed semgrep (binary or docker) */
   lastBatchExecuted = false;
+
+  setRuleDirs(dirs: string[]): void {
+    this.ruleDirs = [...new Set(dirs)];
+  }
+
+  /** `--config` arguments for the binary: one per local pack, or the registry default. */
+  private configArgs(): string[] {
+    if (this.ruleDirs.length === 0) return ["--config", SEMGREP_CONFIG];
+    return this.ruleDirs.flatMap((dir) => ["--config", dir]);
+  }
+
+  /** The same packs seen from inside the container, plus the mounts that put them there. */
+  private dockerConfigArgs(): { args: string[]; mounts: string[] } {
+    if (this.ruleDirs.length === 0) {
+      return { args: ["--config", SEMGREP_CONFIG], mounts: [] };
+    }
+    const args: string[] = [];
+    const mounts: string[] = [];
+    for (const dir of this.ruleDirs) {
+      const target = `/codecity-rules/${path.basename(dir)}`;
+      args.push("--config", target);
+      mounts.push("-v", `${dir}:${target}:ro`);
+    }
+    return { args, mounts };
+  }
 
   /** Resolve the semgrep binary once: PATH first, then common prefixes */
   private async resolveBinary(): Promise<string | null> {
@@ -78,12 +109,12 @@ export class SemgrepAdapter implements ScannerAdapter {
       }
       this.binaryAvailable = true;
       const tmpOut = path.join(tmpdir(), `codecity-semgrep-${Date.now()}.sarif`);
+      const configArgs = this.configArgs();
       try {
         await execFileAsync(
           bin,
           [
-            "--config",
-            SEMGREP_CONFIG,
+            ...configArgs,
             "--metrics=off",
             "--sarif",
             "--quiet",
@@ -103,7 +134,7 @@ export class SemgrepAdapter implements ScannerAdapter {
           // try without sarif-output: capture stdout
           const { stdout } = await execFileAsync(
             bin,
-            ["--config", SEMGREP_CONFIG, "--metrics=off", "--sarif", "--quiet", clonePath],
+            [...configArgs, "--metrics=off", "--sarif", "--quiet", clonePath],
             {
               timeout: parseInt(process.env.SEMGREP_TIMEOUT || "120", 10) * 1000,
               maxBuffer: 10 * 1024 * 1024,
@@ -145,6 +176,7 @@ export class SemgrepAdapter implements ScannerAdapter {
         this.dockerAvailable = true;
       }
       const tmpOut = path.join(tmpdir(), `codecity-semgrep-docker-${Date.now()}.sarif`);
+      const { args: configArgs, mounts } = this.dockerConfigArgs();
       // mount clonePath as /src
       await execFileAsync(
         "docker",
@@ -155,10 +187,10 @@ export class SemgrepAdapter implements ScannerAdapter {
           `${clonePath}:/src:ro`,
           "-v",
           `${path.dirname(tmpOut)}:/out`,
+          ...mounts,
           SEMGREP_DOCKER_IMAGE,
           "semgrep",
-          "--config",
-          SEMGREP_CONFIG,
+          ...configArgs,
           "--metrics=off",
           "--sarif",
           "--quiet",

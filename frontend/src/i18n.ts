@@ -1690,6 +1690,38 @@ export const DICT = {
     en: " — the last kind stays on; a scan of nothing is no scan",
     de: " — die letzte Art bleibt an; ein Scan ohne alles ist kein Scan",
   },
+  "profile.packsCaption": {
+    en: "Deep-scan rule pack",
+    de: "Regel-Pack für die Tiefensuche",
+  },
+  "profile.packsAria": {
+    en: "Rule packs",
+    de: "Regel-Packs",
+  },
+  "profile.packNone": {
+    en: "Registry default",
+    de: "Registry-Standard",
+  },
+  "profile.packNoneTip": {
+    en: "No pack selected: semgrep loads its rules from semgrep.dev while the scan runs. With SKYLINE_OFFLINE the engine stays off, because nothing can be fetched.",
+    de: "Kein Pack gewählt: semgrep lädt seine Regeln während des Scans von semgrep.dev. Mit SKYLINE_OFFLINE bleibt der Engine aus, weil dann nichts zu holen ist.",
+  },
+  "profile.packTip": {
+    en: "{count} rules · source: {source} · license: {license} · version {version}",
+    de: "{count} Regeln · Quelle: {source} · Lizenz: {license} · Version {version}",
+  },
+  "profile.packFetched": {
+    en: "your own",
+    de: "eigenes",
+  },
+  "profile.packShipped": {
+    en: "shipped",
+    de: "mitgeliefert",
+  },
+  "profile.packOffline": {
+    en: "Selected packs are read from this disk — the deep scan runs with the network switched off.",
+    de: "Gewählte Packs liegen auf dieser Platte — der Tiefenscan läuft dann auch ohne Netz.",
+  },
   "profile.closeAria": {
     en: "Close without changing the profile",
     de: "Schließen, ohne das Profil zu ändern",

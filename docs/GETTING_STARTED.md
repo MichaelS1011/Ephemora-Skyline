@@ -91,12 +91,12 @@ Without external binaries the scanner degrades quietly to regex heuristics — s
 brew install gitleaks semgrep   # macOS (Homebrew) — optional, improves scan quality
 ```
 
-| Scanner           | Task                                                     | Without the binary     |
-| ----------------- | -------------------------------------------------------- | ---------------------- |
-| Regex (always on) | Heuristics: injection, XSS, eval, …                      | —                      |
-| **gitleaks**      | Secrets in the working tree (and optionally Git history) | entropy-regex fallback |
-| **semgrep**       | AST scan (`p/security-audit` ruleset), binary or Docker  | skipped                |
-| **npm audit**     | CVEs in dependencies (requires `package-lock.json`)      | skipped                |
+| Scanner           | Task                                                                                                               | Without the binary     |
+| ----------------- | ------------------------------------------------------------------------------------------------------------------ | ---------------------- |
+| Regex (always on) | Heuristics: injection, XSS, eval, …                                                                                | —                      |
+| **gitleaks**      | Secrets in the working tree (and optionally Git history)                                                           | entropy-regex fallback |
+| **semgrep**       | AST scan — registry ruleset (`p/security-audit`) or a local [rule pack](../README.md#rule-packs), binary or Docker | skipped                |
+| **npm audit**     | CVEs in dependencies (requires `package-lock.json`)                                                                | skipped                |
 
 ## Development workflow
 

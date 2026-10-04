@@ -1,0 +1,97 @@
+rules:
+  - id: ephemora-node-command-injection
+    languages: [javascript, typescript]
+    severity: ERROR
+    message: >-
+      A shell command is assembled from a variable. The argument is passed to the
+      shell unescaped, so anything in it runs as a command (CWE-78). Pass an
+      argument array to execFile/spawn instead of building a string.
+    metadata:
+      category: security
+      cwe:
+        - "CWE-78: Improper Neutralization of Special Elements used in an OS Command ('OS Command Injection')"
+      ephemora-category: injection
+      technology:
+        - node
+      confidence: MEDIUM
+    patterns:
+      - pattern-either:
+          - pattern: exec($CMD, ...)
+          - pattern: execSync($CMD, ...)
+          - pattern: "spawn($CMD, $ARGS, { shell: true, ... })"
+      - pattern-not: exec("...", ...)
+      - pattern-not: execSync("...", ...)
+
+  - id: ephemora-node-eval-of-dynamic-code
+    languages: [javascript, typescript]
+    severity: ERROR
+    message: >-
+      eval() / new Function() runs its argument as code. When the argument is not
+      a literal, whoever controls the string controls the process (CWE-94).
+    metadata:
+      category: security
+      cwe:
+        - "CWE-94: Improper Control of Generation of Code ('Code Injection')"
+      ephemora-category: injection
+      confidence: MEDIUM
+    patterns:
+      - pattern-either:
+          - pattern: eval($X)
+          - pattern: new Function($X)
+      - pattern-not: eval("...")
+      - pattern-not: new Function("...")
+
+  - id: ephemora-node-tls-verification-disabled
+    languages: [javascript, typescript]
+    severity: ERROR
+    message: >-
+      Certificate verification is switched off. Any party on the path can then
+      present any certificate and read or change the traffic (CWE-295).
+    metadata:
+      category: security
+      cwe:
+        - "CWE-295: Improper Certificate Validation"
+      ephemora-category: transport
+      confidence: HIGH
+    patterns:
+      - pattern-either:
+          - pattern: "rejectUnauthorized: false"
+          - pattern: process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0"
+
+  - id: ephemora-node-weak-hash
+    languages: [javascript, typescript]
+    severity: WARNING
+    message: >-
+      MD5 and SHA-1 are broken for integrity and far too fast for passwords. Use
+      SHA-256 for checksums and scrypt/bcrypt/argon2 for credentials (CWE-327).
+    metadata:
+      category: security
+      cwe:
+        - "CWE-327: Use of a Broken or Risky Cryptographic Algorithm"
+      ephemora-category: crypto
+      confidence: HIGH
+    pattern-either:
+      - pattern: crypto.createHash("md5")
+      - pattern: crypto.createHash("sha1")
+      - pattern: CryptoJS.MD5(...)
+      - pattern: CryptoJS.SHA1(...)
+
+  - id: ephemora-node-world-writable-file
+    languages: [javascript, typescript]
+    severity: WARNING
+    message: >-
+      Mode 0o777 / 0o666 makes the file writable by every account on the machine,
+      so any local process can replace its content (CWE-732).
+    metadata:
+      category: security
+      cwe:
+        - "CWE-732: Incorrect Permission Assignment for Critical Resource"
+      ephemora-category: permissions
+      confidence: HIGH
+    patterns:
+      - pattern-either:
+          - pattern: fs.chmodSync($P, $MODE)
+          - pattern: fs.chmod($P, $MODE, ...)
+      - metavariable-regex:
+          metavariable: $MODE
+          regex: "^0o?6{3}$|^0o?7{3}$"

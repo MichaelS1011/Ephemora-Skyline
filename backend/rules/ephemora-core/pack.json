@@ -1,0 +1,14 @@
+{
+  "id": "ephemora-core",
+  "name": "Ephemora core rules",
+  "version": "1.0.0",
+  "origin": "shipped",
+  "source": "Eigenentwicklung für Ephemora Skyline",
+  "license": "BSL-1.1 (wie das Programm selbst — die Regeln gehören uns, weitergebbar und weiterverteilbar ohne Lizenzkonflikt)",
+  "categories": ["injection", "crypto", "transport", "permissions"],
+  "languages": ["javascript", "typescript", "python"],
+  "files": ["node.yaml", "python.yaml"],
+  "ruleCount": 12,
+  "default": true,
+  "note": "Die Regeln sind bewusst knapp gehalten: jede einzelne ist gegen Positiv- und Negativ-Beispiele getestet (backend/tests/rule-packs.test.ts). Ein Registry-Pack mit 225 Regeln kann das nicht."
+}

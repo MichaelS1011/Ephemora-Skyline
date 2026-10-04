@@ -40,7 +40,7 @@ export const OUTBOUND_CALLS: readonly OutboundCall[] = [
     host: "semgrep.dev",
     by: "semgrep",
     what: "the rule pack named by SEMGREP_CONFIG (default p/security-audit)",
-    when: "the first scan of a session that has Semgrep switched on",
+    when: "a scan with Semgrep on and no local rule pack selected",
   },
   {
     host: "api.osv.dev",

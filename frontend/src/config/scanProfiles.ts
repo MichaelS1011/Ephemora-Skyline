@@ -262,10 +262,16 @@ export function saveProfile(profile: ScanProfile): void {
 export function configPayload(
   profile: ScanProfile,
   categories: FindingCategory[] = [],
-): { profile: ScanProfile; enabledCategories?: FindingCategory[] } {
+  rulePacks: string[] = [],
+): {
+  profile: ScanProfile;
+  enabledCategories?: FindingCategory[];
+  rulePacks?: string[];
+} {
   const enabledCategories = enabledCategoriesPayload(categories);
   return {
     profile: profile === "custom" ? "standard" : profile,
     ...(enabledCategories.length > 0 ? { enabledCategories } : {}),
+    ...(rulePacks.length > 0 ? { rulePacks } : {}),
   };
 }

@@ -21,6 +21,7 @@ import { categoryOf } from "./categories.js";
 import { enrichIssues } from "./finding-knowledge.js";
 import { maskSecretText } from "./redact.js";
 import { resolveConfig, type ResolvedScanConfig } from "./scan-config.js";
+import { semgrepRuleDirs } from "./rule-packs.js";
 
 export class SecurityScanner {
   private logger: pino.Logger;
@@ -46,6 +47,7 @@ export class SecurityScanner {
       this.adapters = [new RegexAdapter(), this.gitleaksAdapter, semgrep];
     }
     this.applyCustomPatterns();
+    this.applyRulePacks();
   }
 
   /**
@@ -58,6 +60,14 @@ export class SecurityScanner {
       if (adapter.id !== "regex" || !(adapter instanceof RegexAdapter)) continue;
       adapter.setCustomPatterns(this.config.customPatterns);
     }
+  }
+
+  /**
+   * Which rules semgrep loads is decided per scan, not per process: a selected
+   * pack reads off the local disk, no selection keeps the registry default.
+   */
+  private applyRulePacks(): void {
+    this.semgrepAdapter?.setRuleDirs(semgrepRuleDirs(this.config.rulePacks));
   }
 
   /**
@@ -134,6 +144,7 @@ export class SecurityScanner {
   setConfig(config: ResolvedScanConfig): void {
     this.config = config;
     this.applyCustomPatterns();
+    this.applyRulePacks();
   }
 
   /**
