@@ -54,4 +54,28 @@ export const OUTBOUND_CALLS: readonly OutboundCall[] = [
     what: "the same dependency names, through npm's own advisory path",
     when: "a scan with no osv-scanner, but a package-lock.json in the folder",
   },
+  {
+    host: "api.deps.dev",
+    by: "osv-scanner",
+    what: "the same package names, resolved against the deps.dev index",
+    when: "a scan with osv-scanner installed, alongside the api.osv.dev queries",
+  },
+  {
+    host: "pypi.org",
+    by: "pip-audit",
+    what: "Python requirement names and versions from requirements.txt",
+    when: "the OSV check is on, no osv-scanner, and a requirements.txt is in the folder",
+  },
+  {
+    host: "registry-1.docker.io",
+    by: "the Semgrep Docker fallback",
+    what: "an image pull of semgrep/semgrep, nothing about the source",
+    when: "Semgrep is selected, no binary on PATH, Docker present, image not cached",
+  },
+  {
+    host: "registry.npmjs.org",
+    by: "npm ci in the in-city test runner",
+    what: "whatever the scanned project's own lockfile pins",
+    when: "Run test file is pressed and the staged copy has no node_modules",
+  },
 ] as const;

@@ -3,6 +3,7 @@ import { readFileSync, readdirSync } from "fs";
 import path from "path";
 import { OFFLINE_ENV, OUTBOUND_CALLS, isOffline } from "../src/services/security/network-policy.js";
 import { resolveConfig } from "../src/services/security/scan-config.js";
+import { installDecision } from "../src/server/routes/tests.js";
 
 /**
  * "Local by design" is a claim about the network, so it is checked on the
@@ -114,6 +115,8 @@ describe("the documented network surface", () => {
       "semgrep.dev",
       "api.github.com",
       "registry.npmjs.org",
+      "pypi.org",
+      "registry-1.docker.io",
     ]) {
       expect(
         OUTBOUND_CALLS.some((c) => c.host === documented),
@@ -141,5 +144,55 @@ describe("the documented network surface", () => {
    */
   it("says plainly that no source code is uploaded", () => {
     expect(read("README.md")).toMatch(/never uploaded and never sent to a third party/i);
+  });
+
+  /**
+   * The table and the code list are the same claim written down twice. Reading
+   * the hosts out of the table keeps the second copy from being transcribed by
+   * hand — a new row without a declared call, or the other way round, fails.
+   */
+  it("lists the same hosts in the table as the policy declares", () => {
+    const declared = new Set(OUTBOUND_CALLS.map((c) => c.host));
+    const table = read("README.md").match(/^\| `([a-z0-9.-]+\.[a-z]{2,})` +\|/gm) ?? [];
+    const documented = new Set(
+      table.map((row) => row.replace(/^\| `|` +\|$/g, "")).filter((h) => h !== "127.0.0.1"),
+    );
+    expect(documented.size, "the privacy table names no hosts at all").toBeGreaterThan(3);
+    for (const host of documented) {
+      expect(declared, `the table names ${host}, which the policy does not declare`).toContain(
+        host,
+      );
+    }
+    for (const host of declared) {
+      expect(documented, `${host} is declared but missing from the table`).toContain(host);
+    }
+  });
+});
+
+describe("the fallbacks a profile never asks about", () => {
+  /**
+   * Three paths reach out without the scan engines ever being switched on:
+   * the in-city test runner installs the project's own dependencies, pip-audit
+   * resolves Python advisories, and the Semgrep Docker fallback pulls an image.
+   */
+  it("will not resolve a dependency tree over the network while offline", () => {
+    expect(installDecision({ nodeModules: false, lockfile: true, offline: true })).toBe(
+      "refuse-offline",
+    );
+    // an installed tree needs nothing fetched, so the switch changes nothing
+    expect(installDecision({ nodeModules: true, lockfile: false, offline: true })).toBe("skip");
+    expect(installDecision({ nodeModules: false, lockfile: true, offline: false })).toBe(
+      "install-pinned",
+    );
+  });
+
+  it("asks the switch at both adapter fallbacks, not only at the presets", () => {
+    const adapters = [
+      "backend/src/services/security/adapters/osv-adapter.ts",
+      "backend/src/services/security/adapters/semgrep-adapter.ts",
+    ]
+      .map((f) => read(f))
+      .join("\n");
+    expect(adapters.match(/isOffline\(\)/g)?.length ?? 0).toBeGreaterThanOrEqual(2);
   });
 });

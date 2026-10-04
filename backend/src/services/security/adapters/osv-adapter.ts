@@ -7,6 +7,7 @@ import type { SecurityIssue } from "../../../models/index.js";
 import { relativeToClone } from "../adapter.js";
 import type { ScannerAdapter } from "../adapter.js";
 import { knowledgeFor } from "../finding-knowledge.js";
+import { isOffline } from "../network-policy.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -158,8 +159,12 @@ export class OsvAdapter implements ScannerAdapter {
       }
     }
 
-    // Fallback: pip-audit for Python requirements (runs even offline-ish via cached DB)
-    const pipIssues = await this.pipAuditFallback(clonePath);
+    /**
+     * pip-audit asks pypi.org for every requirement name it is given; the
+     * "cached DB" this call used to be commented with is not how it resolves
+     * advisories. Offline skips it rather than quietly reaching out.
+     */
+    const pipIssues = isOffline() ? null : await this.pipAuditFallback(clonePath);
     if (pipIssues) {
       this.lastBatchExecuted = true;
       this.lastRunner = "pip-audit";

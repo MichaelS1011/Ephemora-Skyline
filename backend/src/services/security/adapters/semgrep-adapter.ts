@@ -7,6 +7,7 @@ import path from "path";
 import type { SecurityIssue } from "../../../models/index.js";
 import type { ScannerAdapter } from "../adapter.js";
 import { sarifToIssues } from "../sarif-mapper.js";
+import { isOffline } from "../network-policy.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -206,6 +207,24 @@ export class SemgrepAdapter implements ScannerAdapter {
       if (this.dockerAvailable === null) {
         await execFileAsync("docker", ["--version"], { timeout: 3000 });
         this.dockerAvailable = true;
+      }
+      /**
+       * The fallback reaches registry-1.docker.io for the image, so offline
+       * here means "only an image already on this disk". A scan with a local
+       * rule pack still runs — the pack needs no network, the pull would.
+       */
+      if (isOffline()) {
+        try {
+          await execFileAsync("docker", ["image", "inspect", SEMGREP_DOCKER_IMAGE], {
+            timeout: 5000,
+          });
+        } catch {
+          this.logger.warn(
+            { image: SEMGREP_DOCKER_IMAGE },
+            "offline: image is not cached locally, the Docker fallback would pull it",
+          );
+          return null;
+        }
       }
       outDir = await mkdtemp(path.join(tmpdir(), "codecity-semgrep-docker-"));
       const tmpOut = path.join(outDir, "run.sarif");

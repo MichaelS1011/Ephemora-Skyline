@@ -18,6 +18,7 @@ import path from "path";
 import { promisify } from "util";
 import type { Request, Response } from "express";
 import { getStagedDir } from "./local-analyze.js";
+import { isOffline } from "../../services/security/network-policy.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -243,15 +244,22 @@ async function runCmd(
  * a side effect of pressing "run my tests", so the run only proceeds on what
  * the project already pins: a lockfile, or an installed node_modules.
  */
-export type InstallDecision = "install-pinned" | "skip" | "refuse";
+export type InstallDecision = "install-pinned" | "skip" | "refuse" | "refuse-offline";
 
 export function installDecision(state: {
   nodeModules: boolean;
   lockfile: boolean;
+  offline?: boolean;
 }): InstallDecision {
   if (state.nodeModules) return "skip";
+  // `npm ci` obeys the lockfile, but every tarball still comes off registry.npmjs.org.
+  if (state.offline) return "refuse-offline";
   return state.lockfile ? "install-pinned" : "refuse";
 }
+
+export const OFFLINE_REFUSAL =
+  "This machine is switched off from the network and the staged copy has no node_modules — installing the pinned dependencies would fetch them from registry.npmjs.org. " +
+  "Scan a copy that already has node_modules in it, or clear SKYLINE_OFFLINE.";
 
 export const REFUSAL =
   "No lockfile in this project — CodeCity will not resolve a fresh dependency graph just to run its tests. " +
@@ -287,9 +295,10 @@ async function ensureDependencies(
   const lockfile = (await Promise.all(LOCKFILES.map((f) => exists(path.join(uploadDir, f))))).some(
     Boolean,
   );
-  const decision = installDecision({ nodeModules, lockfile });
+  const decision = installDecision({ nodeModules, lockfile, offline: isOffline() });
   if (decision === "skip") return;
   if (decision === "refuse") throw new Error(REFUSAL);
+  if (decision === "refuse-offline") throw new Error(OFFLINE_REFUSAL);
   setStage("Installing pinned dependencies (npm ci) — first run only…");
   const res = await runCmd(
     "npm",
