@@ -1,6 +1,6 @@
 # Ephemora Skyline
 
-**Your local codebase, rendered as a living 3D city at dusk.** Point it at a folder and watch it rise: folders become districts, files become buildings, a taller building holds more tangled code, and a red beacon marks a security finding. Your source never leaves the machine.
+**Your local codebase, rendered as a living 3D city in daylight.** Point it at a folder and watch it rise: folders become districts, files become buildings, a taller building holds more tangled code, and a red beacon marks a security finding. Your source never leaves the machine.
 
 ![The built city: districts as plots, files as buildings, the riskiest file as a landmark tower with a red beam](docs/assets/ui-workspace.png)
 
@@ -194,5 +194,6 @@ The gates, commit conventions and PR checklist are in **[CONTRIBUTING.md](./CONT
 - **Allowed:** read, modify, run and share the code for personal, educational, internal-business and all non-production purposes (development, testing, evaluation, research).
 - **Not allowed** without a separate commercial licence: offering the software or derivatives to third parties as a hosted or managed service (SaaS).
 - **Automatic conversion:** on the Change Date (**2030-09-29**) the licence converts to **Apache License 2.0**.
+- **Bundled under their own terms:** the UI typeface is JetBrains Mono, **SIL Open Font License 1.1**, taken from `@fontsource` and served by the app itself rather than a font CDN. Its licence text ships with the build (`OFL-JetBrains-Mono.txt`), and a test fails if a bundled font ever travels without one.
 
 Copies must retain this licence, the "Ephemora Skyline" branding and all copyright notices. Commercial licences (hosted-service rights, white-labelling, enterprise redistribution) are available from Ephemora.

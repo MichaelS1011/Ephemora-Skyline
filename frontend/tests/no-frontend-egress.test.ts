@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { readFileSync } from "fs";
+import { readFileSync, readdirSync } from "fs";
 import path from "path";
 
 /**
@@ -38,5 +38,24 @@ describe("the entry document asks nothing of the network", () => {
     const main = readFileSync(path.join(root, "src/main.tsx"), "utf8");
     expect(main).toContain("@fontsource/jetbrains-mono/latin-400.css");
     expect(entry).not.toMatch(/fonts\.(googleapis|gstatic)\.com/);
+  });
+
+  /**
+   * A bundled font is a redistributed font. JetBrains Mono is SIL OFL 1.1,
+   * which travels with the copy — so the licence text has to be in the build
+   * output, not only in node_modules where a `npm ci` on another machine puts
+   * it. This fails the day someone swaps the typeface and forgets the paperwork.
+   */
+  it("ships the licence of every font it bundles", () => {
+    const main = readFileSync(path.join(root, "src/main.tsx"), "utf8");
+    const gebuendelt = [...main.matchAll(/@fontsource\/([a-z0-9-]+)\//g)].map((m) => m[1]!);
+    expect(gebuendelt.length, "main.tsx bundles no font").toBeGreaterThan(0);
+    const notices = readdirSync(path.join(root, "public"))
+      .filter((f) => /OFL|LICEN[CS]E/i.test(f))
+      .join(" ")
+      .toLowerCase();
+    for (const familie of new Set(gebuendelt)) {
+      expect(notices, `${familie} is bundled with no licence in public/`).toContain(familie);
+    }
   });
 });

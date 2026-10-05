@@ -115,14 +115,14 @@ frontend/src/
 │   ├── InfoPanel.tsx       # Side panel: file/directory/vuln details
 │   ├── Minimap.tsx         # Overview map of the city
 │   ├── RoadSystem.tsx      # Connecting roads between buildings
-│   ├── ParticleField.tsx   # Particle effects (cyberpunk atmosphere)
-│   └── SearchBar.tsx       # Repository URL input
+│   ├── ParticleField.tsx   # Drifting particles over the plaza (atmosphere layer)
+│   └── SearchBar.tsx       # Search files by name, path or language — results fly the camera
 ├── renderer/               # 3D renderer components
 ├── hooks/
 │   └── useLocalAnalysis.ts # folder pick → upload → poll /api/status for progress
 ├── stores/
 │   └── useStore.ts         # Zustand store (global state)
-├── design/                 # Design system: colors, cyberpunk theme
+├── design/                 # Design system: colors, daylight city theme
 └── vite-env.d.ts           # Vite type declarations
 ```
 
