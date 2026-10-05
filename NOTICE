@@ -1,0 +1,22 @@
+Ephemora Skyline
+Copyright (c) 2026 Ephemora
+
+Third-party components bundled with this work, with the licence identifier each
+one's npm registry entry reports (read 2026-10-05):
+
+  MIT            express, cors, helmet, express-rate-limit, pino, react,
+                 react-dom, three, @react-three/fiber, @react-three/drei,
+                 @react-three/postprocessing, zustand
+  Apache-2.0     typescript
+  BSD-2-Clause   dotenv
+  Zlib           postprocessing
+  OFL-1.1        @fontsource/jetbrains-mono (JetBrains Mono)
+
+The JetBrains Mono licence text ships with the frontend build as
+frontend/public/OFL-JetBrains-Mono.txt, and a frontend test fails if a bundled
+font ever travels without its licence.
+
+The scan rule pack in backend/rules/ephemora-core is authored for this project.
+Semgrep registry packs are not redistributed here; the engine fetches them at
+run time, and SKYLINE_OFFLINE=1 stops that fetch along with every other outbound
+call the scanner makes.

@@ -78,7 +78,7 @@ describe("Regel-Pack ephemora-core (#41)", () => {
     expect(pack!.origin).toBe("shipped");
     expect(pack!.ruleCount).toBe(12);
     // Die Lizenz ist der Grund, warum dieses Pack im Repo liegen darf
-    expect(pack!.license).toContain("BSL");
+    expect(pack!.license).toContain("Apache-2.0");
     expect(pack!.source).toContain("Eigenentwicklung");
     expect(pack!.categories).toEqual(
       expect.arrayContaining(["injection", "crypto", "transport", "permissions"]),

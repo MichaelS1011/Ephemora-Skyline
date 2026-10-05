@@ -1,11 +1,11 @@
 {
   "name": "codecity-cyberdefense",
   "private": true,
-  "license": "BSL-1.1",
+  "license": "Apache-2.0",
   "type": "module",
   "version": "0.1.0",
   "packageManager": "npm@10.0.0",
-  "description": "3D city visualizer for local codebases — folders rise as districts, security findings glow as beacons",
+  "description": "3D city visualizer for local codebases \u2014 folders rise as districts, security findings glow as beacons",
   "repository": {
     "type": "git",
     "url": "https://github.com/MichaelS1011/Ephemora-Skyline.git"

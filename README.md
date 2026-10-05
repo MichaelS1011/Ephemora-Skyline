@@ -2,7 +2,7 @@
 
 <p align="left">
   <img alt="Status: private preview" src="https://img.shields.io/badge/status-private%20preview-6b6a63?style=flat&logo=github&logocolor=white">
-  <img alt="License: Business Source License 1.1" src="https://img.shields.io/badge/license-BSL--1.1-informational?style=flat">
+  <img alt="License: Apache License 2.0" src="https://img.shields.io/badge/license-Apache--2.0-blue?style=flat">
   <img alt="Gates enforced on every push: lint, type-check, tests, build, audit" src="https://img.shields.io/badge/gates-lint%20%C2%B7%20types%20%C2%B7%20tests%20%C2%B7%20build%20%C2%B7%20audit-2c2c29?style=flat&logo=githubactions&logocolor=white">
   <img alt="Node.js 20 or newer" src="https://img.shields.io/badge/node-%3E%3D20-339933?style=flat&logo=nodedotjs&logocolor=white">
   <img alt="TypeScript 5.9" src="https://img.shields.io/badge/typescript-5.9-3178c2?style=flat&logo=typescript&logocolor=white">
@@ -66,7 +66,7 @@ Open **http://localhost:3010** and click **Choose project folder** — or **Expl
 ```bash
 npm run lint           # ESLint, zero warnings
 npm run type-check     # tsc --noEmit, both packages
-npm run test           # Vitest — 760 tests in 91 files (403 frontend, 357 backend)
+npm run test           # Vitest — 765 tests in 91 files (408 frontend, 357 backend)
 npm run build          # production build, both packages
 node scripts/audit-gate.mjs   # dependency audit, see below
 ```
@@ -123,11 +123,11 @@ Your own patterns are supported too: up to 25 regular expressions with severity,
 
 The deep AST scan needs rules, and where those rules come from is a decision with a licence attached. The Semgrep Rules License v1.0 states: "This license does not allow you to distribute the rules, or to make them available to others as a service." So the registry stays what it always was — fetched by `semgrep` itself, by you, at scan time — and what ships in this repository is rules we wrote and own.
 
-| Pack                 | Where it lives                                                       | Rules | Licence                                              |
-| -------------------- | -------------------------------------------------------------------- | ----- | ---------------------------------------------------- |
-| `ephemora-core`      | `backend/rules/ephemora-core/`                                       | 12    | BSL-1.1, same as the program — ours to ship and grow |
-| _(nothing selected)_ | `semgrep.dev`, during the scan                                       | 225   | Semgrep Rules License v1.0 — not redistributable     |
-| your own             | `~/.ephemora-skyline/rule-packs/<id>/` (or `CODECITY_RULE_PACK_DIR`) | any   | yours                                                |
+| Pack                 | Where it lives                                                       | Rules | Licence                                                 |
+| -------------------- | -------------------------------------------------------------------- | ----- | ------------------------------------------------------- |
+| `ephemora-core`      | `backend/rules/ephemora-core/`                                       | 12    | Apache-2.0, same as the program — ours to ship and grow |
+| _(nothing selected)_ | `semgrep.dev`, during the scan                                       | 225   | Semgrep Rules License v1.0 — not redistributable        |
+| your own             | `~/.ephemora-skyline/rule-packs/<id>/` (or `CODECITY_RULE_PACK_DIR`) | any   | yours                                                   |
 
 A pack is a directory with a `pack.json` manifest and rule YAML beside it. The manifest's `ruleCount` is checked against the files at load time, and a pack whose manifest lies is not offered at all. Scans select packs **by id**; a path is rejected, because a client-supplied directory would let the scanner read rules from anywhere on the machine.
 
@@ -200,15 +200,17 @@ Ephemora-Skyline/
 
 ## Contributing
 
-The gates, commit conventions and PR checklist are in **[CONTRIBUTING.md](./CONTRIBUTING.md)**. Small, reviewable changes land fastest. Interface strings need both an English and a German entry. Anything that changes the 3D render needs a real-GPU screenshot — headless CI cannot judge a WebGL scene. The "Ephemora Skyline" name and the BSL-1.1 licence are not negotiable.
+The gates, commit conventions and PR checklist are in **[CONTRIBUTING.md](./CONTRIBUTING.md)**. Small, reviewable changes land fastest. Interface strings need both an English and a German entry. Anything that changes the 3D render needs a real-GPU screenshot — headless CI cannot judge a WebGL scene. The "Ephemora Skyline" name is not part of what the licence grants — Apache-2.0 gives copyright and patents, not the mark.
 
 ## License
 
-**Business Source License 1.1 (BSL-1.1)** — see [LICENSE](./LICENSE). Source-available, **not** OSI open-source.
+**Apache License 2.0** — the full text is in [LICENSE](./LICENSE), attribution and the bundled components' own licences in [NOTICE](./NOTICE). OSI-approved open source since 2026-10-05; before that the project carried the Business Source License, with a scheduled conversion to this same licence that has been pulled forward.
 
-- **Allowed:** read, modify, run and share the code for personal, educational, internal-business and all non-production purposes (development, testing, evaluation, research).
-- **Not allowed** without a separate commercial licence: offering the software or derivatives to third parties as a hosted or managed service (SaaS).
-- **Automatic conversion:** on the Change Date (**2030-09-29**) the licence converts to **Apache License 2.0**.
+- **What you may do:** read it, run it, change it, ship it, sell work built on it, and host it for anyone — the copyright grant is §2 and the patent grant is §3.
+- **What you must do:** keep the licence text and the `NOTICE`, and note where you changed a file (§4). That is the whole price.
+- **What is not granted:** the name. §6 withholds trade names and marks, so `Ephemora Skyline` stays the name of this implementation and a fork should pick another.
+- **Patent suicide clause:** the patent licence ends for anyone who litigates claiming this work infringes their patents (§3).
+- **Warranty and liability:** none, respectively capped at nothing (§7 and §8) — which for a tool that reads your source and can run a folder's test suite is worth reading twice.
 - **Bundled under their own terms:** the UI typeface is JetBrains Mono, **SIL Open Font License 1.1**, taken from `@fontsource` and served by the app itself rather than a font CDN. Its licence text ships with the build (`OFL-JetBrains-Mono.txt`), and a test fails if a bundled font ever travels without one.
 
-Copies must retain this licence, the "Ephemora Skyline" branding and all copyright notices. Commercial licences (hosted-service rights, white-labelling, enterprise redistribution) are available from Ephemora.
+Skyline is the piece of this work meant to be read and argued with, not the piece meant to earn.

@@ -5,7 +5,7 @@ Thanks for your interest. Ephemora Skyline is a focused 3D visualizer — small,
 ## Ground rules
 
 - **Local-first, always.** Nothing here should send analyzed file content off the machine. A PR that introduces network egress for code that was analyzed from a local folder is a security bug, not a feature.
-- **The name stays.** `Ephemora Skyline` and the BSL-1.1 license are non-negotiable.
+- **The name is yours to keep out of.** `Ephemora Skyline` is the project's name; Apache-2.0 licenses the code, not the mark.
 - **UI strings need both languages.** Every interface string lives in `frontend/src/i18n.ts` with an English and a German entry; a key that exists in one language only falls back to printing its own name, which is a visible bug, not a missing translation.
 - **3D / render-critical files** (`CityScene`, `Building`, `District`, `RoadSystem`, `ParticleField`, the `renderer/` folder) need a real-GPU screenshot in the PR before they are reviewed — the headless CI cannot render WebGL.
 
@@ -27,7 +27,7 @@ These are exactly what CI enforces. Run them clean first:
 ```bash
 npm run lint          # ESLint, zero warnings
 npm run type-check    # tsc --noEmit across both packages
-npm run test          # Vitest — 760 tests in 91 files (403 frontend, 357 backend)
+npm run test          # Vitest — 765 tests in 91 files (408 frontend, 357 backend)
 npm run build         # production build, both packages
 ```
 
@@ -48,4 +48,4 @@ A fifth check runs in CI: `node scripts/audit-gate.mjs`. It fails on every high 
 
 ## License
 
-By contributing, you agree your contributions are licensed under the project's BSL-1.1 terms (see [LICENSE](./LICENSE)). Contributions are source-available, not OSI open-source.
+By contributing, you agree your contributions are licensed under the project's Apache License 2.0 (see [LICENSE](./LICENSE)). No separate assignment, no CLA: the licence you contribute under is the licence the project ships.
