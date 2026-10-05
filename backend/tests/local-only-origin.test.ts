@@ -1,5 +1,9 @@
 import { describe, it, expect } from "vitest";
-import { expectedOrigins, isForeignBrowserRequest } from "../src/server/local-only.js";
+import {
+  corsOptionsFor,
+  expectedOrigins,
+  isForeignBrowserRequest,
+} from "../src/server/local-only.js";
 
 /**
  * The API binds loopback, so nobody on the network can reach it. A browser on
@@ -67,5 +71,32 @@ describe("a browser request for a route that runs code", () => {
     expect(
       isForeignBrowserRequest({ origin: "http://127.0.0.1:9999", host: "127.0.0.1:4000" }, [OWN]),
     ).toBe(true);
+  });
+
+  /**
+   * `cors()` used to receive the raw `FRONTEND_ORIGIN` string while the guard
+   * parsed it as a list: a second origin, the app opened on 127.0.0.1, or the
+   * packaged app passed the guard and then got an `Access-Control-Allow-Origin`
+   * the browser throws away. The request worked and looked broken.
+   */
+  it("answers CORS with the same list the guard admits", () => {
+    const ask = (env: Record<string, string>, origin?: string): string | boolean | undefined => {
+      let given: string | boolean | undefined;
+      corsOptionsFor(env).origin(origin, (_e, v) => {
+        given = v;
+      });
+      return given;
+    };
+    const env = { FRONTEND_ORIGIN: "http://localhost:5173,https://app.example" };
+    expect(ask(env, "https://app.example"), "second origin in the list").toBe(
+      "https://app.example",
+    );
+    expect(ask(env, "http://localhost:5173")).toBe("http://localhost:5173");
+    expect(ask(env, "http://127.0.0.1:3010"), "the loopback twin").toBe("http://127.0.0.1:3010");
+    expect(ask(env, "tauri://localhost"), "the packaged app").toBe("tauri://localhost");
+    expect(ask(env, "http://evil.example"), "a foreign page gets no header").toBe(false);
+    expect(ask(env, undefined), "a non-browser client gets no header").toBe(false);
+    expect(ask({}, OWN), "unset env still serves the dev page").toBe(OWN);
+    expect(ask({ FRONTEND_ORIGIN: "  " }, OWN), "blank env falls back to the dev page").toBe(OWN);
   });
 });

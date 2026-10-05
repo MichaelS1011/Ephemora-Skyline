@@ -18,7 +18,7 @@ import pino from "pino";
 import type { AnalysisResult } from "../models/index.js";
 import type { ResolvedScanConfig } from "../services/security/scan-config.js";
 import { AnalysisOrchestrator } from "../services/analyzer/orchestrator.js";
-import { localOnlyRoute } from "./local-only.js";
+import { corsOptionsFor, localOnlyRoute } from "./local-only.js";
 import { SecurityScanner } from "../services/security/scanner.js";
 import { getHealth } from "./routes/health.js";
 import { getDemoResult } from "./routes/demo.js";
@@ -143,12 +143,7 @@ if (process.env.TRUST_PROXY) {
   app.set("trust proxy", process.env.TRUST_PROXY);
 }
 app.use(helmet());
-app.use(
-  cors({
-    origin: process.env.FRONTEND_ORIGIN || "http://localhost:3010",
-    credentials: true,
-  }),
-);
+app.use(cors(corsOptionsFor()));
 // Large-body parser must run BEFORE the global one: the global 10mb parser
 // would otherwise reject big local-folder uploads with 413 first
 app.use("/api/analyze-local", express.json({ limit: "80mb" }));

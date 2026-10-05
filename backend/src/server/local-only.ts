@@ -37,11 +37,34 @@ export function isForeignBrowserRequest(
 
 /** The origins this process is meant to serve: dev server, packaged app, explicit env */
 export function expectedOrigins(env: NodeJS.ProcessEnv = process.env): string[] {
-  const configured = (env.FRONTEND_ORIGIN ?? "http://localhost:3010")
+  const configured = (env.FRONTEND_ORIGIN?.trim() || "http://localhost:3010")
     .split(",")
     .map((o) => o.trim())
     .filter(Boolean);
   return [...configured, "http://127.0.0.1:3010", "tauri://localhost"];
+}
+
+/**
+ * CORS answers to exactly the origins the guard admits.
+ *
+ * Handing `cors()` the raw `FRONTEND_ORIGIN` string made the two disagree: the
+ * guard reads a comma-separated list, CORS compared one string. A second
+ * origin, the app opened on `127.0.0.1`, or the packaged app's own scheme then
+ * passed the guard and got an `Access-Control-Allow-Origin` the browser rejects
+ * — a request that works and reads as broken, with nothing logged.
+ */
+export function corsOptionsFor(env: NodeJS.ProcessEnv = process.env) {
+  const allowed = new Set(expectedOrigins(env));
+  return {
+    credentials: true,
+    origin(
+      origin: string | undefined,
+      cb: (err: Error | null, allow?: string | boolean) => void,
+    ): void {
+      // no Origin header at all is not a browser cross-origin read
+      cb(null, origin !== undefined && allowed.has(origin) ? origin : false);
+    },
+  };
 }
 
 /** Middleware for a route that must not be drivable from another website */
