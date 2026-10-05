@@ -262,7 +262,7 @@ export const OFFLINE_REFUSAL =
   "Scan a copy that already has node_modules in it, or clear SKYLINE_OFFLINE.";
 
 export const REFUSAL =
-  "No lockfile in this project — CodeCity will not resolve a fresh dependency graph just to run its tests. " +
+  "No lockfile in this project — Ephemora Skyline will not resolve a fresh dependency graph just to run its tests. " +
   "Run npm ci (or npm install) once yourself, or scan a copy that has package-lock.json / pnpm-lock.yaml / yarn.lock in it.";
 
 /** The project's own runner, not a version npx may still fetch from the registry */
@@ -401,7 +401,7 @@ export async function executeTestRun(
       const binary = candidates[where.indexOf(true)];
       if (!binary) {
         throw new Error(
-          `${target.runner} is not installed in ${target.wsName} — CodeCity does not fetch a runner from the registry to execute it here.`,
+          `${target.runner} is not installed in ${target.wsName} — Ephemora Skyline does not fetch a runner from the registry to execute it here.`,
         );
       }
       const args =

@@ -1,8 +1,9 @@
 /**
- * AnalysisOrchestrator — Glues clone → parse → scan → build pipeline together.
+ * AnalysisOrchestrator — glues read → parse → scan → aggregate together.
  *
  * Pipeline:
- * 1. Clone repo → local temp dir (via CloneManager)
+ * 1. Walk the folder the user picked (staged copy under the uploads root) —
+ *    there is no clone step and no remote to clone from
  * 2. Enumerate files → read content → compute metrics
  * 3. Security scan → tag vulnerabilities
  * 4. Aggregate → produce AnalysisResult

@@ -362,7 +362,7 @@ export function useLocalAnalysis() {
       }
       setCollected({ files: files.length, bytes: totalBytes });
       if (skipped > 0) {
-        console.info(`CodeCity: skipped ${skipped} oversized/unreadable files`);
+        console.info(`Ephemora Skyline: skipped ${skipped} oversized/unreadable files`);
       }
       await uploadAndAnalyze(rootName, files);
     },
@@ -464,7 +464,8 @@ export function useLocalAnalysis() {
         return;
       }
       setCollected({ files: files.length, bytes: totalBytes });
-      if (skipped > 0) console.info(`CodeCity: skipped ${skipped} oversized/unreadable files`);
+      if (skipped > 0)
+        console.info(`Ephemora Skyline: skipped ${skipped} oversized/unreadable files`);
       await uploadAndAnalyze(dir.name, files);
     },
     [setAnalysisStage, uploadAndAnalyze],

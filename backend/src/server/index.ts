@@ -1,5 +1,5 @@
 /**
- * CodeCity — local Express API server
+ * Ephemora Skyline — local Express API server
  *
  * All analysis results live in a single `analysisStore`.
  * Analysis progress is served by GET /api/status/:id; the frontend polls it.
@@ -298,7 +298,7 @@ process.on("SIGINT", () => shutdown("SIGINT"));
 const PORT = parseInt(process.env.PORT ?? "4000", 10);
 const HOST = bindHost();
 server.listen(PORT, HOST, () => {
-  logger.info({ port: PORT, host: HOST }, "CodeCity backend listening");
+  logger.info({ port: PORT, host: HOST }, "Ephemora Skyline backend listening");
   if (!isLoopbackHost(HOST)) {
     logger.warn(
       { host: HOST },

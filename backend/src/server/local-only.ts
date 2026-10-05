@@ -80,7 +80,7 @@ export function localOnlyRoute(req: Request, res: Response, next: NextFunction):
     )
   ) {
     res.status(403).json({
-      error: "This request came from another website — CodeCity only accepts its own page.",
+      error: "This request came from another website — Ephemora Skyline only accepts its own page.",
     });
     return;
   }

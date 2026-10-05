@@ -152,7 +152,7 @@ export async function handleLocalAnalyze(
   }
   if (files.length > MAX_FILES) {
     res.status(400).json({
-      error: `Folder too large: ${files.length} files (maximum ${MAX_FILES}). Skip node_modules/dist — CodeCity ignores them anyway.`,
+      error: `Folder too large: ${files.length} files (maximum ${MAX_FILES}). Skip node_modules/dist — Ephemora Skyline ignores them anyway.`,
     });
     return;
   }
@@ -189,7 +189,8 @@ export async function handleLocalAnalyze(
   if (!cleaned.some((f) => !isGitPath(f.path))) {
     res.status(400).json({
       error:
-        "No analyzable source files in that folder — CodeCity reads: " + supportedExtensionsLabel(),
+        "No analyzable source files in that folder — Ephemora Skyline reads: " +
+        supportedExtensionsLabel(),
     });
     return;
   }
@@ -278,7 +279,7 @@ async function runLocalAnalysis(
     if (result.status === "failed" || result.summary.totalFiles === 0) {
       const message =
         result.error ??
-        `No analyzable files found in that folder — CodeCity reads: ${supportedExtensionsLabel()}`;
+        `No analyzable files found in that folder — Ephemora Skyline reads: ${supportedExtensionsLabel()}`;
       failJob(analysisId, message, analysisStore);
       return;
     }
