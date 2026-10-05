@@ -110,6 +110,14 @@ describe("the header says when the identity is guessed", () => {
     expect(hud).toMatch(/apiStatus !== "demo" && identityIsGuessed\(cityData\)/);
     expect(hud).toContain('data-testid="project-identity-guess"');
     expect(hud).toContain('t(lang, "hud.identityGuessedTitle")');
+    // a glyph is a sighted cue only, so the same fact needs a spoken form
+    expect(hud).toContain('aria-hidden="true"');
+    expect(hud).toContain('t(lang, "hud.identityGuessedAria")');
+  });
+
+  it("names the same fact in both languages for screen readers", () => {
+    expect(t("en", "hud.identityGuessedAria")).toMatch(/inferred/i);
+    expect(t("de", "hud.identityGuessedAria")).toMatch(/abgeleitet/);
   });
 
   it("explains it in both languages", () => {

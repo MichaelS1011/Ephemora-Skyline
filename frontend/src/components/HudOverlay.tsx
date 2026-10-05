@@ -64,13 +64,18 @@ export function HudOverlay({ apiStatus }: HudOverlayProps) {
             {/* the bucket is inferred until a project root is saved — say it here,
                 where the project is named, not after a verdict seems to go missing */}
             {apiStatus !== "demo" && identityIsGuessed(cityData) && (
-              <span
-                className="project-guess"
-                data-testid="project-identity-guess"
-                title={t(lang, "hud.identityGuessedTitle")}
-              >
-                ≈
-              </span>
+              <>
+                <span
+                  className="project-guess"
+                  data-testid="project-identity-guess"
+                  aria-hidden="true"
+                  title={t(lang, "hud.identityGuessedTitle")}
+                >
+                  ≈
+                </span>
+                {/* the glyph alone is a sighted cue; the name of the button carries it to AT */}
+                <span className="sr-only">{t(lang, "hud.identityGuessedAria")}</span>
+              </>
             )}
             <span>
               {apiStatus === "demo"
