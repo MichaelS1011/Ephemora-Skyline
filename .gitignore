@@ -67,3 +67,8 @@ docker/*.local.yml
 .hermes/
 **/.video_agent/
 .qoder-scratch/
+
+# Raw measurement dumps from the multi-role review runs (ledger CSV + screenshots).
+# Durable statements are folded into docs/UI_REVIEW.md; the dumps stay local.
+# The scripts that produced them live in .qoder-scratch/ (also ignored).
+docs/reviews/
