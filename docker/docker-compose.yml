@@ -9,8 +9,8 @@ services:
     environment:
       - NODE_ENV=production
       - PORT=4000
-      - GITHUB_TOKEN=${GITHUB_TOKEN:-}
-      - FRONTEND_ORIGIN=${FRONTEND_ORIGIN:-http://localhost:3000}
+      - FRONTEND_ORIGIN=${FRONTEND_ORIGIN:-http://localhost:3010}
+      # nginx sits in front of the API here, so rate limits key on X-Forwarded-For
       - TRUST_PROXY=1
     restart: unless-stopped
     networks:
@@ -22,7 +22,7 @@ services:
       dockerfile: docker/Dockerfile.frontend
     container_name: codecity-frontend
     ports:
-      - "3000:80"
+      - "3010:80"
     depends_on:
       - backend
     restart: unless-stopped

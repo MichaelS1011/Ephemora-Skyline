@@ -195,13 +195,17 @@ server: {
 
 ## Deployment
 
-### Local with Docker Compose
+### Local containers
+
+The compose file lives in `docker/`, so name it:
 
 ```bash
-docker compose up --build
+docker compose -f docker/docker-compose.yml up --build
 # Backend:  http://localhost:4000
 # Frontend: http://localhost:3010
 ```
+
+Same two processes, same machine. `TRUST_PROXY=1` is set there only because nginx sits in front of the API.
 
 Build single containers:
 
@@ -210,14 +214,15 @@ docker build -f docker/Dockerfile.backend  -t ephemora-skyline-backend .
 docker build -f docker/Dockerfile.frontend -t ephemora-skyline-frontend .
 ```
 
-### Render
+### There is no hosted version
 
-1. Open the [Render dashboard](https://dashboard.render.com/) → **New +** → **Public Git Repository**.
-2. Select your `Ephemora-Skyline` repository.
-3. Set environment variables:
-   - `HOST` — the backend binds `127.0.0.1` by default; a deployed backend has to bind the interface its platform routes to, and the local-only guard on the code-running routes is what still refuses a foreign page's write
-   - `PORT` — the platform's assigned port (default `4000`)
-   - `VITE_API_URL` → your backend URL (e.g. `https://ephemora-skyline-backend.onrender.com`)
-4. `render.yaml` is detected automatically and creates:
-   - `ephemora-skyline-backend` (Node.js web service)
-   - `ephemora-skyline-frontend` (static site with API forwarding)
+The repository carries no platform manifest on purpose. Until 5 October 2026 it held a
+`render.yaml` and a `vercel.json` that pointed `/api/*` at a public URL — an unauthenticated
+endpoint that accepts `POST /api/analyze-local` (up to 80 MB of someone's source) and can run the
+test suite of whatever folder it is handed. That contradicts the one claim the entry screen leads
+with, so both files are gone and no documentation section replaces them.
+
+Deploying it on a network you do not own is still possible and is now your decision alone: set
+`HOST` to the interface your platform routes to, and read the warning the server logs itself when
+it binds a non-loopback address (`backend/src/server/index.ts:302-307`). The local-only guard
+refuses another _website's_ write; it does not refuse another machine.

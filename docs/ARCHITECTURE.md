@@ -19,19 +19,18 @@ codecity-cyberdefense/          # internal package name (owner-locked)
 ├── backend/                # Workspace: Express API
 │   ├── package.json
 │   ├── tsconfig.json
+│   ├── rules/              # the bundled rule pack (ephemora-core)
 │   └── src/
-├── docker/                 # Dockerfile.backend + Dockerfile.frontend
+├── docker/                 # Dockerfile.backend + Dockerfile.frontend + compose
 ├── .github/workflows/      # CI pipeline
-└── render.yaml             # Render deployment
+└── docs/                   # this file, first run, UI review
 ```
 
-**Turborepo tasks:**
+**Turborepo tasks** (`turbo.json`):
 
-- `dev`: cache=false, persistent — starts both workspaces simultaneously
-- `build`: `^build` — builds the backend first, then the frontend
-- `lint`: `^lint` — lint with dependency tracking
-- `type-check`: `^build` — builds first, then type check
-- `test`: `^build` — builds first, then tests
+- `dev`: `cache: false`, `persistent: true` — starts both workspaces
+- `build`: `dependsOn: ["^build"]` (backend first), cached, `inputs: ["src/**","*.json","*.ts","*.js"]`, `outputs: ["dist/**"]`
+- `lint`, `type-check`, `test`, `clean`: `cache: false` and **no** `dependsOn` — they read the source tree, so a build first would only slow them down
 
 ## Backend Architecture
 
@@ -152,27 +151,21 @@ User picks a folder in the browser
 
 ## Deployment Architecture
 
-### Docker Compose (Local)
+### Docker Compose (a machine you own)
 
 ```
-Dockerfile.backend   → Express app on port 4000
-Dockerfile.frontend  → Nginx serving the Vite build on port 3010
-docker-compose.yml   → Bridge network, backend first
+docker/docker-compose.yml → bridge network, backend first
+  backend  → Dockerfile.backend,  Express on 4000,  host port 4000
+  frontend → Dockerfile.frontend, nginx on 80,      host port 3010
+             (nginx.conf proxies /api/* to the backend container)
 ```
 
-### Render (Production)
+### No hosted deployment
 
-```
-render.yaml → Two services:
-  1. codecity-backend (Node.js web service)
-     - Build: npm ci && npm run build
-     - Start: npm start
-     - Health check: /api/health
-  2. codecity-frontend (Static site)
-     - Build: cd frontend && npm ci && npm run build
-     - Publish: ./frontend/dist
-     - Routes: /api/* → backend URL, /* → index.html (SPA fallback)
-```
+There is deliberately no platform manifest in the repository: an unauthenticated API that takes a
+folder of source and runs that folder's tests must not be pointed at a public address. The
+removed `render.yaml` / `vercel.json` and what replaces them is written out in
+[`GETTING_STARTED.md`](./GETTING_STARTED.md), section "There is no hosted version".
 
 ## Dependencies
 

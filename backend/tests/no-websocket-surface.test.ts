@@ -49,16 +49,35 @@ describe("no WebSocket surface in the product", () => {
     }
   });
 
-  it("keeps the dev proxy, the reverse proxy and the host rewrite without a /ws route", () => {
+  it("keeps the dev proxy and the reverse proxy without a /ws route", () => {
     const configs = [
       "frontend/vite.config.ts",
       "docker/nginx.conf",
-      "vercel.json",
+      "docker/docker-compose.yml",
       "backend/src/server/index.ts",
     ];
     for (const rel of configs) {
       const text = readFileSync(path.join(repoRoot, rel), "utf-8");
       expect(text.includes("/ws"), `${rel} still routes /ws`).toBe(false);
+      expect(/ws:\/\//.test(text), `${rel} names a ws:// url`).toBe(false);
+    }
+  });
+
+  /**
+   * The repository carried a `render.yaml` and a `vercel.json` that pointed
+   * `/api/*` at a public URL — an unauthenticated API that stages a folder of
+   * someone's source and can run that folder's own tests. Both are deleted, and
+   * this keeps the deletion from regrowing without the decision being made again.
+   */
+  it("ships no hosted-deployment manifest", () => {
+    for (const gone of ["render.yaml", "vercel.json"]) {
+      expect(existsSync(path.join(repoRoot, gone)), `${gone} is back`).toBe(false);
+    }
+    for (const rel of ["README.md", "docs/GETTING_STARTED.md", "docs/ARCHITECTURE.md"]) {
+      const text = readFileSync(path.join(repoRoot, rel), "utf-8");
+      expect(/onrender\.com|VITE_WS_URL/.test(text), `${rel} points at a hosted endpoint`).toBe(
+        false,
+      );
     }
   });
 });
