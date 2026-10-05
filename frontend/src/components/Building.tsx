@@ -506,37 +506,47 @@ export function Building({
   const slabMaterial = getVoxelMaterial("code", voxelVariant, overallFactor);
 
   // ── Finding bar stack (Balken) ─────────────────────────────────────────────
-  // One segment per finding, worst at the bottom, standing on the plinth at the
-  // front-left corner of the plot. Height is the finding COUNT, stack ORDER is
-  // the severity rank — so the alarm is readable as mass from across the
-  // district and as a ranking without ever asking the reader to tell two
-  // oranges apart. Segments past MAX_SEGMENTS fold into the top one, which keeps
-  // the height monotone while capping the geometry at six instances per file.
+  // One segment per finding, worst at the bottom, rising off the ROOF with the
+  // alarm beacon crowning it. Height is the finding COUNT, stack ORDER is the
+  // severity rank — so the alarm reads as mass from across the district and as
+  // a ranking without ever asking the reader to tell two oranges apart.
+  // Segments past MAX_SEGMENTS fold into the top one, which keeps the height
+  // monotone while capping the geometry at six instances per file.
+  //
+  // The roof, not the plot corner: the first version stood on the plinth at
+  // front-left and measured +1 px of alarm at 111 units (2 → 3 px, see
+  // out/c_demo_mid.json) because from the parked azimuth the tower hid its own
+  // stack. Against the sky nothing can occlude it.
   const barSegments = useMemo(() => findingBarSegments(file.findings), [file.findings]);
+  const roofY = h + (stepped ? 0.6 : 1.0);
+  const barTop = barSegments.length ? barSegments[barSegments.length - 1]!.y1 : 0;
   const barRef = useRef<THREE.InstancedMesh>(null);
   const barDummy = useMemo(() => new THREE.Object3D(), []);
   useLayoutEffect(() => {
     const mesh = barRef.current;
     if (!mesh) return;
     barSegments.forEach((seg, i) => {
-      barDummy.position.set(
-        -(w / 2 + FINDING_BAR.WIDTH / 2 - 0.12),
-        0.36 + (seg.y0 + seg.y1) / 2,
-        d / 2 + FINDING_BAR.DEPTH / 2 - 0.12,
-      );
+      barDummy.position.set(0, roofY + (seg.y0 + seg.y1) / 2, 0);
       barDummy.scale.set(FINDING_BAR.WIDTH, seg.y1 - seg.y0, FINDING_BAR.DEPTH);
       barDummy.rotation.set(0, 0, 0);
       barDummy.updateMatrix();
       mesh.setMatrixAt(i, barDummy.matrix);
+      // A reviewed file calms its beacon to green; the stack has to calm with it
+      // or the same building says "handled" and "look here" at the same time.
       mesh.setColorAt(
         i,
-        new THREE.Color(dimColor(severityColor(seg.severity, colorblind), overallFactor)),
+        new THREE.Color(
+          dimColor(
+            fullyReviewed ? REVIEWED_BEACON_COLOR : severityColor(seg.severity, colorblind),
+            overallFactor,
+          ),
+        ),
       );
     });
     mesh.count = barSegments.length;
     mesh.instanceMatrix.needsUpdate = true;
     if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
-  }, [barSegments, w, d, overallFactor, colorblind, barDummy]);
+  }, [barSegments, roofY, overallFactor, colorblind, fullyReviewed, barDummy]);
 
   const materials = useMemo(() => {
     if (voxelBody) return []; // voxel mode uses the shared cached materials
@@ -1158,15 +1168,22 @@ export function Building({
 
       {/* Antenna for towers / landmark — height + offset vary per seed */}
       {(isTower || showLandmark) && (
-        <mesh position={[antennaOffX, h + (stepped ? 0.6 : 1.0) + antennaH / 2, antennaOffX]}>
+        <mesh
+          position={[
+            antennaOffX + (barSegments.length ? FINDING_BAR.WIDTH / 2 + 0.12 : 0),
+            h + (stepped ? 0.6 : 1.0) + antennaH / 2,
+            antennaOffX,
+          ]}
+        >
           <cylinderGeometry args={[0.05, 0.09, antennaH, 6]} />
           <meshStandardMaterial color="#3a4256" roughness={0.6} />
         </mesh>
       )}
 
-      {/* Finding bar stack — the count as mass, the severity as stack order.
-          Hidden with the building itself under a filter dim: a backdrop keeps
-          its backdrop. */}
+      {/* Finding bar stack — the count as mass, the severity as stack order,
+          read against the sky so no neighbouring tower can swallow it. Hidden
+          with the building itself under a filter dim: a backdrop keeps its
+          backdrop. */}
       {barSegments.length > 0 && !dimmed && (
         <instancedMesh
           ref={barRef}
@@ -1177,9 +1194,11 @@ export function Building({
         />
       )}
 
-      {/* Alarm beacon — sized to match the legacy 0.28 sphere in every shape */}
+      {/* Alarm beacon — sized to match the legacy 0.28 sphere in every shape,
+          and crowning the stack: the crown names the worst class by shape, the
+          height below it counts the findings. */}
       {alarm && (
-        <mesh ref={beaconRef} position={[0, h + (stepped ? 0.6 : 1.0) + 0.35, 0]}>
+        <mesh ref={beaconRef} position={[0, roofY + barTop + 0.35, 0]}>
           {beaconShape === "octahedron" ? (
             <octahedronGeometry args={[0.34, 0]} />
           ) : beaconShape === "box" ? (
