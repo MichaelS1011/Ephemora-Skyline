@@ -36,7 +36,7 @@ Most security tooling is a list of findings you scroll. Ephemora Skyline makes a
 - **Security Tour.** The camera flies finding to finding, highest risk first, with a plain-language explanation and a fix suggestion.
 - **Findings you can verify.** Every finding carries its file, its line, a two-line code frame and a link to the rule that fired. Open the file in your editor from the card. Each one also carries a fingerprint — rule, path, line and the (masked) line itself — so a verdict you record survives scanning the same folder again, and the same finding can be named in a report, in the city JSON and by an agent. A finding that moves to another line or into a renamed file counts as a new one, and says so.
 - **Orientation, always.** Breadcrumbs, a minimap showing the real camera position, search-to-fly, keyboard navigation.
-- **Shareable.** PNG export of the current view, SARIF 2.1.0 export of the findings (with the scan's id and each finding's fingerprint as `partialFingerprints`), and a `?city=<id>` link for the person already running the same backend.
+- **Shareable.** PNG export of the current view; a SARIF 2.1.0 export that carries, per finding, the scan's id and its fingerprint as `partialFingerprints`, and per rule the CWE, the reference link and the same plain-language explanation the panel shows; and a `?city=<id>` link for the person already running the same backend.
 
 ## What it will not tell you
 
@@ -66,7 +66,7 @@ Open **http://localhost:3010** and click **Choose project folder** — or **Expl
 ```bash
 npm run lint           # ESLint, zero warnings
 npm run type-check     # tsc --noEmit, both packages
-npm run test           # Vitest — 748 tests in 88 files (395 frontend, 353 backend)
+npm run test           # Vitest — 752 tests in 89 files (395 frontend, 357 backend)
 npm run build          # production build, both packages
 node scripts/audit-gate.mjs   # dependency audit, see below
 ```

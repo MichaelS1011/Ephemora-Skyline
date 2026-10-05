@@ -3,11 +3,29 @@ import { APP_VERSION } from "../version.js";
 import { findingFingerprint } from "../services/security/finding-identity.js";
 
 export function resultToSarif(result: AnalysisResult) {
-  const rulesMap = new Map<string, { name: string; desc: string }>();
+  const rulesMap = new Map<
+    string,
+    {
+      name: string;
+      desc: string;
+      explanation?: string;
+      fix?: string;
+      cwe?: string;
+      refUrl?: string;
+    }
+  >();
   for (const f of result.files) {
     for (const v of f.vulnerabilities) {
       const ruleId = (v as unknown as { ruleId?: string }).ruleId ?? v.type;
-      if (!rulesMap.has(ruleId)) rulesMap.set(ruleId, { name: v.type, desc: v.message });
+      if (rulesMap.has(ruleId)) continue;
+      rulesMap.set(ruleId, {
+        name: v.type,
+        desc: v.message,
+        explanation: v.explanation,
+        fix: v.fix,
+        cwe: v.cwe,
+        refUrl: v.refUrl,
+      });
     }
   }
   return {
@@ -24,12 +42,28 @@ export function resultToSarif(result: AnalysisResult) {
             name: "Ephemora Skyline",
             version: APP_VERSION,
             informationUri: "https://github.com/MichaelS1011/Ephemora-Skyline",
-            rules: [...rulesMap.entries()].map(([id, r]) => ({
-              id,
-              name: r.name,
-              shortDescription: { text: r.desc },
-              help: { text: r.desc },
-            })),
+            rules: [...rulesMap.entries()].map(([id, r]) => {
+              // What the panel shows is what the file must carry, or the export
+              // is the thinner of the two views. The reference GitHub fetched
+              // today (docs.github.com, "SARIF support for code scanning",
+              // 2026-10-05) names `properties.tags[]` as where metadata goes and
+              // prefers `help.markdown` over `help.text`; it names no CWE tag
+              // spelling, so the CWE is written as itself plus a plain property.
+              const guidance = [r.explanation, r.fix ? `Fix: ${r.fix}` : null]
+                .filter(Boolean)
+                .join("\n\n");
+              return {
+                id,
+                name: r.name,
+                shortDescription: { text: r.desc },
+                ...(guidance ? { fullDescription: { text: guidance } } : {}),
+                ...(r.cwe ? { properties: { cwe: r.cwe, tags: [r.cwe] } } : {}),
+                ...(r.refUrl ? { helpUri: r.refUrl } : {}),
+                ...(guidance
+                  ? { help: { text: guidance, markdown: guidance } }
+                  : { help: { text: r.desc } }),
+              };
+            }),
           },
         },
         results: result.files.flatMap((f) =>
