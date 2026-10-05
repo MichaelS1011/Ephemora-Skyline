@@ -410,7 +410,7 @@ export const DICT = {
   },
   "mode.dependencies": {
     en: "DEPENDENCIES",
-    de: "ABHÄNGIGK.",
+    de: "ABHÄNGIGKEITEN",
   },
   "mode.aria": {
     en: "View mode",

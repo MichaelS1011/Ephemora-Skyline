@@ -227,7 +227,7 @@ function CodeFrame({ snippet }: { snippet: NonNullable<CityFinding["snippet"]> }
   const gutter = (n: number): string => String(n).padStart(lineNoWidth, " ");
   return (
     <div
-      className="font-jetbrains text-[9.5px] leading-[1.5] rounded-sm overflow-x-auto mt-2"
+      className="font-jetbrains text-[length:var(--fs-meta)] leading-[1.5] rounded-sm overflow-x-auto mt-2"
       style={{ background: "rgba(0,0,0,0.45)", border: "1px solid rgba(150,142,128,0.18)" }}
       aria-label={t(lang, "panel.codeAroundAria", { line: snippet.number })}
     >
@@ -325,7 +325,7 @@ function SuggestedFixBlock({
       </ol>
       {suggestion?.code && (
         <pre
-          className="mt-1.5 overflow-x-auto whitespace-pre-wrap rounded-sm p-1.5 text-[9.5px] leading-snug"
+          className="mt-1.5 overflow-x-auto whitespace-pre-wrap rounded-sm p-1.5 text-[length:var(--fs-meta)] leading-snug"
           style={{
             background: "rgba(0,0,0,0.45)",
             border: "1px solid rgba(150,142,128,0.18)",
@@ -426,7 +426,7 @@ function FindingRow({
           </span>
           {finding.cwe && (
             <span
-              className="font-jetbrains text-[8.5px] px-1 rounded-sm"
+              className="font-jetbrains text-[length:var(--fs-meta)] px-1 rounded-sm"
               style={{ color: "#c8a2ff", border: "1px solid rgba(200,162,255,0.3)" }}
               title={t(lang, "panel.cweTitle")}
             >
@@ -1031,7 +1031,7 @@ function VoxelStructureBlock({ file }: { file: CityFile }) {
           {t(lang, "panel.structureHeader")}
         </span>
         <span
-          className="font-jetbrains text-[9.5px]"
+          className="font-jetbrains text-[length:var(--fs-meta)]"
           style={{ color: "var(--meta-strong)" }}
           title={t(lang, "panel.voxelLegendTitle")}
         >
@@ -1070,7 +1070,7 @@ function VoxelStructureBlock({ file }: { file: CityFile }) {
                   <span className="truncate min-w-0 flex-1">{s.name}</span>
                   {sectionFindings.length > 0 && (
                     <span
-                      className="shrink-0 font-jetbrains text-[9.5px] px-1 rounded-sm"
+                      className="shrink-0 font-jetbrains text-[length:var(--fs-meta)] px-1 rounded-sm"
                       style={{
                         color: SEVERITY_COLOR[sectionFindings[0]!.severity],
                         border: `1px solid ${SEVERITY_COLOR[sectionFindings[0]!.severity]}55`,
@@ -1113,13 +1113,16 @@ function VoxelStructureBlock({ file }: { file: CityFile }) {
                   style={{ borderLeft: "1px solid rgba(150,142,128,0.25)", paddingLeft: 8 }}
                 >
                   <span
-                    className="font-jetbrains text-[9.5px] uppercase tracking-wide"
+                    className="font-jetbrains text-[length:var(--fs-meta)] uppercase tracking-wide"
                     style={{ color: "var(--meta-strong)" }}
                   >
                     {t(lang, "panel.sectionFindings")}
                   </span>
                   {sectionFindings.length === 0 ? (
-                    <span className="font-jetbrains text-[10.5px]" style={{ color: "#8f8b82" }}>
+                    <span
+                      className="font-jetbrains text-[length:var(--fs-meta)]"
+                      style={{ color: "#8f8b82" }}
+                    >
                       {t(lang, "panel.sectionNoFindings")}
                     </span>
                   ) : (
@@ -1130,7 +1133,7 @@ function VoxelStructureBlock({ file }: { file: CityFile }) {
                         onClick={() => jumpToFinding(f)}
                         aria-label={t(lang, "panel.findingJumpAria", { line: f.line })}
                         title={t(lang, "panel.findingJumpAria", { line: f.line })}
-                        className="flex items-center gap-1.5 text-left font-jetbrains text-[10.5px] transition-opacity hover:opacity-80"
+                        className="flex items-center gap-1.5 text-left font-jetbrains text-[length:var(--fs-meta)] transition-opacity hover:opacity-80"
                       >
                         <SevChip severity={f.severity} />
                         <span className="truncate min-w-0 flex-1" style={{ color: "#cfcabe" }}>
@@ -1148,7 +1151,10 @@ function VoxelStructureBlock({ file }: { file: CityFile }) {
           );
         })}
         {sections.length > 24 && (
-          <div className="font-jetbrains text-[9.5px]" style={{ color: "var(--meta-strong)" }}>
+          <div
+            className="font-jetbrains text-[length:var(--fs-meta)]"
+            style={{ color: "var(--meta-strong)" }}
+          >
             {t(lang, "panel.moreSections", { count: sections.length - 24 })}
           </div>
         )}
@@ -1241,7 +1247,7 @@ function SourceBlock({
 
   const unavailable = (
     <div
-      className="font-jetbrains text-[10.5px] px-2 py-1.5 rounded-sm"
+      className="font-jetbrains text-[length:var(--fs-meta)] px-2 py-1.5 rounded-sm"
       style={{
         color: "#8f8b82",
         background: "rgba(150,142,128,0.08)",
@@ -1271,7 +1277,7 @@ function SourceBlock({
         </button>
         {status === "ready" && scrollToLine != null && (
           <span
-            className="font-jetbrains text-[9.5px] px-1.5 py-px rounded-sm shrink-0"
+            className="font-jetbrains text-[length:var(--fs-meta)] px-1.5 py-px rounded-sm shrink-0"
             style={{ color: "#e8b23c", border: "1px solid rgba(232,178,60,0.4)" }}
             title={t(lang, "panel.sourceLine", { line: scrollToLine })}
           >
@@ -1283,7 +1289,7 @@ function SourceBlock({
         <div id={sourceId} className="animate-fade-up">
           {autoLoaded && status === "ready" && (
             <div
-              className="font-jetbrains text-[9.5px] mb-1"
+              className="font-jetbrains text-[length:var(--fs-meta)] mb-1"
               style={{ color: "var(--meta-strong)" }}
             >
               {t(lang, "panel.sourceAutoLoaded")}
@@ -1305,7 +1311,10 @@ function SourceBlock({
           )}
           {status === "idle" && !analysisId && unavailable}
           {status === "loading" && (
-            <div className="font-jetbrains text-[10.5px]" style={{ color: "var(--meta-strong)" }}>
+            <div
+              className="font-jetbrains text-[length:var(--fs-meta)]"
+              style={{ color: "var(--meta-strong)" }}
+            >
               ⟳ {t(lang, "panel.sourceLoading")}
             </div>
           )}
@@ -1395,7 +1404,7 @@ function SourceView({
           <div key={start}>
             {i > 0 && (
               <div
-                className="font-jetbrains text-[9.5px]"
+                className="font-jetbrains text-[length:var(--fs-meta)]"
                 style={{ color: "var(--meta-faint)", padding: "0 6px" }}
                 aria-hidden="true"
               >
@@ -1410,7 +1419,7 @@ function SourceView({
         <button
           type="button"
           onClick={() => onToggleFull(!showFull)}
-          className="mt-1 font-jetbrains text-[10.5px] transition-opacity hover:opacity-80"
+          className="mt-1 font-jetbrains text-[length:var(--fs-meta)] transition-opacity hover:opacity-80"
           style={{ color: "#d8c9a3" }}
         >
           {showFull ? t(lang, "panel.showFindingContext") : t(lang, "panel.showFullFile")}
@@ -1478,7 +1487,7 @@ function TestResultsBlock({ filePath }: { filePath: string }) {
       </div>
       {result.failures.slice(0, 3).map((f, i) => (
         <div key={i} className="px-2 pb-1.5">
-          <div className="font-jetbrains text-[9.5px]" style={{ color: "#ff9aa5" }}>
+          <div className="font-jetbrains text-[length:var(--fs-meta)]" style={{ color: "#ff9aa5" }}>
             ✕ {f.name}
           </div>
           <pre

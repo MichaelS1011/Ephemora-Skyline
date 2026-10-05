@@ -255,7 +255,7 @@ export function SearchBar() {
             {fileHits.length > 0 && (
               <div
                 role="presentation"
-                className="px-4 py-1.5 font-jetbrains text-[10px] uppercase tracking-widest"
+                className="px-4 py-1.5 font-jetbrains text-[length:var(--fs-meta)] uppercase tracking-widest"
                 style={groupHeaderStyle}
               >
                 {t(lang, "search.filesGroup")}
@@ -332,7 +332,7 @@ export function SearchBar() {
             {findingHits.length > 0 && (
               <div
                 role="presentation"
-                className="px-4 py-1.5 font-jetbrains text-[10px] uppercase tracking-widest"
+                className="px-4 py-1.5 font-jetbrains text-[length:var(--fs-meta)] uppercase tracking-widest"
                 style={groupHeaderStyle}
               >
                 {t(lang, "search.findingsGroup")}
@@ -362,7 +362,7 @@ export function SearchBar() {
                   <div className="min-w-0 flex items-start gap-2">
                     {/* Severity chip */}
                     <span
-                      className="font-jetbrains text-[10px] px-1.5 py-0.5 rounded shrink-0 mt-0.5"
+                      className="font-jetbrains text-[length:var(--fs-meta)] px-1.5 py-0.5 rounded shrink-0 mt-0.5"
                       style={{
                         color: sevColor,
                         border: `1px solid ${sevColor}55`,

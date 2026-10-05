@@ -398,7 +398,7 @@
   /* Interactive buttons — base (4px radius, 150ms transitions, warm neutral rest / vermilion hover) */
   .btn-ghost {
     font-family: var(--font-mono);
-    font-size: 0.625rem;
+    font-size: var(--fs-meta);
     letter-spacing: 0.1em;
     padding: 0.25rem 0.65rem;
     border: 1px solid rgba(168, 164, 154, 0.35);
@@ -426,7 +426,7 @@
 
   .btn-danger {
     font-family: var(--font-mono);
-    font-size: 0.625rem;
+    font-size: var(--fs-meta);
     letter-spacing: 0.1em;
     padding: 0.25rem 0.65rem;
     border: 1px solid rgba(232, 80, 60, 0.5);

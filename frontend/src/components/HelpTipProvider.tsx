@@ -147,7 +147,7 @@ export function HelpTipProvider() {
         borderRadius: 4,
         padding: "0.4rem 0.6rem",
         color: "#e8e4da",
-        fontSize: "10px",
+        fontSize: "var(--fs-meta)",
         lineHeight: 1.45,
         whiteSpace: "pre-wrap",
         boxShadow: "0 4px 18px rgba(0,0,0,0.5), 0 0 12px rgba(232,178,60,0.1)",
