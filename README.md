@@ -53,7 +53,7 @@ Open **http://localhost:3010** and click **Choose project folder** — or **Expl
 ```bash
 npm run lint           # ESLint, zero warnings
 npm run type-check     # tsc --noEmit, both packages
-npm run test           # Vitest — 732 tests in 86 files (388 frontend, 344 backend)
+npm run test           # Vitest — 735 tests in 86 files (391 frontend, 344 backend)
 npm run build          # production build, both packages
 node scripts/audit-gate.mjs   # dependency audit, see below
 ```
