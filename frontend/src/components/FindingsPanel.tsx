@@ -429,10 +429,15 @@ export function FindingsPanel() {
               }}
               className="overflow-hidden rounded-lg"
               style={{
-                borderWidth: 1,
+                // longhand on every side: mixing borderColor with borderLeftColor makes React warn on each repaint
                 borderStyle: "solid",
-                borderColor: isSelected ? "rgba(232,80,60,0.45)" : "rgba(242,239,232,0.1)",
+                borderTopWidth: 1,
+                borderRightWidth: 1,
+                borderBottomWidth: 1,
                 borderLeftWidth: 3,
+                borderTopColor: isSelected ? "rgba(232,80,60,0.45)" : "rgba(242,239,232,0.1)",
+                borderRightColor: isSelected ? "rgba(232,80,60,0.45)" : "rgba(242,239,232,0.1)",
+                borderBottomColor: isSelected ? "rgba(232,80,60,0.45)" : "rgba(242,239,232,0.1)",
                 borderLeftColor: accent,
                 background: isSelected ? "rgba(232,80,60,0.06)" : "rgba(22,22,20,0.55)",
               }}
