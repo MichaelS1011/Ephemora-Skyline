@@ -28,6 +28,11 @@ COPY frontend/package.json ./frontend/
 RUN npm ci --omit=dev --ignore-scripts && npm cache clean --force
 
 COPY --from=builder /app/backend/dist ./backend/dist
+# The bundled rule pack. shippedPacksRoot() resolves to <package>/rules
+# (backend/src/services/security/rule-packs.ts:50) and the pack marked
+# `default: true` is what every profile falls back to — without this line the
+# container advertises a pack it does not have.
+COPY backend/rules/ ./backend/rules/
 
 WORKDIR /app/backend
 
