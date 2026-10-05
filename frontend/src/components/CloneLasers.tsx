@@ -5,6 +5,7 @@ import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import type { DirLayout } from "../city/layout";
 import type { CityData } from "../city/types";
+import { reducedSettle } from "../city/motion";
 
 /**
  * Category 2 (code statics): copy-paste clones connected by harsh yellow
@@ -13,6 +14,8 @@ import type { CityData } from "../city/types";
  */
 
 const LASERS_MAX = 30;
+/** The pulse's midpoint — also the frozen opacity under reduced motion. */
+const LASER_OPACITY = 0.55;
 
 function laserGeometry(
   a: { x: number; y: number; z: number },
@@ -28,8 +31,8 @@ function laserGeometry(
 }
 
 export function CloneLasers({ layout, cityData }: { layout: DirLayout; cityData: CityData }) {
-  const matRef = useRef<THREE.MeshBasicMaterial>(null);
   const duplicatesOn = cityData.meta.duplicates ?? false;
+  const settledRef = useRef(false);
 
   const buildingPos = useMemo(() => {
     const map = new Map<string, { x: number; y: number; z: number }>();
@@ -57,34 +60,50 @@ export function CloneLasers({ layout, cityData }: { layout: DirLayout; cityData:
     return out;
   }, [layout, buildingPos, duplicatesOn]);
 
+  // ONE material for the whole bundle. Every thread used to carry its own
+  // inline material, and the animated ref was attached to thread #0 only —
+  // so 29 of 30 lasers sat at their mount opacity while one flickered, and
+  // 30 materials had to be bound for 30 identical tubes (same bug class as
+  // the arc group's #16b). Shared: they pulse together and cost one bind.
+  const material = useMemo(
+    () =>
+      new THREE.MeshBasicMaterial({
+        color: "#ffe14d",
+        transparent: true,
+        opacity: LASER_OPACITY,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+        toneMapped: false,
+      }),
+    [],
+  );
+
   useEffect(() => {
     return () => {
       for (const g of geos) g.dispose();
     };
   }, [geos]);
 
+  useEffect(() => () => material.dispose(), [material]);
+
   useFrame(({ clock }) => {
-    if (matRef.current) {
-      // Harsh flicker — lasers should feel uncomfortable
-      matRef.current.opacity = 0.55 + Math.sin(clock.elapsedTime * 6) * 0.2;
-    }
+    // Reduced motion: the threads hold their midpoint. Their existence is the
+    // finding — a strobe on top of it would only tire the eye.
+    if (
+      reducedSettle(settledRef, () => {
+        material.opacity = LASER_OPACITY;
+      })
+    )
+      return;
+    // Harsh flicker — lasers should feel uncomfortable
+    material.opacity = LASER_OPACITY + Math.sin(clock.elapsedTime * 6) * 0.2;
   });
 
   if (geos.length === 0) return null;
   return (
     <group>
       {geos.map((geo, i) => (
-        <mesh key={`clone-${i}`} geometry={geo}>
-          <meshBasicMaterial
-            ref={i === 0 ? matRef : undefined}
-            color="#ffe14d"
-            transparent
-            opacity={0.6}
-            blending={THREE.AdditiveBlending}
-            depthWrite={false}
-            toneMapped={false}
-          />
-        </mesh>
+        <mesh key={`clone-${i}`} geometry={geo} material={material} />
       ))}
     </group>
   );

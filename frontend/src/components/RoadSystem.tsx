@@ -6,6 +6,7 @@ import * as THREE from "three";
 import type { DirLayout } from "../city/layout";
 import { CURB_OFFSET, type SidewalkNetwork } from "../city/sidewalks";
 import { ENV } from "../city/palette";
+import { reducedSettle } from "../city/motion";
 
 /**
  * Streets & city furniture, Minecraft-flavoured: asphalt strips between
@@ -274,6 +275,7 @@ export function RoadSystem({
 
   const carRef = useRef<THREE.InstancedMesh>(null);
   const cabinRef = useRef<THREE.InstancedMesh>(null);
+  const carSettledRef = useRef(false);
   useLayoutEffect(() => {
     const mesh = carRef.current;
     if (!mesh) return;
@@ -281,9 +283,9 @@ export function RoadSystem({
     if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
   }, [carData]);
 
-  useFrame((_, delta) => {
-    // cars are hidden on the construction site — skip the whole simulation
-    if (!active) return;
+  /** Advance + re-place the fleet by `dt` seconds. `dt = 0` writes the layout
+   *  without moving anything — the frame reduced motion holds. */
+  const stepCars = (dt: number): void => {
     const mesh = carRef.current;
     const cabins = cabinRef.current;
     if (!mesh || !cabins) return;
@@ -291,7 +293,7 @@ export function RoadSystem({
       const lane = carData.lanes[c.lane];
       if (!lane) return;
       const len = Math.hypot(lane.x2 - lane.x1, lane.z2 - lane.z1);
-      c.t += ((delta * c.speed) / Math.max(len, 1)) * c.dir;
+      c.t += ((dt * c.speed) / Math.max(len, 1)) * c.dir;
       // U-turn at the end of the street instead of wrapping through traffic
       if (c.t > 1) {
         c.t = 1;
@@ -316,6 +318,16 @@ export function RoadSystem({
     });
     mesh.instanceMatrix.needsUpdate = true;
     cabins.instanceMatrix.needsUpdate = true;
+  };
+
+  useFrame((_, delta) => {
+    // cars are hidden on the construction site — skip the whole simulation
+    if (!active) return;
+    // Reduced motion: the fleet stands where it was placed, spread along the
+    // lanes. A parked city still reads as a city; a moving one says nothing
+    // a still one does not.
+    if (reducedSettle(carSettledRef, () => stepCars(0))) return;
+    stepCars(delta);
   });
 
   const carCount = carData.items.length;

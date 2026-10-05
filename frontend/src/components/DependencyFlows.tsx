@@ -5,6 +5,7 @@ import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import type { DirLayout } from "../city/layout";
 import { useStore } from "../stores/useStore";
+import { reducedSettle } from "../city/motion";
 
 /**
  * Dependency particle streams — shown while a building is selected.
@@ -29,6 +30,8 @@ const CURVES_MAX = 24; // ≈ 2160 particles worst case
 const IN_COLOR = new THREE.Color("#37e6ff"); // cyan — data flowing in
 const OUT_COLOR = new THREE.Color("#b06bff"); // violet — data flowing out
 const CYCLE_COLOR = new THREE.Color("#ff2e4d"); // red — circular dependency
+/** Curve sampler scratch — one per module, not one per particle per frame. */
+const _point = new THREE.Vector3();
 
 function flowCurve(
   a: { x: number; y: number; z: number },
@@ -122,15 +125,18 @@ export function DependencyFlows({ layout, fileConnections }: FlowProps) {
   }, [geometry, flows]);
 
   const elapsedRef = useRef(0);
+  const settledRef = useRef(false);
 
-  useFrame((_, delta) => {
-    if (!selectedId || flows.length === 0) return;
-    elapsedRef.current += delta;
-    const t = elapsedRef.current;
-
+  /**
+   * Lay every particle on its curve at stream time `t`. `t = 0` is the frozen
+   * frame reduced motion needs AND the first frame's layout — the buffer starts
+   * as zeros, so this must run at least once or all particles pile up at the
+   * world origin as one bright blob.
+   */
+  const write = (t: number): void => {
     const pos = geometry.getAttribute("position") as THREE.BufferAttribute;
     const arr = pos.array as Float32Array;
-    const v = new THREE.Vector3();
+    const v = _point;
 
     for (let f = 0; f < flows.length; f++) {
       const flow = flows[f]!;
@@ -161,6 +167,15 @@ export function DependencyFlows({ layout, fileConnections }: FlowProps) {
     }
     pos.needsUpdate = true;
     if (colorAttr.current && flows.some((f) => f.circular)) colorAttr.current.needsUpdate = true;
+  };
+
+  useFrame((_, delta) => {
+    if (!selectedId || flows.length === 0) return;
+    // Reduced motion: the streams hold their spread along the curve. Direction
+    // is still readable — the in/out colour split carries it without movement.
+    if (reducedSettle(settledRef, () => write(0))) return;
+    elapsedRef.current += delta;
+    write(elapsedRef.current);
   });
 
   if (!selectedId || flows.length === 0) return null;

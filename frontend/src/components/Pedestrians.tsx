@@ -4,6 +4,7 @@ import { useLayoutEffect, useMemo, useRef } from "react";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import { graphPath, nearestNode, type SidewalkNetwork } from "../city/sidewalks";
+import { prefersReducedMotion } from "../city/motion";
 import type { BuildSite } from "../city/layout";
 
 /**
@@ -550,7 +551,14 @@ export function Pedestrians({
   };
 
   useFrame((state, delta) => {
-    const dt = Math.min(delta, 0.1);
+    // Reduced motion: the clock of the crowd stops, everything else about it
+    // stays. Every quantity in this loop is integrated over `dt` (walking,
+    // turning, bobbing, the taxi drive, the bubble timers), so dt = 0 holds the
+    // whole population exactly where it is — Ephe's standing on the sidewalks,
+    // a cab parked at the curb, nobody vanishing. The matrices keep being
+    // written, so nothing is left unplaced and the city still reads as
+    // inhabited.
+    const dt = prefersReducedMotion() ? 0 : Math.min(delta, 0.1);
     const now = (sim.current.time += dt);
     const bodies = bodyRef.current;
     const heads = headRef.current;
