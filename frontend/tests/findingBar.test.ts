@@ -47,7 +47,16 @@ describe("the finding bar law", () => {
     const last = segs[segs.length - 1]!;
     expect(last.count).toBe(1 + (9 - FINDING_BAR.MAX_SEGMENTS));
     expect(last.y1).toBeCloseTo(findingBarHeightForCount(9), 6);
-    expect(segs.slice(0, -1).every((s) => s.y1 - s.y0 === FINDING_BAR.SEGMENT_UNITS)).toBe(true);
+    // Close, not identical: the stack base is i * 0.85, so a segment's own
+    // height comes out as 0.8499999999999996 for i = 2. The law is exact; the
+    // float is a rounding artefact of accumulating the offset, and 4e-16 world
+    // units is 4e-14 px — below anything the renderer could show.
+    for (const s of segs.slice(0, -1)) {
+      expect(s.y1 - s.y0, "uncapped segments are one segment tall").toBeCloseTo(
+        FINDING_BAR.SEGMENT_UNITS,
+        9,
+      );
+    }
   });
 
   it("keeps the height and the count in agreement with the segment list", () => {

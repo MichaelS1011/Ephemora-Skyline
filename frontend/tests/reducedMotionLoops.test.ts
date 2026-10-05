@@ -57,7 +57,7 @@ describe("the render loops and reduced motion", () => {
   it("names every file that runs a frame loop", () => {
     const covered = new Set([...MUST_HONOUR, ...Object.keys(KNOWN_OTHERS)]);
     for (const f of withLoop) {
-      expect(covered, `${f} animates and is classified nowhere`).toBe(true);
+      expect(covered.has(f), `${f} animates and is classified nowhere`).toBe(true);
     }
     for (const f of MUST_HONOUR) {
       expect(withLoop, `${f} no longer has a loop — update the guard`).toContain(f);
