@@ -173,6 +173,15 @@ export const PIVOT_Y = 1.5;
 /** Street level — nothing the pilot flies through goes below it. */
 export const GROUND_Y = 1;
 
+/** Where a level is: its plaza centre. Organic cells are not centred on the
+ *  world origin, so the frame that holds a city is not the frame that holds
+ *  the coordinate system. */
+export interface LevelCentre {
+  x: number;
+  z: number;
+}
+const ORIGIN: LevelCentre = { x: 0, z: 0 };
+
 /**
  * Keep the pilot inside the world.
  *
@@ -186,18 +195,24 @@ export const GROUND_Y = 1;
  * see — and no overview flight can reach it, since the tallest possible
  * framing is 129 units (mapping.ts caps a building at 34, voxels at 1.4x)
  * while the ceiling is never below 220.
+ *
+ * The bound is a sphere around the LEVEL, not around the origin: an organic
+ * layout's plaza sits up to 92 m off the origin, and a bound centred on the
+ * origin would let the pilot walk out of the fog while still inside it.
  */
-export function clampToCity(pos: XYZ, bounds: number | null): XYZ {
+export function clampToCity(pos: XYZ, bounds: number | null, centre: LevelCentre = ORIGIN): XYZ {
   let { x, y, z } = pos;
   if (bounds !== null) {
     const maxR = bounds * 4 + 220;
     const dy = pos.y - PIVOT_Y;
-    const r = Math.hypot(pos.x, dy, pos.z);
+    const dx = pos.x - centre.x;
+    const dz = pos.z - centre.z;
+    const r = Math.hypot(dx, dy, dz);
     if (r > maxR) {
       const s = maxR / r;
-      x = pos.x * s;
+      x = centre.x + dx * s;
       y = PIVOT_Y + dy * s;
-      z = pos.z * s;
+      z = centre.z + dz * s;
     }
   }
   if (y < GROUND_Y) y = GROUND_Y;
@@ -227,7 +242,7 @@ export function craneAdvance(
   shot: CraneShot,
   delta: number,
 ): { pos: XYZ; target: XYZ } {
-  const target = { x: 0, y: shot.targetY, z: 0 };
+  const target = { x: shot.x ?? 0, y: shot.targetY, z: shot.z ?? 0 };
   const want = approachFromCurrentDirection(camPos, camTarget, target, shot.dist, CRANE_ELEVATION);
   const k = 1 - Math.exp(-CRANE_FOLLOW_RATE * delta);
   return {
@@ -260,16 +275,21 @@ const _corner = new THREE.Vector3();
  * worth looking at. The grid asks the question the screen actually answers: how
  * much of the town square do I see?
  */
-function cityPointsInFrustum(bounds: number, test: (p: THREE.Vector3) => boolean): number {
+function cityPointsInFrustum(
+  bounds: number,
+  top: number,
+  centre: LevelCentre,
+  test: (p: THREE.Vector3) => boolean,
+): number {
   let seen = 0;
   for (const sx of [-1, 0, 1])
     for (const sz of [-1, 0, 1]) {
-      _corner.set(sx * bounds, GROUND_Y, sz * bounds);
+      _corner.set(centre.x + sx * bounds, GROUND_Y, centre.z + sz * bounds);
       if (test(_corner)) seen++;
     }
   for (const sx of [-1, 1])
     for (const sz of [-1, 1]) {
-      _corner.set(sx * bounds, CITY_TOP, sz * bounds);
+      _corner.set(centre.x + sx * bounds, top, centre.z + sz * bounds);
       if (test(_corner)) seen++;
     }
   return seen;
@@ -290,26 +310,41 @@ export function cityFrameState(
   camera: THREE.Camera,
   bounds: number | null,
   wasLost: boolean,
+  centre: LevelCentre = ORIGIN,
+  top = CITY_TOP,
 ): "lost" | "found" {
   if (bounds === null) return "found";
   _frustum.setFromProjectionMatrix(
     _projView.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse),
   );
-  const seen = cityPointsInFrustum(bounds, (p) => _frustum.containsPoint(p));
+  const seen = cityPointsInFrustum(bounds, top, centre, (p) => _frustum.containsPoint(p));
   if (wasLost) return seen >= 3 ? "found" : "lost";
   return seen >= 1 ? "found" : "lost";
 }
 
-/** Half-extent of the level the pilot is in, or null with no city loaded. */
-function useCityBounds(): number | null {
+/** The level the pilot is in: its half-extent, where it stands, and how tall
+ *  the tallest thing on it is. Null with no city loaded. */
+interface CityFrame {
+  bounds: number;
+  centre: LevelCentre;
+  /** Top of the tallest geometry — the frustum rescue's ceiling. */
+  top: number;
+}
+function useCityFrame(): CityFrame | null {
   const cityData = useStore((s) => s.cityData);
   const focusPath = useStore((s) => s.focusPath);
   // Memoised: the frame loop reads this every frame and drilling into a
   // district is what changes it.
-  return useMemo(
-    () => (cityData ? getDirLayout(cityData, focusPath).bounds : null),
-    [cityData, focusPath],
-  );
+  return useMemo(() => {
+    if (!cityData) return null;
+    const layout = getDirLayout(cityData, focusPath);
+    const tallest = Math.max(
+      0,
+      ...layout.blocks.flatMap((b) => b.skyline.map((s) => s.h)),
+      ...layout.buildings.map((b) => b.h),
+    );
+    return { bounds: layout.bounds, centre: layout.centre, top: Math.max(2, tallest) };
+  }, [cityData, focusPath]);
 }
 
 function isTypingTarget(t: EventTarget | null): boolean {
@@ -333,9 +368,9 @@ export function CameraRig() {
   const tourActive = useStore((s) => s.tourActive);
   // Read through a ref so the wheel listener and the frame loop never close
   // over a stale level.
-  const cityBounds = useCityBounds();
-  const boundsRef = useRef(cityBounds);
-  boundsRef.current = cityBounds;
+  const cityFrame = useCityFrame();
+  const boundsRef = useRef<CityFrame | null>(cityFrame);
+  boundsRef.current = cityFrame;
 
   const tweenRef = useRef<Tween | null>(null);
   const lastNonce = useRef(-1);
@@ -441,7 +476,8 @@ export function CameraRig() {
       camera.getWorldDirection(_dir);
       const step = -e.deltaY * 0.012 * Math.max(2, camera.position.y * 0.15 + 4);
       camera.position.addScaledVector(_dir, step);
-      const kept = clampToCity(camera.position, boundsRef.current);
+      const f = boundsRef.current;
+      const kept = clampToCity(camera.position, f?.bounds ?? null, f?.centre ?? ORIGIN);
       camera.position.set(kept.x, kept.y, kept.z);
     };
     el.addEventListener("pointerdown", onPointerDown);
@@ -544,6 +580,9 @@ export function CameraRig() {
   // ── Per-frame tween + walk + camera reporting ────────────────────────────
   useFrame((_, delta) => {
     const free = modeRef.current === "free";
+    // The level the pilot is in this frame — its extent, its centre, its top.
+    const frame = boundsRef.current;
+    const centre = frame?.centre ?? ORIGIN;
     const controls = controlsRef.current;
     if (!controls) return;
 
@@ -590,7 +629,8 @@ export function CameraRig() {
               y: camera.position.y + _move.y,
               z: camera.position.z + _move.z,
             },
-            boundsRef.current,
+            frame?.bounds ?? null,
+            frame?.centre ?? ORIGIN,
           );
           _move.set(
             kept.x - camera.position.x,
@@ -612,7 +652,7 @@ export function CameraRig() {
           keys.has("ArrowUp") ||
           keys.has("ArrowDown")
         ) {
-          _pivot.set(0, PIVOT_Y, 0);
+          _pivot.set(centre.x, PIVOT_Y, centre.z);
           const dTheta = (keys.has("ArrowRight") ? 1 : 0) - (keys.has("ArrowLeft") ? 1 : 0);
           const dPhi = (keys.has("ArrowDown") ? 1 : 0) - (keys.has("ArrowUp") ? 1 : 0);
           const next = turntableStep(
@@ -648,7 +688,7 @@ export function CameraRig() {
       !tween && keys.size === 0 && !dragging.current ? useStore.getState().craneFraming : null;
     if (crane) {
       const step = craneAdvance(camera.position, controls.target, crane, delta);
-      const kept = clampToCity(step.pos, boundsRef.current);
+      const kept = clampToCity(step.pos, frame?.bounds ?? null, frame?.centre ?? ORIGIN);
       camera.position.set(kept.x, kept.y, kept.z);
       _look.set(step.target.x, step.target.y, step.target.z);
       if (free) {
@@ -687,7 +727,14 @@ export function CameraRig() {
     lostCheckAt.current += delta;
     if (lostCheckAt.current >= 0.25) {
       lostCheckAt.current = 0;
-      const lost = cityFrameState(camera, boundsRef.current, lostRef.current) === "lost";
+      const lost =
+        cityFrameState(
+          camera,
+          frame?.bounds ?? null,
+          lostRef.current,
+          frame?.centre ?? ORIGIN,
+          frame?.top ?? CITY_TOP,
+        ) === "lost";
       if (lost !== lostRef.current) {
         lostRef.current = lost;
         setCityLostView(lost);

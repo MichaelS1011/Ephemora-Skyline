@@ -248,7 +248,7 @@ describe("craneAdvance", () => {
   /** Distance from the camera to the point it orbits — its framing. */
   const framing = (p: XYZ, target: XYZ) =>
     Math.hypot(p.x - target.x, p.y - target.y, p.z - target.z);
-  const shotAt = (dist: number) => ({ dist, targetY: PIVOT_Y });
+  const shotAt = (dist: number) => ({ dist, targetY: PIVOT_Y, x: 0, z: 0 });
   /** The full shot position, for the "it eases, it does not cut" comparisons */
   const settled = (from: XYZ, around: XYZ, dist: number) =>
     approachFromCurrentDirection(from, around, { x: 0, y: PIVOT_Y, z: 0 }, dist, CRANE_ELEVATION);

@@ -77,6 +77,15 @@ export interface DirLayout {
   streets: StreetLine[];
   bounds: number; // half-extent of the whole scene
   plazaExtent: number; // half-extent of the central file plaza
+  /**
+   * Where this level actually is. The organic cells are not centred on the
+   * world origin, so the plaza of a district can sit tens of metres off it
+   * (measured: 92 m at the root of a 2901-file city, 55 m inside `backend/src`)
+   * while every flight, the construction crane and the arrow-key turntable
+   * assumed (0,0) — which framed empty ground and swung the camera around
+   * nothing. Everything that aims at a level aims at this point instead.
+   */
+  centre: { x: number; z: number };
 }
 
 // ── Deterministic pseudo-random from path ──────────────────────────────────
@@ -222,7 +231,17 @@ function computeGridLayout(dir: CityDir): DirLayout {
     bounds = Math.max(bounds, Math.abs(b.x) + b.w / 2 + 10, Math.abs(b.z) + b.d / 2 + 10);
   }
 
-  return { dir, blocks: blockPlacements, buildings, podium, streets, bounds, plazaExtent };
+  // The grid mode places the plaza on the origin, so the level IS centred.
+  return {
+    dir,
+    blocks: blockPlacements,
+    buildings,
+    podium,
+    streets,
+    bounds,
+    plazaExtent,
+    centre: { x: 0, z: 0 },
+  };
 }
 
 /**
@@ -370,17 +389,36 @@ function computeVoronoiLayout(dir: CityDir): DirLayout {
   // Streets = the organic cell boundaries (shared edges drawn once)
   const streets = cellBoundarySegments(vCells);
 
+  // `bounds` is the level's own half-extent — measured from the plaza, not
+  // from the world origin, because the plaza is where the level is.
   let bounds = plazaExtent + 12;
   for (const vCell of vCells) {
     for (const v of vCell.polygon) {
-      bounds = Math.max(bounds, Math.abs(v.x) + 12, Math.abs(v.z) + 12);
+      bounds = Math.max(
+        bounds,
+        Math.abs(v.x - plazaCenter.x) + 12,
+        Math.abs(v.z - plazaCenter.z) + 12,
+      );
     }
   }
   for (const b of blockPlacements) {
-    bounds = Math.max(bounds, Math.abs(b.x) + b.w / 2 + 10, Math.abs(b.z) + b.d / 2 + 10);
+    bounds = Math.max(
+      bounds,
+      Math.abs(b.x - plazaCenter.x) + b.w / 2 + 10,
+      Math.abs(b.z - plazaCenter.z) + b.d / 2 + 10,
+    );
   }
 
-  return { dir, blocks: blockPlacements, buildings, podium, streets, bounds, plazaExtent };
+  return {
+    dir,
+    blocks: blockPlacements,
+    buildings,
+    podium,
+    streets,
+    bounds,
+    plazaExtent,
+    centre: { x: plazaCenter.x, z: plazaCenter.z },
+  };
 }
 
 // ── Layout mode ────────────────────────────────────────────────────────────
@@ -507,6 +545,7 @@ function dominantLanguage(languages: Record<string, number>): string {
 export function planConstruction(
   layout: Pick<DirLayout, "blocks" | "buildings" | "podium">,
   baseMs: number,
+  centre: { x: number; z: number } = { x: 0, z: 0 },
 ): BuildPlan {
   const total =
     layout.blocks.reduce((n, b) => n + 1 + b.skyline.length, 0) +
@@ -524,7 +563,7 @@ export function planConstruction(
   const runs: Array<{ radius: number; place: () => void }> = [];
   layout.blocks.forEach((b, i) => {
     runs.push({
-      radius: Math.hypot(b.x, b.z),
+      radius: Math.hypot(b.x - centre.x, b.z - centre.z),
       place: () => {
         const at = slot();
         blockAt[i] = at;
@@ -561,7 +600,7 @@ export function planConstruction(
   });
   layout.buildings.forEach((b, i) => {
     runs.push({
-      radius: Math.hypot(b.x, b.z),
+      radius: Math.hypot(b.x - centre.x, b.z - centre.z),
       place: () => {
         const at = slot();
         plazaAt[i] = at;
@@ -582,7 +621,7 @@ export function planConstruction(
   if (layout.podium) {
     const p = layout.podium;
     runs.push({
-      radius: Math.hypot(p.x, p.z),
+      radius: Math.hypot(p.x - centre.x, p.z - centre.z),
       place: () => {
         podiumAt = slot();
       },
@@ -603,10 +642,63 @@ export function planConstruction(
   };
 }
 
-// ── The crane follows the city's size ──────────────────────────────────────
+// ── The overview shot ──────────────────────────────────────────────────────
 
 /** How wide a frame a finished city gets, as a multiple of its half-extent. */
-export const OVERVIEW_FACTOR = 1.75;
+export const OVERVIEW_FACTOR = 1.6;
+
+/**
+ * The far-LOD's exit threshold, mirrored from `hooks/useLodFar` (which cannot
+ * be imported here — it reads the store, the store reads this module).
+ * `tests/lodFraming.test.ts` pins the two together.
+ */
+const FAR_LOD_EXIT_FACTOR = 1.8;
+const FAR_LOD_EXIT_FLOOR = 170 * 0.7;
+/** How much of that band an overview flight may use and still be a CITY. */
+export const FAR_LOD_SAFE_RATIO = 0.92;
+
+/** The distance beyond which the renderer swaps the city for a heat grid. */
+export function farLodExitDistance(bounds: number): number {
+  return Math.max(FAR_LOD_EXIT_FLOOR, bounds * FAR_LOD_EXIT_FACTOR);
+}
+
+export interface OverviewShot {
+  dist: number;
+  targetY: number;
+}
+
+/**
+ * The shot that frames a whole level.
+ *
+ * Two bounds on one number, and they pull against each other:
+ * — the level must FIT: its footprint needs `OVERVIEW_FACTOR × bounds`, and a
+ *   crown needs its own distance to clear the 52° vertical field of view,
+ * — the level must still be DRAWN: past `farLodExitDistance(bounds)` the
+ *   renderer stops mounting buildings and shows the instanced heat grid
+ *   instead, so a flight that lands out there frames nothing but tiles.
+ *
+ * The height term used to be `tallest × 2.2 + 24` — a guess that, on a level
+ * holding one 40 m tower inside 50 m of ground, asked for 118 m where the heat
+ * grid takes over at 119 m. The camera arrived 1 cm inside the wrong band and
+ * the district you had just drilled into drew as flat plates (measured: 23
+ * scene objects instead of 164 on the same level of the same city, decided by
+ * the easing's float noise). A frustum-derived height term needs 1.35 × the
+ * crown instead of 2.2 ×, and the ceiling makes the answer robust either way.
+ */
+export function overviewShot(bounds: number, tallest: number): OverviewShot {
+  const fits = Math.max(
+    bounds * OVERVIEW_FACTOR,
+    // targetY lifts the eye line to 40 % of the crown, so 60 % of it has to
+    // clear the half field of view: 0.6 × tallest / tan(26°) = 1.23 ×, +10 %.
+    tallest * 1.35,
+    24,
+  );
+  const drawn = farLodExitDistance(bounds) * FAR_LOD_SAFE_RATIO;
+  return {
+    dist: Math.min(fits, drawn),
+    targetY: Math.max(1.5, tallest * 0.4),
+  };
+}
 
 /**
  * Vertical clearance a crown needs at this camera (52° vertical fov, eye line
@@ -621,10 +713,14 @@ const CRANE_MIN_DIST = 26;
 export interface CraneShot {
   dist: number;
   targetY: number;
+  /** Where the shot looks: the level's centre, which is not the world origin. */
+  x: number;
+  z: number;
 }
 
 /**
- * The shot for a city that currently spans `radius` and stands `top` tall.
+ * The shot for a city that currently spans `radius` and stands `top` tall,
+ * centred on `centre`.
  *
  * `OVERVIEW_FACTOR` is the one the 'built' reveal uses, so the crane ends
  * where that flight begins instead of fighting it. The min distance keeps the
@@ -632,10 +728,16 @@ export interface CraneShot {
  * sized to what actually stands, so the builders are large while the centre is
  * built and the reveal of scale comes as the rings fill.
  */
-export function craneShot(radius: number, top: number): CraneShot {
+export function craneShot(
+  radius: number,
+  top: number,
+  centre: { x: number; z: number } = { x: 0, z: 0 },
+): CraneShot {
   return {
     dist: Math.max(CRANE_MIN_DIST, radius * OVERVIEW_FACTOR, top * CROWN_FACTOR),
     targetY: Math.max(1.5, top * 0.35),
+    x: centre.x,
+    z: centre.z,
   };
 }
 
@@ -644,17 +746,20 @@ export function craneShot(radius: number, top: number): CraneShot {
  * edge and the tallest crown among the units that have STARTED rising.
  *
  * Both are maxima over a set that only grows, so the pair is monotone — the
- * crane can pull back and never has to push in again.
+ * crane can pull back and never has to push in again. The radius is measured
+ * from the level's own centre, which for an organic layout is not the world
+ * origin.
  */
 export function builtExtent(
   sites: readonly BuildSite[],
   elapsed: number,
+  centre: { x: number; z: number } = { x: 0, z: 0 },
 ): { radius: number; top: number } {
   let radius = 0;
   let top = 0;
   for (const s of sites) {
     if (s.offset > elapsed) continue;
-    radius = Math.max(radius, Math.hypot(s.x, s.z) + s.span / 2);
+    radius = Math.max(radius, Math.hypot(s.x - centre.x, s.z - centre.z) + s.span / 2);
     top = Math.max(top, s.h);
   }
   return { radius, top };
