@@ -68,9 +68,25 @@ const SECRET_SHAPES: RegExp[] = [
   /-----BEGIN [A-Z0-9 ]*PRIVATE KEY-----/g, // PEM key header
 ];
 
+/**
+ * Credentials that sit inside a URL rather than next to a name.
+ *
+ * `DATABASE_URL=postgres://admin:pw@db.internal/app` is a connection string, not
+ * a `PASSWORD=` line, so the name rule above never fires on it — and the frame
+ * two lines past a hygiene hit is where such a string turns up when the finding
+ * itself was about something else. The scheme and the user name are the
+ * informative half of the line, the password is the dangerous half, so the
+ * replacement keeps groups 1 and 3 and hides group 2.
+ */
+const URI_USERINFO = /([a-z][a-z0-9+.-]*:\/\/[^\s/@:]*:)([^\s/@]{4,})(@[^\s"']*)/gi;
+const URI_QUERY =
+  /([?&](?:key|token|password|passwd|secret|api_?key|access_?token)=)([^\s&"']{4,})/gi;
+
 /** Mask every credential SHAPE in a piece of text. */
 function maskSecretShapes(text: string): string {
   let out = text;
+  out = out.replace(URI_USERINFO, `$1${HIDDEN}$3`);
+  out = out.replace(URI_QUERY, `$1${HIDDEN}`);
   for (const shape of SECRET_SHAPES) {
     shape.lastIndex = 0;
     out = out.replace(shape, HIDDEN);

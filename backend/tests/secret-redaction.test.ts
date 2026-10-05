@@ -344,4 +344,48 @@ describe("a credential shape is masked whatever the name beside it says", () => 
     expect(JSON.stringify(hit)).not.toContain(PAT);
     expect(hit!.code).toContain("const pat");
   });
+
+  it("hides the password a connection string carries, scheme and host left readable", () => {
+    // Measured, not invented: a `.env` finding whose hit line was masked still
+    // shipped `DATABASE_URL=postgres://admin:…@db.internal:5432/app` two lines
+    // down, in the persisted result and in the city payload.
+    const DB = "DATABASE_URL=postgres://admin:Sup3rSecretPw-XYZ-9000@db.internal:5432/app";
+    type Framed = { code: string; snippet: { line: string; before: string[]; after: string[] } };
+    for (const side of ["before", "after"] as const) {
+      const issue: Framed = {
+        code: "STRIPE_SECRET_KEY=‹hidden›",
+        snippet: {
+          line: "STRIPE_SECRET_KEY=sk_live_MZKQ00112233445566778899",
+          before: [],
+          after: [],
+        },
+      };
+      issue.snippet[side] = [DB];
+      maskIssueFrames(issue);
+      expect(JSON.stringify(issue), `the ${side} frame must not carry the password`).not.toContain(
+        "Sup3rSecretPw-XYZ-9000",
+      );
+      expect(issue.snippet[side][0]).toBe(
+        "DATABASE_URL=postgres://admin:‹hidden›@db.internal:5432/app",
+      );
+    }
+  });
+
+  it("hides a credential that travels in a query string", () => {
+    const line = 'fetch("https://api.host/v1?access_token=Abcd1234Efgh5678&v=2")';
+    const issue = { code: line, snippet: { line, before: [line], after: [] } };
+    maskIssueFrames(issue);
+    expect(JSON.stringify(issue)).not.toContain("Abcd1234Efgh5678");
+    expect(issue.snippet.before[0]).toContain("access_token=‹hidden›");
+  });
+
+  it("leaves a URL that carries no credential alone", () => {
+    for (const plain of [
+      "const url = 'https://example.com/docs/redact';",
+      "redis://127.0.0.1:6379",
+      "AMQP_HOST=amqp://broker.internal:5672",
+    ]) {
+      expect(maskSecretText(plain), plain).toBe(plain);
+    }
+  });
 });
