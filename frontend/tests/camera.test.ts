@@ -14,6 +14,7 @@ import {
   TURN_MIN_PHI,
 } from "../src/components/CameraRig";
 import type { XYZ } from "../src/components/CameraRig";
+import { overviewShot } from "../src/city/layout";
 
 /** Horizontal azimuth of a vector on the XZ plane (radians, atan2 convention). */
 function azimuth(v: { x: number; z: number }): number {
@@ -228,14 +229,16 @@ describe("clampToCity", () => {
   it("never touches a legitimate overview framing", () => {
     // Guards the coupling between three formulas that live apart: the height
     // rail (mapping.ts 34, voxels.ts x1.4), the framing distance
-    // (useStore.flyToDirOverview) and this ceiling. If any of them moves and
-    // this fails, the first wheel notch after an overview would yank the user
-    // inward.
-    const overviewDist = (bounds: number, tallest: number) =>
-      Math.max(bounds * 1.65, tallest * 2.2 + 24);
+    // (`overviewShot`, which the store's overview flight uses) and this
+    // ceiling. If any of them moves and this fails, the first wheel notch
+    // after an overview would yank the user inward.
     const TALLEST_POSSIBLE = 34 * 1.4;
     for (const bounds of [12, 40, 100, 400, 2000]) {
-      const pos = { x: 0, y: PIVOT_Y, z: overviewDist(bounds, TALLEST_POSSIBLE) };
+      const pos = {
+        x: 0,
+        y: PIVOT_Y,
+        z: overviewShot(bounds, TALLEST_POSSIBLE).dist,
+      };
       expect(clampToCity(pos, bounds)).toEqual(pos);
     }
   });
