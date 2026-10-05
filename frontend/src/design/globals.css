@@ -1504,7 +1504,11 @@ div[role="status"].animate-toast-in {
   line-height: 1.5;
 }
 .panel-info {
-  width: 400px !important;
+  /* The narrow-screen block earlier in this file sets `width: auto` inside
+     @media (max-width: 760px) — and loses, because this rule is later at equal
+     specificity. 400px flat put the dialog 55px off a 375px viewport. The clamp
+     keeps the wide-screen width and stays inside the screen everywhere else. */
+  width: min(400px, calc(100vw - 28px)) !important;
   background: #20313e !important;
 }
 .panel-findings {
@@ -1563,7 +1567,20 @@ div[role="status"].animate-toast-in {
     display: none;
   }
 }
-
+/* 761–900px was a hole: the ≤760 block did not apply and neither did the
+   901–1200 one, so the dialog kept `right: 390px` beside a 400px width and
+   started at x = -29. Two 400px panels do not fit in this band, so it is
+   treated like the band above it: the list steps aside, the dialog sits at the
+   edge. */
+@media (min-width: 761px) and (max-width: 900px) {
+  .panel-info:has(~ .panel-findings) {
+    right: 22px !important;
+  }
+  .app-shell:has(.panel-info) .panel-findings {
+    visibility: hidden;
+    pointer-events: none;
+  }
+}
 /* Secondary labels remain readable on both the daylight world and dark tools. */
 .app-shell {
   --meta-strong: #d7e2e9;
