@@ -375,19 +375,22 @@ export function SearchBar() {
                       <span
                         className="block font-jetbrains text-xs leading-relaxed truncate"
                         style={{ color: "#e8e4da" }}
+                        title={`${label} :${hit.finding.line}`}
                       >
                         {highlight(label, query)}
                         <span style={{ color: "var(--meta)" }}> :{hit.finding.line}</span>
                       </span>
                       <span
-                        className="block text-[11px] leading-relaxed mt-0.5 truncate"
+                        className="block text-[length:var(--fs-meta)] leading-relaxed mt-0.5 truncate"
                         style={{ color: "var(--meta-strong)" }}
+                        title={hit.finding.message}
                       >
                         {highlight(hit.finding.message, query)}
                       </span>
                       <span
-                        className="block font-jetbrains text-[11px] truncate mt-0.5"
+                        className="block font-jetbrains text-[length:var(--fs-meta)] truncate mt-0.5"
                         style={{ color: "var(--meta)" }}
+                        title={hit.file.path}
                       >
                         {hit.file.path}
                       </span>
