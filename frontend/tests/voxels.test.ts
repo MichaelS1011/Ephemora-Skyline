@@ -155,24 +155,90 @@ describe("generateVoxelLayout — fallback for old payloads", () => {
   });
 });
 
-describe("generateVoxelLayout — mapping handrails (footprint/height caps)", () => {
+describe("generateVoxelLayout — the height IS the stack", () => {
+  /**
+   * Top of everything the layout says stands on this building's ground:
+   * materialized cells at their highest row, degraded sections at the floors
+   * their code volume needs on the same (possibly terraced) grid — the exact
+   * arithmetic `packStrata` runs.
+   */
+  function drawnTop(layout: VoxelLayout): number {
+    const gw = Math.round(layout.footprintW / layout.voxelSize);
+    const insetMax = Math.floor((gw - 1) / 2);
+    let running = 0;
+    let top = 0;
+    for (const section of layout.sections) {
+      if (section.detail && section.cells.length > 0) {
+        let maxRow = 0;
+        for (const c of section.cells) maxRow = Math.max(maxRow, c.y);
+        running = Math.max(running, maxRow + 1);
+      } else {
+        const side = Math.max(1, gw - 2 * Math.min(Math.max(section.depth, 0), insetMax));
+        running += Math.ceil(section.codeLines / (side * side));
+      }
+      top = Math.max(top, running * layout.voxelSize);
+    }
+    return top;
+  }
+
   const cases: Array<Partial<CityFile>> = [
     { exportedSymbols: 0, linesOfCode: 50, cyclomaticComplexity: 2 },
     { exportedSymbols: 24, linesOfCode: 5000, cyclomaticComplexity: 5 },
     { linesOfCode: 900, cyclomaticComplexity: 3 }, // no exportedSymbols → LOC-scale footprint
+    { linesOfCode: 20000, cyclomaticComplexity: 40, importCount: 12, exportedSymbols: 2 },
+    {
+      linesOfCode: 800,
+      cyclomaticComplexity: 30,
+      exportedSymbols: 1,
+      sections: [
+        { name: "a", kind: "function", start: 1, end: 400, codeLines: 400, depth: 5 },
+        { name: "b", kind: "function", start: 401, end: 800, codeLines: 400, depth: 5 },
+      ],
+    },
   ];
 
-  it.each(cases)("keeps footprint within [0.8, 1.6]× and height within [0.7, 1.4]× %#", (over) => {
+  it.each(cases)("reports exactly what it draws, whatever the volume %#", (over) => {
+    const layout = generateVoxelLayout(makeFile(over));
+    // The old plan clamped the NUMBER into a band while packing the volume
+    // somewhere else entirely: on a 2901-file city 76 % of plaza buildings
+    // drew a stack an average of 95 m above their own placement height (one
+    // 535-line file: 156 m of voxels on a 42.7 m number), so the roof cap
+    // floated inside the building, the pick volume stopped short of the
+    // geometry and the crane framed air.
+    expect(drawnTop(layout)).toBeCloseTo(layout.height, 6);
+    expect(layout.height).toBeGreaterThanOrEqual(layout.voxelSize);
+  });
+
+  it.each(cases)("keeps the footprint on the API-surface rail %#", (over) => {
     const file = makeFile(over);
     const layout = generateVoxelLayout(file);
     const fp = buildingFootprint(file);
+    // One voxel row of slack: the grid cannot land on a world-unit bound, and
+    // rounding UP the narrow rail used to cost a whole floor of height.
+    expect(layout.footprintW).toBeGreaterThanOrEqual(fp * 0.8 - VOXEL_SIZE / 2 - 1e-9);
+    expect(layout.footprintD).toBeGreaterThanOrEqual(fp * 0.8 - VOXEL_SIZE / 2 - 1e-9);
+    // The wide rail only ever breaks outward, and only as far as the volume
+    // needs to stay under the height ceiling — never past 8.8 m of ground.
+    expect(layout.footprintW).toBeLessThanOrEqual(Math.max(fp * 1.6 + VOXEL_SIZE / 2, 8.8) + 1e-9);
+  });
+
+  it("aims the stack at the mapping height band", () => {
+    // The band is the target the base is chosen for, not a clamp that lies:
+    // a file with the volume for it lands inside it.
+    const file = makeFile({ exportedSymbols: 24, linesOfCode: 5000, cyclomaticComplexity: 5 });
     const bh = buildingHeight(file);
-    expect(layout.footprintW).toBeGreaterThanOrEqual(fp * 0.8 - 1e-9);
-    expect(layout.footprintW).toBeLessThanOrEqual(fp * 1.6 + 1e-9);
-    expect(layout.footprintD).toBeGreaterThanOrEqual(fp * 0.8 - 1e-9);
-    expect(layout.footprintD).toBeLessThanOrEqual(fp * 1.6 + 1e-9);
-    expect(layout.height).toBeGreaterThanOrEqual(bh * 0.7 - 1e-9);
+    const layout = generateVoxelLayout(file);
+    expect(layout.height).toBeGreaterThanOrEqual(bh * 0.7);
     expect(layout.height).toBeLessThanOrEqual(bh * 1.4 + 1e-9);
+  });
+
+  it("lets a file too small for the band stand short, and says so", () => {
+    // 50 lines cannot fill a 4.8 m tower at 1 voxel per line. Inflating the
+    // number to the band's floor is what left a roof floating over air.
+    const file = makeFile({ exportedSymbols: 0, linesOfCode: 50, cyclomaticComplexity: 2 });
+    const layout = generateVoxelLayout(file);
+    expect(layout.height).toBeLessThan(buildingHeight(file) * 0.7);
+    expect(drawnTop(layout)).toBeCloseTo(layout.height, 6);
   });
 
   it("keeps the voxel grid consistent with the reported footprint", () => {

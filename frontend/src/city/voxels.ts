@@ -58,6 +58,11 @@ export interface VoxelLayout {
   /** World-unit footprint (matches the plaza placement bounding box). */
   footprintW: number;
   footprintD: number;
+  /**
+   * Top of the packed stack in world units — exactly where the highest voxel
+   * of this building ends, so no geometry is ever drawn above the height the
+   * layout reports (and none is missing under it).
+   */
   height: number;
   voxelSize: number;
   sections: VoxelSectionLayout[];
@@ -69,6 +74,13 @@ export interface VoxelLayout {
 export const VOXEL_BUDGET = 6000;
 /** World units per voxel edge — constant per city for comparability. */
 export const VOXEL_SIZE = 0.55;
+/**
+ * Widest base a building may claim to keep its volume under the height rail —
+ * 8.8 m, the size of the largest district plot's smallest neighbour, so a
+ * volume that needs more ground than the API-surface rail allows still gets
+ * it without becoming a tower.
+ */
+const MAX_BASE_EDGE = 16;
 
 // ── Packing helpers (all pure, all deterministic — no Math.random) ─────────
 
@@ -104,25 +116,74 @@ function normalizeSections(file: CityFile): VoxelSectionSpec[] {
  * Voxel grid + world footprint for the whole building, derived from the
  * code volume and held by the mapping handrails so plaza grid and skyline
  * proportions survive (the FORM follows the code, the SCALE stays urban).
- * Smallest square base whose stacked floors fit under the height rail
- * (1.4 × mapping height), then clamped to [0.8, 1.6] × mapping footprint.
+ *
+ * The base is the square grid whose packed stack comes closest to the
+ * mapping height. Sizing the base by the height it has to carry is what keeps
+ * the reported height equal to the drawn one: the old plan took the SMALLEST
+ * base that could fit under the height CEILING and then clamped the NUMBER
+ * down, so the silhouette the renderer drew and the height the layout, the
+ * crane and the pick box used disagreed (measured on a 2901-file city: 76 % of
+ * plaza buildings drew a stack on average 95 m above their own placement
+ * height; one 535-line file stood 156 m tall on a 42.7 m number).
+ *
+ * The footprint rail [0.8, 1.6]× is a floor and a preference, not a ceiling
+ * for volume that has nowhere else to go: a base wider than 1.6× is opened
+ * only as far as it takes to bring the stack back under the height rail. A
+ * file with 6 000 code lines and deep nesting IS a broad building; hiding that
+ * by letting it grow through the sky instead would trade one lie for another.
+ *
+ * The terrace inset is part of the packing math and therefore part of the
+ * search: a deep section only keeps its middle columns, so a tangled file
+ * needs a wider base than a flat one to reach the same height.
  */
 function planBase(
   file: CityFile,
-  totalVoxels: number,
+  specs: VoxelSectionSpec[],
 ): {
   footW: number;
   footD: number;
   gw: number;
   gd: number;
 } {
-  const maxH = buildingHeight(file) * 1.4;
-  const maxFloors = Math.max(1, Math.floor(maxH / VOXEL_SIZE));
-  const naturalEdgeVoxels = Math.ceil(Math.sqrt(totalVoxels / maxFloors));
+  const bh = buildingHeight(file);
   const fp = buildingFootprint(file);
-  const footW = clamp(naturalEdgeVoxels * VOXEL_SIZE, fp * 0.8, fp * 1.6);
-  const gw = Math.max(1, Math.round(footW / VOXEL_SIZE));
-  return { footW, footD: footW, gw, gd: gw }; // square base in V1
+  // Nearest voxel row to each rail edge: the grid cannot hit a world-unit
+  // bound exactly, and pretending otherwise costs a whole floor of height.
+  const edgeLo = Math.max(1, Math.round((fp * 0.8) / VOXEL_SIZE));
+  const railHi = Math.max(edgeLo, Math.round((fp * 1.6) / VOXEL_SIZE));
+  const stackAt = (edge: number): number => floorsFor(specs, edge) * VOXEL_SIZE;
+  // The narrowest base whose stack still fits under the height ceiling.
+  let fitting = railHi;
+  while (stackAt(fitting) > bh * 1.4 && fitting < MAX_BASE_EDGE) fitting++;
+  const edgeHi = Math.max(railHi, fitting);
+  // The best height inside the range; ties go to the narrower base, so a
+  // building never spreads wider than its own volume requires.
+  let best = edgeLo;
+  let bestErr = Infinity;
+  for (let edge = edgeLo; edge <= edgeHi; edge++) {
+    const err = Math.abs(stackAt(edge) - bh);
+    if (err < bestErr - 1e-9) {
+      bestErr = err;
+      best = edge;
+    }
+  }
+  const footW = best * VOXEL_SIZE;
+  return { footW, footD: footW, gw: best, gd: best }; // square base in V1
+}
+
+/**
+ * How many floors `specs` stack on a square grid of `edge` voxels — the exact
+ * arithmetic `packStrata` performs, without materializing the cells. Shared by
+ * the base search and the packing so the planned height can never disagree
+ * with the packed one.
+ */
+function floorsFor(specs: VoxelSectionSpec[], edge: number): number {
+  const inset = Math.floor((edge - 1) / 2);
+  return specs.reduce((floors, spec) => {
+    const cut = Math.min(Math.max(spec.depth, 0), inset);
+    const side = Math.max(1, edge - 2 * cut);
+    return floors + Math.ceil(spec.codeLines / (side * side));
+  }, 0);
 }
 
 /**
@@ -261,20 +322,23 @@ export function findVoxelForLine(layout: VoxelLayout, line: number): VoxelHit | 
  * codeLines (== linesOfCode for payloads without sections) — one voxel per
  * code line, budget or not. Files without section data degrade to a single
  * "module" stratum; huge volumes degrade to closed slabs from the top down.
+ *
+ * `height` is the top of the packed stack — the number the renderer draws,
+ * the plaza placement, the pick volume and the crane all agree with it. The
+ * mapping height is what the base was chosen to reach, so the two track each
+ * other; where the integer voxel grid cannot, the stack wins and the height
+ * tells the truth about it.
  */
 export function generateVoxelLayout(file: CityFile): VoxelLayout {
   const specs = normalizeSections(file);
   const totalVoxels = specs.reduce((sum, spec) => sum + spec.codeLines, 0);
-  const { footW, footD, gw, gd } = planBase(file, totalVoxels);
+  const { footW, footD, gw, gd } = planBase(file, specs);
   const { sections, floors } = packStrata(specs, gw, gd);
-
-  const bh = buildingHeight(file);
-  const height = clamp(floors * VOXEL_SIZE, bh * 0.7, bh * 1.4);
 
   return {
     footprintW: footW,
     footprintD: footD,
-    height,
+    height: Math.max(VOXEL_SIZE, floors * VOXEL_SIZE),
     voxelSize: VOXEL_SIZE,
     sections,
     totalVoxels,
