@@ -19,10 +19,10 @@ import { loadSavedProfile, saveProfile, type ScanProfile } from "../config/scanP
 import { loadSavedCategories, saveCategories } from "../config/findingCategories";
 import { loadSavedPacks, savePacks, type RulePackInfo } from "../config/rulePacks";
 import {
+  bucketKeyFor,
   countStrandedVerdicts,
   findingKey,
-  loadReviews,
-  projectKey,
+  loadReviewsForCity,
   saveReviews,
 } from "../reviews";
 import { loadPrefs, savePrefs, type Prefs } from "../prefs";
@@ -380,7 +380,7 @@ export const useStore = create<AppState>((set, get) => ({
   setCityData: (data) => {
     // Review state belongs to the PROJECT, not to the scan that happened to
     // produce this city: a re-scan reads back the same verdicts.
-    const reviews = data ? loadReviews(projectKey(data.repo)) : {};
+    const reviews = data ? loadReviewsForCity(data) : {};
     set({
       cityData: data,
       focusPath: [],
@@ -659,7 +659,7 @@ export const useStore = create<AppState>((set, get) => ({
     const next = { ...reviews };
     if (status === null) delete next[key];
     else next[key] = status;
-    if (cityData) saveReviews(projectKey(cityData.repo), next);
+    if (cityData) saveReviews(bucketKeyFor(cityData), next);
     set({ reviews: next });
   },
 
