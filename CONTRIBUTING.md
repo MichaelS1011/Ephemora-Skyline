@@ -27,7 +27,7 @@ These are exactly what CI enforces. Run them clean first:
 ```bash
 npm run lint          # ESLint, zero warnings
 npm run type-check    # tsc --noEmit across both packages
-npm run test          # Vitest — 790 tests in 97 files (420 frontend, 370 backend)
+npm run test          # Vitest — 800 tests in 98 files (420 frontend, 380 backend)
 npm run build         # production build, both packages
 ```
 

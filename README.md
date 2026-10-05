@@ -66,7 +66,7 @@ Open **http://localhost:3010** and click **Choose project folder** — or **Expl
 ```bash
 npm run lint           # ESLint, zero warnings
 npm run type-check     # tsc --noEmit, both packages
-npm run test           # Vitest — 790 tests in 97 files (420 frontend, 370 backend)
+npm run test           # Vitest — 800 tests in 98 files (420 frontend, 380 backend)
 npm run build          # production build, both packages
 node scripts/audit-gate.mjs   # dependency audit, see below
 ```
@@ -182,21 +182,23 @@ Ephemora-Skyline/
 
 ## API (`:4000`)
 
-| Method and path                       | Purpose                                                            |
-| ------------------------------------- | ------------------------------------------------------------------ |
-| `GET  /api/health`                    | liveness                                                           |
-| `GET  /api/demo`                      | the seeded demo city (`demo-001`)                                  |
-| `GET  /api/cities/default`            | the default city for a cold start                                  |
-| `POST /api/analyze-local`             | analyze a folder picked in the browser (primary path)              |
-| `GET  /api/status/:id`                | progress of a running analysis (polled)                            |
-| `GET  /api/result/:id`                | full analysis result as JSON                                       |
-| `GET  /api/result/:id/city`           | the city payload the renderer consumes                             |
-| `GET  /api/result/:id/sarif`          | SARIF 2.1.0 export of the findings                                 |
-| `GET  /api/result/:id/source/:fileId` | the file a finding points at                                       |
-| `GET  /api/rule-packs`                | the rule packs on this disk, and whether the offline switch is set |
-| `POST /api/tests/:id/run`             | run one of that city's own test files                              |
-| `GET  /api/tests/run/:runId`          | output of that run                                                 |
-| `GET  /api/update/check`              | the anonymous newest-release check                                 |
+| Method and path                       | Purpose                                                             |
+| ------------------------------------- | ------------------------------------------------------------------- |
+| `GET  /api/health`                    | liveness                                                            |
+| `GET  /api/demo`                      | the seeded demo city (`demo-001`)                                   |
+| `GET  /api/cities/default`            | the default city for a cold start                                   |
+| `POST /api/analyze-local`             | analyze a folder picked in the browser (primary path)               |
+| `GET  /api/status/:id`                | progress of a running analysis (polled)                             |
+| `GET  /api/result/:id`                | full analysis result as JSON                                        |
+| `GET  /api/result/:id/city`           | the city payload the renderer consumes                              |
+| `GET  /api/result/:id/sarif`          | SARIF 2.1.0 export of the findings                                  |
+| `GET  /api/result/:id/source/:fileId` | the file a finding points at                                        |
+| `GET  /api/result/:id/handoff`        | one finding per line, NDJSON, for a coding agent (`docs/AGENTS.md`) |
+| `POST /api/verify`                    | did the findings of one scan survive a later one?                   |
+| `GET  /api/rule-packs`                | the rule packs on this disk, and whether the offline switch is set  |
+| `POST /api/tests/:id/run`             | run one of that city's own test files                               |
+| `GET  /api/tests/run/:runId`          | output of that run                                                  |
+| `GET  /api/update/check`              | the anonymous newest-release check                                  |
 
 ## Contributing
 

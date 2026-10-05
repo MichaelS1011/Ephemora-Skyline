@@ -30,6 +30,7 @@ import {
   pruneStaleUploadDirs,
   purgeStaleCopies,
 } from "./routes/local-analyze.js";
+import { handleHandoff, handleVerify } from "./routes/agent.js";
 import { handleSource } from "./routes/source.js";
 import { handleUpdateCheck } from "./routes/update-check.js";
 import { listPacks } from "../services/security/rule-packs.js";
@@ -288,6 +289,20 @@ app.post(
     res.json(await purgeStaleCopies());
   },
 );
+
+// GET /api/result/:id/handoff — newline-delimited JSON, one finding per line,
+// keyed by the same fingerprint the panel, the city and the SARIF use. This is
+// the channel a coding agent reads; the 3D city is the channel a human reads.
+app.get("/api/result/:id/handoff", readLimiter, (req: Request, res: Response): void => {
+  handleHandoff(req, res, analysisStore);
+});
+
+// POST /api/verify — did the findings of one scan survive a later one? A read of
+// two RAM results, but a POST with a body, so it carries the same guard as the
+// other routes that accept instructions from a page.
+app.post("/api/verify", localOnlyRoute, (req: Request, res: Response): void => {
+  void handleVerify(req, res, analysisStore);
+});
 
 app.get("/api/result/:id/source/:fileId", readLimiter, (req: Request, res: Response): void => {
   void handleSource(req, res, analysisStore);
