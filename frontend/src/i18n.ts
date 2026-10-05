@@ -97,7 +97,7 @@ export const DICT = {
    * it rather than only in the repository.
    */
   "landing.networkToggle": {
-    en: "What does leave the machine",
+    en: "What leaves the machine",
     de: "Was die Maschine verlässt",
   },
   "landing.networkLead": {

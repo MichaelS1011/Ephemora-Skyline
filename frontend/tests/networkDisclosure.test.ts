@@ -35,6 +35,16 @@ describe("the network disclosure", () => {
     expect(landing).toContain("OUTBOUND_CALLS");
     expect(landing).toMatch(/landing\.networkToggle/);
   });
+
+  it("names the disclosure as a clause, not a broken question", () => {
+    // The heading sits where the reader is being reassured, so a mangled
+    // construction there costs more trust than a missing feature.
+    for (const lang of ["en", "de"] as const) {
+      const label = t(lang, "landing.networkToggle");
+      expect(label).toMatch(/^Was |^What /);
+      expect(label).not.toMatch(/\?|does /);
+    }
+  });
 });
 
 describe("the canvas announcement", () => {
