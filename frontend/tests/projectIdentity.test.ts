@@ -1,13 +1,17 @@
 // @vitest-environment jsdom
 import { describe, it, expect, beforeEach } from "vitest";
+import { readFileSync } from "fs";
+import path from "path";
 import {
   bucketKeyFor,
+  identityIsGuessed,
   loadReviews,
   loadReviewsForCity,
   projectKey,
   projectShape,
   saveReviews,
 } from "../src/reviews";
+import { t } from "../src/i18n";
 import { useStore } from "../src/stores/useStore";
 
 /**
@@ -72,6 +76,12 @@ describe("the project bucket", () => {
     expect(localStorage.getItem(`codecity-reviews:${legacyKey}`)).not.toBeNull();
   });
 
+  it("knows when the identity is only inferred", () => {
+    expect(identityIsGuessed(city("backend", ["src"]))).toBe(true);
+    localStorage.setItem(`${ROOT_KEY}:local/backend`, "/Users/micha/proj-a/backend");
+    expect(identityIsGuessed(city("backend", ["src"]))).toBe(false);
+  });
+
   it("does not adopt anything when the new bucket already has verdicts", () => {
     const legacyKey = projectKey({ owner: "local", name: "backend" });
     const newKey = bucketKeyFor(city("backend", ["src", "db"]));
@@ -81,6 +91,31 @@ describe("the project bucket", () => {
     const got = loadReviewsForCity(city("backend", ["src", "db"]));
     expect(got["fp:neu"]).toBe("false-positive");
     expect(got["fp:alt"]).toBeUndefined();
+  });
+});
+
+/**
+ * The marker has to appear exactly where a reader would otherwise conclude the
+ * tool forgot their work: next to the project's name, and not on the demo city,
+ * which has no verdict history to lose.
+ */
+describe("the header says when the identity is guessed", () => {
+  const hud = readFileSync(
+    path.resolve(import.meta.dirname, "../src/components/HudOverlay.tsx"),
+    "utf-8",
+  );
+
+  it("renders the marker guarded by the demo case", () => {
+    expect(hud).toContain("identityIsGuessed(cityData)");
+    expect(hud).toMatch(/apiStatus !== "demo" && identityIsGuessed\(cityData\)/);
+    expect(hud).toContain('data-testid="project-identity-guess"');
+    expect(hud).toContain('t(lang, "hud.identityGuessedTitle")');
+  });
+
+  it("explains it in both languages", () => {
+    expect(t("en", "hud.identityGuessedTitle")).toMatch(/project root/i);
+    expect(t("de", "hud.identityGuessedTitle")).toMatch(/Projektwurzel/);
+    expect(t("de", "hud.identityGuessedTitle")).not.toBe(t("en", "hud.identityGuessedTitle"));
   });
 });
 

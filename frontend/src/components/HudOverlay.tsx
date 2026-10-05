@@ -1,4 +1,5 @@
 import { useStore } from "../stores/useStore";
+import { identityIsGuessed } from "../reviews";
 import { topLanguages, languageColor, severityColor } from "../city/palette";
 import { BrandWordmark } from "./Landing";
 import { AnalyzePanel } from "./AnalyzePanel";
@@ -60,6 +61,17 @@ export function HudOverlay({ apiStatus }: HudOverlayProps) {
             className="workspace-project"
           >
             {cityData.repo.name}
+            {/* the bucket is inferred until a project root is saved — say it here,
+                where the project is named, not after a verdict seems to go missing */}
+            {apiStatus !== "demo" && identityIsGuessed(cityData) && (
+              <span
+                className="project-guess"
+                data-testid="project-identity-guess"
+                title={t(lang, "hud.identityGuessedTitle")}
+              >
+                ≈
+              </span>
+            )}
             <span>
               {apiStatus === "demo"
                 ? t(lang, "hud.demoProject")

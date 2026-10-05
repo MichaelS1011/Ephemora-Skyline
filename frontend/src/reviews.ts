@@ -143,6 +143,19 @@ export function loadReviewsForCity(city?: {
 }
 
 /**
+ * Whether the project's identity is a guess.
+ *
+ * Without a configured root the bucket rests on the folder's basename plus its
+ * top-level shape — good enough to tell two `backend` folders apart, but it is
+ * still inferred, and the reader is the only one who knows whether this is the
+ * project they meant. Saying so is cheaper than letting a triage look lost.
+ */
+export function identityIsGuessed(city?: { repo: { owner: string; name: string } }): boolean {
+  if (!city) return false;
+  return getWorkspaceRoot(`${city.repo.owner}/${city.repo.name}`) === "";
+}
+
+/**
  * Verdicts in this project's bucket that no finding in the city on screen
  * carries any more.
  *

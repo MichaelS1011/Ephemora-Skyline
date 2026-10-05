@@ -951,6 +951,14 @@ button:disabled {
   font-size: 11px;
   margin-top: 2px;
 }
+/* stays on the name line, unlike the block-level label under it */
+.workspace-project > .project-guess {
+  display: inline;
+  margin-left: 4px;
+  color: #929c87;
+  font-size: var(--fs-small);
+  cursor: help;
+}
 .workspace-files {
   white-space: nowrap;
   color: #dfdfd3;

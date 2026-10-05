@@ -238,6 +238,10 @@ export const DICT = {
     en: "Local project",
     de: "Lokales Projekt",
   },
+  "hud.identityGuessedTitle": {
+    en: "Verdicts are filed under this folder's name and layout — no project root is saved. Set one once (in a file card, next to Open in editor) so two folders called backend cannot share a bucket.",
+    de: "Urteile liegen nach Ordnername und Struktur dieses Ordners — eine Projektwurzel fehlt. Trage sie einmal ein (in einer Dateikarte, neben „Im Editor öffnen“), damit sich zwei Ordner namens backend nicht denselben Bucket teilen.",
+  },
   "hud.filesUnit": {
     en: "files",
     de: "Dateien",
