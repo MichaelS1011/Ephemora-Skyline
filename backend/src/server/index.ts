@@ -24,7 +24,12 @@ import { getHealth } from "./routes/health.js";
 import { getDemoResult } from "./routes/demo.js";
 import { handleStatus } from "./routes/status.js";
 import { bindHost, isLoopbackHost } from "./bind-address.js";
-import { handleLocalAnalyze, pruneStaleUploadDirs } from "./routes/local-analyze.js";
+import {
+  footprintSnapshot,
+  handleLocalAnalyze,
+  pruneStaleUploadDirs,
+  purgeStaleCopies,
+} from "./routes/local-analyze.js";
 import { handleSource } from "./routes/source.js";
 import { handleUpdateCheck } from "./routes/update-check.js";
 import { listPacks } from "../services/security/rule-packs.js";
@@ -267,6 +272,22 @@ app.get("/api/rule-packs", readLimiter, (_req: Request, res: Response): void => 
     packs: listPacks().map(({ dir: _dir, ...publicPack }) => publicPack),
   });
 });
+
+// GET /api/footprint — what this program keeps on the machine it runs on, and
+// POST /api/footprint/purge to sweep the part of it that is past its TTL. The
+// entry screen renders its privacy note from here, so "nothing is kept forever"
+// can be read as a number and acted on without a terminal. The purge is a write
+// and goes through the same guard as the routes that run code.
+app.get("/api/footprint", readLimiter, async (_req: Request, res: Response): Promise<void> => {
+  res.json(await footprintSnapshot());
+});
+app.post(
+  "/api/footprint/purge",
+  localOnlyRoute,
+  async (_req: Request, res: Response): Promise<void> => {
+    res.json(await purgeStaleCopies());
+  },
+);
 
 app.get("/api/result/:id/source/:fileId", readLimiter, (req: Request, res: Response): void => {
   void handleSource(req, res, analysisStore);

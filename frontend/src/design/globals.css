@@ -719,6 +719,29 @@ button:disabled {
   font-size: 11px;
   color: #8f8b82;
 }
+/* the footprint block inside the network disclosure: numbers, then actions */
+.landing-footprint {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(242, 239, 232, 0.08);
+}
+.landing-footprint-count {
+  font-family: var(--font-mono);
+  font-size: var(--fs-meta);
+  color: var(--meta-strong);
+  margin: 6px 0 0;
+  overflow-wrap: anywhere;
+}
+.landing-footprint-stale {
+  color: #e8b23c;
+}
+.landing-footprint-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+
 .scan-settings {
   margin-top: 30px;
   max-width: 450px;

@@ -186,6 +186,53 @@ export function Landing() {
       })
       .catch(() => {}); // offline: no note, no noise
   }, [prefs.updateCheck]);
+  interface Footprint {
+    root: string;
+    copies: number;
+    bytes: number;
+    stale: number;
+    ttlHours: number;
+    offline: boolean;
+    approx: boolean;
+  }
+  const [foot, setFoot] = useState<Footprint | null>(null);
+  const [footError, setFootError] = useState(false);
+  const [footNote, setFootNote] = useState("");
+  const readFootprint = async (): Promise<void> => {
+    try {
+      const res = await fetch("/api/footprint");
+      if (!res.ok) throw new Error(String(res.status));
+      setFoot((await res.json()) as Footprint);
+      setFootError(false);
+    } catch {
+      setFootError(true);
+    }
+  };
+  useEffect(() => {
+    void readFootprint();
+  }, []);
+  const bytesOf = (n: number): string =>
+    n >= 1024 * 1024 ? `${(n / (1024 * 1024)).toFixed(1)} MB` : `${Math.round(n / 1024)} KB`;
+  const purgeFootprint = async (): Promise<void> => {
+    setFootNote("");
+    try {
+      const res = await fetch("/api/footprint/purge", { method: "POST" });
+      if (!res.ok) throw new Error(String(res.status));
+      const d = (await res.json()) as { removed: number; bytesFreed: number };
+      setFootNote(
+        t(lang, "landing.footprintPurged", { n: d.removed, bytes: bytesOf(d.bytesFreed) }),
+      );
+      await readFootprint();
+    } catch {
+      setFootError(true);
+    }
+  };
+  const resetVerdicts = (): void => {
+    const keys = Object.keys(localStorage).filter((k) => k.startsWith("codecity-reviews:"));
+    for (const k of keys) localStorage.removeItem(k);
+    setFootNote(t(lang, "landing.footprintResetDone", { n: keys.length }));
+  };
+
   const {
     state,
     errorMessage,
@@ -331,6 +378,60 @@ export function Landing() {
               <code className="font-jetbrains">SKYLINE_OFFLINE=1</code>{" "}
               {t(lang, "landing.networkOfflineSuffix")}
             </p>
+            <div className="landing-footprint">
+              <p className="landing-network-lead">{t(lang, "landing.footprintLead")}</p>
+              {footError && (
+                <p className="landing-network-meta" role="status">
+                  {t(lang, "landing.footprintError")}
+                </p>
+              )}
+              {foot && (
+                <>
+                  <p className="landing-network-meta">
+                    {t(lang, "landing.footprintPath")}{" "}
+                    <code className="font-jetbrains">{foot.root}</code>
+                  </p>
+                  <p role="status" className="landing-footprint-count">
+                    {foot.copies === 0
+                      ? t(lang, "landing.footprintNone")
+                      : t(lang, "landing.footprintCopies", {
+                          n: foot.copies,
+                          bytes:
+                            bytesOf(foot.bytes) +
+                            (foot.approx ? " " + t(lang, "landing.footprintApprox") : ""),
+                          h: foot.ttlHours,
+                        })}
+                    {foot.stale > 0 && (
+                      <span className="landing-footprint-stale">
+                        {" · "}
+                        {t(lang, "landing.footprintStale", { n: foot.stale })}
+                      </span>
+                    )}
+                  </p>
+                </>
+              )}
+              <div className="landing-footprint-actions">
+                <button type="button" className="btn-ghost" onClick={() => void readFootprint()}>
+                  {t(lang, "landing.footprintRefresh")}
+                </button>
+                <button
+                  type="button"
+                  className="btn-ghost"
+                  onClick={() => void purgeFootprint()}
+                  disabled={!foot || foot.stale === 0}
+                >
+                  {t(lang, "landing.footprintPurge")}
+                </button>
+                <button type="button" className="btn-ghost" onClick={resetVerdicts}>
+                  {t(lang, "landing.footprintReset")}
+                </button>
+              </div>
+              {footNote && (
+                <p className="landing-network-meta" role="status">
+                  {footNote}
+                </p>
+              )}
+            </div>
           </details>
           {error && (
             <div id="landing-error" role="alert" className="landing-error">

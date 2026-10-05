@@ -117,6 +117,50 @@ export const DICT = {
     de: "schließt jede Zeile oben.",
   },
   /**
+   * The footprint is the privacy promise turned into a number the user can read,
+   * check and act on without a terminal: what copies sit where, how long they
+   * stay, and two buttons that remove them.
+   */
+  "landing.footprintLead": { en: "On this machine", de: "Auf diesem Rechner" },
+  "landing.footprintPath": {
+    en: "Copies of the folders you picked live in",
+    de: "Kopien der Ordner, die du gewählt hast, liegen in",
+  },
+  "landing.footprintCopies": {
+    en: "{n} copies · {bytes} on disk · kept {h} h",
+    de: "{n} Kopien · {bytes} auf der Platte · gehalten {h} h",
+  },
+  "landing.footprintStale": {
+    en: "{n} past their keep time",
+    de: "{n} über der Haltezeit",
+  },
+  "landing.footprintNone": { en: "nothing staged", de: "nichts zwischengelagert" },
+  "landing.footprintApprox": {
+    en: "(size counted only partly — the tree is large)",
+    de: "(Größe nur teilweise gezählt — der Baum ist groß)",
+  },
+  "landing.footprintPurge": {
+    en: "Delete the copies past their keep time",
+    de: "Kopien über der Haltezeit löschen",
+  },
+  "landing.footprintRefresh": { en: "Look again", de: "Nachsehen" },
+  "landing.footprintReset": {
+    en: "Delete the verdicts saved in this browser",
+    de: "Im Browser gespeicherte Urteile löschen",
+  },
+  "landing.footprintPurged": {
+    en: "{n} copies deleted, {bytes} freed",
+    de: "{n} Kopien gelöscht, {bytes} frei geworden",
+  },
+  "landing.footprintResetDone": {
+    en: "{n} verdict buckets removed from this browser",
+    de: "{n} Urteils-Ablagen aus diesem Browser entfernt",
+  },
+  "landing.footprintError": {
+    en: "The local server did not answer — is it running?",
+    de: "Der lokale Server antwortet nicht — läuft er?",
+  },
+  /**
    * The canvas is announced before a city exists too; the driving instructions
    * belong to the version that has something to drive through.
    */

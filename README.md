@@ -66,7 +66,7 @@ Open **http://localhost:3010** and click **Choose project folder** — or **Expl
 ```bash
 npm run lint           # ESLint, zero warnings
 npm run type-check     # tsc --noEmit, both packages
-npm run test           # Vitest — 780 tests in 95 files (415 frontend, 365 backend)
+npm run test           # Vitest — 790 tests in 97 files (420 frontend, 370 backend)
 npm run build          # production build, both packages
 node scripts/audit-gate.mjs   # dependency audit, see below
 ```
@@ -211,6 +211,7 @@ The gates, commit conventions and PR checklist are in **[CONTRIBUTING.md](./CONT
 - **What is not granted:** the name. §6 withholds trade names and marks, so `Ephemora Skyline` stays the name of this implementation and a fork should pick another.
 - **Patent suicide clause:** the patent licence ends for anyone who litigates claiming this work infringes their patents (§3).
 - **Warranty and liability:** none, respectively capped at nothing (§7 and §8) — which for a tool that reads your source and can run a folder's test suite is worth reading twice.
+- **The local footprint is on the entry screen:** how many copies of picked folders sit in the staging root, how big they are, how long they stay, with a button that deletes the stale ones and one that clears the verdicts stored in the browser. Server-side rules: only directories this program minted, only past their keep time, and only a deletion that actually happened is reported (`GET /api/footprint`, `POST /api/footprint/purge`).
 - **Bundled under their own terms:** the UI typeface is JetBrains Mono, **SIL Open Font License 1.1**, taken from `@fontsource` and served by the app itself rather than a font CDN. Its licence text ships with the build (`OFL-JetBrains-Mono.txt`), and a test fails if a bundled font ever travels without one.
 
 Skyline is the piece of this work meant to be read and argued with, not the piece meant to earn.

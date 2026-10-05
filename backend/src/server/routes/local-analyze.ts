@@ -2,12 +2,13 @@ import type { Request, Response } from "express";
 import type { AnalysisOrchestrator } from "../../services/analyzer/orchestrator.js";
 import { supportedExtensionsLabel } from "../../services/analyzer/orchestrator.js";
 import type { AnalysisResult, GitHubRepo } from "../../models/index.js";
-import { promises as fs } from "fs";
+import { promises as fs, type Dirent } from "fs";
 import os from "os";
 import path from "path";
 import { deleteJobProgress } from "./job-progress.js";
 import { makeSkeleton, makeProgressWriter, failJob } from "./job-progress.js";
 import { resolveConfig, type ResolvedScanConfig } from "../../services/security/scan-config.js";
+import { isOffline } from "../../services/security/network-policy.js";
 
 /** Upload caps — a local dev folder should always fit comfortably */
 const MAX_FILES = 3000;
@@ -85,6 +86,110 @@ export function pruneStaleUploadDirs(now: number = Date.now()): Promise<void> {
       .catch(() => undefined),
   );
   return Promise.all(jobs).then(() => undefined);
+}
+
+/**
+ * What this program leaves on the machine, for the person who owns it.
+ *
+ * The privacy promise is "nothing is kept forever". That is only reassuring
+ * while it is visible: where the staged copies sit, how many, how big, how many
+ * are past their TTL, and whether the outbound calls are switched off. The entry
+ * screen renders this and offers the sweep, so the claim can be checked and
+ * acted on without a terminal.
+ */
+export interface Footprint {
+  root: string;
+  copies: number;
+  bytes: number;
+  stale: number;
+  ttlHours: number;
+  offline: boolean;
+  /** Entries skipped while summing sizes — a big tree is measured, not walked forever */
+  approx: boolean;
+}
+
+const WALK_CAP = 30_000;
+
+/** Sum the bytes under one staged copy, yielding to the event loop as it goes. */
+async function directoryBytes(dir: string, budget: { left: number }): Promise<number> {
+  let total = 0;
+  const stack: string[] = [dir];
+  while (stack.length > 0 && budget.left > 0) {
+    const current = stack.pop() as string;
+    budget.left -= 1;
+    const entries = await fs.readdir(current, { withFileTypes: true }).catch((): Dirent[] => []);
+    for (const e of entries) {
+      const child = path.join(current, e.name);
+      if (e.isDirectory()) stack.push(child);
+      else total += (await fs.stat(child).catch(() => null))?.size ?? 0;
+    }
+  }
+  return total;
+}
+
+async function stagedCopyDirs(): Promise<Array<{ name: string; dir: string }>> {
+  const root = uploadsRoot();
+  const entries = await fs.readdir(root, { withFileTypes: true }).catch((): Dirent[] => []);
+  return entries
+    .filter((e) => e.isDirectory() && STAGED_DIR_NAME.test(e.name))
+    .map((e) => ({ name: e.name, dir: path.join(root, e.name) }));
+}
+
+export async function footprintSnapshot(): Promise<Footprint> {
+  const copies = await stagedCopyDirs();
+  const budget = { left: WALK_CAP };
+  let bytes = 0;
+  let stale = 0;
+  for (const c of copies) {
+    bytes += await directoryBytes(c.dir, budget);
+    const stat = await fs.stat(c.dir).catch(() => null);
+    if (stat && Date.now() - stat.mtimeMs > STAGED_TTL_MS) stale += 1;
+  }
+  return {
+    root: uploadsRoot(),
+    copies: copies.length,
+    bytes,
+    stale,
+    ttlHours: Math.max(1, Math.round(STAGED_TTL_MS / (60 * 60 * 1000))),
+    offline: isOffline(),
+    approx: budget.left <= 0,
+  };
+}
+
+/**
+ * Delete the copies past their TTL — and only those, only inside the staging
+ * root, only under a name this route minted. A running scan's copy is never
+ * touched, so the button cannot cut the ground from under the city on screen.
+ */
+export async function purgeStaleCopies(): Promise<{
+  removed: number;
+  remaining: number;
+  bytesFreed: number;
+}> {
+  const before = await footprintSnapshot();
+  let removed = 0;
+  for (const c of await stagedCopyDirs()) {
+    const stat = await fs.stat(c.dir).catch(() => null);
+    if (!stat || Date.now() - stat.mtimeMs <= STAGED_TTL_MS) continue;
+    const registered = STAGED_DIRS.get(c.name);
+    if (registered && Date.now() - registered.lastUsed <= STAGED_TTL_MS) continue;
+    // Only count what actually went: a copy that resists deletion (permissions,
+    // an immutable flag, a busy file) must not be reported as freed space.
+    const gone = await fs
+      .rm(c.dir, { recursive: true, force: true })
+      .then(() =>
+        fs
+          .stat(c.dir)
+          .then(() => false)
+          .catch(() => true),
+      )
+      .catch(() => false);
+    if (!gone) continue;
+    STAGED_DIRS.delete(c.name);
+    removed += 1;
+  }
+  const after = await footprintSnapshot();
+  return { removed, remaining: after.copies, bytesFreed: Math.max(0, before.bytes - after.bytes) };
 }
 
 export interface UploadedFile {
