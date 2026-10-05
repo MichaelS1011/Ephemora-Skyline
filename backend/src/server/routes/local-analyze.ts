@@ -202,6 +202,12 @@ export async function handleLocalAnalyze(
   const analysisId = crypto.randomUUID();
   const uploadDir = path.join(uploadsRoot(), analysisId);
   try {
+    // mkdir(mode) does not reach parents: the staging root itself came out of
+    // umask at 0755, so a name like `f2053.ts` was world-readable even though
+    // every directory below it was 0700. Own the parent before writing into it.
+    const root = uploadsRoot();
+    await fs.mkdir(root, { recursive: true, mode: 0o700 }).catch(() => {});
+    await fs.chmod(root, 0o700).catch(() => {});
     await fs.mkdir(uploadDir, { recursive: true, mode: 0o700 });
     await fs.chmod(uploadDir, 0o700).catch(() => {});
     for (const f of cleaned) {
@@ -212,11 +218,7 @@ export async function handleLocalAnalyze(
         f.encoding === "base64"
           ? Buffer.from(f.content, "base64")
           : Buffer.from(f.content, "utf-8");
-      await fs.writeFile(
-        target,
-        data,
-        f.encoding === "base64" ? undefined : { encoding: "utf-8", mode: 0o600 },
-      );
+      await fs.writeFile(target, data, { mode: 0o600 });
     }
   } catch (error) {
     await fs.rm(uploadDir, { recursive: true, force: true }).catch(() => {});

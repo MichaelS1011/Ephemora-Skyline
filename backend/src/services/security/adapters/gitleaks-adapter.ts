@@ -235,7 +235,7 @@ export class GitleaksAdapter implements ScannerAdapter {
       this.binaryAvailable = true;
       tmpBase = await mkdtemp(path.join(tmpdir(), "codecity-gitleaks-"));
       const tmpFile = path.join(tmpBase, path.basename(filePath));
-      await writeFile(tmpFile, content, "utf-8");
+      await writeFile(tmpFile, content, { encoding: "utf-8", mode: 0o600 });
       const { stdout } = await execFileAsync(
         bin,
         [
