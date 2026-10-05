@@ -7,7 +7,8 @@ import type { CityFile, Severity } from "../city/types";
 import type { FocusTier } from "../city/focus";
 import type { VoxelLayout } from "../city/voxels";
 import { languageColor, severityColor, REVIEWED_BEACON_COLOR, ENV } from "../city/palette";
-import { materialState, erosionState } from "../city/mapping";
+import { prefersReducedMotion } from "../city/motion";
+import { materialState, erosionState, findingBarSegments, FINDING_BAR } from "../city/mapping";
 import { landmarkFileId } from "../city/layout";
 import { findVoxelForLine } from "../city/voxels";
 import { useStore, type ViewMode } from "../stores/useStore";
@@ -206,6 +207,14 @@ const BAND_MATERIALS_DIMMED = {
     opacity: 0.12,
   }),
 };
+
+/**
+ * The finding bar stack: unlit and tone-mapping-free, so a P0 segment is
+ * exactly the P0 colour the HUD legend swears is P0 — at any zoom, in any
+ * light. One shared material for the whole city; the severity rides on the
+ * instance colour, so a thousand alarms are still one shader.
+ */
+const BAR_MATERIAL = new THREE.MeshBasicMaterial({ color: "#ffffff", toneMapped: false });
 
 // Focus tiers dim the city around a selection as a brightness MULTIPLIER on
 // color + emissive (never opacity — transparent bodies sort wrong). Filter
@@ -496,6 +505,39 @@ export function Building({
 
   const slabMaterial = getVoxelMaterial("code", voxelVariant, overallFactor);
 
+  // ── Finding bar stack (Balken) ─────────────────────────────────────────────
+  // One segment per finding, worst at the bottom, standing on the plinth at the
+  // front-left corner of the plot. Height is the finding COUNT, stack ORDER is
+  // the severity rank — so the alarm is readable as mass from across the
+  // district and as a ranking without ever asking the reader to tell two
+  // oranges apart. Segments past MAX_SEGMENTS fold into the top one, which keeps
+  // the height monotone while capping the geometry at six instances per file.
+  const barSegments = useMemo(() => findingBarSegments(file.findings), [file.findings]);
+  const barRef = useRef<THREE.InstancedMesh>(null);
+  const barDummy = useMemo(() => new THREE.Object3D(), []);
+  useLayoutEffect(() => {
+    const mesh = barRef.current;
+    if (!mesh) return;
+    barSegments.forEach((seg, i) => {
+      barDummy.position.set(
+        -(w / 2 + FINDING_BAR.WIDTH / 2 - 0.12),
+        0.36 + (seg.y0 + seg.y1) / 2,
+        d / 2 + FINDING_BAR.DEPTH / 2 - 0.12,
+      );
+      barDummy.scale.set(FINDING_BAR.WIDTH, seg.y1 - seg.y0, FINDING_BAR.DEPTH);
+      barDummy.rotation.set(0, 0, 0);
+      barDummy.updateMatrix();
+      mesh.setMatrixAt(i, barDummy.matrix);
+      mesh.setColorAt(
+        i,
+        new THREE.Color(dimColor(severityColor(seg.severity, colorblind), overallFactor)),
+      );
+    });
+    mesh.count = barSegments.length;
+    mesh.instanceMatrix.needsUpdate = true;
+    if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
+  }, [barSegments, w, d, overallFactor, colorblind, barDummy]);
+
   const materials = useMemo(() => {
     if (voxelBody) return []; // voxel mode uses the shared cached materials
     if (monolith) {
@@ -645,12 +687,25 @@ export function Building({
 
   // Single frame callback per building (flicker + hover + construction combined)
   useFrame(({ clock }) => {
-    const t = clock.elapsedTime;
+    // Reduced motion holds the clock at 0: every pulse in here is a function of
+    // `t`, so they land on their constant value (beacon mid-size, beam at its
+    // dimmest, rings unrotated) and the frame stops changing. The construction
+    // rise and the hover ease are handled explicitly below — they are tweens
+    // toward a target, not functions of `t`, and "reduced" for a tween means
+    // arriving immediately.
+    const reduced = prefersReducedMotion();
+    const t = reduced ? 0 : clock.elapsedTime;
 
     // Construction cinematic — the building rises out of the ground
     const g = groupRef.current;
     if (g && !buildDoneRef.current) {
-      if (!constructing || appearAt === undefined) {
+      if (reduced) {
+        // The city stands at once. The rise is decoration; the schedule that
+        // paces it belongs to the build director (CityTree), not to this mesh.
+        g.visible = true;
+        g.scale.y = 1;
+        buildDoneRef.current = true;
+      } else if (!constructing || appearAt === undefined) {
         if (g.scale.y !== 1) g.scale.y = 1;
         g.visible = true;
         buildDoneRef.current = true;
@@ -668,15 +723,19 @@ export function Building({
       }
     }
 
-    // Subtle slot flicker — the city breathes, quietly. Hover eases in a
-    // warm boost on top of the flicker baseline instead of fighting it.
-    // Glass has no emissive map — nothing to flicker. During the voxel
-    // stage the body stays dimmed at its memoized low intensity.
+    // The slot flicker used to run on EVERY building, every frame: hundreds of
+    // material writes for a ±4 % brightness wobble nobody can read — and
+    // motion that carries no information, which is exactly what a reader who
+    // asked for reduced motion does not want, and what makes a still city hard
+    // to scan for the one thing that moved. It now runs on the building the
+    // pointer is on (and the selected one): motion marks the target, the rest
+    // of the city holds its contract value.
     const mat = materials[0] as THREE.MeshStandardMaterial | undefined;
-    if (mat && !dimmed && !voxelStage && matState !== "glass") {
+    const lit = hoverTargetRef.current > 0 || hoverGlowRef.current > 0;
+    if (mat && !dimmed && !voxelStage && matState !== "glass" && lit) {
       const target = hoverTargetRef.current;
       const cur = hoverGlowRef.current;
-      const next = Math.abs(target - cur) < 0.005 ? target : cur + (target - cur) * 0.16;
+      const next = Math.abs(target - cur) < 0.005 || reduced ? target : cur + (target - cur) * 0.16;
       hoverGlowRef.current = next;
       // The alarm baseline must survive the per-frame write. The memoized
       // material starts an alarm body at 1.15; a flat 0.55 here silently
@@ -687,14 +746,14 @@ export function Building({
       // per-frame write would overwrite the memoized dimming every frame and
       // the city would flicker back to full brightness in SECURITY mode
       mat.emissiveIntensity =
-        (baseline + next * 0.6 + Math.sin(t * 0.7 + seed) * 0.05) * overallFactor;
+        (baseline + next * 0.6 + (reduced ? 0 : Math.sin(t * 0.7 + seed) * 0.05)) * overallFactor;
     }
     // Voxel-body hover: the outline seam eases bright — the facade flicker's
     // replacement on the block stack
-    if (voxelBody) {
+    if (voxelBody && lit) {
       const target = hoverTargetRef.current;
       const cur = hoverGlowRef.current;
-      const next = Math.abs(target - cur) < 0.005 ? target : cur + (target - cur) * 0.16;
+      const next = Math.abs(target - cur) < 0.005 || reduced ? target : cur + (target - cur) * 0.16;
       hoverGlowRef.current = next;
       outlineMaterial.opacity = Math.min(
         1,
@@ -1103,6 +1162,19 @@ export function Building({
           <cylinderGeometry args={[0.05, 0.09, antennaH, 6]} />
           <meshStandardMaterial color="#3a4256" roughness={0.6} />
         </mesh>
+      )}
+
+      {/* Finding bar stack — the count as mass, the severity as stack order.
+          Hidden with the building itself under a filter dim: a backdrop keeps
+          its backdrop. */}
+      {barSegments.length > 0 && !dimmed && (
+        <instancedMesh
+          ref={barRef}
+          args={[UNIT_BOX, undefined, FINDING_BAR.MAX_SEGMENTS]}
+          material={BAR_MATERIAL}
+          frustumCulled={false}
+          raycast={() => null}
+        />
       )}
 
       {/* Alarm beacon — sized to match the legacy 0.28 sphere in every shape */}
