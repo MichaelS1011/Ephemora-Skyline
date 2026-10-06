@@ -85,20 +85,26 @@ export function ScanSummary() {
     <div
       role="status"
       aria-live="polite"
-      className="absolute top-[96px] left-1/2 z-40 pointer-events-none animate-toast-in"
+      className="absolute top-[96px] inset-x-0 z-40 flex justify-center pointer-events-none animate-toast-rise"
       style={{
-        transform: closing ? "translateX(-50%) translateY(-6px)" : "translateX(-50%) translateY(0)",
         opacity: closing ? 0 : 1,
+        transform: closing ? "translateY(-6px)" : "translateY(0)",
         transition: "opacity 0.5s ease-out, transform 0.5s ease-out",
-        background: "rgba(18, 18, 16, 0.95)",
-        border: `1px solid ${accent}55`,
-        borderRadius: 4,
-        padding: "0.5rem 1rem",
-        boxShadow: `0 0 24px ${accent}22, 0 6px 20px rgba(0,0,0,0.45)`,
-        backdropFilter: "blur(12px)",
       }}
     >
-      <div className="flex items-center gap-3">
+      <div
+        className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1"
+        style={{
+          width: "fit-content",
+          maxWidth: "calc(100% - 28px)",
+          background: "rgba(18, 18, 16, 0.95)",
+          border: `1px solid ${accent}55`,
+          borderRadius: 4,
+          padding: "0.5rem 1rem",
+          boxShadow: `0 0 24px ${accent}22, 0 6px 20px rgba(0,0,0,0.45)`,
+          backdropFilter: "blur(12px)",
+        }}
+      >
         {/* Status */}
         <span
           className="flex items-center font-jetbrains text-[11px] tracking-widest font-semibold"

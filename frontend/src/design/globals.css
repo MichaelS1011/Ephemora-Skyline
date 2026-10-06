@@ -141,6 +141,19 @@
   }
 }
 
+/* Same entry for a toast that is centred by a flex wrapper rather than by
+   `left-1/2`, so it must not carry the -50% shift of its own. */
+@keyframes toast-rise {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
 /* Panel fade-up entry */
 @keyframes fade-up {
   from {
@@ -265,6 +278,9 @@
   /* Animations */
   .animate-toast-in {
     animation: toast-in 0.3s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+  }
+  .animate-toast-rise {
+    animation: toast-rise 0.3s cubic-bezier(0.34, 1.56, 0.64, 1) both;
   }
   .animate-fade-up {
     /* no `both` fill: a stalled animation (hidden tab) must never leave the
@@ -1187,7 +1203,8 @@ button:disabled {
    ModeBar (STRUCTURE/SECURITY/DEPENDENCIES, top:78px, bottom:115px) occupies.
    The transient toast was landing on top of that control. Drop it below the
    mode switch instead of removing the notice. */
-div[role="status"].animate-toast-in {
+div[role="status"].animate-toast-in,
+div[role="status"].animate-toast-rise {
   top: 128px !important;
 }
 .security-tour {
@@ -1349,7 +1366,14 @@ div[role="status"].animate-toast-in {
   }
 }
 @media (max-width: 380px) {
+  /* The wordmark is the only control wired to resetToLanding; hiding it left
+     no way back to the landing screen, so only the label gives way here. */
   .workspace-brand {
+    width: auto;
+    min-height: 40px;
+    justify-content: center;
+  }
+  .workspace-brand > span:not(.font-jetbrains) {
     display: none;
   }
   .local-badge {
