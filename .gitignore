@@ -72,3 +72,6 @@ docker/*.local.yml
 # Durable statements are folded into docs/UI_REVIEW.md; the dumps stay local.
 # The scripts that produced them live in .qoder-scratch/ (also ignored).
 docs/reviews/
+
+# agent worktrees (3D-Rollen Lanes)
+/.qoder/
