@@ -13,7 +13,7 @@
 
 **Your local codebase, rendered as a living 3D city in daylight.** Point it at a folder and watch it rise: folders become districts, files become buildings, a taller building holds more tangled code, and a red beacon marks a security finding. Your source never leaves the machine.
 
-![The built city: districts as plots, files as buildings, the riskiest file as a landmark tower with a red beam](docs/assets/ui-workspace.png)
+![The built city: districts as plots, files as buildings, the riskiest file as a landmark tower with a red beam](docs/assets/ui-workspace.png?v=2026-10-06)
 
 > **Private preview.** The repository is not public yet, so GitHub's own status badge is left out — it would only render for people who can already read the repo, which is nobody but us. Every gate it would show runs on each push and is listed below; run them locally before you file anything.
 
@@ -133,15 +133,15 @@ A pack is a directory with a `pack.json` manifest and rule YAML beside it. The m
 
 ## The look
 
-| Entry                                                                                                          | One district, security mode                                                        |
-| -------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
-| ![Entry screen: profile choice and the folder action, with an annotated sample district](docs/assets/hero.png) | ![The same city in security mode](docs/assets/ui-security.png)                     |
-| What the tool is, in one screen, before it has anything of yours.                                              | Security mode: the city darkens, and only the towers holding findings carry beams. |
+| Entry                                                                                                                       | One district, security mode                                                        |
+| --------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
+| ![Entry screen: profile choice and the folder action, with an annotated sample district](docs/assets/hero.png?v=2026-10-06) | ![The same city in security mode](docs/assets/ui-security.png?v=2026-10-06)        |
+| What the tool is, in one screen, before it has anything of yours.                                                           | Security mode: the city darkens, and only the towers holding findings carry beams. |
 
-| A building and its file card                                                         | On a phone                                                  |
-| ------------------------------------------------------------------------------------ | ----------------------------------------------------------- |
-| ![A selected file with its findings](docs/assets/ui-finding.png)                     | ![The same city on a phone](docs/assets/ui-mobile.png)      |
-| Size, complexity, every section, and each finding with the line and rule that fired. | Panels stay inside the viewport; the city stays explorable. |
+| A building and its file card                                                         | On a phone                                                          |
+| ------------------------------------------------------------------------------------ | ------------------------------------------------------------------- |
+| ![A selected file with its findings](docs/assets/ui-finding.png?v=2026-10-06)        | ![The same city on a phone](docs/assets/ui-mobile.png?v=2026-10-06) |
+| Size, complexity, every section, and each finding with the line and rule that fired. | Panels stay inside the viewport; the city stays explorable.         |
 
 The interface speaks English and German. The switch sits in the header of the entry screen and in the **More** menu once you are inside a city, and the choice is remembered across visits.
 
