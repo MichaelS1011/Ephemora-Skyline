@@ -58,6 +58,7 @@ function block(name: string, x: number, z: number, d: number, skyline: BuildingP
  * (24.41) — api is listed first and built fifth on purpose.
  */
 const LAYOUT: DirLayout = {
+  centre: { x: 0, z: 0 },
   dir: makeDir("root", ""),
   blocks: [
     block("api", -20, -14, 10, [tower("t1", -2, -2, 2.6, 9), tower("t2", 2.5, 1, 2, 4)]),
@@ -240,17 +241,31 @@ describe("builtExtent and craneShot", () => {
   });
 
   it("sizes the frame to width and crown, with a legibility floor", () => {
-    expect(craneShot(0, 0)).toEqual({ dist: 26, targetY: 1.5 });
+    expect(craneShot(0, 0)).toEqual({ dist: 26, targetY: 1.5, x: 0, z: 0 });
     expect(craneShot(40, 0).dist).toBeCloseTo(40 * OVERVIEW_FACTOR, 6);
     expect(craneShot(1, 20).dist).toBe(31); // 20 × 1.55 outranks everything else
     expect(craneShot(10, 20).targetY).toBe(7); // eye line follows the tallest
     expect(craneShot(10, 0.3).targetY).toBe(1.5); // never aim under the street
   });
 
+  it("measures the built radius from the level's own centre", () => {
+    // An organic plaza can sit 92 m off the world origin; a crane that still
+    // measured from (0,0) would frame ground the level does not stand on.
+    const sites = plan.sites.map((sb) => ({ ...sb, x: sb.x + 100 }));
+    const off = builtExtent(sites, plan.durationMs, { x: 100, z: 0 });
+    const on = builtExtent(plan.sites, plan.durationMs);
+    expect(off.radius).toBeCloseTo(on.radius, 6);
+    expect(builtExtent(sites, plan.durationMs).radius).toBeGreaterThan(on.radius * 3);
+    expect(craneShot(10, 4, { x: 100, z: -20 })).toMatchObject({ x: 100, z: -20 });
+  });
+
   it("ends where the built-city reveal begins", () => {
     // the handover has to be continuous: same factor, and the reveal only
-    // adds the street margin bounds carries on top of the extent
-    expect(OVERVIEW_FACTOR).toBe(1.75);
+    // adds the street margin bounds carries on top of the extent.
+    // 1.6, not 1.75: the far-zoom heat grid takes the level over beyond
+    // 1.8 × bounds, and a shot that lands past it frames flat tiles instead
+    // of the city it just built. See tests/lodFraming.test.ts.
+    expect(OVERVIEW_FACTOR).toBe(1.6);
     expect(craneShot(end.radius, end.top).dist).toBeGreaterThan(
       craneShot(start.radius, start.top).dist,
     );

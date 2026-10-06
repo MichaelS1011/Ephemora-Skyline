@@ -120,7 +120,10 @@ export function CityTree() {
   const animating = (constructing || entering) && layout !== null;
   // The schedule is counted and paced from the layout alone (baseMs 0), so
   // every stamp below is an offset into the build; animBase adds the clock.
-  const plan = useMemo(() => (layout ? planConstruction(layout, 0) : null), [layout]);
+  const plan = useMemo(
+    () => (layout ? planConstruction(layout, 0, layout.centre) : null),
+    [layout],
+  );
   const unitTotal = plan?.total ?? 0;
   const durationMs = plan?.durationMs ?? 0;
   const step = constructing ? (plan?.step ?? 0) : entering ? 55 : 0;
@@ -217,8 +220,8 @@ export function CityTree() {
     // the camera: the user took the view, and a crane that steals it back is a
     // bug.
     if (plan && store.cameraManualAt <= buildStartedAt) {
-      const extent = builtExtent(plan.sites, elapsed);
-      store.setCraneFraming(craneShot(extent.radius, extent.top));
+      const extent = builtExtent(plan.sites, elapsed, layout.centre);
+      store.setCraneFraming(craneShot(extent.radius, extent.top, layout.centre));
     } else {
       store.setCraneFraming(null);
     }

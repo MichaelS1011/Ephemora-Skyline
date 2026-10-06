@@ -77,6 +77,17 @@ export interface DirLayout {
   streets: StreetLine[];
   bounds: number; // half-extent of the whole scene
   plazaExtent: number; // half-extent of the central file plaza
+  /**
+   * Where this level actually is: the centre of the box its own placed
+   * geometry fills. Neither the world origin nor the plaza — an organic
+   * level's pieces are seeded around the Voronoi field, and its plaza can sit
+   * 96.6 m away from the middle of the district it belongs to (root of a
+   * 2901-file city) while every flight, the construction crane, the arrow-key
+   * turntable and the walk bound assumed (0,0) and framed empty ground.
+   * Everything that aims at a level aims at this point instead, and `bounds`
+   * is the level's half-extent measured about it.
+   */
+  centre: { x: number; z: number };
 }
 
 // ── Deterministic pseudo-random from path ──────────────────────────────────
@@ -122,6 +133,18 @@ function centerOutCells(cols: number, rows: number, cell: number): Array<{ x: nu
 // ── Layout computation ─────────────────────────────────────────────────────
 
 const PLAZA_CELL = 6.4;
+/**
+ * Lateral jitter every plaza building gets, on each axis and on each of the two
+ * sides of a neighbouring pair — so a grid cell only keeps two buildings apart
+ * while it is `PLAZA_JITTER + PLAZA_JITTER` wider than the larger footprint.
+ * Measured on a 2901-file city: with the cell at `maxFoot + 0.8` and the widest
+ * footprint grown to 6.6 m by its own volume, three pairs of neighbours stood
+ * 0.17–0.29 m inside each other.
+ */
+const PLAZA_JITTER = 0.7;
+/** The grid pitch that clears the widest footprint and both jitters. */
+const plazaPitch = (maxFoot: number): number =>
+  Math.max(PLAZA_CELL, maxFoot + 2 * PLAZA_JITTER + 0.4);
 const BLOCK_GRID_MIN = 30;
 const PLAZA_SITE_KEY = "__plaza__";
 
@@ -135,10 +158,11 @@ function computeGridLayout(dir: CityDir): DirLayout {
   const cols = Math.max(1, Math.ceil(Math.sqrt(files.length)));
   const rows = Math.ceil(files.length / cols);
   // Voxel footprints can outgrow the legacy cell size — the grid cell must
-  // clear the largest footprint plus breathing room, or neighbours fuse.
+  // clear the largest footprint plus the jitter both neighbours can carry, or
+  // they fuse (see `PLAZA_JITTER`).
   const layouts = files.map((file) => generateVoxelLayout(file));
   const maxFoot = layouts.reduce((m, v) => Math.max(m, v.footprintW, v.footprintD), 0);
-  const plazaCell = Math.max(PLAZA_CELL, maxFoot + 0.8);
+  const plazaCell = plazaPitch(maxFoot);
   const cells = centerOutCells(cols, rows, plazaCell);
 
   files.forEach((file, i) => {
@@ -150,8 +174,8 @@ function computeGridLayout(dir: CityDir): DirLayout {
     const d = voxels.footprintD;
     buildings.push({
       file,
-      x: cell.x + jitter(file.path, 0.7),
-      z: cell.z + jitter(file.path + "|z", 0.7),
+      x: cell.x + jitter(file.path, PLAZA_JITTER),
+      z: cell.z + jitter(file.path + "|z", PLAZA_JITTER),
       w,
       d,
       h: voxels.height,
@@ -160,7 +184,7 @@ function computeGridLayout(dir: CityDir): DirLayout {
   });
 
   const plazaExtent =
-    files.length === 0 ? 0 : ((Math.max(cols, rows) - 1) * PLAZA_CELL) / 2 + maxFoot / 2 + 4;
+    files.length === 0 ? 0 : ((Math.max(cols, rows) - 1) * plazaCell) / 2 + maxFoot / 2 + 4;
 
   // ── Podium: aggregated honesty for files not rendered ────────────────────
   const podium =
@@ -217,12 +241,64 @@ function computeGridLayout(dir: CityDir): DirLayout {
     streets.push({ x1: -ring, z1: ring, x2: -ring, z2: -ring });
   }
 
-  let bounds = plazaExtent + 12;
-  for (const b of blockPlacements) {
-    bounds = Math.max(bounds, Math.abs(b.x) + b.w / 2 + 10, Math.abs(b.z) + b.d / 2 + 10);
-  }
+  const framePoints: { x: number; z: number }[] = [];
+  frameCorners(framePoints, { x: 0, z: 0, w: plazaExtent * 2, d: plazaExtent * 2 });
+  for (const b of blockPlacements) frameCorners(framePoints, b);
+  for (const b of buildings) frameCorners(framePoints, b);
+  if (podium) framePoints.push({ x: podium.x, z: podium.z });
+  const { centre, bounds } = levelFrame(framePoints);
 
-  return { dir, blocks: blockPlacements, buildings, podium, streets, bounds, plazaExtent };
+  return {
+    dir,
+    blocks: blockPlacements,
+    buildings,
+    podium,
+    streets,
+    bounds,
+    plazaExtent,
+    centre,
+  };
+}
+
+/**
+ * Where a level is, and how wide it is — from everything that stands on it.
+ *
+ * Not the world origin: an organic level's pieces are placed around their own
+ * Voronoi cells, and its plaza (which is where the camera used to be aimed)
+ * can sit 96 m away from the centre of the geometry it belongs to. Both the
+ * frame's centre and its half-extent are therefore read off the placed
+ * rectangles themselves, in the level's own square convention (Chebyshev
+ * half-extent, + margin), so the Minimap's picture, the walk bound, the
+ * far-LOD threshold and the visibility rescue all talk about the same square.
+ */
+function levelFrame(
+  points: readonly { x: number; z: number }[],
+  margin = 12,
+): { centre: { x: number; z: number }; bounds: number } {
+  let minX = Infinity;
+  let maxX = -Infinity;
+  let minZ = Infinity;
+  let maxZ = -Infinity;
+  for (const p of points) {
+    if (p.x < minX) minX = p.x;
+    if (p.x > maxX) maxX = p.x;
+    if (p.z < minZ) minZ = p.z;
+    if (p.z > maxZ) maxZ = p.z;
+  }
+  if (!Number.isFinite(minX)) return { centre: { x: 0, z: 0 }, bounds: margin };
+  return {
+    centre: { x: (minX + maxX) / 2, z: (minZ + maxZ) / 2 },
+    bounds: Math.max(maxX - minX, maxZ - minZ) / 2 + margin,
+  };
+}
+
+/** The four corners of a placed rectangle, for `levelFrame`. */
+function frameCorners(
+  out: { x: number; z: number }[],
+  r: { x: number; z: number; w: number; d: number },
+): void {
+  for (const sx of [-1, 1])
+    for (const sz of [-1, 1]) out.push({ x: r.x + (sx * r.w) / 2, z: r.z + (sz * r.d) / 2 });
 }
 
 /**
@@ -293,7 +369,8 @@ function computeVoronoiLayout(dir: CityDir): DirLayout {
     maxFoot = Math.max(maxFoot, voxels.footprintW, voxels.footprintD);
   });
   // Voxel footprints can outgrow the legacy cell size — keep neighbours apart
-  const plazaGridCell = Math.max(PLAZA_CELL, maxFoot + 0.8);
+  // by the pitch that clears the widest one plus both jitters.
+  const plazaGridCell = plazaPitch(maxFoot);
   const cells = centerOutCells(cols, rows, plazaGridCell);
   const neededPlazaExtent =
     files.length === 0 ? 0 : ((Math.max(cols, rows) - 1) * plazaGridCell) / 2 + maxFoot / 2 + 4;
@@ -320,9 +397,25 @@ function computeVoronoiLayout(dir: CityDir): DirLayout {
     ? polygonMinRadius(plazaCell.polygon, plazaCell.centroid)
     : halfExtent;
 
-  // Compress the plaza grid if its cell is tighter than the grid wants
+  // Compress the plaza grid if its cell is tighter than the grid wants — but
+  // never past the point where two buildings stand inside each other. The
+  // footprints are measurements and do not shrink with the grid (a file with
+  // 6 000 lines and deep nesting IS 7.7 m wide), while the spacing and the
+  // jitter of a pair both scale with `compression`, so the pitch after
+  // compression has to clear the widest footprint:
+  //   plazaGridCell·c ≥ maxFoot + 2·PLAZA_JITTER·c
+  // Where the cell cannot offer that, the plaza keeps the size its own files
+  // need — the alternative is two files occupying one lot.
   const compression =
-    neededPlazaExtent > 0 ? Math.min(1, (plazaRadius * 0.82) / neededPlazaExtent) : 1;
+    neededPlazaExtent > 0
+      ? Math.min(
+          1,
+          Math.max(
+            (maxFoot + 0.2) / Math.max(1e-6, plazaGridCell - 2 * PLAZA_JITTER),
+            Math.min(1, (plazaRadius * 0.82) / neededPlazaExtent),
+          ),
+        )
+      : 1;
   const plazaExtent = neededPlazaExtent * compression;
   const plazaCenter = plazaCell?.centroid ?? { x: 0, z: 0 };
 
@@ -331,8 +424,9 @@ function computeVoronoiLayout(dir: CityDir): DirLayout {
     const voxels = voxelByFile.get(file.id) ?? generateVoxelLayout(file);
     buildings.push({
       file,
-      x: plazaCenter.x + cell.x * compression + jitter(file.path, 0.7 * compression),
-      z: plazaCenter.z + cell.z * compression + jitter(file.path + "|z", 0.7 * compression),
+      x: plazaCenter.x + cell.x * compression + jitter(file.path, PLAZA_JITTER * compression),
+      z:
+        plazaCenter.z + cell.z * compression + jitter(file.path + "|z", PLAZA_JITTER * compression),
       w: voxels.footprintW,
       d: voxels.footprintD,
       h: voxels.height,
@@ -370,17 +464,34 @@ function computeVoronoiLayout(dir: CityDir): DirLayout {
   // Streets = the organic cell boundaries (shared edges drawn once)
   const streets = cellBoundarySegments(vCells);
 
-  let bounds = plazaExtent + 12;
-  for (const vCell of vCells) {
-    for (const v of vCell.polygon) {
-      bounds = Math.max(bounds, Math.abs(v.x) + 12, Math.abs(v.z) + 12);
-    }
-  }
-  for (const b of blockPlacements) {
-    bounds = Math.max(bounds, Math.abs(b.x) + b.w / 2 + 10, Math.abs(b.z) + b.d / 2 + 10);
-  }
+  // Where this level is: the box its placed content fills — the plots, the
+  // plaza with its ring, the podium. The Voronoi cells themselves are NOT part
+  // of it: they tile the whole seeded square, so their bounding box is the
+  // field, which is always centred on the origin and says nothing about where
+  // the level's own buildings stand.
+  const framePoints: { x: number; z: number }[] = [];
+  for (const b of blockPlacements) frameCorners(framePoints, b);
+  for (const b of buildings) frameCorners(framePoints, b);
+  frameCorners(framePoints, {
+    x: plazaCenter.x,
+    z: plazaCenter.z,
+    w: plazaExtent * 2,
+    d: plazaExtent * 2,
+  });
+  if (podium) framePoints.push({ x: podium.x, z: podium.z });
+  const { centre, bounds: frameBounds } = levelFrame(framePoints);
+  const bounds = Math.max(plazaExtent + 12, frameBounds);
 
-  return { dir, blocks: blockPlacements, buildings, podium, streets, bounds, plazaExtent };
+  return {
+    dir,
+    blocks: blockPlacements,
+    buildings,
+    podium,
+    streets,
+    bounds,
+    plazaExtent,
+    centre,
+  };
 }
 
 // ── Layout mode ────────────────────────────────────────────────────────────
@@ -507,6 +618,7 @@ function dominantLanguage(languages: Record<string, number>): string {
 export function planConstruction(
   layout: Pick<DirLayout, "blocks" | "buildings" | "podium">,
   baseMs: number,
+  centre: { x: number; z: number } = { x: 0, z: 0 },
 ): BuildPlan {
   const total =
     layout.blocks.reduce((n, b) => n + 1 + b.skyline.length, 0) +
@@ -524,7 +636,7 @@ export function planConstruction(
   const runs: Array<{ radius: number; place: () => void }> = [];
   layout.blocks.forEach((b, i) => {
     runs.push({
-      radius: Math.hypot(b.x, b.z),
+      radius: Math.hypot(b.x - centre.x, b.z - centre.z),
       place: () => {
         const at = slot();
         blockAt[i] = at;
@@ -561,7 +673,7 @@ export function planConstruction(
   });
   layout.buildings.forEach((b, i) => {
     runs.push({
-      radius: Math.hypot(b.x, b.z),
+      radius: Math.hypot(b.x - centre.x, b.z - centre.z),
       place: () => {
         const at = slot();
         plazaAt[i] = at;
@@ -582,7 +694,7 @@ export function planConstruction(
   if (layout.podium) {
     const p = layout.podium;
     runs.push({
-      radius: Math.hypot(p.x, p.z),
+      radius: Math.hypot(p.x - centre.x, p.z - centre.z),
       place: () => {
         podiumAt = slot();
       },
@@ -603,10 +715,63 @@ export function planConstruction(
   };
 }
 
-// ── The crane follows the city's size ──────────────────────────────────────
+// ── The overview shot ──────────────────────────────────────────────────────
 
 /** How wide a frame a finished city gets, as a multiple of its half-extent. */
-export const OVERVIEW_FACTOR = 1.75;
+export const OVERVIEW_FACTOR = 1.6;
+
+/**
+ * The far-LOD's exit threshold, mirrored from `hooks/useLodFar` (which cannot
+ * be imported here — it reads the store, the store reads this module).
+ * `tests/lodFraming.test.ts` pins the two together.
+ */
+const FAR_LOD_EXIT_FACTOR = 1.8;
+const FAR_LOD_EXIT_FLOOR = 170 * 0.7;
+/** How much of that band an overview flight may use and still be a CITY. */
+export const FAR_LOD_SAFE_RATIO = 0.92;
+
+/** The distance beyond which the renderer swaps the city for a heat grid. */
+export function farLodExitDistance(bounds: number): number {
+  return Math.max(FAR_LOD_EXIT_FLOOR, bounds * FAR_LOD_EXIT_FACTOR);
+}
+
+export interface OverviewShot {
+  dist: number;
+  targetY: number;
+}
+
+/**
+ * The shot that frames a whole level.
+ *
+ * Two bounds on one number, and they pull against each other:
+ * — the level must FIT: its footprint needs `OVERVIEW_FACTOR × bounds`, and a
+ *   crown needs its own distance to clear the 52° vertical field of view,
+ * — the level must still be DRAWN: past `farLodExitDistance(bounds)` the
+ *   renderer stops mounting buildings and shows the instanced heat grid
+ *   instead, so a flight that lands out there frames nothing but tiles.
+ *
+ * The height term used to be `tallest × 2.2 + 24` — a guess that, on a level
+ * holding one 40 m tower inside 50 m of ground, asked for 118 m where the heat
+ * grid takes over at 119 m. The camera arrived 1 cm inside the wrong band and
+ * the district you had just drilled into drew as flat plates (measured: 23
+ * scene objects instead of 164 on the same level of the same city, decided by
+ * the easing's float noise). A frustum-derived height term needs 1.35 × the
+ * crown instead of 2.2 ×, and the ceiling makes the answer robust either way.
+ */
+export function overviewShot(bounds: number, tallest: number): OverviewShot {
+  const fits = Math.max(
+    bounds * OVERVIEW_FACTOR,
+    // targetY lifts the eye line to 40 % of the crown, so 60 % of it has to
+    // clear the half field of view: 0.6 × tallest / tan(26°) = 1.23 ×, +10 %.
+    tallest * 1.35,
+    24,
+  );
+  const drawn = farLodExitDistance(bounds) * FAR_LOD_SAFE_RATIO;
+  return {
+    dist: Math.min(fits, drawn),
+    targetY: Math.max(1.5, tallest * 0.4),
+  };
+}
 
 /**
  * Vertical clearance a crown needs at this camera (52° vertical fov, eye line
@@ -621,10 +786,14 @@ const CRANE_MIN_DIST = 26;
 export interface CraneShot {
   dist: number;
   targetY: number;
+  /** Where the shot looks: the level's centre, which is not the world origin. */
+  x: number;
+  z: number;
 }
 
 /**
- * The shot for a city that currently spans `radius` and stands `top` tall.
+ * The shot for a city that currently spans `radius` and stands `top` tall,
+ * centred on `centre`.
  *
  * `OVERVIEW_FACTOR` is the one the 'built' reveal uses, so the crane ends
  * where that flight begins instead of fighting it. The min distance keeps the
@@ -632,10 +801,16 @@ export interface CraneShot {
  * sized to what actually stands, so the builders are large while the centre is
  * built and the reveal of scale comes as the rings fill.
  */
-export function craneShot(radius: number, top: number): CraneShot {
+export function craneShot(
+  radius: number,
+  top: number,
+  centre: { x: number; z: number } = { x: 0, z: 0 },
+): CraneShot {
   return {
     dist: Math.max(CRANE_MIN_DIST, radius * OVERVIEW_FACTOR, top * CROWN_FACTOR),
     targetY: Math.max(1.5, top * 0.35),
+    x: centre.x,
+    z: centre.z,
   };
 }
 
@@ -644,17 +819,20 @@ export function craneShot(radius: number, top: number): CraneShot {
  * edge and the tallest crown among the units that have STARTED rising.
  *
  * Both are maxima over a set that only grows, so the pair is monotone — the
- * crane can pull back and never has to push in again.
+ * crane can pull back and never has to push in again. The radius is measured
+ * from the level's own centre, which for an organic layout is not the world
+ * origin.
  */
 export function builtExtent(
   sites: readonly BuildSite[],
   elapsed: number,
+  centre: { x: number; z: number } = { x: 0, z: 0 },
 ): { radius: number; top: number } {
   let radius = 0;
   let top = 0;
   for (const s of sites) {
     if (s.offset > elapsed) continue;
-    radius = Math.max(radius, Math.hypot(s.x, s.z) + s.span / 2);
+    radius = Math.max(radius, Math.hypot(s.x - centre.x, s.z - centre.z) + s.span / 2);
     top = Math.max(top, s.h);
   }
   return { radius, top };

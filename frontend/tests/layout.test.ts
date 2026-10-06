@@ -309,4 +309,70 @@ describe("Voronoi layout mode", () => {
     }
     setLayoutMode("grid");
   });
+
+  /**
+   * The plaza packs by the WIDEST footprint it hosts, so a level full of broad
+   * buildings is the case that breaks packing. Measured on a 2901-file city
+   * after the voxel base was allowed to grow with a file's volume: three pairs
+   * of neighbours stood 0.17–0.29 m inside each other, because the grid pitch
+   * only cleared the footprint by 0.8 m while each of the two could be thrown
+   * 0.7 m by its own jitter.
+   */
+  describe("plaza packing with wide buildings", () => {
+    const fat = (i: number): CityFile => ({
+      id: `w${i}`,
+      name: `module-${i}.ts`,
+      path: `src/big/module-${i}.ts`,
+      language: "TypeScript",
+      linesOfCode: 5200 + i * 130,
+      cyclomaticComplexity: 40,
+      threatLevel: "safe",
+      findings: [],
+      exportedSymbols: 3,
+      importCount: 12,
+      sections: Array.from({ length: 8 }, (_, k) => ({
+        name: `s${k}`,
+        kind: "function",
+        start: k * 600 + 1,
+        end: k * 600 + 600,
+        codeLines: 600,
+        depth: 4,
+      })),
+    });
+
+    const wideCity = (): CityData => {
+      const c = createMockCity();
+      c.tree.detailFiles = Array.from({ length: 12 }, (_, i) => fat(i));
+      c.tree.fileCount = c.tree.detailFiles.length;
+      return c;
+    };
+
+    for (const mode of ["voronoi", "grid"] as const) {
+      it(`${mode}: no two plaza buildings share ground, and the grid is not tighter than the pitch`, () => {
+        const city = wideCity();
+        setLayoutMode(mode);
+        const layout = getDirLayout(city, []);
+        const bs = layout.buildings;
+        expect(bs.length).toBeGreaterThan(1);
+        // Sanity: these really are the wide ones (0.8× the mapping footprint)
+        expect(Math.max(...bs.map((b) => b.w))).toBeGreaterThan(4);
+        for (let i = 0; i < bs.length; i++)
+          for (let j = i + 1; j < bs.length; j++) {
+            const a = bs[i]!;
+            const b = bs[j]!;
+            const ox =
+              Math.min(a.x + a.w / 2, b.x + b.w / 2) - Math.max(a.x - a.w / 2, b.x - b.w / 2);
+            const oz =
+              Math.min(a.z + a.d / 2, b.z + b.d / 2) - Math.max(a.z - a.d / 2, b.z - b.d / 2);
+            expect(ox > 0.01 && oz > 0.01).toBe(false);
+          }
+        // Placement must use the voxel footprint, not the mapping one
+        for (const b of bs) {
+          expect(b.w).toBeCloseTo(b.voxels!.footprintW, 6);
+          expect(b.d).toBeCloseTo(b.voxels!.footprintD, 6);
+        }
+        setLayoutMode("grid");
+      });
+    }
+  });
 });

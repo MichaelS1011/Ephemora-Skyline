@@ -9,8 +9,11 @@ import type {
 import {
   allFiles,
   byRisk,
+  FAR_LOD_SAFE_RATIO,
+  farLodExitDistance,
   findFileById,
   getDirLayout,
+  overviewShot,
   tourStops,
   type CraneShot,
 } from "../city/layout";
@@ -262,14 +265,39 @@ function flyToDirOverview(
   focusPath: string[],
 ): void {
   const layout = getDirLayout(city, focusPath);
-  // Frame the whole level: its footprint AND its tallest towers must fit.
+  // Frame the whole level: its footprint AND its tallest towers must fit —
+  // and the arrival must stay inside the band where the level is still drawn
+  // as buildings rather than as the far-zoom heat grid. See overviewShot.
   const tallest = Math.max(
     0,
     ...layout.blocks.flatMap((b) => b.skyline.map((s) => s.h)),
     ...layout.buildings.map((b) => b.h),
   );
-  const dist = Math.max(layout.bounds * 1.65, tallest * 2.2 + 24);
-  set({ flyRequest: { x: 0, z: 0, distance: dist, nonce: ++flyNonce } });
+  const shot = overviewShot(layout.bounds, tallest);
+  set({
+    flyRequest: {
+      x: layout.centre.x,
+      z: layout.centre.z,
+      distance: shot.dist,
+      targetY: shot.targetY,
+      nonce: ++flyNonce,
+    },
+  });
+}
+
+/**
+ * The shot for one building: close enough to read its mass, far enough in to
+ * still be drawn. A file whose own crown needs more distance than the level's
+ * heat-grid band allows is framed at the band's edge with the eye line lifted
+ * — the alternative is flying to a district that renders as flat tiles.
+ */
+function buildingShot(layoutBounds: number, h: number): { dist: number; targetY: number } {
+  const wanted = Math.max(14, h * 2.6 + 12);
+  const drawn = farLodExitDistance(layoutBounds) * FAR_LOD_SAFE_RATIO;
+  return {
+    dist: Math.min(wanted, Math.max(14, drawn, h * 1.35)),
+    targetY: Math.max(1.5, h * 0.45),
+  };
 }
 
 interface TriageEntry {
@@ -485,8 +513,16 @@ export const useStore = create<AppState>((set, get) => ({
     const layout = getDirLayout(cityData, hit.chain);
     const placement = layout.buildings.find((b) => b.file.id === fileId);
     if (placement) {
-      const dist = Math.max(14, placement.h * 2.6 + 12);
-      set({ flyRequest: { x: placement.x, z: placement.z, distance: dist, nonce: ++flyNonce } });
+      const shot = buildingShot(layout.bounds, placement.h);
+      set({
+        flyRequest: {
+          x: placement.x,
+          z: placement.z,
+          distance: shot.dist,
+          targetY: shot.targetY,
+          nonce: ++flyNonce,
+        },
+      });
     } else {
       flyToDirOverview(set, cityData, hit.chain);
     }
@@ -519,8 +555,16 @@ export const useStore = create<AppState>((set, get) => ({
     const layout = getDirLayout(cityData, hit.chain);
     const placement = layout.buildings.find((b) => b.file.id === fileId);
     if (placement) {
-      const dist = Math.max(14, placement.h * 2.6 + 12);
-      set({ flyRequest: { x: placement.x, z: placement.z, distance: dist, nonce: ++flyNonce } });
+      const shot = buildingShot(layout.bounds, placement.h);
+      set({
+        flyRequest: {
+          x: placement.x,
+          z: placement.z,
+          distance: shot.dist,
+          targetY: shot.targetY,
+          nonce: ++flyNonce,
+        },
+      });
     }
   },
   exitOrbit: () => set({ cameraMode: "free" }),
