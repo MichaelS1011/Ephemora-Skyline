@@ -36,6 +36,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef } from "react";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import { VOXEL_BUDGET, type VoxelCellKind, type VoxelLayout } from "../city/voxels";
+import { prefersReducedMotion, reducedSettle } from "../city/motion";
 
 /** A materializable voxel: voxel-space position + visual kind. */
 export interface VoxelInstance {
@@ -371,6 +372,8 @@ export function VoxelMesh({
   const commentCursorRef = useRef(0);
   const progressRef = useRef(0);
   const doneRef = useRef(false);
+  // `reducedSettle` needs a mutable holder, not a ref-of-boolean
+  const revealSettledRef = useRef({ current: false });
 
   const geometry = getVoxelGeometry(layout.voxelSize);
   const highlightGeometry = getHighlightGeometry(layout.voxelSize);
@@ -433,9 +436,11 @@ export function VoxelMesh({
   useFrame(({ clock }, delta) => {
     // Highlight pulse: scale 1.0→1.12, emissive 1.0→1.8, sin(t·6). Runs even
     // during the stagger reveal — the focus voxel is never part of the
-    // stagger. Reused scratch matrix — zero per-frame allocations.
+    // stagger. Reused scratch matrix — zero per-frame allocations. Under
+    // reduced motion the sine stops; the highlight itself stays placed, because
+    // the layout effect above writes it at scale 1 on every target change.
     const mesh = highlightRef.current;
-    if (mesh && highlightPos) {
+    if (mesh && highlightPos && !prefersReducedMotion()) {
       const t = clock.elapsedTime;
       const pulse = Math.sin(t * 6);
       const scale = 1.06 + 0.06 * pulse; // 1.0 → 1.12
@@ -447,6 +452,17 @@ export function VoxelMesh({
     }
     if (!visible || !animated || doneRef.current) return;
     const total = code.length + comment.length;
+    // Reduced motion does not mean empty: the reveal is written to its end
+    // state once, then this loop stops touching the buffers.
+    if (
+      reducedSettle(revealSettledRef.current, () => {
+        progressRef.current = 1;
+        writeRevealWindow(codeRef.current, code, codeCursorRef, total);
+        writeRevealWindow(commentRef.current, comment, commentCursorRef, total);
+        doneRef.current = true;
+      })
+    )
+      return;
     const next = Math.min(1, progressRef.current + delta / REVEAL_SECONDS);
     progressRef.current = next;
     const eased = 1 - Math.pow(1 - next, 3);

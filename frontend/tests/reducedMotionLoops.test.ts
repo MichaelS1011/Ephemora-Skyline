@@ -21,6 +21,8 @@ const MUST_HONOUR = [
   "CityConnections.tsx",
   "DependencyFlows.tsx",
   "CloneLasers.tsx",
+  "VoxelMesh.tsx",
+  "District.tsx",
 ];
 
 /**
@@ -35,13 +37,6 @@ const KNOWN_OTHERS: Record<string, string> = {
   // CameraRig, which does honour the query. The rise timing itself is the
   // geometry lane's schedule.
   "CityTree.tsx": "schedules the build; all camera motion goes through CameraRig",
-  // The honest voxel stack: staggered materialization + the focused-cell pulse.
-  // OPEN GAP, one file, filed to the geometry lane — see the W2 look report.
-  "VoxelMesh.tsx": "OPEN GAP: reveal stagger and highlight pulse ignore the signal",
-  // The district-level reveal tween (District.tsx:65) — scale.y during the
-  // build. Same class of motion as the building rise this lane already settles,
-  // but the file belongs to the geometry lane.
-  "District.tsx": "OPEN GAP: district reveal tween ignores the signal, filed to W1",
 };
 
 const framesIn = (name: string): string => {
@@ -81,7 +76,7 @@ describe("the render loops and reduced motion", () => {
 
   it("pins the open gaps to exactly the files that were filed", () => {
     const gaps = Object.entries(KNOWN_OTHERS).filter(([, why]) => why.startsWith("OPEN GAP"));
-    expect(gaps.map(([f]) => f).sort()).toEqual(["District.tsx", "VoxelMesh.tsx"]);
+    expect(gaps.map(([f]) => f).sort()).toEqual([]);
     // and each filed file really does lack the signal — if the geometry lane adds
     // it, this test fails so the allowlist gets cleaned instead of rotting.
     for (const [name] of gaps) {

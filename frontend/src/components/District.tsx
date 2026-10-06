@@ -6,6 +6,7 @@ import { useFrame } from "@react-three/fiber";
 import type * as THREE from "three";
 import type { BlockPlacement } from "../city/layout";
 import { ENV, SEVERITY_COLOR } from "../city/palette";
+import { reducedSettle } from "../city/motion";
 import { useStore } from "../stores/useStore";
 import { Building } from "./Building";
 
@@ -60,11 +61,21 @@ export function District({ placement, appearAt, skylineAt, constructing }: Distr
   };
 
   const groupRef = useRef<THREE.Group>(null);
+  const riseSettledRef = useRef({ current: false });
 
   // Construction / drill-in rise
   useFrame(() => {
     const g = groupRef.current;
     if (!g) return;
+    // Reduced motion skips the rise: the district is placed at full height once
+    // and the tween never runs, so nothing is left half-built on screen.
+    if (
+      reducedSettle(riseSettledRef.current, () => {
+        g.scale.y = 1;
+        g.visible = true;
+      })
+    )
+      return;
     if (!constructing) {
       if (g.scale.y !== 1) g.scale.y = 1;
       g.visible = true;
