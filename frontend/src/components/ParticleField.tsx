@@ -3,6 +3,7 @@
 import type * as THREE from "three";
 import { useMemo, useRef } from "react";
 import { useFrame } from "@react-three/fiber";
+import { reducedSettle } from "../city/motion";
 
 /**
  * Ambient dust — warm and cool motes drifting over the city.
@@ -17,6 +18,9 @@ const DUST_COLORS: Array<[number, number, number]> = [
 
 export function ParticleField({ count = 200, bounds = 60 }: { count?: number; bounds?: number }) {
   const pointsRef = useRef<THREE.Points>(null);
+  // Reduced motion: the motes are placed once, then they hang there. Dust that
+  // never moves still says "open volume"; dust that moves says nothing.
+  const settledRef = useRef(false);
 
   const { positions, colors } = useMemo(() => {
     const pos = new Float32Array(count * 3);
@@ -34,10 +38,9 @@ export function ParticleField({ count = 200, bounds = 60 }: { count?: number; bo
     return { positions: pos, colors: col };
   }, [count, bounds]);
 
-  useFrame(({ clock }) => {
+  const write = (t: number): void => {
     const points = pointsRef.current;
     if (!points) return;
-    const t = clock.elapsedTime;
     const attr = points.geometry.attributes.position as THREE.BufferAttribute;
     const arr = attr.array as Float32Array;
     for (let i = 0; i < count; i++) {
@@ -49,6 +52,12 @@ export function ParticleField({ count = 200, bounds = 60 }: { count?: number; bo
       arr[i * 3 + 2] = oz + Math.cos(t * 0.22 + oy * 0.06) * 0.7;
     }
     attr.needsUpdate = true;
+  };
+
+  useFrame(({ clock }) => {
+    // t = 0 is the undrifted base layout, so the settle write is the frozen frame.
+    if (reducedSettle(settledRef, () => write(0))) return;
+    write(clock.elapsedTime);
   });
 
   return (

@@ -11,7 +11,7 @@
  * - MATERIAL  = graphite (healthy) / glass (dead code) / neon (findings)
  */
 
-import type { CityData, CityFile } from "./types";
+import type { CityData, CityFile, Severity } from "./types";
 
 // ── Normalization references (what counts as "maxed out") ─────────────────
 
@@ -113,6 +113,92 @@ export function erosionState(file: CityFile, meta?: CityData["meta"]): ErosionSt
   if (file.churnScore >= 0.55) return "eroded";
   if (file.churnScore >= 0.35) return "weathered";
   return "stable";
+}
+
+// ── Finding bars (Balken) ──────────────────────────────────────────────────
+
+/**
+ * The finding count as MASS. A beacon on the roof says "something here", but
+ * it is a 4 px dot at district distance and it says nothing about how much:
+ * measured on the demo city at 111 units out, the whole P0 population of the
+ * frame was 2 px and P2 was 0 px — a file whose worst finding is P2 had no
+ * signature in the 3D view at all, only in the far-zoom heat grid.
+ *
+ * A stack of segments answers that without a legend: one segment per finding,
+ * worst at the bottom, so height counts the findings and the reading order
+ * counts their severity. Position carries severity, colour only repeats it —
+ * the stack reads the same in grey, under CVD palette and to anyone who cannot
+ * tell #ff2e4d from #ff7a1a.
+ */
+export const FINDING_BAR = {
+  /** world units one finding stacks up */
+  SEGMENT_UNITS: 0.85,
+  /** findings drawn as their own segment; beyond this they stack into the last */
+  MAX_SEGMENTS: 6,
+  /** extra units per finding past the cap — keeps the height monotone in count */
+  TAIL_UNITS: 0.15,
+  /** footprint of the bar itself, in world units (a fixed footprint means the
+   *  height is the only variable, so nothing is encoded twice by accident) */
+  WIDTH: 0.46,
+  DEPTH: 0.46,
+} as const;
+
+const SEVERITY_RANK: Record<Severity, number> = { P0: 0, P1: 1, P2: 2 };
+
+export interface FindingBarSegment {
+  severity: Severity;
+  /** stack base of this segment, in world units above the roof */
+  y0: number;
+  /** stack top of this segment */
+  y1: number;
+  /** how many findings this segment stands for (1 below the cap, more above) */
+  count: number;
+}
+
+/**
+ * The bar for one file's findings: sorted worst-first, one segment per finding
+ * up to `MAX_SEGMENTS`, and the tail folded into the top segment so a file with
+ * 30 findings is taller than one with 6 and never drawn 30 units high.
+ * Pure, ordered, deterministic — the same findings always build the same bar.
+ */
+export function findingBarSegments(findings: Array<{ severity: Severity }>): FindingBarSegment[] {
+  if (findings.length === 0) return [];
+  const sorted = [...findings].sort(
+    (a, b) => SEVERITY_RANK[a.severity] - SEVERITY_RANK[b.severity],
+  );
+  const seg = FINDING_BAR.SEGMENT_UNITS;
+  const cap = FINDING_BAR.MAX_SEGMENTS;
+  const out: FindingBarSegment[] = [];
+  const heads = Math.min(sorted.length, cap);
+  const tail = sorted.length - heads;
+  for (let i = 0; i < heads; i++) {
+    const y0 = i * seg;
+    const extra = i === heads - 1 ? tail * FINDING_BAR.TAIL_UNITS : 0;
+    out.push({
+      severity: sorted[i]!.severity,
+      y0,
+      y1: y0 + seg + extra,
+      count: i === heads - 1 ? 1 + tail : 1,
+    });
+  }
+  return out;
+}
+
+/** Total bar height in world units — strictly increasing in the finding count. */
+export function findingBarHeight(findings: Array<{ severity: Severity }>): number {
+  return findingBarHeightForCount(findings.length);
+}
+
+/**
+ * The same law over a count instead of a list, so an aggregate (a district's
+ * subtree in the far-zoom heat grid) rises by exactly what a stack of single
+ * files would: one height rule, two zoom levels, no double standard.
+ */
+export function findingBarHeightForCount(n: number): number {
+  if (n <= 0) return 0;
+  const cap = FINDING_BAR.MAX_SEGMENTS;
+  const heads = Math.min(n, cap);
+  return heads * FINDING_BAR.SEGMENT_UNITS + Math.max(0, n - cap) * FINDING_BAR.TAIL_UNITS;
 }
 
 // ── Material state ─────────────────────────────────────────────────────────

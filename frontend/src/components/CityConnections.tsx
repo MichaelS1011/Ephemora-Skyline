@@ -1,10 +1,11 @@
 "use client";
 
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import type { DirLayout } from "../city/layout";
 import { ENV } from "../city/palette";
+import { reducedSettle } from "../city/motion";
 
 /**
  * Import relationships as glowing arcs:
@@ -63,6 +64,7 @@ export function CityConnections({
   selectedFileId = null,
   highlight = false,
 }: ConnectionProps) {
+  const settledRef = useRef(false);
   const buildingPos = useMemo(() => {
     const map = new Map<string, { x: number; y: number; z: number }>();
     for (const b of layout.buildings) map.set(b.file.id, { x: b.x, y: b.h + 0.6, z: b.z });
@@ -143,8 +145,9 @@ export function CityConnections({
     };
   }, [fileMat, dirMat]);
 
-  useFrame(({ clock }) => {
-    const t = clock.elapsedTime;
+  // The pulse written onto the two shared materials. `t = 0` is the static
+  // midpoint of each sine, which is what reduced motion holds.
+  const writeOpacity = (t: number): void => {
     // In DEPENDENCIES mode the pulsing baseline rides higher — the mode must
     // never pulse the arcs back down to their idle subtlety.
     // One shared material per arc group: EVERY arc pulses. The old code
@@ -154,6 +157,13 @@ export function CityConnections({
     dirMat.opacity = highlight
       ? 0.65 + Math.sin(t * 1.1 + 1) * 0.1
       : 0.3 + Math.sin(t * 1.1 + 1) * 0.1;
+  };
+
+  useFrame(({ clock }) => {
+    // Reduced motion: the arcs keep their average brightness — a dependency
+    // vein that does not breathe is still a dependency vein.
+    if (reducedSettle(settledRef, () => writeOpacity(0))) return;
+    writeOpacity(clock.elapsedTime);
   });
 
   return (

@@ -14,7 +14,7 @@ import {
   UNCHECKED_COLOR,
 } from "../city/palette";
 import { isUncheckedClean } from "../city/provenance";
-import { syntheticComplexity } from "../city/mapping";
+import { syntheticComplexity, findingBarHeightForCount } from "../city/mapping";
 
 /**
  * Far-zoom LOD: the whole city collapses into ONE instanced mesh of flat
@@ -23,6 +23,41 @@ import { syntheticComplexity } from "../city/mapping";
  */
 
 const CELL_HEIGHT = 0.55;
+
+/**
+ * How high a far-zoom cell stands.
+ *
+ * The grid used to be one flat plate for every file: at 200+ units out the
+ * whole city was the same 0.55 units tall, so the only thing separating a P0
+ * district from a clean one was the tile's hue — and the silhouette of the
+ * Totalen, the view a reader uses to find where to look, carried no information
+ * at all. Height now carries the SAME quantity as the colour, per channel:
+ *
+ * - threat: the finding bar law from `city/mapping` — one cell rises as many
+ *   units as its file has findings, worst-severity files are simply the tallest
+ *   ones in the field. A clean and an unverified file stay flat, so "nothing
+ *   here" never outshouts "everything here".
+ * - complexity / churn: the very number that sets the hue, scaled onto the same
+ *   band, so a hot tile is also a tall tile and the ramp survives a grey print.
+ *
+ * Monotone in every channel: the height never contradicts the colour.
+ */
+export const CELL_RISE = {
+  /** the flat plate every calm tile keeps */
+  BASE: CELL_HEIGHT,
+  /** units of additional height per unit of the channel's 0..1 value */
+  VALUE_UNITS: 3.2,
+} as const;
+
+export function heatCellRise(
+  channel: HeatChannel,
+  input: { findingCount: number; value: number },
+): number {
+  if (channel === "threat")
+    return Math.max(CELL_RISE.BASE, findingBarHeightForCount(input.findingCount));
+  const v = Math.max(0, Math.min(1, input.value));
+  return CELL_RISE.BASE + v * CELL_RISE.VALUE_UNITS;
+}
 
 function fileHeatColor(
   channel: HeatChannel,
@@ -82,8 +117,13 @@ export function HeatCells({ layout }: { layout: DirLayout }) {
     if (!mesh) return;
     let i = 0;
     for (const b of layout.buildings) {
-      dummy.position.set(b.x, CELL_HEIGHT / 2, b.z);
-      dummy.scale.set(b.w * 1.55, 1, b.d * 1.55);
+      const rise = heatCellRise(heatChannel, {
+        findingCount: b.file.findings.length,
+        value:
+          heatChannel === "complexity" ? syntheticComplexity(b.file) : (b.file.churnScore ?? 0),
+      });
+      dummy.position.set(b.x, rise / 2, b.z);
+      dummy.scale.set(b.w * 1.55, rise / CELL_HEIGHT, b.d * 1.55);
       dummy.rotation.set(0, 0, 0);
       dummy.updateMatrix();
       mesh.setMatrixAt(i, dummy.matrix);
@@ -108,8 +148,19 @@ export function HeatCells({ layout }: { layout: DirLayout }) {
           : heatChannel === "complexity"
             ? complexityColor(subtree.avgComplexity, colorblind)
             : churnColor(subtree.maxChurn ?? 0, colorblind);
-      dummy.position.set(blk.x, CELL_HEIGHT / 2, blk.z);
-      dummy.scale.set(blk.w * 1.35, 1, blk.d * 1.35);
+      const subtreeTotal =
+        (subtree.findingsBySeverity.P0 ?? 0) +
+        (subtree.findingsBySeverity.P1 ?? 0) +
+        (subtree.findingsBySeverity.P2 ?? 0);
+      const blockRise = heatCellRise(heatChannel, {
+        findingCount: subtreeTotal,
+        value:
+          heatChannel === "complexity"
+            ? Math.min(1, subtree.avgComplexity)
+            : (subtree.maxChurn ?? 0),
+      });
+      dummy.position.set(blk.x, blockRise / 2, blk.z);
+      dummy.scale.set(blk.w * 1.35, blockRise / CELL_HEIGHT, blk.d * 1.35);
       dummy.updateMatrix();
       mesh.setMatrixAt(i, dummy.matrix);
       mesh.setColorAt(i, new THREE.Color(color));
