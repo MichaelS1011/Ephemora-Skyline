@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { Canvas } from "@react-three/fiber";
-import { EffectComposer, Bloom } from "@react-three/postprocessing";
+import { EffectComposer, Bloom, ToneMapping } from "@react-three/postprocessing";
+import { ToneMappingMode } from "postprocessing";
 import { ModeBar } from "./components/ModeBar";
 import { CityScene } from "./components/CityScene";
 import { Landing } from "./components/Landing";
@@ -284,10 +285,18 @@ export default function App() {
         >
           <CityScene />
           {/* gfxLite skips the bloom pass entirely — the one expensive
-              post-processing step — and caps the pixel ratio above. */}
+              post-processing step — and caps the pixel ratio above.
+              The ToneMapping effect is not a look choice: `<EffectComposer>`
+              renders the scene with the renderer's own tone mapping turned off,
+              so without it the full-quality path shows the city un-tone-mapped
+              and the sky changes value with the graphics preference (measured:
+              the upper band rendered 202,223,239 with the composer against
+              211,219,224 without it). Same curve as the direct path, so both
+              quality settings show one picture. */}
           {!gfxLite && (
             <EffectComposer enableNormalPass={false}>
               <Bloom luminanceThreshold={0.9} intensity={0.22} mipmapBlur />
+              <ToneMapping mode={ToneMappingMode.ACES_FILMIC} />
             </EffectComposer>
           )}
         </Canvas>

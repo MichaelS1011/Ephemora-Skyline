@@ -25,6 +25,19 @@ import { syntheticComplexity, findingBarHeightForCount } from "../city/mapping";
 const CELL_HEIGHT = 0.55;
 
 /**
+ * How much wider a far-zoom cell is drawn than the plot it stands on.
+ *
+ * A cell is a legible tile, not a footprint: at 200+ units out a file's own
+ * plot is a few pixels, so the tile is grown to stay clickable-looking. The
+ * overhang is a fact about the GROUND, because the tile is what covers it —
+ * `render/ground` aims its untouched band by these numbers, through
+ * `groundFrameRadius`, and `tests/lookDev.test.ts` asserts the promise with
+ * them. A cell drawn wider than this constant admits would silently put heat
+ * tiles on graded ground.
+ */
+export const CELL_SPREAD = { building: 1.55, block: 1.35 } as const;
+
+/**
  * How high a far-zoom cell stands.
  *
  * The grid used to be one flat plate for every file: at 200+ units out the
@@ -123,7 +136,7 @@ export function HeatCells({ layout }: { layout: DirLayout }) {
           heatChannel === "complexity" ? syntheticComplexity(b.file) : (b.file.churnScore ?? 0),
       });
       dummy.position.set(b.x, rise / 2, b.z);
-      dummy.scale.set(b.w * 1.55, rise / CELL_HEIGHT, b.d * 1.55);
+      dummy.scale.set(b.w * CELL_SPREAD.building, rise / CELL_HEIGHT, b.d * CELL_SPREAD.building);
       dummy.rotation.set(0, 0, 0);
       dummy.updateMatrix();
       mesh.setMatrixAt(i, dummy.matrix);
@@ -160,7 +173,11 @@ export function HeatCells({ layout }: { layout: DirLayout }) {
             : (subtree.maxChurn ?? 0),
       });
       dummy.position.set(blk.x, blockRise / 2, blk.z);
-      dummy.scale.set(blk.w * 1.35, blockRise / CELL_HEIGHT, blk.d * 1.35);
+      dummy.scale.set(
+        blk.w * CELL_SPREAD.block,
+        blockRise / CELL_HEIGHT,
+        blk.d * CELL_SPREAD.block,
+      );
       dummy.updateMatrix();
       mesh.setMatrixAt(i, dummy.matrix);
       mesh.setColorAt(i, new THREE.Color(color));

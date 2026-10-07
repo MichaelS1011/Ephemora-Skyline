@@ -243,12 +243,23 @@ export function authorColor(name: string): string {
 }
 
 // Daylight environment: slate roads, pale plots and cool atmospheric haze.
+//
+// The sky is a ramp, not a fill (see render/sky.ts). `fog` and `skyHorizon` are
+// deliberately the SAME value: the ground plane dissolves into the fog, so the
+// sky at the horizon has to arrive at that exact tone or the seam comes back.
+// `skyZenith` is the only stop allowed to differ.
 
 export const ENV = {
   skyTop: "#dcecf5",
   // Fog sits ABOVE every surface it hides, or distance flattens into black
   // instead of lifting into haze.
   fog: "#dcecf5",
+  /** Zenith stop of the sky dome — cooler and a full value below the haze. */
+  skyZenith: "#a9c8e6",
+  /** The key light's own family, pooled into the sky around its azimuth. */
+  skySun: "#ffeeda",
+  /** Where the sun is. The key light is placed from this, the sky glows to it. */
+  sunDirection: [60, 55, 30],
   ground: "#b7c9d2",
   plot: "#d5e0e4",
   plotEdge: "#91a5b1",
