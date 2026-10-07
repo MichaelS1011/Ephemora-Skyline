@@ -8,6 +8,16 @@ import type { FocusTier } from "../city/focus";
 import type { VoxelLayout } from "../city/voxels";
 import { languageColor, severityColor, REVIEWED_BEACON_COLOR, ENV } from "../city/palette";
 import { prefersReducedMotion } from "../city/motion";
+import {
+  HOVER,
+  SEAM_COLOUR,
+  claimHover,
+  easeGlow,
+  hairlineOpacity,
+  inkOpacity,
+  releaseHover,
+} from "../interaction/hover";
+import { FOOTPRINT_EDGES, makeInkMaterial } from "../interaction/hoverInk";
 import { materialState, erosionState, findingBarSegments, FINDING_BAR } from "../city/mapping";
 import { landmarkFileId } from "../city/layout";
 import { findVoxelForLine } from "../city/voxels";
@@ -281,6 +291,20 @@ export interface BuildingProps {
   constructing?: boolean;
   /** When false (district skylines), the tower is decorative: no click/hover. */
   interactive?: boolean;
+  /**
+   * Hover-only body: the district skyline towers. They stand for real files
+   * but are not selectable on this level (their plaza is one drill-in away),
+   * so the pointer answers them — contour, cursor, tooltip — while the click
+   * stays with the plot underneath.
+   */
+  hoverOnly?: boolean;
+  /**
+   * What the tooltip should read while THIS body is hovered. Defaults to the
+   * file's own id; a district's skyline tower passes the district's block id,
+   * because its file has no plaza on this level and the panel would otherwise
+   * vanish the moment the pointer moves from the plot onto one of its towers.
+   */
+  hoverId?: string;
   /** Every finding has a review status — the beacon calms down (green). */
   fullyReviewed?: boolean;
   /**
@@ -315,6 +339,8 @@ export function Building({
   appearAt,
   constructing = false,
   interactive = true,
+  hoverOnly = false,
+  hoverId,
   fullyReviewed = false,
   voxels = null,
   highlightLine = null,
@@ -634,6 +660,9 @@ export function Building({
     }
   }, [materials, overallFactor]);
 
+  // The seam materials are stable objects now (the hover writes them), so the
+  // brightness factor reaches them in an effect below, next to the refs.
+
   useEffect(() => {
     return () => {
       for (const m of materials) m.dispose();
@@ -670,12 +699,45 @@ export function Building({
     return () => outlineEdges?.dispose();
   }, [outlineEdges]);
   const outlineMaterial = useMemo(
-    () => new THREE.LineBasicMaterial({ color: "#f2efe8", transparent: true, opacity: 0.12 }),
+    () =>
+      new THREE.LineBasicMaterial({
+        color: SEAM_COLOUR,
+        transparent: true,
+        opacity: HOVER.seamRest,
+      }),
     [],
   );
   useEffect(() => {
     return () => outlineMaterial.dispose();
   }, [outlineMaterial]);
+
+  // Silhouette bodies draw their corner seams as line segments. The material
+  // is one object we own instead of a fresh JSX material per render of the
+  // building (that allocation ran on every hover anywhere in the city, because
+  // the tooltip's store write re-renders nothing here — but a selection or a
+  // mode change re-renders every building on the level).
+  const seamMaterial = useMemo(
+    () =>
+      new THREE.LineBasicMaterial({
+        color: SEAM_COLOUR,
+        transparent: true,
+        opacity: HOVER.seamRest,
+        depthWrite: false,
+      }),
+    [],
+  );
+  useEffect(() => {
+    return () => seamMaterial.dispose();
+  }, [seamMaterial]);
+
+  // The pointer's ink: the body's envelope drawn in graphite plus a cut line
+  // on the ground, sharing one material. Mounted invisible, so a city nobody
+  // points at pays no draw call for it.
+  const inkMaterial = useMemo(() => makeInkMaterial(), []);
+  useEffect(() => {
+    return () => inkMaterial.dispose();
+  }, [inkMaterial]);
+  const inkRef = useRef<THREE.Group>(null);
 
   useEffect(() => {
     return () => {
@@ -694,6 +756,21 @@ export function Building({
   // Hover highlight: target 0/1, eased toward every frame (no React re-render)
   const hoverTargetRef = useRef(0);
   const hoverGlowRef = useRef(0);
+  /** Stable identity for the pointer-cursor claim (see interaction/hover). */
+  const cursorTokenRef = useRef({ id: file.id });
+
+  // The seam materials are stable objects now, so the brightness factor has to
+  // reach them by effect instead of through JSX: at rest the seam is a hairline
+  // scaled by focus tier × view mode × filter, and a mode change with nothing
+  // hovered must still land.
+  useLayoutEffect(() => {
+    const o = hairlineOpacity(overallFactor, dimmed);
+    seamMaterial.opacity = o;
+    outlineMaterial.opacity = o;
+    // Re-renders re-assert `visible={false}` on the ink group; put it back in
+    // sync with the glow so a hover survives a selection change unbroken.
+    if (inkRef.current) inkRef.current.visible = hoverGlowRef.current > 0.02;
+  }, [seamMaterial, outlineMaterial, overallFactor, dimmed]);
 
   // Single frame callback per building (flicker + hover + construction combined)
   useFrame(({ clock }) => {
@@ -733,6 +810,7 @@ export function Building({
       }
     }
 
+    // ── The pointer's answer: one eased value, three channels ──────────────
     // The slot flicker used to run on EVERY building, every frame: hundreds of
     // material writes for a ±4 % brightness wobble nobody can read — and
     // motion that carries no information, which is exactly what a reader who
@@ -740,35 +818,29 @@ export function Building({
     // to scan for the one thing that moved. It now runs on the building the
     // pointer is on (and the selected one): motion marks the target, the rest
     // of the city holds its contract value.
-    const mat = materials[0] as THREE.MeshStandardMaterial | undefined;
     const lit = hoverTargetRef.current > 0 || hoverGlowRef.current > 0;
-    if (mat && !dimmed && !voxelStage && matState !== "glass" && lit) {
-      const target = hoverTargetRef.current;
-      const cur = hoverGlowRef.current;
-      const next = Math.abs(target - cur) < 0.005 || reduced ? target : cur + (target - cur) * 0.16;
+    if (lit) {
+      const next = easeGlow(hoverGlowRef.current, hoverTargetRef.current, reduced);
       hoverGlowRef.current = next;
-      // The alarm baseline must survive the per-frame write. The memoized
-      // material starts an alarm body at 1.15; a flat 0.55 here silently
-      // overwrote it every frame, so a P0 building flickered down to the calm
-      // baseline and stopped reading as an alarm (#16a).
-      const baseline = matState === "alarm" ? 1.15 : 0.55;
-      // The focus AND mode factors ride on the baseline too — otherwise this
-      // per-frame write would overwrite the memoized dimming every frame and
-      // the city would flicker back to full brightness in SECURITY mode
-      mat.emissiveIntensity =
-        (baseline + next * 0.6 + (reduced ? 0 : Math.sin(t * 0.7 + seed) * 0.05)) * overallFactor;
-    }
-    // Voxel-body hover: the outline seam eases bright — the facade flicker's
-    // replacement on the block stack
-    if (voxelBody && lit) {
-      const target = hoverTargetRef.current;
-      const cur = hoverGlowRef.current;
-      const next = Math.abs(target - cur) < 0.005 || reduced ? target : cur + (target - cur) * 0.16;
-      hoverGlowRef.current = next;
-      outlineMaterial.opacity = Math.min(
-        1,
-        (dimmed ? 0.04 : 0.12 + next * 0.4) * (selected ? 1.5 : 1),
-      );
+      // The ink annotation: envelope contour + ground cut line, one material,
+      // one visibility switch for both.
+      inkMaterial.opacity = inkOpacity(next);
+      if (inkRef.current) inkRef.current.visible = next > 0.02;
+      // Emission rides on the lit-window bodies only; glass and voxel stacks
+      // have no emissive baseline to lift, and their ink carries the answer.
+      const mat = materials[0] as THREE.MeshStandardMaterial | undefined;
+      if (mat && !dimmed && !voxelStage && matState !== "glass") {
+        // The alarm baseline must survive the per-frame write. The memoized
+        // material starts an alarm body at 1.15; a flat 0.55 here silently
+        // overwrote it every frame, so a P0 building flickered down to the calm
+        // baseline and stopped reading as an alarm (#16a).
+        const baseline = matState === "alarm" ? 1.15 : 0.55;
+        // The focus AND mode factors ride on the baseline too — otherwise this
+        // per-frame write would overwrite the memoized dimming every frame and
+        // the city would flicker back to full brightness in SECURITY mode
+        mat.emissiveIntensity =
+          (baseline + next * 0.6 + (reduced ? 0 : Math.sin(t * 0.7 + seed) * 0.05)) * overallFactor;
+      }
     }
     if (beaconRef.current) {
       const s = 0.8 + Math.abs(Math.sin(t * 2.4 + seed)) * 0.6;
@@ -812,31 +884,34 @@ export function Building({
   const handleOver = (e: { stopPropagation: () => void }): void => {
     e.stopPropagation();
     hoverTargetRef.current = 1;
-    setHoveredId(file.id);
-    document.body.style.cursor = "pointer";
+    // Cursor AND tooltip go to one owner (see interaction/hover): the release
+    // on the object the pointer just left must not undo the claim of the one
+    // it landed on.
+    claimHover(cursorTokenRef.current, hoverId ?? file.id, setHoveredId);
   };
 
   const handleOut = (): void => {
     hoverTargetRef.current = 0;
-    setHoveredId(null);
-    document.body.style.cursor = "auto";
+    releaseHover(cursorTokenRef.current, setHoveredId);
   };
 
-  // Unmount while hovered would leak the pointer cursor
+  // Unmount while hovered would leak the pointer cursor and the tooltip target
   useEffect(() => {
     return () => {
-      if (hoverTargetRef.current === 1) document.body.style.cursor = "auto";
+      if (hoverTargetRef.current === 1) releaseHover(cursorTokenRef.current, setHoveredId);
     };
-  }, []);
+  }, [setHoveredId]);
 
-  const pointerProps = interactive
-    ? {
-        onClick: handleClick,
-        onDoubleClick: handleDoubleClick,
-        onPointerOver: handleOver,
-        onPointerOut: handleOut,
-      }
-    : {};
+  const pointerProps = !interactive
+    ? {}
+    : hoverOnly
+      ? { onPointerOver: handleOver, onPointerOut: handleOut }
+      : {
+          onClick: handleClick,
+          onDoubleClick: handleDoubleClick,
+          onPointerOver: handleOver,
+          onPointerOut: handleOut,
+        };
 
   // Alarm beacon: shows the file's worst severity (critical ⇒ P0, high ⇒ P1).
   // Colour alone never carries meaning — CVD mode (and reviewed calm state)
@@ -868,6 +943,30 @@ export function Building({
           opacity={dimmed ? 0.1 : 1}
         />
       </mesh>
+
+      {/* ── The pointer's ink ───────────────────────────────────────────────
+          The body's envelope drawn in graphite, plus a cut line on the ground
+          around the footprint. One material, one group: the frame loop switches
+          the group's visibility, so an un-hovered city pays nothing. The
+          envelope buffer is the one the body already computed — no second
+          geometry per building. */}
+      <group ref={inkRef} visible={false}>
+        <lineSegments
+          geometry={FOOTPRINT_EDGES}
+          material={inkMaterial}
+          position={[0, 0.42, 0]}
+          scale={[w + 1.15, 1, d + 1.15]}
+          raycast={() => null}
+        />
+        {(voxelBody ? outlineEdges : edgeGeometries[0]) && (
+          <lineSegments
+            geometry={(voxelBody ? outlineEdges : edgeGeometries[0])!}
+            material={inkMaterial}
+            position={[0, voxelBody ? h / 2 + 0.3 : bodyH / 2 + 0.3, 0]}
+            raycast={() => null}
+          />
+        )}
+      </group>
 
       {voxelBody && voxels ? (
         <>
@@ -932,19 +1031,16 @@ export function Building({
             <boxGeometry args={[w, bodyH, d]} />
           </mesh>
 
-          {/* Illuminated edges — lit corner seams on the dark metal body */}
+          {/* Illuminated edges — lit corner seams on the dark metal body. The
+              material is one object the hover eases (see useFrame), not a
+              fresh JSX material per render. */}
           {edgeGeometries[0] && (
             <lineSegments
               geometry={edgeGeometries[0]}
               position={[0, bodyH / 2 + 0.3, 0]}
+              material={seamMaterial}
               raycast={() => null}
-            >
-              <lineBasicMaterial
-                color="#f2efe8"
-                transparent
-                opacity={dimmed ? 0.04 : 0.18 * overallFactor}
-              />
-            </lineSegments>
+            />
           )}
 
           {/* Stepped tower section */}
@@ -961,14 +1057,9 @@ export function Building({
             <lineSegments
               geometry={edgeGeometries[1]}
               position={[0, bodyH + 0.3 + towerH / 2, 0]}
+              material={seamMaterial}
               raycast={() => null}
-            >
-              <lineBasicMaterial
-                color="#f2efe8"
-                transparent
-                opacity={dimmed ? 0.04 : 0.18 * overallFactor}
-              />
-            </lineSegments>
+            />
           )}
 
           {/* Occasional annex — lower wing reusing the body's facade materials */}
@@ -985,14 +1076,9 @@ export function Building({
             <lineSegments
               geometry={edgeGeometries[1]}
               position={[annexX, annexH / 2 + 0.3, annexZ]}
+              material={seamMaterial}
               raycast={() => null}
-            >
-              <lineBasicMaterial
-                color="#f2efe8"
-                transparent
-                opacity={dimmed ? 0.04 : 0.18 * overallFactor}
-              />
-            </lineSegments>
+            />
           )}
 
           {/* Section bands — thin amber strata boundaries, legible from afar.
