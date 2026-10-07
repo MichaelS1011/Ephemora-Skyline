@@ -31,7 +31,7 @@ Most security tooling is a list of findings you scroll. Ephemora Skyline makes a
 | Blue shield                | Test coverage, when an `lcov` report exists  |
 | Grey `#6b6a63` "unscanned" | No engine looked here — not a claim of clean |
 
-- **It builds in front of you.** Every visit starts on an empty lot. Pick a folder and the city assembles — roads, plots, buildings — while the Ephe's, the citizens who do the construction, explain what they are raising.
+- **It builds in front of you.** Every visit starts on an unbuilt plot — its streets, kerbs and crossings are already drawn, and the Ephe's are already walking them. Pick a folder and the city assembles — roads, plots, buildings — while the citizens who do the construction explain what they are raising.
 - **Scale-independent semantic zoom.** The overview draws one block per top-level folder — ten folders or ten thousand, the picture stays readable. Click into a block to open it as its own district. Files that are not drawn show honestly as a podium ("+N more files"), never silently dropped.
 - **Security Tour.** The camera flies finding to finding, highest risk first, with a plain-language explanation and a fix suggestion.
 - **Findings you can verify.** Every finding carries its file, its line, a two-line code frame and a link to the rule that fired. Open the file in your editor from the card. Each one also carries a fingerprint — rule, path, line and the (masked) line itself — so a verdict you record survives scanning the same folder again, and the same finding can be named in a report, in the city JSON and by an agent. A finding that moves to another line or into a renamed file counts as a new one, and says so.
