@@ -4,7 +4,17 @@ import { useLayoutEffect, useMemo, useRef } from "react";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import { graphPath, nearestNode, type SidewalkNetwork } from "../city/sidewalks";
-import { prefersReducedMotion } from "../city/motion";
+import {
+  STOP_BOARD,
+  STOP_POST,
+  VEHICLE_BOXES,
+  VEHICLE_WHEELS,
+  deriveTransit,
+  standOnLane,
+  type StreetPlate,
+  type Transit,
+} from "../city/openWorldStreets";
+import { prefersReducedMotion, reducedSettle } from "../city/motion";
 import type { BuildSite } from "../city/layout";
 
 /**
@@ -100,6 +110,17 @@ const WALKER_COLORS = [
 const WALK_SPEED = 2.3;
 const TURN_SPEED = 3.4;
 const ARRIVE = 0.55;
+/** A kerb hop ends ON the kerb node, not near it: a figure that stops half a
+ *  unit short of the node carries that offset into the next hop, and the tape
+ *  then reads it as off the network. 0.14 units is under the width of the
+ *  figure itself, so the correction never shows in the plate. */
+const NODE_ARRIVE = 0.14;
+/** Further off the target direction than this (117°) and the figure stops to
+ *  turn, like a person at a corner, instead of walking a wide arc. The arc is
+ *  what puts a walker off the kerb line: at this speed and turn rate the radius
+ *  is ~0.7 units, so a 180° turn-around at a street end swings more than a unit
+ *  away from the graph before it comes back. */
+const TURN_IN_PLACE = 2.05;
 /** Builder hat colour — brand amber, instanced on the hat mesh. */
 const HAT_COLOR = new THREE.Color("#e8b23c");
 /** One tower's rise — must stay in step with Building.tsx. */
@@ -114,6 +135,13 @@ const GRID_ROUTE_FACTOR = 1.2;
 /** Within this distance a figure steps straight to its goal instead of being
  *  routed through the street network (plot frontage, door approach). */
 const DIRECT_STEP_UNITS = 12;
+/** The three kerbs a cab works along its own street, as fractions of it. The
+ *  middle one is the kerb `deriveTransit` picked, so the cab arrives where the
+ *  crowd expects a taxi, and then it keeps driving instead of parking forever. */
+const TAXI_STANDS = [0.18, 0.5, 0.82];
+/** How far the bus has to get from its stop before it may stop again — further
+ *  than the 3 units that trigger a dwell, nearer than the length of its street. */
+const BUS_LEAVE_STOP = 8;
 /** The block has to be in the air before the rise lands — arriving in the
  *  last instants of it places nothing. */
 const PLACE_PAD_MS = 150;
@@ -121,7 +149,13 @@ const PLACE_PAD_MS = 150;
  *  spends the wait standing at an empty foundation. */
 const BUILD_HORIZON_MS = 3500;
 
-function makeEphe(i: number, bounds: number, net: SidewalkNetwork | null, homes: HomeSpot[]): Ephe {
+function makeEphe(
+  i: number,
+  bounds: number,
+  net: SidewalkNetwork | null,
+  homes: HomeSpot[],
+  total: number,
+): Ephe {
   const shape = ((i * 61) % 100) / 100;
   const e: Ephe = {
     x: 0,
@@ -151,8 +185,11 @@ function makeEphe(i: number, bounds: number, net: SidewalkNetwork | null, homes:
     hustle: 1,
   };
   if (net && net.nodes.length > 0) {
-    // Spread the population across the whole sidewalk network
-    e.node = i % net.nodes.length;
+    // Spread the population across the whole sidewalk network. `nodes` is
+    // ordered street by street, so the index has to be spread too: taking
+    // `i % nodes.length` puts every figure of a small crowd on the first one
+    // or two streets (measured: all 46 standing along one kerb of the grid).
+    e.node = Math.floor((i * net.nodes.length) / Math.max(1, total)) % net.nodes.length;
     const n = net.nodes[e.node]!;
     e.x = n.x;
     e.z = n.z;
@@ -175,6 +212,14 @@ function pickGroundTarget(e: Ephe, bounds: number): void {
   e.finalZ = Math.sin(a) * r;
 }
 
+/**
+ * The speech ink. Not the brand red: inside the city red belongs to findings
+ * and to the selection marker, and a red glyph floating over two citizens that
+ * are talking reads as an alarm going off (trafficLivery.test.ts holds the
+ * distance). On the near-black plate the cream carries the same contrast.
+ */
+export const BUBBLE_INK = "#f2efe8";
+
 /** Draw a tiny binary speech bubble onto a canvas texture. */
 function drawBubble(ctx: CanvasRenderingContext2D, text: string): void {
   ctx.clearRect(0, 0, 160, 80);
@@ -194,7 +239,7 @@ function drawBubble(ctx: CanvasRenderingContext2D, text: string): void {
   ctx.fillStyle = "rgba(18, 18, 16, 0.92)";
   ctx.fill();
   ctx.font = 'bold 17px "JetBrains Mono", monospace';
-  ctx.fillStyle = "#e8503c";
+  ctx.fillStyle = BUBBLE_INK;
   ctx.textAlign = "center";
   ctx.fillText(text, 80, 38);
 }
@@ -207,6 +252,8 @@ export function Pedestrians({
   bounds = 42,
   buildSites = null,
   vehiclesActive = true,
+  streetPlates = null,
+  directStep = DIRECT_STEP_UNITS,
 }: {
   streets?: StreetLine[] | null;
   network?: SidewalkNetwork | null;
@@ -217,6 +264,14 @@ export function Pedestrians({
   buildSites?: Array<BuildSite & { at: number }> | null;
   /** false hides the taxi/bus/stop entirely (their walkers keep walking). */
   vehiclesActive?: boolean;
+  /** Flat street paint to draw — the open world's own grid. Absent in a city,
+   *  where RoadSystem already paints the streets. */
+  streetPlates?: StreetPlate[] | null;
+  /** How short a hop may be to walk it straight instead of being routed over
+   *  the street graph. A city uses the frontage step (a door is 2 units off the
+   *  kerb); the open world passes 0, because without doors there is nothing to
+   *  approach off-graph and every step should visibly follow a street. */
+  directStep?: number;
 }) {
   const bodyRef = useRef<THREE.InstancedMesh>(null);
   const headRef = useRef<THREE.InstancedMesh>(null);
@@ -225,16 +280,23 @@ export function Pedestrians({
   const footRef = useRef<THREE.InstancedMesh>(null);
   const hatRef = useRef<THREE.InstancedMesh>(null);
   const cargoRef = useRef<THREE.InstancedMesh>(null);
-  const taxiRef = useRef<THREE.Group>(null);
-  const busRef = useRef<THREE.Group>(null);
-  const stopRef = useRef<THREE.Group>(null);
+  const plateRef = useRef<THREE.InstancedMesh>(null);
+  const postRef = useRef<THREE.InstancedMesh>(null);
+  /** Re-arms whenever motion comes back, so the next reduced period parks the
+   *  traffic once rather than every frame. */
+  const trafficSettledRef = useRef(false);
   const spriteRefs = useRef<Array<THREE.Sprite | null>>([null, null, null]);
 
   const onGraph = !!network && network.nodes.length > 0;
+  const hasStreets = !!streets && streets.length > 0;
+  // Going in and out of buildings needs homes. Traffic needs a road, not a
+  // floor plan — so the open world gets its taxi, its bus and its stop from the
+  // street list alone, which is what made the empty world look empty.
   const cityLife = homes.length > 0 && onGraph;
+  const transitReady = onGraph && hasStreets;
 
   const walkers = useMemo<Ephe[]>(
-    () => Array.from({ length: count }, (_, i) => makeEphe(i, bounds, network, homes)),
+    () => Array.from({ length: count }, (_, i) => makeEphe(i, bounds, network, homes, count)),
     [count, bounds, network, homes],
   );
 
@@ -242,49 +304,14 @@ export function Pedestrians({
   // that rise in the same second are scattered all over the city.
   const CREW_SIZE = Math.max(6, Math.ceil(count * 0.6));
 
-  // ── Transit infrastructure (only with a city) ────────────────────────────
-  const transit = useMemo(() => {
-    if (!cityLife || !streets || streets.length === 0) {
-      return {
-        stopPoint: null,
-        stopSegment: null as StreetLine | null,
-        taxiCurb: null as { x: number; z: number } | null,
-      };
-    }
-    // Bus stop: midpoint of the street segment nearest to the city centre
-    let best = streets[0]!;
-    let bestD = Infinity;
-    for (const s of streets) {
-      const mx = (s.x1 + s.x2) / 2;
-      const mz = (s.z1 + s.z2) / 2;
-      const d = mx * mx + mz * mz;
-      if (d < bestD) {
-        bestD = d;
-        best = s;
-      }
-    }
-    const len = Math.max(Math.hypot(best.x2 - best.x1, best.z2 - best.z1), 0.001);
-    const nx = -(best.z2 - best.z1) / len;
-    const nz = (best.x2 - best.x1) / len;
-    const stopPoint = {
-      x: (best.x1 + best.x2) / 2 + nx * 2.1,
-      z: (best.z1 + best.z2) / 2 + nz * 2.1,
-    };
-    // Taxi curb: a different, fairly central segment
-    const curbSeg = streets[Math.floor(streets.length / 2) % streets.length]!;
-    const cl = Math.max(Math.hypot(curbSeg.x2 - curbSeg.x1, curbSeg.z2 - curbSeg.z1), 0.001);
-    const cx = -(curbSeg.z2 - curbSeg.z1) / cl;
-    const cz = (curbSeg.x2 - curbSeg.x1) / cl;
-    const curb = {
-      x: (curbSeg.x1 + curbSeg.x2) / 2 + cx * 1.7,
-      z: (curbSeg.z1 + curbSeg.z2) / 2 + cz * 1.7,
-    };
-    return {
-      stopPoint,
-      stopSegment: { x1: stopPoint.x, z1: stopPoint.z, x2: best.x2, z2: best.z2 },
-      taxiCurb: curb,
-    };
-  }, [cityLife, streets]);
+  // ── Transit infrastructure (needs a street list, not a built city) ────────
+  /** The stop sign, the taxi curb and the two lanes they belong to, from one
+   *  derivation the open world and the city share: a vehicle is never routed on
+   *  a street while its own stop sits on another. */
+  const transit = useMemo<Transit | null>(
+    () => (transitReady && streets && streets.length > 0 ? deriveTransit(streets) : null),
+    [transitReady, streets],
+  );
 
   // ── Crew jobs ────────────────────────────────────────────────────────────
   // A work point goes to whichever free figure can cover the ground to its
@@ -300,7 +327,7 @@ export function Pedestrians({
     tEnter: 4,
     tExit: 2.5,
     tChat: 5,
-    tStopRefill: 6,
+    tStopRefill: 3,
     tTaxi: 8,
     // build crew: which sites are worked / retired, and the dispatch tick
     build: {
@@ -310,11 +337,22 @@ export function Pedestrians({
       positioned: false,
       timer: 0,
     },
-    // taxi state: 0 drive, 1 dwell, 2 drive-off pause
-    taxi: { mode: 0, timer: 6, phase: 0, passenger: -1 },
-    // bus state: 0 drive, 1 dwell
-    bus: { mode: 0, timer: 0, seg: 0, t: 0.2, dir: 1, dropped: 0 },
-    busSeg: streets && streets.length > 0 ? streets[0]! : null,
+    // taxi state: 0 drive, 1 dwell, 2 drive-off pause. `stand` is which kerb it
+    // is working (see TAXI_STANDS) — a cab that only ever drives to one point
+    // arrives once and then stands still for the rest of the session.
+    taxi: { mode: 0, timer: 6, phase: 0, passenger: -1, stand: 1 },
+    // bus state: 0 drive, 1 dwell. `canDwell` is the departure latch: once the
+    // bus has served a stop it may not dwell again on the same approach.
+    bus: { mode: 0, timer: 0, seg: 0, t: 0.2, dir: 1, dropped: 0, canDwell: true },
+    // Where the two vehicles actually are, written onto their instances by
+    // placeTraffic(). The cab waits at the edge of its lane until it is called
+    // to the curb; the bus starts a fifth of the way down the stop's street.
+    traffic: {
+      taxi: { x: 0, z: -60, rot: 0 },
+      bus: { x: 0, z: -80, rot: 0 },
+      placed: false,
+    },
+    busSeg: null as StreetLine | null,
     // chats: sprite idx → { a, b, until, textTimer, text }
     chats: [null, null, null] as Array<{
       a: number;
@@ -345,10 +383,17 @@ export function Pedestrians({
     sim.current.build.positioned = false;
     sim.current.build.timer = 0;
   }
-
-  // Keep walkers array in sync when streets change
-  if (sim.current.busSeg === null && streets && streets.length > 0)
-    sim.current.busSeg = streets[0]!;
+  // The bus runs the street the stop sign stands on. When the transit changes
+  // (a new city, or the open world arriving) the vehicles start again from
+  // their own lane, so no cab is left parked at last city's curb.
+  if (sim.current.busSeg !== (transit?.busLane ?? null)) {
+    sim.current.busSeg = transit?.busLane ?? null;
+    sim.current.bus.t = 0.2;
+    sim.current.bus.dir = 1;
+    sim.current.bus.mode = 0;
+    sim.current.bus.canDwell = true;
+    sim.current.traffic.placed = false;
+  }
 
   const dummy = useMemo(() => new THREE.Object3D(), []);
   const scratchColor = useMemo(() => new THREE.Color(), []);
@@ -361,6 +406,23 @@ export function Pedestrians({
   // One full-size building block, not a pebble: at the framing the build
   // plays in, a 0.3-unit cube is three pixels and the choreography is lost.
   const cargoGeo = useMemo(() => new THREE.BoxGeometry(0.82, 0.82, 0.82), []);
+  // The street is two geometries and no more: a unit box and a unit cylinder,
+  // scaled and coloured per instance. Asphalt, kerb, zebra bars, lane dashes,
+  // block pads, both vehicle bodies, the sign board are boxes; the sign post and
+  // the four wheels are cylinders. That is what keeps the open world at two
+  // extra draw calls instead of one mesh per stripe (180+ of them).
+  const plateGeo = useMemo(() => new THREE.BoxGeometry(1, 1, 1), []);
+  const postGeo = useMemo(() => new THREE.CylinderGeometry(1, 1, 1, 10), []);
+  const trafficDummy = useMemo(() => new THREE.Object3D(), []);
+  const rollQ = useMemo(() => new THREE.Quaternion(), []);
+  const AXIS_Y = useMemo(() => new THREE.Vector3(0, 1, 0), []);
+  const AXIS_Z = useMemo(() => new THREE.Vector3(0, 0, 1), []);
+
+  /** Instance bookkeeping: the street paint is static and comes first, then the
+   *  sign board, then the vehicle parts; the post is cylinder instance 0. */
+  const paintedCount = streetPlates?.length ?? 0;
+  const plateInstances = paintedCount + 1 + VEHICLE_BOXES.length;
+  const postInstances = 1 + VEHICLE_WHEELS.length;
 
   const bubbleTextures = useMemo(() => {
     const make = (): THREE.CanvasTexture => {
@@ -402,17 +464,180 @@ export function Pedestrians({
     }
   }, [walkers, count, buildSites, dummy]);
 
+  // ── the street and its traffic: two instanced meshes ─────────────────────
+  // Colours are per-instance and never change; the street paint is placed once
+  // because it does not move, the sign and the vehicles are re-placed every
+  // frame they are on stage. Everything off stage collapses to scale 0 rather
+  // than being hidden by mesh visibility, because in the open world the traffic
+  // shares its mesh with the asphalt.
+  useLayoutEffect(() => {
+    const plates = plateRef.current;
+    const posts = postRef.current;
+    if (!plates || !posts) return;
+    plates.count = plateInstances;
+    posts.count = postInstances;
+    const td = trafficDummy;
+    streetPlates?.forEach((p, i) => {
+      td.position.set(p.x, p.y, p.z);
+      td.quaternion.setFromAxisAngle(AXIS_Y, p.rotY);
+      td.scale.set(p.w, p.h, p.d);
+      td.updateMatrix();
+      plates.setMatrixAt(i, td.matrix);
+      plates.setColorAt(i, scratchColor.set(p.color));
+    });
+    plates.setColorAt(paintedCount, scratchColor.set(STOP_BOARD.color));
+    VEHICLE_BOXES.forEach((part, i) =>
+      plates.setColorAt(paintedCount + 1 + i, scratchColor.set(part.color)),
+    );
+    posts.setColorAt(0, scratchColor.set(STOP_POST.color));
+    VEHICLE_WHEELS.forEach((w, i) => posts.setColorAt(1 + i, scratchColor.set(w.color)));
+    if (plates.instanceColor) plates.instanceColor.needsUpdate = true;
+    if (posts.instanceColor) posts.instanceColor.needsUpdate = true;
+    plates.instanceMatrix.needsUpdate = true;
+    posts.instanceMatrix.needsUpdate = true;
+    placeTraffic();
+  }, [streetPlates, paintedCount, plateInstances, postInstances]);
+
+  /** Write the sign and both vehicles onto their instances. Not a simulation
+   *  step: `dt` never enters here, so reduced motion still gets a full frame. */
+  function placeTraffic(): void {
+    const plates = plateRef.current;
+    const posts = postRef.current;
+    if (!plates || !posts) return;
+    const S = sim.current;
+    const st = S.transit;
+    const on = !!st && transitReady && vehiclesActive;
+    const td = trafficDummy;
+    const collapse = (mesh: THREE.InstancedMesh, i: number): void => {
+      td.position.set(0, -30, 0);
+      td.quaternion.identity();
+      td.scale.setScalar(0);
+      td.updateMatrix();
+      mesh.setMatrixAt(i, td.matrix);
+    };
+    if (!on || !st) {
+      collapse(plates, paintedCount);
+      for (let i = 0; i < VEHICLE_BOXES.length; i++) collapse(plates, paintedCount + 1 + i);
+      collapse(posts, 0);
+      for (let i = 0; i < VEHICLE_WHEELS.length; i++) collapse(posts, 1 + i);
+    } else {
+      td.quaternion.identity();
+      td.position.set(st.stopPoint.x, STOP_POST.y, st.stopPoint.z);
+      td.scale.set(STOP_POST.r, STOP_POST.h, STOP_POST.r);
+      td.updateMatrix();
+      posts.setMatrixAt(0, td.matrix);
+      td.position.set(st.stopPoint.x, STOP_BOARD.y, st.stopPoint.z);
+      td.scale.set(STOP_BOARD.w, STOP_BOARD.h, STOP_BOARD.d);
+      td.updateMatrix();
+      plates.setMatrixAt(paintedCount, td.matrix);
+      let bi = paintedCount + 1;
+      for (const part of VEHICLE_BOXES) {
+        const pose = part.vehicle === "taxi" ? S.traffic.taxi : S.traffic.bus;
+        td.position.set(
+          pose.x + Math.sin(pose.rot) * part.z,
+          part.y,
+          pose.z + Math.cos(pose.rot) * part.z,
+        );
+        td.quaternion.setFromAxisAngle(AXIS_Y, pose.rot);
+        td.scale.set(part.w, part.h, part.d);
+        td.updateMatrix();
+        plates.setMatrixAt(bi++, td.matrix);
+      }
+      let wi = 1;
+      for (const wheel of VEHICLE_WHEELS) {
+        const pose = wheel.vehicle === "taxi" ? S.traffic.taxi : S.traffic.bus;
+        td.position.set(
+          pose.x + Math.sin(pose.rot) * wheel.z,
+          wheel.y,
+          pose.z + Math.cos(pose.rot) * wheel.z,
+        );
+        // laid on its side (axle along X), then yawed with the vehicle
+        td.quaternion
+          .setFromAxisAngle(AXIS_Y, pose.rot)
+          .multiply(rollQ.setFromAxisAngle(AXIS_Z, Math.PI / 2));
+        td.scale.set(wheel.r, wheel.t, wheel.r);
+        td.updateMatrix();
+        posts.setMatrixAt(wi++, td.matrix);
+      }
+    }
+    plates.instanceMatrix.needsUpdate = true;
+    posts.instanceMatrix.needsUpdate = true;
+  }
+
+  /** Put each vehicle at the place it would be standing if the crowd were not
+   *  being held still: the cab at its curb, the bus at its stop. Reduced motion
+   *  has to look like a city waiting, not like a frame caught mid-drive. */
+  function settleTraffic(): void {
+    const st = sim.current.transit;
+    if (!st) return;
+    const l = st.taxiLane;
+    const len = Math.max(Math.hypot(l.x2 - l.x1, l.z2 - l.z1), 0.001);
+    const ux = (l.x2 - l.x1) / len;
+    const uz = (l.z2 - l.z1) / len;
+    sim.current.traffic.taxi = { x: st.taxiCurb.x, z: st.taxiCurb.z, rot: Math.atan2(ux, uz) };
+    const b = st.busLane;
+    const bl = Math.max(Math.hypot(b.x2 - b.x1, b.z2 - b.z1), 0.001);
+    const bux = (b.x2 - b.x1) / bl;
+    const buz = (b.z2 - b.z1) / bl;
+    const t = Math.max(
+      0,
+      Math.min(1, ((st.stopPoint.x - b.x1) * bux + (st.stopPoint.z - b.z1) * buz) / bl),
+    );
+    sim.current.traffic.bus = {
+      x: b.x1 + (b.x2 - b.x1) * t + buz,
+      z: b.z1 + (b.z2 - b.z1) * t - bux,
+      rot: Math.atan2(b.x2 - b.x1, b.z2 - b.z1),
+    };
+  }
+
+  /** First placement of a fresh transit: the vehicles start at the far end of
+   *  their own lane, so a cab arrives along a street instead of cutting over
+   *  open ground. */
+  function stageTraffic(): void {
+    const S = sim.current;
+    const st = S.transit;
+    if (!st || S.traffic.placed) return;
+    S.traffic.placed = true;
+    const l = st.taxiLane;
+    const len = Math.max(Math.hypot(l.x2 - l.x1, l.z2 - l.z1), 0.001);
+    const ux = (l.x2 - l.x1) / len;
+    const uz = (l.z2 - l.z1) / len;
+    const d1 = Math.hypot(l.x1 - st.taxiCurb.x, l.z1 - st.taxiCurb.z);
+    const d2 = Math.hypot(l.x2 - st.taxiCurb.x, l.z2 - st.taxiCurb.z);
+    const startT = d1 >= d2 ? 0.04 : 0.96;
+    const dir = d1 >= d2 ? 1 : -1;
+    S.traffic.taxi = {
+      x: l.x1 + (l.x2 - l.x1) * startT + uz * 0.95 * dir,
+      z: l.z1 + (l.z2 - l.z1) * startT - ux * 0.95 * dir,
+      rot: Math.atan2((l.x2 - l.x1) * dir, (l.z2 - l.z1) * dir),
+    };
+    const b = st.busLane;
+    const bl = Math.max(Math.hypot(b.x2 - b.x1, b.z2 - b.z1), 0.001);
+    const bux = (b.x2 - b.x1) / bl;
+    const buz = (b.z2 - b.z1) / bl;
+    S.traffic.bus = {
+      x: b.x1 + (b.x2 - b.x1) * 0.2 + buz,
+      z: b.z1 + (b.z2 - b.z1) * 0.2 - bux,
+      rot: Math.atan2(b.x2 - b.x1, b.z2 - b.z1),
+    };
+  }
+
   // ── helpers ──────────────────────────────────────────────────────────────
-  const walkToward = (e: Ephe, dt: number): boolean => {
+  /** Walk the straight line to the target. `arrive` is how close counts as
+   *  there; a figure turning by more than `TURN_IN_PLACE` stands and pivots
+   *  first instead of cutting the corner, so its feet stay on the ground the
+   *  street network actually has. */
+  const walkToward = (e: Ephe, dt: number, arrive = ARRIVE): boolean => {
     const dx = e.tx - e.x;
     const dz = e.tz - e.z;
     const dist = Math.hypot(dx, dz);
-    if (dist < ARRIVE) return true;
+    if (dist < arrive) return true;
     const want = Math.atan2(dx, dz);
     let diff = want - e.angle;
     while (diff > Math.PI) diff -= Math.PI * 2;
     while (diff < -Math.PI) diff += Math.PI * 2;
     e.angle += Math.max(-TURN_SPEED * dt, Math.min(TURN_SPEED * dt, diff));
+    if (Math.abs(diff) > TURN_IN_PLACE) return false;
     const step = Math.min(e.speed * e.hustle * dt, dist);
     e.x += Math.sin(e.angle) * step;
     e.z += Math.cos(e.angle) * step;
@@ -426,7 +651,10 @@ export function Pedestrians({
       const n = network!.nodes[e.path[0]!]!;
       e.tx = n.x;
       e.tz = n.z;
-      if (walkToward(e, dt)) {
+      if (walkToward(e, dt, NODE_ARRIVE)) {
+        // land on the kerb node it was routed to
+        e.x = n.x;
+        e.z = n.z;
         e.node = e.path.shift()!;
         if (e.path.length === 0 && e.finalX === null) return true;
       }
@@ -461,9 +689,17 @@ export function Pedestrians({
     const next = options[Math.floor(Math.random() * options.length)]!;
     e.prev = e.node;
     e.node = next;
+    // The hop itself has to become the plan. Setting only `tx/tz` here leaves
+    // the figure with an empty `path` and no `finalX`, so `planStep` reports the
+    // plan as exhausted on the very next frame and re-picks a target forever —
+    // the population stands still on the kerb and only the ride/build
+    // schedulers ever move it (measured: 45 of 46 figures did not change
+    // position at all in six seconds).
     const n = net.nodes[next]!;
     e.tx = n.x;
     e.tz = n.z;
+    e.path = [next];
+    e.finalX = null;
   };
 
   // Route a walker to a point: graph hops to the nearest node, then a
@@ -471,8 +707,10 @@ export function Pedestrians({
   const routeTo = (e: Ephe, x: number, z: number): void => {
     // A step across the frontage does not belong on the street network: routed
     // through the grid it sends the figure down to a curb node and back, and it
-    // arrives long after its own plot rose.
-    if (Math.hypot(x - e.x, z - e.z) <= DIRECT_STEP_UNITS) {
+    // arrives long after its own plot rose. The open world passes `directStep`
+    // 0 — without doors there is nothing to approach off-graph, and a straight
+    // hop there would cut a corner of the block instead of following the kerb.
+    if (directStep > 0 && Math.hypot(x - e.x, z - e.z) <= directStep) {
       e.path = [];
       e.finalX = x;
       e.finalZ = z;
@@ -511,6 +749,29 @@ export function Pedestrians({
       if (pred(walkers[i]!)) return i;
     }
     return -1;
+  };
+
+  /**
+   * The eligible walker standing nearest a point. Only the bus queue uses this,
+   * and for a plain reason: a stop is served by the people already on its
+   * blocks. When the beltway spread the same crowd over 240 kerb nodes instead
+   * of 144, a waiter drawn from anywhere spent most of its dispatch walking and
+   * the sign stood empty in 54% of frames — the dispatch was happening, the
+   * kerb just never filled.
+   */
+  const nearestWalker = (x: number, z: number, pred: (e: Ephe) => boolean): number => {
+    let best = -1;
+    let bestD = Infinity;
+    for (let i = 0; i < walkers.length; i++) {
+      const e = walkers[i]!;
+      if (!pred(e) || e.hidden) continue;
+      const d = Math.hypot(e.x - x, e.z - z);
+      if (d < bestD) {
+        bestD = d;
+        best = i;
+      }
+    }
+    return best;
   };
 
   /**
@@ -573,14 +834,15 @@ export function Pedestrians({
     const hats = hatRef.current;
     const cargos = cargoRef.current;
 
-    // Construction site: keep the vehicles OFF the stage. The blocks below
-    // only ever turn them on, so an in-city re-scan (same mounted component)
-    // would otherwise leave city A's frozen taxi/bus/stop in city B's shot.
-    if (!vehiclesActive) {
-      if (taxiRef.current) taxiRef.current.visible = false;
-      if (busRef.current) busRef.current.visible = false;
-      if (stopRef.current) stopRef.current.visible = false;
-    }
+    // Construction site: keep the vehicles off the stage. `placeTraffic`
+    // collapses their instances, so an in-city re-scan (same mounted component)
+    // never leaves city A's frozen taxi in city B's shot.
+    stageTraffic();
+    // Reduced motion holds `dt` at 0, which would leave both vehicles standing
+    // where they were staged at the edge of their lane. Settle them once onto
+    // the curb and the stop instead, so the still frame is a city waiting and
+    // not a frame caught between two frames.
+    reducedSettle(trafficSettledRef, settleTraffic);
 
     // ── schedulers (city life only) ────────────────────────────────────────
     if (cityLife && homes.length > 0) {
@@ -685,17 +947,19 @@ export function Pedestrians({
     }
 
     // ── taxi ───────────────────────────────────────────────────────────────
-    const taxiG = taxiRef.current;
-    if (cityLife && vehiclesActive && st.taxiCurb && taxiG) {
-      taxiG.visible = true;
+    if (transitReady && vehiclesActive && st?.taxiCurb) {
       const taxi = S.taxi;
+      const pose = S.traffic.taxi;
+      const target = standOnLane(st.taxiLane, TAXI_STANDS[taxi.stand]!);
       taxi.timer -= dt;
       if (taxi.mode === 0) {
-        // driving toward the curb
-        const dx = st.taxiCurb.x - taxiG.position.x;
-        const dz = st.taxiCurb.z - taxiG.position.z;
+        // driving along its lane to the kerb it is working
+        const dx = target.x - pose.x;
+        const dz = target.z - pose.z;
         const d = Math.hypot(dx, dz);
         if (d < 0.4 || taxi.timer <= 0) {
+          pose.x = target.x;
+          pose.z = target.z;
           taxi.mode = 1;
           taxi.timer = 6.5;
           taxi.phase = taxi.phase === 0 ? 1 : 0; // alternate pickup / dropoff
@@ -707,18 +971,18 @@ export function Pedestrians({
               const e = walkers[i]!;
               e.mode = "toTaxi";
               e.ride = "taxi";
-              routeTo(e, st.taxiCurb.x, st.taxiCurb.z);
+              routeTo(e, target.x, target.z);
               taxi.passenger = i;
             }
           } else {
-            // step-out: a hidden passenger appears at the curb
+            // step-out: a hidden passenger appears at the kerb
             const i = randomVisibleWalker((e) => e.mode === "inTaxi" && e.ride === "taxi");
             if (i >= 0) {
               const e = walkers[i]!;
               e.mode = "exit";
               e.ride = null;
-              e.x = st.taxiCurb.x;
-              e.z = st.taxiCurb.z;
+              e.x = target.x;
+              e.z = target.z;
               e.anim = 0;
               e.hidden = false;
             }
@@ -726,23 +990,23 @@ export function Pedestrians({
           }
         } else {
           const ang = Math.atan2(dx, dz);
-          taxiG.position.x += Math.sin(ang) * Math.min(6 * dt, d);
-          taxiG.position.z += Math.cos(ang) * Math.min(6 * dt, d);
-          taxiG.rotation.y = ang;
+          pose.x += Math.sin(ang) * Math.min(6 * dt, d);
+          pose.z += Math.cos(ang) * Math.min(6 * dt, d);
+          pose.rot = ang;
         }
       } else if (taxi.mode === 1 && taxi.timer <= 0) {
         taxi.mode = 2;
-        taxi.timer = 7 + Math.random() * 5;
-        taxiG.visible = true;
+        taxi.timer = 3 + Math.random() * 3;
       } else if (taxi.mode === 2 && taxi.timer <= 0) {
         taxi.mode = 0;
-        taxi.timer = 12;
-        // drive toward a fresh curb next round
+        taxi.timer = 20;
+        taxi.stand = (taxi.stand + 1) % TAXI_STANDS.length;
+        taxi.passenger = -1;
       }
       // passengers walk to the taxi during dwell
       if (taxi.passenger >= 0) {
         const e = walkers[taxi.passenger]!;
-        if (e.mode === "toTaxi" && Math.hypot(e.x - st.taxiCurb.x, e.z - st.taxiCurb.z) < 0.8) {
+        if (e.mode === "toTaxi" && Math.hypot(e.x - target.x, e.z - target.z) < 0.8) {
           e.mode = "inTaxi";
           e.hidden = true;
         }
@@ -750,12 +1014,9 @@ export function Pedestrians({
     }
 
     // ── bus ────────────────────────────────────────────────────────────────
-    const busG = busRef.current;
-    const stopG = stopRef.current;
-    if (cityLife && vehiclesActive && st.stopPoint && busG && stopG) {
-      busG.visible = true;
-      stopG.visible = true;
+    if (transitReady && vehiclesActive && st?.stopPoint) {
       const bus = S.bus;
+      const pose = S.traffic.bus;
       if (bus.mode === 0) {
         const seg = S.busSeg;
         if (seg) {
@@ -786,15 +1047,22 @@ export function Pedestrians({
           // keep to the right lane of the travel direction
           const ux = (seg.x2 - seg.x1) / len;
           const uz = (seg.z2 - seg.z1) / len;
-          busG.position.set(x + uz * 1.0 * bus.dir, 0, z - ux * 1.0 * bus.dir);
-          busG.rotation.y =
-            Math.atan2(seg.x2 - seg.x1, seg.z2 - seg.z1) + (bus.dir > 0 ? 0 : Math.PI);
+          pose.x = x + uz * 1.0 * bus.dir;
+          pose.z = z - ux * 1.0 * bus.dir;
+          pose.rot = Math.atan2(seg.x2 - seg.x1, seg.z2 - seg.z1) + (bus.dir > 0 ? 0 : Math.PI);
           // arrive at the stop?
           const dStop = Math.hypot(x - st.stopPoint.x, z - st.stopPoint.z);
+          // The departure latch: a crowd that keeps refilling at the kerb would
+          // otherwise re-trigger the dwell on the very next frame and the bus
+          // would stand at its own sign for the rest of the session (measured:
+          // 0.1 units travelled in eight seconds). It has to clear the stop
+          // before it may stop again.
+          if (!bus.canDwell && dStop > BUS_LEAVE_STOP) bus.canDwell = true;
           const waiting = walkers.filter((e) => e.mode === "waitBus").length;
-          if (dStop < 3 && (waiting > 0 || bus.dropped <= 0)) {
+          if (bus.canDwell && dStop < 3 && (waiting > 0 || bus.dropped <= 0)) {
             bus.mode = 1;
             bus.timer = 5.5;
+            bus.canDwell = false;
             bus.dropped = (bus.dropped + 1) % 3;
           }
         }
@@ -832,22 +1100,35 @@ export function Pedestrians({
         }
         if (bus.timer <= 0) {
           bus.mode = 0; // riders without a stop stay on board until the next pass
+          // The kerb is empty the instant the bus leaves. On the idle tick
+          // alone it stayed empty for seconds (measured: someone waiting in
+          // 45.8% of frames, 64.3% with a 2.5–5 s tick), so a departure hands
+          // the queue straight to the refill — which is what a real stop does:
+          // the next passenger walks up while the bus is still pulling out.
+          S.tStopRefill = Math.min(S.tStopRefill, 0.6 + Math.random() * 0.9);
         }
       }
     }
 
     // ── stop refill: send walkers to wait at the bus stop ──────────────────
-    if (cityLife && vehiclesActive && st.stopPoint) {
+    if (transitReady && vehiclesActive && st?.stopPoint) {
       S.tStopRefill -= dt;
       const waiting = walkers.filter((e) => e.mode === "waitBus").length;
       if (S.tStopRefill <= 0 && waiting < 3) {
-        S.tStopRefill = 6 + Math.random() * 6;
-        const i = randomVisibleWalker(
-          (e) => e.mode === "walk" && e.pause <= 0 && e.chatPartner < 0,
-        );
-        if (i >= 0) {
+        // One arrival per tick, except at an empty kerb: there the bus is
+        // already on its way back and a queue of one boards and empties again
+        // before a second walker has crossed the block.
+        const batch = waiting === 0 ? 2 : 1;
+        S.tStopRefill = 2.5 + Math.random() * 2.5;
+        for (let n = 0; n < batch && waiting + n < 3; n++) {
+          const i = nearestWalker(
+            st.stopPoint.x,
+            st.stopPoint.z,
+            (e) => e.mode === "walk" && e.pause <= 0 && e.chatPartner < 0,
+          );
+          if (i < 0) break;
           const e = walkers[i]!;
-          const slot = waiting % 3;
+          const slot = waiting + n;
           e.mode = "waitBus";
           routeTo(
             e,
@@ -1148,6 +1429,9 @@ export function Pedestrians({
       if (mesh) mesh.instanceMatrix.needsUpdate = true;
     }
     if (hats) hats.instanceMatrix.needsUpdate = true;
+    // the sign and the two vehicles, written from their poses every frame so a
+    // still frame (dt = 0) is still a complete frame
+    placeTraffic();
   });
 
   return (
@@ -1184,60 +1468,24 @@ export function Pedestrians({
         </instancedMesh>
       )}
 
-      {/* Taxi — brand red, stops at the curb */}
-      <group ref={taxiRef} position={[0, 0, -60]} visible={false}>
-        <mesh position={[0, 0.34, 0]}>
-          <boxGeometry args={[1.05, 0.42, 2.1]} />
-          <meshStandardMaterial color="#e8503c" roughness={0.35} metalness={0.35} />
-        </mesh>
-        <mesh position={[0, 0.66, -0.15]}>
-          <boxGeometry args={[0.9, 0.3, 1.1]} />
-          <meshStandardMaterial color="#1c1c1a" roughness={0.2} metalness={0.4} />
-        </mesh>
-        <mesh position={[0, 0.16, 1.0]} rotation={[0, 0, Math.PI / 2]}>
-          <cylinderGeometry args={[0.16, 0.16, 0.12, 10]} />
-          <meshStandardMaterial color="#0c0c0b" roughness={0.9} />
-        </mesh>
-        <mesh position={[0, 0.16, -1.0]} rotation={[0, 0, Math.PI / 2]}>
-          <cylinderGeometry args={[0.16, 0.16, 0.12, 10]} />
-          <meshStandardMaterial color="#0c0c0b" roughness={0.9} />
-        </mesh>
-      </group>
-
-      {/* Bus — brand red with a cream window strip */}
-      <group ref={busRef} position={[0, 0, -80]} visible={false}>
-        <mesh position={[0, 0.75, 0]}>
-          <boxGeometry args={[1.5, 1.15, 4.6]} />
-          <meshStandardMaterial color="#e8503c" roughness={0.4} metalness={0.25} />
-        </mesh>
-        <mesh position={[0, 1.05, 0]}>
-          <boxGeometry args={[1.52, 0.4, 4.2]} />
-          <meshStandardMaterial color="#f2efe8" roughness={0.15} metalness={0.3} />
-        </mesh>
-        {[-1.6, 1.6].map((z) => (
-          <mesh key={z} position={[0, 0.22, z]} rotation={[0, 0, Math.PI / 2]}>
-            <cylinderGeometry args={[0.24, 0.24, 0.14, 10]} />
-            <meshStandardMaterial color="#0c0c0b" roughness={0.9} />
-          </mesh>
-        ))}
-      </group>
-
-      {/* Bus stop sign */}
-      <group ref={stopRef} visible={false}>
-        <mesh position={[0, 0.9, 0]}>
-          <cylinderGeometry args={[0.045, 0.045, 1.8, 6]} />
-          <meshStandardMaterial color="#8f8b82" roughness={0.5} metalness={0.4} />
-        </mesh>
-        <mesh position={[0, 1.85, 0]}>
-          <boxGeometry args={[0.5, 0.32, 0.05]} />
-          <meshStandardMaterial
-            color="#e8503c"
-            emissive="#e8503c"
-            emissiveIntensity={0.35}
-            roughness={0.4}
-          />
-        </mesh>
-      </group>
+      {/* The street and its traffic: two instanced meshes, one unit box and one
+          unit cylinder, scaled and coloured per instance. Everything flat lives
+          in the box mesh (asphalt, kerb, zebra bars, lane dashes, block pads,
+          the sign board, both vehicle bodies and cabins); everything round in
+          the cylinder mesh (sign post, four wheels). This is what lets the open
+          world have a road network and two driving vehicles for +2 draw calls
+          instead of the 10 small meshes the taxi, the bus and the stop used to
+          be — and the same two meshes take 8 draw calls off a built city. */}
+      <instancedMesh
+        ref={plateRef}
+        args={[plateGeo, undefined, plateInstances]}
+        frustumCulled={false}
+      >
+        <meshStandardMaterial color="#ffffff" roughness={0.92} metalness={0.02} />
+      </instancedMesh>
+      <instancedMesh ref={postRef} args={[postGeo, undefined, postInstances]} frustumCulled={false}>
+        <meshStandardMaterial color="#ffffff" roughness={0.9} metalness={0.05} />
+      </instancedMesh>
 
       {/* Chat bubbles — binary small talk */}
       {bubbleTextures.map((tex, i) => (

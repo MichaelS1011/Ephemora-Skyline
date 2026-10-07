@@ -3,8 +3,12 @@
  *
  * Built from the street lines (district boundaries, plaza ring) plus the
  * plaza lanes between the file buildings. Nodes sit on the curb line of
- * every street, both sides, evenly spaced. Edges connect:
- * - along each curb (consecutive nodes of one side)
+ * every street, both sides, evenly spaced — and they stop at the mouth of a
+ * side street, because that stretch of the curb line is the other street's
+ * carriageway. The corner nodes of the two lines are close enough to link, so
+ * the kerb wraps around the junction instead of running through it.
+ * Edges connect:
+ * - along each curb (consecutive nodes of one side, within one stretch)
  * - across the asphalt every few nodes (crosswalk — also rendered as stripes)
  * - wherever two lines pass close (street corners, lane intersections)
  *
@@ -40,6 +44,18 @@ const LINK_RADIUS = 2.9;
 /** Every n-th interior node pair on a street gets a crosswalk. */
 const CROSSWALK_EVERY = 5;
 const MAX_CROSSWALKS = 60;
+/**
+ * Half a carriageway. `RoadSystem` paints asphalt 3.8 wide and so does the open
+ * world's own grid, so a point nearer than this to a street's centre line is
+ * standing on road — a kerb node there is a figure in a lane.
+ */
+const CARRIAGE_HALF = 1.9;
+/** Clearance a kerb node keeps from the lane of the street running into it. The
+ *  mouth of a side street is where the walking surface ends; the corner link
+ *  picks the walker up on the other side of it. */
+const MOUTH_CLEARANCE = 0.22;
+/** A kerb stretch shorter than this is the corner itself, not a place to stand. */
+const MOUTH_MIN_STUB = 0.6;
 
 /** Plaza lanes: clear walking lines BETWEEN the plaza's file buildings. */
 export function plazaLanes(
@@ -75,6 +91,100 @@ export function plazaLanes(
   return lanes;
 }
 
+/**
+ * Where the walking surface of one line is interrupted, stated in the line's own
+ * along-coordinates: `a` to `b` is a stretch a figure can stand on.
+ */
+interface Span {
+  a: number;
+  b: number;
+}
+
+/** Narrow `out` to the u where lo < v + k*u < hi holds. False when the u range
+ *  comes out empty, or when a constant `k` already fails the inequality. */
+function clipToStrip(v: number, k: number, lo: number, hi: number, out: Span): boolean {
+  if (Math.abs(k) < 1e-9) return v > lo && v < hi;
+  const a = (lo - v) / k;
+  const b = (hi - v) / k;
+  out.a = Math.max(out.a, Math.min(a, b));
+  out.b = Math.min(out.b, Math.max(a, b));
+  return out.a < out.b;
+}
+
+/**
+ * The kerb stretches of `line` that no carriageway runs over.
+ *
+ * A side street's mouth is not a kerb: it is where the sidewalk stops and the
+ * junction begins. Every street that crosses this line cuts a stretch out of it,
+ * both sides are asked and the wider cut wins — so the two kerb sides keep one
+ * node grid and a crosswalk link still pairs a node with the node directly
+ * opposite it. A line left with no stretch worth standing on keeps its full
+ * placement, because a stranded kerb line is worse than one node too close to a
+ * lane (streets drawn on top of each other do happen in a city).
+ */
+function kerbSpans(
+  line: StreetLine,
+  streets: StreetLine[],
+  len: number,
+  ux: number,
+  uz: number,
+  nx: number,
+  nz: number,
+): Span[] {
+  const cuts: Span[] = [];
+  for (const s of streets) {
+    if (s === line) continue;
+    const sdx = s.x2 - s.x1;
+    const sdz = s.z2 - s.z1;
+    const slen = Math.hypot(sdx, sdz);
+    if (slen < 3) continue;
+    const sx = sdx / slen;
+    const sz = sdz / slen;
+    const snx = -sz;
+    const snz = sx;
+    const reach = CARRIAGE_HALF + MOUTH_CLEARANCE;
+    for (const side of [1, -1]) {
+      // the kerb point at along-coordinate u: start + u*dir + side*CURB*normal
+      const ox = line.x1 + nx * CURB_OFFSET * side;
+      const oz = line.z1 + nz * CURB_OFFSET * side;
+      const span: Span = { a: 0, b: len };
+      // across the other street: |perpendicular| < reach is its lane
+      if (
+        !clipToStrip(
+          (ox - s.x1) * snx + (oz - s.z1) * snz,
+          ux * snx + uz * snz,
+          -reach,
+          reach,
+          span,
+        )
+      )
+        continue;
+      // and it has to be within that street's own span to be a mouth
+      if (
+        !clipToStrip(
+          (ox - s.x1) * sx + (oz - s.z1) * sz,
+          ux * sx + uz * sz,
+          -reach,
+          slen + reach,
+          span,
+        )
+      )
+        continue;
+      cuts.push({ a: span.a, b: span.b });
+    }
+  }
+  cuts.sort((p, q) => p.a - q.a);
+  const free: Span[] = [];
+  let u = 0;
+  for (const c of cuts) {
+    if (c.a > u + 1e-6) free.push({ a: u, b: Math.min(c.a, len) });
+    if (c.b > u) u = c.b;
+  }
+  if (u < len - 1e-6) free.push({ a: Math.max(u, 0), b: len });
+  const stubs = free.filter((f) => f.b - f.a >= MOUTH_MIN_STUB);
+  return stubs.length > 0 ? stubs : [{ a: 0, b: len }];
+}
+
 export function buildSidewalkNetwork(
   streets: StreetLine[],
   lanes: StreetLine[] = [],
@@ -105,16 +215,31 @@ export function buildSidewalkNetwork(
     const uz = dz / len;
     const nx = -uz;
     const nz = ux;
-    const count = Math.max(2, Math.round(len / NODE_STEP) + 1);
+    // The kerb breaks wherever a carriageway runs into it, so that no node of
+    // this graph — every one of them a place a figure can stand — is on road.
+    const spans = kerbSpans(line, streets, len, ux, uz, nx, nz);
     const sideA: number[] = [];
     const sideB: number[] = [];
-    for (let i = 0; i < count; i++) {
-      const t = i / (count - 1);
-      const px = line.x1 + dx * t;
-      const pz = line.z1 + dz * t;
-      sideA.push(addNode(px + nx * CURB_OFFSET, pz + nz * CURB_OFFSET));
-      sideB.push(addNode(px - nx * CURB_OFFSET, pz - nz * CURB_OFFSET));
+    const along: number[] = [];
+    for (const sp of spans) {
+      const segLen = sp.b - sp.a;
+      const count = Math.max(2, Math.round(segLen / NODE_STEP) + 1);
+      for (let k = 0; k < count; k++) {
+        const u = sp.a + (segLen * k) / (count - 1);
+        along.push(u);
+        sideA.push(
+          addNode(line.x1 + ux * u + nx * CURB_OFFSET, line.z1 + uz * u + nz * CURB_OFFSET),
+        );
+        sideB.push(
+          addNode(line.x1 + ux * u - nx * CURB_OFFSET, line.z1 + uz * u - nz * CURB_OFFSET),
+        );
+      }
     }
+    // The kerb breaks where the mouth is, but the walk does not: the two ends of
+    // the stretch either side of a side street are still one step apart, and
+    // stepping over a mouth is what a kerb at a junction is for. That is the
+    // case `openWorldStreets.atStreetMouth` declares legal — a crossing there is
+    // not a jaywalk, only a crossing in the middle of a block has to be a zebra.
     for (let i = 0; i + 1 < sideA.length; i++) {
       link(sideA[i]!, sideA[i + 1]!);
       link(sideB[i]!, sideB[i + 1]!);
@@ -122,11 +247,11 @@ export function buildSidewalkNetwork(
     if (!isStreet) continue;
     for (let i = 2; i + 2 < sideA.length; i += CROSSWALK_EVERY) {
       if (crosswalks.length >= MAX_CROSSWALKS) break lines;
-      const t = i / (count - 1);
+      const u = along[i]!;
       link(sideA[i]!, sideB[i]!);
       crosswalks.push({
-        x: line.x1 + dx * t,
-        z: line.z1 + dz * t,
+        x: line.x1 + ux * u,
+        z: line.z1 + uz * u,
         rotY: -Math.atan2(dz, dx),
       });
     }

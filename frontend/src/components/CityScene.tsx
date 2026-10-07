@@ -4,10 +4,24 @@ import { useEffect, useMemo, useRef } from "react";
 import { useThree } from "@react-three/fiber";
 import { useStore } from "../stores/useStore";
 import { getDirLayout, OVERVIEW_FACTOR } from "../city/layout";
+import { OPEN_WORLD_DIRECT_STEP, buildOpenWorld } from "../city/openWorldStreets";
 import { ENV } from "../city/palette";
+import { SkyDome } from "../render/SkyDome";
+import { SUN_POSITION } from "../render/sky";
+import {
+  grownFootprint,
+  groundFrameRadius,
+  makeGroundMaterial,
+  setGroundFrame,
+} from "../render/ground";
+import { CELL_SPREAD } from "./HeatCells";
 import { CameraRig } from "./CameraRig";
 import { CityTree } from "./CityTree";
 import { Pedestrians } from "./Pedestrians";
+
+/** The empty world's crowd is smaller than a city's, and its street network is
+ *  built once at module scope, not per render. */
+const OPEN_WORLD_COUNT = 46;
 
 /**
  * A daylight city: broad skylight, warm key light, cool fill,
@@ -20,6 +34,12 @@ export function CityScene() {
   const buildStartedAt = useStore((s) => s.buildStartedAt);
   const buildPhase = useStore((s) => s.buildPhase);
   const { camera, gl } = useThree();
+
+  /** The open world's own grid: streets, kerbs, zebra crossings, block pads and
+   *  the graph the Ephe's walk on before any folder has been scanned. Built
+   *  once — it is deterministic, and a rebuild would move the kerbs under the
+   *  figures standing on them. */
+  const openWorld = useMemo(() => buildOpenWorld(), []);
 
   // Preserve daylight midtones without clipping light facades.
   useEffect(() => {
@@ -75,35 +95,73 @@ export function CityScene() {
     });
   }, [cityData, buildPhase, buildStartedAt, requestFly]);
 
-  const bounds = useMemo(() => {
-    if (!cityData) return 60;
-    return getDirLayout(cityData, focusPath).bounds;
+  const frame = useMemo(() => {
+    if (!cityData) return { bounds: 60, centre: { x: 0, z: 0 }, radius: 60 };
+    const layout = getDirLayout(cityData, focusPath);
+    // The floor's ruler is what actually covers the floor: the far-zoom heat
+    // cells overhang their plots by `CELL_SPREAD`, while `bounds` carries the
+    // layout's 12-unit street margin. Aiming the ramp at `bounds` made the
+    // untouched band drift with the size of the level — see render/ground.ts.
+    const radius = groundFrameRadius(
+      [
+        ...layout.buildings.map((b) => grownFootprint(b, CELL_SPREAD.building)),
+        ...layout.blocks.map((b) => grownFootprint(b, CELL_SPREAD.block)),
+      ],
+      layout.centre,
+    );
+    return { bounds: layout.bounds, centre: layout.centre, radius };
   }, [cityData, focusPath]);
+  const { bounds } = frame;
+
+  // The ground's haze ramp is aimed at the level that is on screen. `centre`,
+  // not the world origin: an organic level's buildings sit wherever their
+  // Voronoi cells put them.
+  const groundMaterial = useMemo(() => makeGroundMaterial(), []);
+  useEffect(() => {
+    setGroundFrame(groundMaterial, frame.centre, frame.radius);
+  }, [groundMaterial, frame.centre, frame.radius]);
+  useEffect(() => () => groundMaterial.dispose(), [groundMaterial]);
 
   return (
     <>
       <CameraRig />
 
       {/* Soft daylight keeps buildings and citizens readable without glow. */}
-      {/* The canvas has no clear colour of its own, so past the edge of the
-          ground plane the world dissolved into the HUD's page charcoal. */}
+      {/* The dome paints the sky; the background colour behind it is only the
+          fallback for the frame before the first render, and it is the SAME
+          tone the dome converges to at the horizon. */}
       <color attach="background" args={[ENV.skyTop]} />
+      <SkyDome />
       <hemisphereLight args={["#e5f4ff", "#9caeb2", 2.2]} />
-      <directionalLight position={[60, 55, 30]} intensity={2.1} color="#fff4df" />
+      <directionalLight position={SUN_POSITION} intensity={2.1} color="#fff4df" />
       <directionalLight position={[-45, 35, -35]} intensity={0.85} color="#c6e4ff" />
       <ambientLight intensity={0.65} />
       {/* Atmosphere scales with the current district size. `near` starts past
           the far edge of the plaza, so the city itself is never hazed away. */}
       <fog attach="fog" args={[ENV.fog, bounds * 2.2, bounds * 4 + 220]} />
-      {/* Asphalt ground */}
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.05, 0]}>
+      {/* Asphalt ground — graded toward the haze, see render/ground.ts */}
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.05, 0]} material={groundMaterial}>
         <planeGeometry args={[1200, 1200]} />
-        <meshStandardMaterial color={ENV.ground} roughness={0.96} metalness={0.02} />
       </mesh>
 
       {/* The Ephe's — ambient citizens. They live on the empty world already
-          and keep walking the streets once the city has risen between them. */}
-      {!cityData && <Pedestrians streets={null} count={46} bounds={42} />}
+          and keep walking the streets once the city has risen between them.
+          Before the first scan the world has its OWN small street network
+          (city/openWorldStreets.ts): curbs to walk a graph along, a zebra to
+          cross on, a stop to wait at — and therefore a bus and a cab to drive.
+          The plates are handed to Pedestrians because the traffic that uses this
+          road is driven there, and both worlds then share one box mesh and one
+          cylinder mesh for all of it. */}
+      {!cityData && (
+        <Pedestrians
+          streets={openWorld.streets}
+          network={openWorld.network}
+          streetPlates={openWorld.plates}
+          directStep={OPEN_WORLD_DIRECT_STEP}
+          count={OPEN_WORLD_COUNT}
+          bounds={openWorld.bounds}
+        />
+      )}
 
       {cityData && <CityTree />}
     </>
