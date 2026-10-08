@@ -194,16 +194,26 @@ async function abortRun(
   resultFetches: number;
 }> {
   if (point === "reading") {
-    let releaseSecond: (() => void) | null = null;
+    // Declared as a function, not as `(() => void) | null`: a local `let` that is
+    // only assigned inside a callback keeps the `null` narrowing at the call
+    // site, and the call would be a type error instead of a proof. The
+    // placeholder fails loudly if the run never reaches the second read.
+    let releaseSecond: () => void = () => {
+      throw new Error("the second read never started — the abort point moved");
+    };
     const files = [
       withPath(fakeFile("a.ts")),
-      withPath(fakeFile("b.ts", (r) => (releaseSecond = r))),
+      withPath(
+        fakeFile("b.ts", (release) => {
+          releaseSecond = release;
+        }),
+      ),
       withPath(fakeFile("c.ts")),
     ];
     await choose(files);
     expect(readCalls.length, "the read never started").toBeGreaterThan(0);
     await cancelNow();
-    releaseSecond?.();
+    releaseSecond();
     uploadGate?.();
     await act(async () => {
       await wait(120);
