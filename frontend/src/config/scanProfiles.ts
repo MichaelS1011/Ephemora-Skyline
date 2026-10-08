@@ -263,15 +263,82 @@ export function configPayload(
   profile: ScanProfile,
   categories: FindingCategory[] = [],
   rulePacks: string[] = [],
+  excludePaths: string[] = [],
 ): {
   profile: ScanProfile;
   enabledCategories?: FindingCategory[];
   rulePacks?: string[];
+  excludePaths?: string[];
 } {
   const enabledCategories = enabledCategoriesPayload(categories);
+  const excludes = normalizeExcludes(excludePaths);
   return {
     profile: profile === "custom" ? "standard" : profile,
     ...(enabledCategories.length > 0 ? { enabledCategories } : {}),
     ...(rulePacks.length > 0 ? { rulePacks } : {}),
+    ...(excludes.length > 0 ? { excludePaths: excludes } : {}),
   };
+}
+
+// ── Exclude folders ────────────────────────────────────────────────────────
+/**
+ * The way out of a folder that is bigger than the upload cap. Without it the
+ * 3000-file limit is a wall: 31 s of reading, then "aborted", with nothing the
+ * user can do except pick a smaller folder. Exclusions work on both sides — the
+ * browser's reader never opens them, the server never stages them — and every
+ * file they remove is counted, so the number never quietly becomes smaller.
+ */
+export const MAX_EXCLUDE_PATHS = 50;
+const MAX_EXCLUDE_LEN = 120;
+const EXCLUDE_KEY = "codecity-scan-excludes";
+
+/** Split the free-text field into path needles: "generated, fixtures/build". */
+export function parseExcludes(raw: string): string[] {
+  return normalizeExcludes(raw.split(/[,;\n]/));
+}
+
+/** Trim, de-noise, dedupe and cap a list of needles. */
+export function normalizeExcludes(list: readonly string[]): string[] {
+  const out: string[] = [];
+  for (const entry of list) {
+    const needle = String(entry ?? "")
+      .trim()
+      .replace(/^\.?\//, "")
+      .replace(/\/+$/, "");
+    // A blank needle matches every path (`"x".includes("")` is true), and a
+    // parent segment has no business in an exclude list. Inner slashes stay
+    // useful: "fixtures/build" is a real thing to exclude.
+    if (needle.length === 0 || needle.includes("..")) continue;
+    if (needle.length > MAX_EXCLUDE_LEN) continue;
+    if (!out.includes(needle)) out.push(needle);
+    if (out.length >= MAX_EXCLUDE_PATHS) break;
+  }
+  return out;
+}
+
+/**
+ * The walker rule, identical to the server's: a needle is a substring of the
+ * project-relative path. Empty needles are dropped rather than honoured.
+ */
+export function isExcludedPath(relativePath: string, needles: readonly string[]): boolean {
+  return needles.some((needle) => needle.length > 0 && relativePath.includes(needle));
+}
+
+export function loadExcludes(): string[] {
+  try {
+    const raw = localStorage.getItem(EXCLUDE_KEY);
+    if (!raw) return [];
+    const parsed: unknown = JSON.parse(raw);
+    return Array.isArray(parsed) ? normalizeExcludes(parsed.map(String)) : [];
+  } catch {
+    return [];
+  }
+}
+
+export function saveExcludes(list: readonly string[]): void {
+  try {
+    localStorage.setItem(EXCLUDE_KEY, JSON.stringify(normalizeExcludes(list)));
+  } catch {
+    /* storage unavailable */
+  }
 }

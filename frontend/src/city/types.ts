@@ -234,6 +234,26 @@ export interface CityData {
    * results scanned before the counter — the panel then says nothing about it.
    */
   skippedByGitignore?: { files: number; directories: number };
+  /**
+   * Files the picked folder held that the scan never read, split by why each one
+   * left. Absent for cities built before the counter existed — then the total is
+   * a total of what was read, and nothing claims the folder was that small.
+   */
+  dropped?: DroppedFiles;
+}
+
+/** The five ways a path in the picked folder can end up unread. */
+export interface DroppedFiles {
+  /** Path longer than the upload's character bound */
+  pathTooLong: number;
+  /** Path rejected as unsafe (absolute, parent segment, NUL) */
+  unsafePath: number;
+  /** File bigger than the per-file cap */
+  tooLarge: number;
+  /** Read failed (permissions, disappearing file) */
+  unreadable: number;
+  /** Left out by the user's own exclude folders */
+  excluded: number;
 }
 
 /** Which unit is currently selected (a rendered file building or a block). */

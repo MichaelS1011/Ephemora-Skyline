@@ -154,6 +154,25 @@ export interface DirectorySummary {
   children: DirectorySummary[];
 }
 
+/**
+ * The five ways a file that exists in the picked folder can end up unread.
+ * Every field is a count of real paths, and every one of them is produced where
+ * the path actually left: `pathTooLong`/`unsafePath`/`tooLarge`/`excluded` at the
+ * upload boundary, `unreadable`/`tooLarge` while the pipeline reads.
+ */
+export interface DroppedFiles {
+  /** Path longer than the upload's character bound */
+  pathTooLong: number;
+  /** Path rejected as unsafe (absolute, parent segment, NUL) */
+  unsafePath: number;
+  /** File bigger than the per-file cap */
+  tooLarge: number;
+  /** Read failed (permissions, disappearing file) */
+  unreadable: number;
+  /** Left out by the user's own exclude folders */
+  excluded: number;
+}
+
 export interface ProjectSummary {
   totalFiles: number;
   totalDirectories: number;
@@ -173,6 +192,12 @@ export interface ProjectSummary {
   languagesByLines: Record<string, number>;
   /** Entries the project's own .gitignore kept out of the scan */
   skippedByGitignore?: { files: number; directories: number };
+  /**
+   * Files the picked folder held that the scan never read, split by why each
+   * one left. Without this the total is a rounding: 32 files shown for a folder
+   * of 62 reads as "this repo is small", not as "30 paths went unread".
+   */
+  dropped?: DroppedFiles;
   /** Which scanners actually contributed to this result ("complete" can be regex-only) */
   scanProvenance?: {
     regex: boolean;

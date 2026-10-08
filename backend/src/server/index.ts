@@ -26,6 +26,7 @@ import { handleStatus } from "./routes/status.js";
 import { bindHost, isLoopbackHost } from "./bind-address.js";
 import {
   footprintSnapshot,
+  handleCancelLocalAnalyze,
   handleLocalAnalyze,
   pruneStaleUploadDirs,
   purgeStaleCopies,
@@ -115,31 +116,66 @@ const createOrchestrator = (config: ResolvedScanConfig): AnalysisOrchestrator =>
 // ── Rate limiting ─────────────────────────────────────────────────────────
 // Read endpoints get a generous budget (browsing a city should never lock
 // a user out); the expensive analysis endpoint stays strictly limited.
+//
+// Progress polling is NOT a read of the user's data: it is the app asking its own
+// server whether the scan it already paid for is done. Counting it spent 30 of
+// 600 budget slots per minute for a single running scan, so the one action a
+// nervous user takes (watching the bar) was the thing that locked them out.
+const READ_WINDOW_MS = 15 * 60 * 1000;
+
+/**
+ * The three calls one running scan makes: its progress, its upload, and the
+ * abort that throws the upload away. The upload and the cancel are writes with
+ * their own budget (`localAnalyzeLimiter`, 120 per 15 min) and a loopback guard,
+ * so putting them inside the read budget charged a scan twice for itself.
+ */
+const READ_BUDGET_EXEMPT = /^\/api\/(status\/[^/]+|analyze-local(\/[0-9a-f-]+\/cancel)?)$/;
+
+/** The reset seconds the server itself announced, or the whole window. */
+function resetSeconds(res: Response, fallback: number): number {
+  const announced = Number(res.getHeader("RateLimit-Reset"));
+  return Number.isFinite(announced) && announced > 0 ? Math.round(announced) : fallback;
+}
+
 const readLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
+  windowMs: READ_WINDOW_MS,
   max: 600,
   standardHeaders: true,
   legacyHeaders: false,
+  skip: (req) => READ_BUDGET_EXEMPT.test(req.originalUrl),
+  message: (_req: Request, res: Response) => ({
+    error: "Too many requests, please try again later.",
+    code: "rate_limited",
+    retryAfterSeconds: resetSeconds(res, Math.ceil(READ_WINDOW_MS / 1000)),
+  }),
 });
 
 // The local-folder route serves the main UI flow of a single-user local tool —
 // a generous budget instead of the shared analyze limit
 const localAnalyzeLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
+  windowMs: READ_WINDOW_MS,
   max: 120,
   standardHeaders: true,
   legacyHeaders: false,
-  message: { error: "Too many analyses — take a short break." },
+  message: (_req: Request, res: Response) => ({
+    error: "Too many analyses — take a short break.",
+    code: "rate_limited",
+    retryAfterSeconds: resetSeconds(res, Math.ceil(READ_WINDOW_MS / 1000)),
+  }),
 });
 
 // A test run installs packages and executes the scanned project's own code, so
 // it is not on the generous read budget the polling endpoint shares
 const testRunLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
+  windowMs: READ_WINDOW_MS,
   max: 10,
   standardHeaders: true,
   legacyHeaders: false,
-  message: { error: "Too many test runs — give the finished one a moment." },
+  message: (_req: Request, res: Response) => ({
+    error: "Too many test runs — give the finished one a moment.",
+    code: "rate_limited",
+    retryAfterSeconds: resetSeconds(res, Math.ceil(READ_WINDOW_MS / 1000)),
+  }),
 });
 
 // ── Middleware ─────────────────────────────────────────────────────────────
@@ -195,6 +231,18 @@ app.post(
   localAnalyzeLimiter,
   async (req: Request, res: Response): Promise<void> => {
     await handleLocalAnalyze(req, res, createOrchestrator, analysisStore);
+  },
+);
+
+// POST /api/analyze-local/:id/cancel — throw a running local scan away. The job
+// leaves the store, its progress stops, and the staged copy of the user's source
+// is deleted instead of sitting out its TTL. Guarded like every route that acts
+// on the machine, though it only ever destroys work this same client started.
+app.post(
+  "/api/analyze-local/:id/cancel",
+  localOnlyRoute,
+  async (req: Request, res: Response): Promise<void> => {
+    await handleCancelLocalAnalyze(req, res, analysisStore);
   },
 );
 

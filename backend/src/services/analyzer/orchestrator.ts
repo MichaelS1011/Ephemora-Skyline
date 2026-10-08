@@ -15,6 +15,7 @@ import path from "path";
 import pino from "pino";
 import type {
   AnalysisResult,
+  DroppedFiles,
   FileAnalysis,
   ProjectSummary,
   GitHubRepo,
@@ -103,6 +104,42 @@ export function isArtifactPath(relativePath: string): boolean {
 }
 
 /**
+ * The user's own exclude folders, applied the same way on the server as in the
+ * browser's reader: a needle is a substring of the project-relative path. Empty
+ * needles are ignored rather than honoured — `path.includes("")` is true for
+ * every file, so an accidental blank entry would silently empty the city.
+ */
+export function isExcludedPath(relativePath: string, needles: string[]): boolean {
+  return needles.some((needle) => needle.length > 0 && relativePath.includes(needle));
+}
+
+/** The five counters, all at zero. */
+export function emptyDroppedFiles(): DroppedFiles {
+  return { pathTooLong: 0, unsafePath: 0, tooLarge: 0, unreadable: 0, excluded: 0 };
+}
+
+/** Sum of two accounting records — the upload side and the read side. */
+export function sumDroppedFiles(...records: Array<DroppedFiles | undefined>): DroppedFiles {
+  const total = emptyDroppedFiles();
+  for (const record of records) {
+    if (!record) continue;
+    for (const key of Object.keys(total) as Array<keyof DroppedFiles>) {
+      const value = record[key];
+      total[key] += Number.isFinite(value) && value > 0 ? Math.floor(value) : 0;
+    }
+  }
+  return total;
+}
+
+/** Thrown when the person who started a scan asked for it to stop. */
+export class ScanCancelledError extends Error {
+  constructor() {
+    super("Analysis cancelled");
+    this.name = "ScanCancelledError";
+  }
+}
+
+/**
  * The ONE place that decides whether a path joins the scan: source-shaped
  * (extension or env file) and no segment that names tool output. Both the
  * directory walk and the candidate loop read this decision.
@@ -134,6 +171,10 @@ export class AnalysisOrchestrator {
    * Phases 2-5 over a directory that already exists on disk (the staged
    * local-folder upload from POST /api/analyze-local). Does NOT clean up
    * dirPath — the caller owns the directory lifecycle.
+   *
+   * `shouldStop` is checked at every phase boundary and between parse batches:
+   * an abandoned scan stops within one batch instead of running to completion
+   * over files nobody is waiting for any more.
    */
   async analyzeDirectory(
     analysisId: string,
@@ -141,6 +182,7 @@ export class AnalysisOrchestrator {
     repo: GitHubRepo,
     progressCallback?: ProgressCallback,
     config?: ResolvedScanConfig,
+    shouldStop?: () => boolean,
   ): Promise<AnalysisResult> {
     const startTime = Date.now();
     if (config) this.scanner.setConfig(config);
@@ -150,8 +192,12 @@ export class AnalysisOrchestrator {
       this.logger.debug({ progress, stage }, "Progress event");
       progressCallback?.(event);
     };
+    const stop = (): void => {
+      if (shouldStop?.()) throw new ScanCancelledError();
+    };
 
     // --- Phase 2: Enumerate files ---
+    stop();
     emit(25, "Enumerating files");
 
     const allFiles: string[] = [];
@@ -166,6 +212,7 @@ export class AnalysisOrchestrator {
     );
 
     // --- Phase 3: Parse + Scan each file ---
+    stop();
     emit(30, "Parsing files");
 
     // Whole-clone batch scans (gitleaks, semgrep) replace per-file process
@@ -174,6 +221,8 @@ export class AnalysisOrchestrator {
 
     const fileAnalyses: FileAnalysis[] = [];
     const languageLines: Record<string, number> = {};
+    /** Why a staged file did not join the scan — counted here, not assumed away */
+    const dropped = emptyDroppedFiles();
     // Duplicate detection needs the raw lines — collected alongside parsing
     // (content is otherwise not persisted)
     const contentMap = new Map<string, string>();
@@ -188,71 +237,90 @@ export class AnalysisOrchestrator {
         const lang = languageOfPath(relativePath);
         if (!config.languageScope.includes(lang)) continue;
       }
-      if (config?.excludePaths?.some((needle) => relativePath.includes(needle))) continue;
+      if (isExcludedPath(relativePath, config?.excludePaths ?? [])) {
+        dropped.excluded += 1;
+        continue;
+      }
       candidateFiles.push({ fullPath: filePath, relativePath });
     }
 
     const PARALLEL_BATCH_SIZE = 16;
     for (let i = 0; i < candidateFiles.length; i += PARALLEL_BATCH_SIZE) {
+      stop();
       const batch = candidateFiles.slice(i, i + PARALLEL_BATCH_SIZE);
       const results = await Promise.all(
-        batch.map(async ({ fullPath, relativePath }) => {
-          try {
-            const content = await fs.readFile(fullPath, "utf-8");
-            // Skip oversized files
-            if (content.length > MAX_FILE_SIZE) return null;
+        batch.map(
+          async ({ fullPath, relativePath }): Promise<FileAnalysis | "tooLarge" | "unreadable"> => {
+            try {
+              const content = await fs.readFile(fullPath, "utf-8");
+              // Skip oversized files
+              if (content.length > MAX_FILE_SIZE) return "tooLarge";
 
-            const lines = countLines(content);
-            const language = detectLanguage(relativePath);
-            // Data has lines but no behaviour: no control flow to score, no
-            // functions to name, no imports to draw edges from.
-            const dataFile = isDataFile(relativePath, language);
-            const cyclomatic = dataFile ? 1 : estimateCyclomaticComplexity(content, language);
+              const lines = countLines(content);
+              const language = detectLanguage(relativePath);
+              // Data has lines but no behaviour: no control flow to score, no
+              // functions to name, no imports to draw edges from.
+              const dataFile = isDataFile(relativePath, language);
+              const cyclomatic = dataFile ? 1 : estimateCyclomaticComplexity(content, language);
 
-            const vulnerabilities = await this.scanner.scanFile(relativePath, content);
-            const { imports: rawImports, exports: fileExports } = dataFile
-              ? { imports: [], exports: [] }
-              : this.scanner.scanFileStructure(relativePath, content);
-            const imports = rawImports.map((imp) => ({ ...imp, line: 0 }));
+              const vulnerabilities = await this.scanner.scanFile(relativePath, content);
+              const { imports: rawImports, exports: fileExports } = dataFile
+                ? { imports: [], exports: [] }
+                : this.scanner.scanFileStructure(relativePath, content);
+              const imports = rawImports.map((imp) => ({ ...imp, line: 0 }));
 
-            // Extract functions (simple regex-based)
-            const functions = dataFile ? [] : extractFunctions(content);
-            const classes = dataFile ? [] : extractClasses(content);
-            // Voxel sections (CodeBlocks): blocks from the found structure
-            const sections = dataFile
-              ? []
-              : extractSections(relativePath, content, { functions, classes });
+              // Extract functions (simple regex-based)
+              const functions = dataFile ? [] : extractFunctions(content);
+              const classes = dataFile ? [] : extractClasses(content);
+              // Voxel sections (CodeBlocks): blocks from the found structure
+              const sections = dataFile
+                ? []
+                : extractSections(relativePath, content, { functions, classes });
 
-            const analysis: FileAnalysis = {
-              path: relativePath,
-              language,
-              lines,
-              bytes: Buffer.byteLength(content, "utf-8"),
-              complexity: { cyclomatic },
-              functions,
-              classes,
-              sections,
-              imports,
-              exports: fileExports.map((e) => ({
-                type: e.type as "named" | "default" | "reexport",
-                name: e.name,
-                line: 0, // would need AST for line numbers
-              })),
-              vulnerabilities,
-            };
+              const analysis: FileAnalysis = {
+                path: relativePath,
+                language,
+                lines,
+                bytes: Buffer.byteLength(content, "utf-8"),
+                complexity: { cyclomatic },
+                functions,
+                classes,
+                sections,
+                imports,
+                exports: fileExports.map((e) => ({
+                  type: e.type as "named" | "default" | "reexport",
+                  name: e.name,
+                  line: 0, // would need AST for line numbers
+                })),
+                vulnerabilities,
+              };
 
-            contentMap.set(relativePath, content);
-            return analysis;
-          } catch {
-            return null;
-          }
-        }),
+              contentMap.set(relativePath, content);
+              return analysis;
+            } catch {
+              return "unreadable";
+            }
+          },
+        ),
       );
 
       for (const res of results) {
-        if (!res) continue;
+        if (res === "tooLarge") {
+          dropped.tooLarge += 1;
+          continue;
+        }
+        if (res === "unreadable") {
+          dropped.unreadable += 1;
+          continue;
+        }
         fileAnalyses.push(res);
         languageLines[res.language] = (languageLines[res.language] || 0) + res.lines.code;
+      }
+      // A share of the files actually parsed, not a jump: the bar used to sit at
+      // 30% for the whole read and then leap to 88%.
+      if (candidateFiles.length > 0) {
+        const done = Math.min(candidateFiles.length, i + PARALLEL_BATCH_SIZE);
+        emit(30 + Math.round((done / candidateFiles.length) * 55), "Parsing files");
       }
     }
 
@@ -276,6 +344,7 @@ export class AnalysisOrchestrator {
       duplicatesRan: false,
       coverageRan: false,
     };
+    stop();
     try {
       emit(88, "Deep scan (semgrep + gitleaks)");
       const batch = await this.scanner.scanRepositoryBatch(dirPath, fileAnalyses, {
@@ -293,6 +362,7 @@ export class AnalysisOrchestrator {
     }
 
     // --- Phase 3c: Dependency scan (npm audit) — supply-chain findings ---
+    stop();
     try {
       emit(89, "Dependency audit (npm)");
       const deps = await this.scanner.scanDependencies(dirPath, fileAnalyses);
@@ -302,6 +372,7 @@ export class AnalysisOrchestrator {
     }
 
     // --- Phase 3d: Git churn (hotspot analysis, clone-based scans only) ---
+    stop();
     try {
       if (await hasGitHistory(dirPath)) {
         emit(90, "Analyzing git history");
@@ -324,6 +395,7 @@ export class AnalysisOrchestrator {
     }
 
     // --- Phase 3e: Code duplicates (copy-paste detection) ---
+    stop();
     try {
       if (contentMap.size > 1) {
         emit(91, "Detecting code duplicates");
@@ -340,6 +412,7 @@ export class AnalysisOrchestrator {
     }
 
     // --- Phase 3f: Test coverage (read existing lcov reports, never run tests) ---
+    stop();
     try {
       emit(92, "Reading coverage reports");
       const cov = await collectCoverage(dirPath);
@@ -355,6 +428,7 @@ export class AnalysisOrchestrator {
     }
 
     // --- Phase 5: Aggregate summary ---
+    stop();
     const totalLines = fileAnalyses.reduce((sum, f) => sum + f.lines.total, 0);
     const totalVulns = fileAnalyses.reduce((sum, f) => sum + f.vulnerabilities.length, 0);
     const vulnerabilitiesBySeverity = this.scanner.countBySeverity(
@@ -380,6 +454,8 @@ export class AnalysisOrchestrator {
       // What the project itself declared "not source" — a scan that hides this
       // number lets an empty district read as a clean one.
       skippedByGitignore,
+      // Files that were staged but never joined the scan, counted at the read
+      dropped,
       // Honest provenance: "complete" doesn't imply semgrep/gitleaks ran
       scanProvenance: {
         regex: true,

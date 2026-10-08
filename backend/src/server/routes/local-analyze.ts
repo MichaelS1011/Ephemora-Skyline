@@ -1,7 +1,13 @@
 import type { Request, Response } from "express";
 import type { AnalysisOrchestrator } from "../../services/analyzer/orchestrator.js";
-import { supportedExtensionsLabel } from "../../services/analyzer/orchestrator.js";
-import type { AnalysisResult, GitHubRepo } from "../../models/index.js";
+import {
+  supportedExtensionsLabel,
+  emptyDroppedFiles,
+  isExcludedPath,
+  sumDroppedFiles,
+  ScanCancelledError,
+} from "../../services/analyzer/orchestrator.js";
+import type { AnalysisResult, DroppedFiles, GitHubRepo } from "../../models/index.js";
 import { promises as fs, type Dirent } from "fs";
 import os from "os";
 import path from "path";
@@ -11,11 +17,16 @@ import { resolveConfig, type ResolvedScanConfig } from "../../services/security/
 import { isOffline } from "../../services/security/network-policy.js";
 
 /** Upload caps — a local dev folder should always fit comfortably */
-const MAX_FILES = 3000;
+export const MAX_FILES = 3000;
 const MAX_TOTAL_BYTES = 40 * 1024 * 1024;
 const MAX_FILE_BYTES = 2 * 1024 * 1024; // matches the pipeline's MAX_FILE_SIZE
 const MAX_NAME_LEN = 80;
-const MAX_PATH_LEN = 512;
+/**
+ * Path bound of the upload. Real deep trees (Java/Kotlin module layouts) do hit
+ * it, so a path that leaves here is counted in `dropped.pathTooLong` and the
+ * number reaches the city payload — an invisible cap is a defect, not a limit.
+ */
+export const MAX_PATH_LEN = 512;
 /**
  * The .git folder rides along so the scanner can read real git history
  * (churn, author districts). Binary payloads arrive base64-encoded and live
@@ -52,6 +63,79 @@ export function getStagedDir(analysisId: string): string | null {
   if (!entry) return null;
   entry.lastUsed = Date.now();
   return entry.dir;
+}
+
+/**
+ * Jobs the person who started them asked to stop.
+ *
+ * Aborting the browser's fetch is only half of an abort: the server has already
+ * staged a copy of the folder and is running the scanners over it. Without this
+ * registry an abandoned scan keeps reading files nobody waits for, keeps its
+ * copy of the source on disk for the full TTL, and can still write a finished
+ * result into the store behind the user's back.
+ */
+const cancelledJobs = new Set<string>();
+/** Jobs whose runner is alive right now — only they may delete their own dir. */
+const runningJobs = new Set<string>();
+
+export function isJobCancelled(analysisId: string): boolean {
+  return cancelledJobs.has(analysisId);
+}
+
+function markCancelled(analysisId: string): void {
+  cancelledJobs.add(analysisId);
+  // Bounded: a long-lived server must not accumulate ids forever. The Set keeps
+  // insertion order, so the oldest cancellation is the one that goes.
+  if (cancelledJobs.size > 200) {
+    const oldest = cancelledJobs.values().next().value;
+    if (oldest !== undefined) cancelledJobs.delete(oldest);
+  }
+}
+
+/** Unregister a staged copy and delete it; true when the directory is gone. */
+async function discardStagedDir(analysisId: string): Promise<boolean> {
+  const entry = STAGED_DIRS.get(analysisId);
+  if (!entry) return false;
+  STAGED_DIRS.delete(analysisId);
+  return fs
+    .rm(entry.dir, { recursive: true, force: true })
+    .then(() =>
+      fs
+        .stat(entry.dir)
+        .then(() => false)
+        .catch(() => true),
+    )
+    .catch(() => false);
+}
+
+/**
+ * POST /api/analyze-local/:id/cancel — throw away a running local scan.
+ * The client that cancels stops its polling on its own; this is the other half:
+ * the job leaves the store, its progress stops, and the staged copy of the
+ * user's source is deleted instead of sitting out its TTL.
+ */
+export async function handleCancelLocalAnalyze(
+  req: Request,
+  res: Response,
+  analysisStore: {
+    get(id: string): AnalysisResult | undefined;
+    delete(id: string): void;
+  },
+): Promise<void> {
+  const id = req.params["id"];
+  if (!id || Array.isArray(id) || !STAGED_DIR_NAME.test(id)) {
+    res.status(400).json({ error: "Missing analysis ID", code: "bad_id" });
+    return;
+  }
+  markCancelled(id);
+  deleteJobProgress(id);
+  const known = analysisStore.get(id) !== undefined;
+  analysisStore.delete(id);
+  // A runner that is still mid-scan deletes its own copy at its next checkpoint
+  // — pulling the directory out from under it would turn a clean abort into a
+  // wall of read errors.
+  const removedNow = runningJobs.has(id) ? false : await discardStagedDir(id);
+  res.json({ cancelled: true, known, stagedRemoved: removedNow });
 }
 
 export function pruneStaleUploadDirs(now: number = Date.now()): Promise<void> {
@@ -199,6 +283,34 @@ export interface UploadedFile {
   encoding?: "base64";
 }
 
+/**
+ * The client's own read accounting, clamped. It arrives with the upload because
+ * a file the browser never opened is invisible to the server: only the reader
+ * knows how many paths it skipped. Garbage in the field degrades to zero rather
+ * than to a number the UI would then quote.
+ */
+export function sanitizeDropped(value: unknown): DroppedFiles {
+  const out = emptyDroppedFiles();
+  if (!value || typeof value !== "object") return out;
+  const raw = value as Record<string, unknown>;
+  for (const key of Object.keys(out) as Array<keyof DroppedFiles>) {
+    const n = raw[key];
+    if (typeof n === "number" && Number.isFinite(n) && n >= 0) {
+      out[key] = Math.min(1_000_000, Math.floor(n));
+    }
+  }
+  return out;
+}
+
+/**
+ * Did the browser hang up? The response side is the reliable witness: a request
+ * whose body was read to the end reports `req.destroyed === true` as a matter of
+ * course, and treating that as an abort swallows every upload.
+ */
+function clientGone(req: Request, res: Response): boolean {
+  return res.destroyed === true || res.writableEnded === true || req.aborted === true;
+}
+
 /** Normalize + validate an uploaded relative path; null when unsafe */
 export function safeRelativePath(raw: string): string | null {
   if (typeof raw !== "string" || raw.length === 0 || raw.length > MAX_PATH_LEN) return null;
@@ -242,7 +354,8 @@ export async function handleLocalAnalyze(
     delete(id: string): void;
   },
 ): Promise<void> {
-  const body = req.body as { name?: unknown; files?: unknown; config?: unknown } | undefined;
+  const body = req.body as
+    { name?: unknown; files?: unknown; config?: unknown; dropped?: unknown } | undefined;
   const name = safeDisplayName(typeof body?.name === "string" ? body.name : "");
   const files = body?.files;
   const { config, errors: configErrors } = resolveConfig(body?.config);
@@ -258,34 +371,66 @@ export async function handleLocalAnalyze(
   if (files.length > MAX_FILES) {
     res.status(400).json({
       error: `Folder too large: ${files.length} files (maximum ${MAX_FILES}). Skip node_modules/dist — Ephemora Skyline ignores them anyway.`,
+      code: "too_many_files",
+      found: files.length,
+      max: MAX_FILES,
     });
     return;
   }
 
   // Validate + normalize everything BEFORE touching the disk
   const cleaned: UploadedFile[] = [];
+  /** Every path that left the scan on the way in, counted rather than dropped */
+  const dropped = sanitizeDropped(body?.dropped);
   let totalBytes = 0;
   let gitBytes = 0;
+  const excludes = config.excludePaths;
   for (const f of files as Array<{ path?: unknown; content?: unknown; encoding?: unknown }>) {
-    if (typeof f?.path !== "string" || typeof f?.content !== "string") continue;
+    if (typeof f?.path !== "string" || typeof f?.content !== "string") {
+      dropped.unsafePath += 1;
+      continue;
+    }
+    // The length bound gets its own counter before the shape checks: a deep
+    // Java/Kotlin tree hits it for real, and "30 of 62 files unread" has to be
+    // a number the user can see rather than a `continue`.
+    if (f.path.length > MAX_PATH_LEN) {
+      dropped.pathTooLong += 1;
+      continue;
+    }
     const rel = safeRelativePath(f.path);
-    if (!rel) continue; // silently drop unsafe paths — the picker only sends real files
+    if (!rel) {
+      dropped.unsafePath += 1;
+      continue;
+    }
     const encoding = f.encoding === "base64" ? "base64" : undefined;
     const byteLen = f.content.length; // chars ≈ bytes upper bound for UTF-8 code files
     if (isGitPath(rel)) {
       if (encoding !== "base64") continue; // binary git data must arrive exactly
       if (byteLen > GIT_MAX_FILE_BYTES * 1.4 || gitBytes + byteLen > GIT_MAX_TOTAL_BYTES * 1.4) {
-        continue; // base64 inflates ~4/3 — cap on the encoded size with headroom
+        dropped.tooLarge += 1; // base64 inflates ~4/3 — cap on the encoded size with headroom
+        continue;
       }
       gitBytes += byteLen;
       cleaned.push({ path: rel, content: f.content, encoding });
       continue;
     }
-    if (byteLen > MAX_FILE_BYTES) continue; // pipeline skips oversized files anyway
+    // The user's exclude folders are honoured here as well as in the walk, so
+    // an excluded subtree neither stages on disk nor counts as source.
+    if (isExcludedPath(rel, excludes)) {
+      dropped.excluded += 1;
+      continue;
+    }
+    if (byteLen > MAX_FILE_BYTES) {
+      dropped.tooLarge += 1;
+      continue; // pipeline skips oversized files anyway
+    }
     totalBytes += byteLen;
     if (totalBytes > MAX_TOTAL_BYTES) {
       res.status(400).json({
         error: `Folder too large: over ${Math.round(MAX_TOTAL_BYTES / 1024 / 1024)}MB of source code. Exclude build artifacts and try again.`,
+        code: "too_much_source",
+        found: cleaned.length,
+        maxBytes: MAX_TOTAL_BYTES,
       });
       return;
     }
@@ -296,9 +441,15 @@ export async function handleLocalAnalyze(
       error:
         "No analyzable source files in that folder — Ephemora Skyline reads: " +
         supportedExtensionsLabel(),
+      code: "no_source",
+      dropped,
     });
     return;
   }
+
+  // The browser can abort this very request (its own "Analyse abbrechen"). Then
+  // nothing must be staged and no job may start for a client that is gone.
+  if (clientGone(req, res)) return;
 
   // Isolated upload dir under the OS temp dir. The staged copy is the user's
   // source code, so it is created owner-only: /tmp is one shared directory, and
@@ -317,13 +468,23 @@ export async function handleLocalAnalyze(
     await fs.chmod(uploadDir, 0o700).catch(() => {});
     for (const f of cleaned) {
       const target = path.resolve(uploadDir, f.path);
-      if (!target.startsWith(uploadDir + path.sep)) continue; // belt and braces
+      if (!target.startsWith(uploadDir + path.sep)) {
+        dropped.unsafePath += 1; // belt and braces — counted, never silently skipped
+        continue;
+      }
       await fs.mkdir(path.dirname(target), { recursive: true, mode: 0o700 });
       const data =
         f.encoding === "base64"
           ? Buffer.from(f.content, "base64")
           : Buffer.from(f.content, "utf-8");
       await fs.writeFile(target, data, { mode: 0o600 });
+    }
+    // The client may have aborted while the copy was being written. Staging is
+    // the user's source code sitting in a temp directory — a scan nobody asked
+    // for any more must not leave it behind.
+    if (clientGone(req, res)) {
+      await fs.rm(uploadDir, { recursive: true, force: true }).catch(() => {});
+      return;
     }
   } catch (error) {
     await fs.rm(uploadDir, { recursive: true, force: true }).catch(() => {});
@@ -341,12 +502,17 @@ export async function handleLocalAnalyze(
     analyzedAt: new Date().toISOString(),
   };
 
-  analysisStore.set(analysisId, makeSkeleton(analysisId, repo));
+  const skeleton = makeSkeleton(analysisId, repo);
+  // The upload-side counts ride on the job from the first moment: a scan that
+  // never finishes still tells how many paths it left out.
+  skeleton.summary.dropped = dropped;
+  analysisStore.set(analysisId, skeleton);
 
   res.status(202).json({
     id: analysisId,
     status: "analyzing",
     statusUrl: `/api/status/${analysisId}`,
+    dropped,
   });
 
   void runLocalAnalysis(
@@ -356,6 +522,7 @@ export async function handleLocalAnalyze(
     createOrchestrator(config),
     analysisStore,
     config,
+    dropped,
   ).catch(() => {});
 }
 
@@ -371,8 +538,10 @@ async function runLocalAnalysis(
     delete(id: string): void;
   },
   config?: ResolvedScanConfig,
+  uploadDropped?: DroppedFiles,
 ): Promise<void> {
   const onEvent = makeProgressWriter(analysisId);
+  runningJobs.add(analysisId);
   try {
     const result = await orchestrator.analyzeDirectory(
       analysisId,
@@ -380,8 +549,14 @@ async function runLocalAnalysis(
       repo,
       onEvent,
       config,
+      () => isJobCancelled(analysisId),
     );
     deleteJobProgress(analysisId);
+    if (isJobCancelled(analysisId)) {
+      await discardStagedDir(analysisId);
+      analysisStore.delete(analysisId);
+      return;
+    }
 
     if (result.status === "failed" || result.summary.totalFiles === 0) {
       const message =
@@ -391,10 +566,24 @@ async function runLocalAnalysis(
       return;
     }
 
+    // Two halves of one honest total: what the reader left out and what the
+    // server left out, summed before the city is published.
+    result.summary.dropped = sumDroppedFiles(uploadDropped, result.summary.dropped);
     analysisStore.set(result.id, result);
   } catch (error) {
+    deleteJobProgress(analysisId);
+    if (error instanceof ScanCancelledError || isJobCancelled(analysisId)) {
+      // Aborted on purpose: no failed job, no leftover copy, nothing that could
+      // appear on a screen whose owner said "abbrechen".
+      await discardStagedDir(analysisId);
+      analysisStore.delete(analysisId);
+      return;
+    }
     const message = error instanceof Error ? error.message : "Analysis failed";
     failJob(analysisId, message, analysisStore);
+  } finally {
+    runningJobs.delete(analysisId);
+    cancelledJobs.delete(analysisId);
   }
   // The staged copy is KEPT: the test runner reuses it ("run my tests from
   // the city"). A TTL sweeper prunes stale dirs (pruneStaleUploadDirs).

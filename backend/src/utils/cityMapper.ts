@@ -291,6 +291,11 @@ export interface CityData {
    * like a clean one. Absent for results scanned before the counter existed.
    */
   skippedByGitignore?: ProjectSummary["skippedByGitignore"];
+  /**
+   * Files the picked folder held that the scan never read. The closing toast is
+   * the one place a user learns that "32 files" meant 62 minus 30.
+   */
+  dropped?: ProjectSummary["dropped"];
 }
 
 // ── Budgets ────────────────────────────────────────────────────────────────
@@ -893,6 +898,7 @@ export function mapResultToCityData(result: AnalysisResult): CityData {
     },
     scanProvenance: result.summary.scanProvenance,
     skippedByGitignore: result.summary.skippedByGitignore,
+    dropped: result.summary.dropped,
   };
 }
 

@@ -1,7 +1,9 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useStore } from "../stores/useStore";
-import type { CityData } from "../city/types";
-import { configPayload } from "../config/scanProfiles";
+import type { CityData, DroppedFiles } from "../city/types";
+import { configPayload, isExcludedPath, loadExcludes } from "../config/scanProfiles";
+import { progressLine, stageEntries, type StageEntry } from "../config/scanStages";
+import { formatCount, t, type Lang } from "../i18n";
 
 export type AnalysisState = "idle" | "collecting" | "analyzing" | "success" | "error";
 
@@ -102,6 +104,13 @@ const MAX_FILES = 3000;
 const MAX_TOTAL_BYTES = 40 * 1024 * 1024;
 const MAX_FILE_BYTES = 1.5 * 1024 * 1024;
 /**
+ * Mirror of MAX_PATH_LEN in the backend upload route. A path longer than this is
+ * refused there, so the reader refuses it too — and counts it. Skipping them
+ * quietly is how 30 of 62 files vanished from a scan the UI called complete.
+ * backend/tests/upload-caps.test.ts pins the two constants to each other.
+ */
+const MAX_PATH_LEN = 512;
+/**
  * The .git folder rides along (base64) so the backend can read real git
  * history — churn hotspots, author districts, history secrets — from a
  * purely local scan. Separate budget: git metadata must never crowd out
@@ -111,6 +120,8 @@ const GIT_MAX_TOTAL_BYTES = 15 * 1024 * 1024;
 const GIT_MAX_FILE_BYTES = 8 * 1024 * 1024;
 const POLL_INTERVAL_MS = 2000;
 const POLL_TIMEOUT_MS = 20 * 60 * 1000;
+/** Files between two counter updates while reading */
+const COUNTER_EVERY = 25;
 
 interface LocalFile {
   path: string;
@@ -119,9 +130,79 @@ interface LocalFile {
   encoding?: "base64";
 }
 
-/** Thrown when folder collection itself fails (too large, unreadable) —
- * must NOT trigger the webkitdirectory fallback picker */
-class FolderCollectionError extends Error {}
+/** One file the folder offered, before anybody has read its bytes */
+interface Candidate {
+  rel: string;
+  file: File;
+  git: boolean;
+}
+
+/** Everything one enumeration pass learned about a folder */
+interface FolderPlan {
+  candidates: Candidate[];
+  /** source files among them — the number the file cap is about */
+  found: number;
+  /** bytes of those source files, from the directory entry, never read */
+  bytes: number;
+  dropped: DroppedFiles;
+  /** set as soon as the folder is known to be over the file cap */
+  overCap: boolean;
+}
+
+function emptyDropped(): DroppedFiles {
+  return { pathTooLong: 0, unsafePath: 0, tooLarge: 0, unreadable: 0, excluded: 0 };
+}
+
+function addDropped(dropped: DroppedFiles, key: keyof DroppedFiles, by = 1): DroppedFiles {
+  return { ...dropped, [key]: dropped[key] + by };
+}
+
+function isSourceShaped(rel: string): boolean {
+  const dot = rel.lastIndexOf(".");
+  const ext = dot > rel.lastIndexOf("/") ? rel.slice(dot).toLowerCase() : "";
+  const base = rel.split("/").pop() ?? "";
+  return (
+    SUPPORTED_EXTENSIONS.has(ext) ||
+    ENV_FILE.test(rel) ||
+    MANIFEST_BASENAMES.has(base) ||
+    IGNORE_FILENAMES.has(base)
+  );
+}
+
+/**
+ * The one selection decision, shared by both pickers: does this path join the
+ * read, and if not, into which counted bucket does it fall? Nothing here opens
+ * the file — that is what makes the cap answerable before 31 s of reading.
+ */
+function classifyCandidate(rel: string, file: File, excludes: string[], plan: FolderPlan): void {
+  const git = isGitPath(rel);
+  if (rel.split("/").some((segment) => SKIP_DIRS.test(segment))) return;
+  if (!git && !isSourceShaped(rel)) return;
+  if (isExcludedPath(rel, excludes)) {
+    plan.dropped.excluded += 1;
+    return;
+  }
+  if (rel.length > MAX_PATH_LEN) {
+    plan.dropped.pathTooLong += 1;
+    return;
+  }
+  if (!git && file.size > MAX_FILE_BYTES) {
+    plan.dropped.tooLarge += 1;
+    return;
+  }
+  if (git) {
+    plan.candidates.push({ rel, file, git: true });
+    return;
+  }
+  plan.bytes += file.size;
+  plan.found += 1;
+  plan.overCap = plan.found > MAX_FILES;
+  plan.candidates.push({ rel, file, git: false });
+}
+
+function emptyPlan(): FolderPlan {
+  return { candidates: [], found: 0, bytes: 0, dropped: emptyDropped(), overCap: false };
+}
 
 type DirHandle = {
   name: string;
@@ -136,21 +217,74 @@ function isDirHandlePickerAvailable(): boolean {
   return typeof (window as { showDirectoryPicker?: unknown }).showDirectoryPicker === "function";
 }
 
+// ── The sentences the waiting user is allowed to read ──────────────────────
+// All of them come from the dictionary: a German screen that catches an English
+// line mid-wait was one of the audited defects, and the server's own wording
+// stays available as `errorDetail` (evidence), never as the headline.
+
+const capLine = (lang: Lang, found: number, max: number): string =>
+  t(lang, "cap.filesFound", {
+    found: formatCount(lang, found),
+    max: formatCount(lang, max),
+  });
+
+/** The size wall, in the two numbers that say it: files and kilobytes. */
+const bytesLine = (lang: Lang, files: number, bytes: number): string =>
+  `${t(lang, "analyze.filesBytes", {
+    files: formatCount(lang, files),
+    kb: formatCount(lang, Math.round(bytes / 1024)),
+  })} — ${t(lang, "cap.hint")}`;
+
+/** Nothing readable in the folder — said as a count and the list it accepts. */
+const noSourceLine = (lang: Lang): string =>
+  t(lang, "scan.noSource", {
+    exts: [...SUPPORTED_EXTENSIONS].map((e) => e.slice(1)).join(", ") + ", .env",
+  });
+
 /**
  * Local-folder analysis flow: pick a folder in the browser, collect its
  * source files client-side, upload them once, then poll the backend job
  * until the city is ready. No GitHub, no clone — the code never leaves
  * the machine except to the local backend.
+ *
+ * What this flow owes the person waiting in front of it:
+ * — an abort ends the run everywhere, server included, and no late answer can
+ *   write to the screen any more;
+ * — something counts while the folder is read, the same way in both pickers;
+ * — every file the scan did not read is a number that reaches the result.
  */
 export function useLocalAnalysis() {
   const [state, setState] = useState<AnalysisState>("idle");
   const [errorMessage, setErrorMessage] = useState("");
-  const [collected, setCollected] = useState({ files: 0, bytes: 0 });
+  /** The server's own words behind `errorMessage` — evidence, not the claim */
+  const [errorDetail, setErrorDetail] = useState("");
+  const [notice, setNotice] = useState("");
+  const [collected, setCollected] = useState({ files: 0, bytes: 0, total: 0 });
+  const [foundFiles, setFoundFiles] = useState(0);
+  const [dropped, setDropped] = useState<DroppedFiles | null>(null);
+  const [elapsedSec, setElapsedSec] = useState(0);
+  const [budgetWaitSec, setBudgetWaitSec] = useState(0);
+  const [rawStage, setRawStage] = useState<string | null>(null);
+
+  const lang = useStore((s) => s.prefs.lang);
+  const langRef = useRef(lang);
+  langRef.current = lang;
 
   const pollTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const cancelledRef = useRef(false);
   const stateRef = useRef<AnalysisState>("idle");
   stateRef.current = state;
+  /** Bumped by every new pick and every abort: late answers belong to no run */
+  const runRef = useRef(0);
+  const abortRef = useRef<AbortController | null>(null);
+  const jobIdRef = useRef<string | null>(null);
+  const startedAtRef = useRef(0);
+  /** The last stage the server named, and the two clocks the line is built from */
+  const stageRef = useRef<string | null>(null);
+  const elapsedRef = useRef(0);
+  const budgetWaitRef = useRef(0);
+  /** true once the upload is home and the wait belongs to the scanner */
+  const waitingRef = useRef(false);
 
   const setCityData = useStore((s) => s.setCityData);
   const setAnalysisProgress = useStore((s) => s.setAnalysisProgress);
@@ -168,30 +302,100 @@ export function useLocalAnalysis() {
 
   useEffect(() => () => stopPolling(), [stopPolling]);
 
+  /**
+   * The one writer of the stage line: the server's stage (in the display
+   * language), the seconds since the run started, and the read-budget wait when
+   * the server has closed the window. Both consumers print it as it is.
+   */
+  const publishStage = useCallback(() => {
+    const l = langRef.current;
+    // Nothing uploaded yet and no stage named: the reading counter owns the line
+    // (the landing block shows it), and "uploading" would be a lie.
+    if (!stageRef.current && stateRef.current === "collecting") return;
+    const base = stageRef.current
+      ? progressLine(l, stageRef.current)
+      : t(l, waitingRef.current ? "scan.waiting" : "scan.uploading");
+    const parts = [base, t(l, "scan.elapsed", { s: elapsedRef.current })];
+    if (budgetWaitRef.current > 0) {
+      parts.push(`${t(l, "limit.waiting")} · ${budgetWaitRef.current} s`);
+    }
+    setAnalysisStage(parts.join(" · "));
+  }, [setAnalysisStage]);
+
+  /** Seconds since the run started, ticking while anything is in flight. */
+  useEffect(() => {
+    if (state !== "collecting" && state !== "analyzing") return;
+    const id = setInterval(() => {
+      elapsedRef.current = Math.max(0, Math.round((Date.now() - startedAtRef.current) / 1000));
+      setElapsedSec(elapsedRef.current);
+      // While reading, the counter owns the stage line; publishing the clock here
+      // would overwrite it with "uploading" before anything was uploaded.
+      if (state === "analyzing") publishStage();
+    }, 1000);
+    return () => clearInterval(id);
+  }, [state, publishStage]);
+
+  /** Take the stage the server named and republish the line under it. */
+  const setStageOf = useCallback(
+    (raw: string | null): void => {
+      stageRef.current = raw;
+      setRawStage(raw);
+      publishStage();
+    },
+    [publishStage],
+  );
+
   const fetchCityData = useCallback(
-    async (id: string) => {
+    async (id: string, run: number) => {
       try {
-        const res = await fetch(`/api/result/${encodeURIComponent(id)}/city`);
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const res = await fetch(`/api/result/${encodeURIComponent(id)}/city`, {
+          signal: abortRef.current?.signal,
+        });
+        if (runRef.current !== run) return;
+        if (!res.ok) {
+          // A link the server does not know is not a broken folder — it says so.
+          setErrorMessage(
+            res.status === 404
+              ? t(langRef.current, "app.permalinkError")
+              : t(langRef.current, "scan.cityLoadFailed"),
+          );
+          setErrorDetail(`HTTP ${res.status}`);
+          setState("error");
+          return;
+        }
         const data = (await res.json()) as CityData & { error?: string };
-        if (data.error) throw new Error(data.error);
+        if (data.error) {
+          setErrorMessage(t(langRef.current, "scan.cityLoadFailed"));
+          setErrorDetail(data.error);
+          setState("error");
+          return;
+        }
         if (data.totalFiles === 0) {
-          throw new Error("No analyzable source files in that folder");
+          setErrorMessage(noSourceLine(langRef.current));
+          setErrorDetail("the scan finished with no file in the city");
+          setState("error");
+          return;
         }
         setCityData(data);
         setAnalysisId(id);
         window.history.replaceState(null, "", `?city=${encodeURIComponent(id)}`);
+        // The scan's own counts win over the reader's: they include what only
+        // the server could see.
+        setDropped(data.dropped ?? null);
         setState("success");
       } catch (err) {
-        setErrorMessage(err instanceof Error ? err.message : "Failed to load city data");
+        if (err instanceof Error && err.name === "AbortError") return;
+        if (runRef.current !== run) return;
+        setErrorMessage(t(langRef.current, "scan.cityLoadFailed"));
+        setErrorDetail(err instanceof Error ? err.message : String(err));
         setState("error");
       }
     },
-    [setCityData, setAnalysisId],
+    [setAnalysisId, setCityData],
   );
 
   const pollStatus = useCallback(
-    (id: string) => {
+    (id: string, run: number) => {
       const startedAt = Date.now();
       let notFoundStreak = 0;
       // One request at a time: the tick fires every POLL_INTERVAL_MS while the
@@ -199,31 +403,71 @@ export function useLocalAnalysis() {
       // grew by one pending fetch per tick and late answers wrote progress out
       // of order.
       let inFlight = false;
+      /** while the read budget is closed, ticks count down instead of fetching */
+      let budgetUntil = 0;
       stopPolling();
       pollTimerRef.current = setInterval(() => {
+        if (runRef.current !== run) {
+          stopPolling();
+          return;
+        }
+        const now = Date.now();
+        if (budgetUntil > now) {
+          // A closed budget is a wait with a number on it, not a frozen bar.
+          const left = Math.ceil((budgetUntil - now) / 1000);
+          if (left !== budgetWaitRef.current) {
+            budgetWaitRef.current = left;
+            setBudgetWaitSec(left);
+            publishStage();
+          }
+          return;
+        }
         if (inFlight) return;
         inFlight = true;
         void (async () => {
           try {
             if (Date.now() - startedAt > POLL_TIMEOUT_MS) {
               stopPolling();
-              setErrorMessage("Analysis timed out — is the backend still running?");
+              setErrorMessage(t(langRef.current, "scan.timedOut"));
+              setErrorDetail(`no answer within ${Math.round(POLL_TIMEOUT_MS / 60000)} min`);
               setState("error");
               return;
             }
-            const res = await fetch(`/api/status/${encodeURIComponent(id)}`);
+            const res = await fetch(`/api/status/${encodeURIComponent(id)}`, {
+              signal: abortRef.current?.signal,
+            });
+            if (runRef.current !== run) return;
+            if (res.status === 429) {
+              const body = (await res.json().catch(() => ({}))) as {
+                retryAfterSeconds?: number;
+              };
+              const header = Number(res.headers.get("RateLimit-Reset"));
+              const seconds =
+                body.retryAfterSeconds ??
+                (Number.isFinite(header) && header > 0 ? header : Math.ceil(15 * 60));
+              budgetUntil = Date.now() + seconds * 1000;
+              budgetWaitRef.current = seconds;
+              setBudgetWaitSec(seconds);
+              publishStage();
+              return;
+            }
             if (!res.ok) {
               // 404 = the job is gone (backend restarted) — not transient.
               // Other codes get a short grace period before giving up.
               notFoundStreak = res.status === 404 ? notFoundStreak + 1 : 0;
               if (notFoundStreak >= 3) {
                 stopPolling();
-                setErrorMessage("Analysis job not found — was the backend restarted?");
+                setErrorMessage(t(langRef.current, "scan.jobGone"));
+                setErrorDetail("analysis job not found (404)");
                 setState("error");
               }
               return;
             }
             notFoundStreak = 0;
+            if (budgetWaitRef.current !== 0) {
+              budgetWaitRef.current = 0;
+              setBudgetWaitSec(0);
+            }
             const data = (await res.json()) as {
               status?: string;
               progress?: number;
@@ -233,19 +477,19 @@ export function useLocalAnalysis() {
             if (typeof data.progress === "number") {
               setAnalysisProgress(Math.min(100, Math.max(0, data.progress)));
             }
-            if (typeof data.stage === "string" && data.stage) setAnalysisStage(data.stage);
+            if (typeof data.stage === "string" && data.stage) setStageOf(data.stage);
             if (data.status === "complete") {
               stopPolling();
-              setAnalysisStage("Complete!");
-              void fetchCityData(id);
+              setStageOf("Complete");
+              void fetchCityData(id, run);
             } else if (data.status === "failed") {
               stopPolling();
-              setErrorMessage(
-                data.error ?? "Analysis failed on the server — check the backend logs.",
-              );
+              setErrorMessage(t(langRef.current, "scan.serverFailed"));
+              setErrorDetail(data.error ?? "the scan failed on the server");
               setState("error");
             }
-          } catch {
+          } catch (err) {
+            if (err instanceof Error && err.name === "AbortError") return;
             // network hiccup — retry on next tick
           } finally {
             inFlight = false;
@@ -253,15 +497,19 @@ export function useLocalAnalysis() {
         })();
       }, POLL_INTERVAL_MS);
     },
-    [fetchCityData, setAnalysisProgress, setAnalysisStage, stopPolling],
+    [fetchCityData, publishStage, setAnalysisProgress, setStageOf, stopPolling],
   );
 
   const uploadAndAnalyze = useCallback(
-    async (name: string, files: LocalFile[], signal?: AbortSignal) => {
+    async (name: string, files: LocalFile[], clientDropped: DroppedFiles, run: number) => {
+      const l = langRef.current;
       setErrorMessage("");
+      setErrorDetail("");
       setAnalysisProgress(0);
-      setAnalysisStage("Uploading files…");
+      setStageOf(null);
       setState("analyzing");
+      const controller = new AbortController();
+      abortRef.current = controller;
       try {
         const { scanProfile: profile, scanCategories, scanPacks } = useStore.getState();
         const res = await fetch("/api/analyze-local", {
@@ -270,264 +518,384 @@ export function useLocalAnalysis() {
           body: JSON.stringify({
             name,
             files,
-            config: configPayload(profile, scanCategories, scanPacks),
+            config: configPayload(profile, scanCategories, scanPacks, loadExcludes()),
+            // the reader's own accounting: only it knows how many paths it never
+            // opened, and the city total has to carry that number
+            dropped: clientDropped,
           }),
-          signal,
+          signal: controller.signal,
         });
-        if (!res.ok) {
-          const data = (await res.json().catch(() => ({}))) as { error?: string };
-          if (res.status === 413) {
-            throw new Error(
-              "Folder too large for one upload — exclude generated files (bundles, fixtures) and retry",
+        if (runRef.current !== run) return;
+        const data = (await res.json().catch(() => ({}))) as {
+          id?: string;
+          error?: string;
+          code?: string;
+          found?: number;
+          max?: number;
+          retryAfterSeconds?: number;
+        };
+        if (!res.ok || typeof data.id !== "string") {
+          // The server's explanation goes to the detail line; what the user reads
+          // first is the dictionary's sentence, in their language.
+          setErrorDetail(data.error ?? `HTTP ${res.status}`);
+          if (res.status === 429 || data.code === "rate_limited") {
+            const header = Number(res.headers.get("RateLimit-Reset"));
+            const seconds =
+              data.retryAfterSeconds ??
+              (Number.isFinite(header) && header > 0 ? header : Math.ceil(15 * 60));
+            setErrorMessage(`${t(l, "limit.hit", { s: seconds })} — ${t(l, "cap.hint")}`);
+          } else if (data.code === "too_many_files") {
+            setErrorMessage(
+              `${capLine(l, data.found ?? files.length, data.max ?? MAX_FILES)} — ${t(l, "cap.hint")}`,
             );
+          } else if (data.code === "no_source") {
+            setErrorMessage(noSourceLine(l));
+          } else if (res.status === 413) {
+            setErrorMessage(bytesLine(l, files.length, clientBytesOf(files)));
+          } else {
+            setErrorMessage(t(l, "scan.uploadHttpStatus", { status: res.status }));
           }
-          throw new Error(data.error ?? `Upload failed (HTTP ${res.status})`);
+          setDropped(clientDropped);
+          setState("error");
+          return;
         }
-        const { id } = (await res.json()) as { id: string };
-        setAnalysisStage("Waiting for scan…");
-        pollStatus(id);
+        jobIdRef.current = data.id;
+        waitingRef.current = true;
+        pollStatus(data.id, run);
       } catch (err) {
-        setErrorMessage(err instanceof Error ? err.message : "Upload failed");
+        if (err instanceof Error && err.name === "AbortError") return; // cancelled
+        if (runRef.current !== run) return;
+        setErrorMessage(t(langRef.current, "scan.uploadFailed"));
+        setErrorDetail(err instanceof Error ? err.message : String(err));
         setState("error");
       }
     },
-    [pollStatus, setAnalysisProgress, setAnalysisStage],
+    [pollStatus, setAnalysisProgress, setStageOf],
   );
 
-  const collectFromFileList = useCallback(
-    async (fileList: File[], rootName: string) => {
-      const files: LocalFile[] = [];
+  /** The reading counter, in the display language: "150 Dateien gelesen · 150 von 312" */
+  const setReadingLine = useCallback(
+    (l: Lang, read: number, total: number): void => {
+      const parts = [
+        t(l, read === 1 ? "scan.readingOne" : "scan.reading", { n: formatCount(l, read) }),
+      ];
+      if (total > 0)
+        parts.push(
+          t(l, "scan.readingOf", { n: formatCount(l, read), total: formatCount(l, total) }),
+        );
+      setAnalysisStage(parts.join(" · "));
+    },
+    [setAnalysisStage],
+  );
+
+  /**
+   * Read the classified candidates and upload them. One loop for both pickers,
+   * so the counter moves the same way however the folder was picked — and a file
+   * the reader cannot open lands in a bucket that travels with the upload.
+   */
+  const readAndUpload = useCallback(
+    async (plan: FolderPlan, rootName: string, run: number) => {
+      const l = langRef.current;
+      const payload: LocalFile[] = [];
+      let accounting = plan.dropped;
       let totalBytes = 0;
       let gitBytes = 0;
-      let skipped = 0;
-      for (const file of fileList) {
-        if (cancelledRef.current) {
-          setState("idle");
-          return;
-        }
-        // webkitRelativePath = "<root>/<...path>" — strip the root segment
-        const rel =
-          (file.webkitRelativePath || file.name).split("/").slice(1).join("/") || file.name;
-        const dot = rel.lastIndexOf(".");
-        const ext = dot > rel.lastIndexOf("/") ? rel.slice(dot).toLowerCase() : "";
-        const segments = rel.split("/");
-        if (segments.some((s) => SKIP_DIRS.test(s))) continue;
-        const git = isGitPath(rel);
-        const base = rel.split("/").pop() ?? "";
-        if (
-          !git &&
-          !SUPPORTED_EXTENSIONS.has(ext) &&
-          !ENV_FILE.test(rel) &&
-          !MANIFEST_BASENAMES.has(base) &&
-          !IGNORE_FILENAMES.has(base)
-        )
-          continue;
-        // .git metadata rides along in its own budget (git churn/blame need it)
+      const total = plan.candidates.length;
+      for (const { rel, file, git } of plan.candidates) {
+        if (cancelledRef.current || runRef.current !== run) return;
         if (git) {
           if (file.size > GIT_MAX_FILE_BYTES || gitBytes + file.size > GIT_MAX_TOTAL_BYTES) {
-            skipped++;
+            accounting = addDropped(accounting, "tooLarge");
             continue;
           }
-          gitBytes += file.size;
-        } else {
-          if (file.size > MAX_FILE_BYTES) {
-            skipped++;
-            continue;
-          }
-          totalBytes += file.size;
-          if (files.length >= MAX_FILES || totalBytes > MAX_TOTAL_BYTES) {
-            setErrorMessage(
-              `Analysis aborted — folder exceeds ${MAX_FILES} files / 40 MB. Exclude node_modules & build output and retry.`,
-            );
-            setState("error");
-            return;
-          }
+        } else if (totalBytes + file.size > MAX_TOTAL_BYTES) {
+          setCollected({ files: payload.length, bytes: totalBytes, total });
+          setDropped(accounting);
+          setErrorMessage(bytesLine(l, payload.length, totalBytes));
+          setErrorDetail(
+            `over ${Math.round(MAX_TOTAL_BYTES / 1024 / 1024)} MB of source — ${t(l, "cap.excludeLabel")}`,
+          );
+          setState("error");
+          return;
         }
         try {
-          const payload = await readPayload(file, rel);
-          files.push({ path: rel, ...payload });
+          payload.push({ path: rel, ...(await readPayload(file, rel)) });
         } catch {
-          skipped++; // unreadable (binary/permission) — the scanners don't need it
+          accounting = addDropped(accounting, "unreadable");
+          continue;
         }
-        if (files.length % 50 === 0) {
-          setAnalysisStage(`Reading files… ${files.length}`);
+        if (git) gitBytes += file.size;
+        else totalBytes += file.size;
+        const read = payload.length;
+        if (read % COUNTER_EVERY === 0 || read === total) {
+          setCollected({ files: read, bytes: totalBytes, total });
+          setDropped(accounting);
+          setReadingLine(l, read, total);
         }
       }
-      if (files.length === 0) {
-        setErrorMessage(
-          "No analyzable source files in that folder (supported: ts, tsx, js, jsx, py, go, rs, java, rb, html, css, json, yaml)",
+      if (cancelledRef.current || runRef.current !== run) return;
+      setCollected({ files: payload.length, bytes: totalBytes, total });
+      setFoundFiles(plan.found);
+      setDropped(accounting);
+      if (payload.length === 0) {
+        setErrorMessage(noSourceLine(l));
+        setErrorDetail(
+          `${accounting.pathTooLong} over ${MAX_PATH_LEN} chars, ${accounting.unreadable} unreadable`,
         );
         setState("error");
         return;
       }
-      setCollected({ files: files.length, bytes: totalBytes });
-      if (skipped > 0) {
-        console.info(`Ephemora Skyline: skipped ${skipped} oversized/unreadable files`);
-      }
-      await uploadAndAnalyze(rootName, files);
+      await uploadAndAnalyze(rootName, payload, accounting, run);
     },
-    [setAnalysisStage, uploadAndAnalyze],
+    [setReadingLine, uploadAndAnalyze],
+  );
+
+  /**
+   * The cap answer, before a single file is opened: what was found, what the
+   * limit is, and the way out. It used to arrive after 31 s of reading and name
+   * folders that were not in the folder.
+   */
+  const refuseOverCap = useCallback((found: number): void => {
+    const l = langRef.current;
+    setErrorMessage(`${capLine(l, found, MAX_FILES)} — ${t(l, "cap.hint")}`);
+    const excludes = loadExcludes();
+    setErrorDetail(
+      excludes.length > 0
+        ? `${t(l, "cap.excludeLabel")}: ${excludes.join(", ")}`
+        : `no exclude folder set — ${t(l, "cap.excludePlaceholder")}`,
+    );
+    setState("error");
+  }, []);
+
+  /** The folder held nothing the scan can read — said as a count, not a shrug. */
+  const nothingFound = useCallback((plan: FolderPlan): void => {
+    const l = langRef.current;
+    setErrorMessage(noSourceLine(l));
+    setErrorDetail(
+      `${plan.dropped.excluded} excluded, ${plan.dropped.pathTooLong} over ${MAX_PATH_LEN} chars, ${plan.dropped.tooLarge} oversized`,
+    );
+    setState("error");
+  }, []);
+
+  const collectFromFileList = useCallback(
+    async (fileList: File[], rootName: string, run: number) => {
+      const excludes = loadExcludes();
+      const plan = emptyPlan();
+      for (const file of fileList) {
+        if (cancelledRef.current || runRef.current !== run) return;
+        // webkitRelativePath = "<root>/<...path>" — strip the root segment
+        const rel =
+          (file.webkitRelativePath || file.name).split("/").slice(1).join("/") || file.name;
+        classifyCandidate(rel, file, excludes, plan);
+      }
+      setCollected({ files: 0, bytes: plan.bytes, total: plan.candidates.length });
+      setFoundFiles(plan.found);
+      setDropped(plan.dropped);
+      if (plan.overCap) {
+        refuseOverCap(plan.found);
+        return;
+      }
+      if (plan.candidates.length === 0) {
+        nothingFound(plan);
+        return;
+      }
+      await readAndUpload(plan, rootName, run);
+    },
+    [nothingFound, readAndUpload, refuseOverCap],
   );
 
   /** Fallback for browsers without the File System Access API */
-  const pickViaInputFallback = useCallback(() => {
-    return new Promise<void>((resolve) => {
-      const input = document.createElement("input");
-      input.type = "file";
-      input.setAttribute("webkitdirectory", "");
-      input.setAttribute("directory", "");
-      input.style.display = "none";
-      input.onchange = () => {
-        const fileList = Array.from(input.files ?? []);
-        const rootName = fileList[0]?.webkitRelativePath?.split("/")[0] ?? "local folder";
-        input.remove();
-        void collectFromFileList(fileList, rootName).finally(resolve);
-      };
-      input.oncancel = () => {
-        input.remove();
-        setState("idle");
-        resolve();
-      };
-      document.body.appendChild(input);
-      input.click();
-    });
-  }, [collectFromFileList]);
+  const pickViaInputFallback = useCallback(
+    (run: number) => {
+      return new Promise<void>((resolve) => {
+        const input = document.createElement("input");
+        input.type = "file";
+        input.setAttribute("webkitdirectory", "");
+        input.setAttribute("directory", "");
+        input.style.display = "none";
+        input.onchange = () => {
+          const fileList = Array.from(input.files ?? []);
+          const rootName = fileList[0]?.webkitRelativePath?.split("/")[0] ?? "local folder";
+          input.remove();
+          if (runRef.current !== run) {
+            resolve();
+            return;
+          }
+          void collectFromFileList(fileList, rootName, run).finally(resolve);
+        };
+        input.oncancel = () => {
+          input.remove();
+          if (runRef.current === run) setState("idle");
+          resolve();
+        };
+        document.body.appendChild(input);
+        input.click();
+      });
+    },
+    [collectFromFileList],
+  );
 
+  /**
+   * The File System Access walk: enumerate first (a count that moves while the
+   * tree is walked), then read through the same loop the fallback uses. Both
+   * pickers therefore show the same numbers at the same moments.
+   */
   const collectFromDirectoryHandle = useCallback(
-    async (dir: DirHandle) => {
-      const files: LocalFile[] = [];
-      let totalBytes = 0;
-      let gitBytes = 0;
-      let skipped = 0;
+    async (dir: DirHandle, run: number) => {
+      const excludes = loadExcludes();
+      const plan = emptyPlan();
       const walk = async (handle: DirHandle, prefix: string): Promise<void> => {
         for await (const entry of handle.values()) {
-          if (cancelledRef.current) return;
+          if (cancelledRef.current || runRef.current !== run) return;
           if (entry.kind === "directory") {
             if (SKIP_DIRS.test(entry.name)) continue;
             await walk(entry as unknown as DirHandle, `${prefix}${entry.name}/`);
+            if (plan.overCap || cancelledRef.current || runRef.current !== run) return;
             continue;
           }
-          const rel = `${prefix}${entry.name}`;
-          const dot = rel.lastIndexOf(".");
-          const ext = dot > rel.lastIndexOf("/") ? rel.slice(dot).toLowerCase() : "";
-          const base = entry.name;
-          const git = isGitPath(rel);
-          if (
-            !git &&
-            !SUPPORTED_EXTENSIONS.has(ext) &&
-            !ENV_FILE.test(rel) &&
-            !MANIFEST_BASENAMES.has(base) &&
-            !IGNORE_FILENAMES.has(base)
-          )
+          const handle = entry.getFile?.();
+          const file = handle ? await handle.catch(() => null) : null;
+          if (!file) {
+            plan.dropped.unreadable += 1;
             continue;
-          if (!git && (files.length >= MAX_FILES || totalBytes > MAX_TOTAL_BYTES)) {
-            throw new FolderCollectionError(
-              `Analysis aborted — folder exceeds ${MAX_FILES} files / 40 MB. Exclude node_modules & build output and retry.`,
-            );
           }
-          try {
-            const file = await entry.getFile!();
-            if (git) {
-              if (file.size > GIT_MAX_FILE_BYTES || gitBytes + file.size > GIT_MAX_TOTAL_BYTES) {
-                skipped++;
-                continue;
-              }
-              gitBytes += file.size;
-            } else {
-              if (file.size > MAX_FILE_BYTES) {
-                skipped++;
-                continue;
-              }
-              totalBytes += file.size;
-            }
-            const payload = await readPayload(file, rel);
-            files.push({ path: rel, ...payload });
-            if (files.length % 50 === 0) {
-              setAnalysisStage(`Reading files… ${files.length}`);
-              setCollected({ files: files.length, bytes: totalBytes });
-            }
-          } catch {
-            skipped++;
+          classifyCandidate(`${prefix}${entry.name}`, file, excludes, plan);
+          if (plan.overCap) return;
+          const seen = plan.candidates.length;
+          if (seen % COUNTER_EVERY === 0 && seen > 0) {
+            setCollected({ files: seen, bytes: plan.bytes, total: seen });
+            setFoundFiles(plan.found);
+            setStageOf("Enumerating files");
           }
         }
       };
       await walk(dir, "");
-      if (cancelledRef.current) {
-        setState("idle");
+      if (cancelledRef.current || runRef.current !== run) return;
+      setCollected({ files: 0, bytes: plan.bytes, total: plan.candidates.length });
+      setFoundFiles(plan.found);
+      setDropped(plan.dropped);
+      if (plan.overCap) {
+        refuseOverCap(plan.found);
         return;
       }
-      if (files.length === 0) {
-        setErrorMessage(
-          "No analyzable source files in that folder (supported: ts, tsx, js, jsx, py, go, rs, java, rb, html, css, json, yaml)",
-        );
-        setState("error");
+      if (plan.candidates.length === 0) {
+        nothingFound(plan);
         return;
       }
-      setCollected({ files: files.length, bytes: totalBytes });
-      if (skipped > 0)
-        console.info(`Ephemora Skyline: skipped ${skipped} oversized/unreadable files`);
-      await uploadAndAnalyze(dir.name, files);
+      await readAndUpload(plan, dir.name, run);
     },
-    [setAnalysisStage, uploadAndAnalyze],
+    [nothingFound, readAndUpload, refuseOverCap, setStageOf],
   );
 
   const pickFolder = useCallback(async () => {
     if (stateRef.current === "collecting" || stateRef.current === "analyzing") return;
+    const run = ++runRef.current;
     cancelledRef.current = false;
-    setState("collecting");
+    jobIdRef.current = null;
+    stageRef.current = null;
+    budgetWaitRef.current = 0;
+    elapsedRef.current = 0;
+    waitingRef.current = false;
+    setBudgetWaitSec(0);
+    setElapsedSec(0);
+    setNotice("");
     setErrorMessage("");
-    if (isDirHandlePickerAvailable()) {
-      try {
-        const picker = (
-          window as unknown as { showDirectoryPicker?: (opts?: unknown) => Promise<DirHandle> }
-        ).showDirectoryPicker;
-        if (!picker) throw new Error("unsupported");
-        const dir = await picker.call(window, { mode: "read" });
-        await collectFromDirectoryHandle(dir);
-      } catch (err) {
-        // AbortError = user cancelled the native dialog
-        if (err instanceof Error && err.name === "AbortError") {
-          setState("idle");
-          return;
-        }
-        // Collection failures (too large, unreadable) must surface as errors —
-        // only a restricted/missing picker API falls back to the input
-        if (err instanceof FolderCollectionError) {
-          setErrorMessage(err.message);
-          setState("error");
-          return;
-        }
-        // Some Chromium builds restrict the API — fall back transparently
-        await pickViaInputFallback();
-      }
-    } else {
-      await pickViaInputFallback();
+    setErrorDetail("");
+    setDropped(null);
+    setCollected({ files: 0, bytes: 0, total: 0 });
+    setFoundFiles(0);
+    startedAtRef.current = Date.now();
+    abortRef.current = new AbortController();
+    setState("collecting");
+    setStageOf(null);
+    if (!isDirHandlePickerAvailable()) {
+      await pickViaInputFallback(run);
+      return;
     }
-  }, [collectFromDirectoryHandle, pickViaInputFallback]);
+    try {
+      const picker = (
+        window as unknown as { showDirectoryPicker?: (opts?: unknown) => Promise<DirHandle> }
+      ).showDirectoryPicker;
+      if (!picker) throw new Error("unsupported");
+      const dir = await picker.call(window, { mode: "read" });
+      await collectFromDirectoryHandle(dir, run);
+    } catch (err) {
+      // AbortError = user cancelled the native dialog
+      if (err instanceof Error && err.name === "AbortError") {
+        setState("idle");
+        return;
+      }
+      if (runRef.current !== run) return;
+      // Some Chromium builds restrict the API — fall back transparently
+      await pickViaInputFallback(run);
+    }
+  }, [collectFromDirectoryHandle, pickViaInputFallback, setStageOf]);
 
+  /**
+   * Cancel, for real: the run's identity is retired so no late answer can write
+   * to the screen, the in-flight fetch is aborted, the job on the server is
+   * thrown away (result, progress and the staged copy of the source), and the UI
+   * goes back to idle with a line that says nothing continues.
+   */
   const cancel = useCallback(() => {
-    cancelledRef.current = true; // stops in-flight collection between files
+    runRef.current += 1;
+    cancelledRef.current = true;
+    const controller = abortRef.current;
+    abortRef.current = null;
+    controller?.abort();
     stopPolling();
+    const id = jobIdRef.current;
+    jobIdRef.current = null;
+    if (id) {
+      void fetch(`/api/analyze-local/${encodeURIComponent(id)}/cancel`, {
+        method: "POST",
+      }).catch(() => {
+        // unreachable server: the client half of the abort still holds, and the
+        // job's own TTL is what cleans up there
+      });
+    }
     setState("idle");
     setAnalysisProgress(0);
     setAnalysisStage("");
+    setBudgetWaitSec(0);
+    setErrorMessage("");
+    setErrorDetail("");
+    setNotice(t(langRef.current, "scan.cancelled"));
   }, [setAnalysisProgress, setAnalysisStage, stopPolling]);
 
   const reset = useCallback(() => {
     setErrorMessage("");
+    setErrorDetail("");
+    setNotice("");
     setState("idle");
   }, []);
+
+  const stages: StageEntry[] = stageEntries(lang, rawStage);
 
   return {
     state,
     errorMessage,
+    errorDetail,
+    notice,
     analysisProgress,
     analysisStage,
     collected,
+    foundFiles,
+    dropped,
+    elapsedSec,
+    budgetWaitSec,
+    stages,
     pickFolder,
     cancel,
     reset,
     isAnalyzing: state === "collecting" || state === "analyzing",
     supportsDirectoryPicker: isDirHandlePickerAvailable(),
   };
+}
+
+/** Upper bound of the upload body in bytes, for the 413 sentence. */
+function clientBytesOf(files: LocalFile[]): number {
+  let bytes = 0;
+  for (const file of files) bytes += file.content.length;
+  return bytes;
 }
