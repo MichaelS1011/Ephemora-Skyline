@@ -6,6 +6,21 @@
  * language renders byte-identical to before. Placeholders use {name} syntax
  * and are replaced with plain string operations — no regex, no runtime that
  * could throw on a missing key.
+ *
+ * Two conventions hold the German text honest (measured defect: "Kritisch:
+ * 1 Funde"):
+ *
+ * 1. Singular/Plural — a key that shows a count with a noun or a verb carries
+ *    a twin named `…One` and the base key stays the plural form (the pattern
+ *    `panel.findingsCountOne`/`…Many` already set). Callers pick with
+ *    `plural()` below or with an `n === 1` branch; the number itself always
+ *    stays in the `{count}`/`{n}` placeholder, never inside the noun.
+ * 2. Numbers and units in a German sentence follow the house style used
+ *    throughout this file: thin space between number and unit or percent
+ *    ("31 s", "88 %", "512 Zeichen"), dot as thousands separator from 1000 up
+ *    (`formatCount()`), decimal comma, en dash for ranges ("Zeilen 12–40").
+ *    Engine names and file formats stay English inside German sentences —
+ *    they are proper names of tools, not prose ("semgrep", "SARIF", "CVE").
  */
 
 export type Lang = "en" | "de";
@@ -130,6 +145,10 @@ export const DICT = {
     en: "{n} copies · {bytes} on disk · kept {h} h",
     de: "{n} Kopien · {bytes} auf der Platte · gehalten {h} h",
   },
+  "landing.footprintCopiesOne": {
+    en: "{n} copy · {bytes} on disk · kept {h} h",
+    de: "{n} Kopie · {bytes} auf der Platte · gehalten {h} h",
+  },
   "landing.footprintStale": {
     en: "{n} past their keep time",
     de: "{n} über der Haltezeit",
@@ -152,9 +171,17 @@ export const DICT = {
     en: "{n} copies deleted, {bytes} freed",
     de: "{n} Kopien gelöscht, {bytes} frei geworden",
   },
+  "landing.footprintPurgedOne": {
+    en: "{n} copy deleted, {bytes} freed",
+    de: "{n} Kopie gelöscht, {bytes} frei geworden",
+  },
   "landing.footprintResetDone": {
     en: "{n} verdict buckets removed from this browser",
     de: "{n} Urteils-Ablagen aus diesem Browser entfernt",
+  },
+  "landing.footprintResetDoneOne": {
+    en: "{n} verdict bucket removed from this browser",
+    de: "{n} Urteils-Ablage aus diesem Browser entfernt",
   },
   "landing.footprintError": {
     en: "The local server did not answer — is it running?",
@@ -187,6 +214,10 @@ export const DICT = {
   "landing.progressCollecting": {
     en: "Reading your folder · {count} files",
     de: "Ordner wird gelesen · {count} Dateien",
+  },
+  "landing.progressCollectingOne": {
+    en: "Reading your folder · {count} file",
+    de: "Ordner wird gelesen · {count} Datei",
   },
   "landing.progressReady": {
     en: "Getting ready…",
@@ -314,9 +345,21 @@ export const DICT = {
     en: "{label} findings: {count}. Clear filter",
     de: "{label}: {count} Funde. Filter aufheben",
   },
+  "hud.sevAriaOnOne": {
+    en: "{label} finding: {count}. Clear filter",
+    de: "{label}: {count} Fund. Filter aufheben",
+  },
   "hud.sevAriaOff": {
     en: "{label} findings: {count}. Filter city",
     de: "{label}: {count} Funde. Stadt filtern",
+  },
+  /**
+   * Measured defect: the severity chip announced "Kritisch: 1 Funde". The
+   * singular branch lives here so the caller only has to choose the key.
+   */
+  "hud.sevAriaOffOne": {
+    en: "{label} finding: {count}. Filter city",
+    de: "{label}: {count} Fund. Stadt filtern",
   },
   "hud.sevTitleOn": {
     en: "{label} findings — click to clear",
@@ -329,6 +372,19 @@ export const DICT = {
   "hud.noFindings": {
     en: "No findings",
     de: "Keine Funde",
+  },
+  /**
+   * The HUD carries the same condition as the panel: an empty list only means
+   * clean when every scanner ran. One engine missing reads "lief nicht", two
+   * read "liefen nicht" — the caller picks with the count of names.
+   */
+  "hud.noFindingsQual": {
+    en: "No findings — {missing} did not run",
+    de: "Keine Funde — {missing} lief nicht",
+  },
+  "hud.noFindingsQualMany": {
+    en: "No findings — {missing} did not run",
+    de: "Keine Funde — {missing} liefen nicht",
   },
   "hud.heightComplexity": {
     en: "Height = complexity",
@@ -380,6 +436,10 @@ export const DICT = {
   "actions.triageOpenTitle": {
     en: "{open} findings in this queue still need a verdict",
     de: "{open} Funde in dieser Warteschlange brauchen noch ein Urteil",
+  },
+  "actions.triageOpenTitleOne": {
+    en: "{open} finding in this queue still needs a verdict",
+    de: "{open} Fund in dieser Warteschlange braucht noch ein Urteil",
   },
   "actions.triageAllJudgedTitle": {
     en: "Every finding in this view already has a verdict — the queue opens on the first one",
@@ -440,6 +500,10 @@ export const DICT = {
   "actions.findings": {
     en: "Findings {count}",
     de: "Funde {count}",
+  },
+  "actions.findingsOne": {
+    en: "Finding {count}",
+    de: "Fund {count}",
   },
   "actions.findingsTitle": {
     en: "Review findings by file",
@@ -1016,6 +1080,23 @@ export const DICT = {
     en: "No findings detected in this file",
     de: "Keine Funde in dieser Datei",
   },
+  /**
+   * Measured defect: the panel promised green for files no engine ever opened.
+   * `panel.noFindingsChecked` is only true once the file was covered; the
+   * unchecked case has to name the missing scanners instead (S7).
+   */
+  "panel.noFindingsChecked": {
+    en: "No findings in this file",
+    de: "Keine Funde in dieser Datei",
+  },
+  "panel.noFindingsUnchecked": {
+    en: "{n} scanners did not cover this file — no finding is not clean",
+    de: "{n} Prüfprogramme waren für diese Datei nicht aktiv — kein Befund heißt hier nicht sauber",
+  },
+  "panel.noFindingsUncheckedOne": {
+    en: "{n} scanner did not cover this file — no finding is not clean",
+    de: "{n} Prüfprogramm war für diese Datei nicht aktiv — kein Befund heißt hier nicht sauber",
+  },
 
   // ── Info panel — structure block ──────────────────────────────────────────
   "panel.structureAria": {
@@ -1034,6 +1115,10 @@ export const DICT = {
     en: "1 voxel = 1 code line · {count} voxels",
     de: "1 Voxel = 1 Codezeile · {count} Voxel",
   },
+  "panel.voxelLegendOne": {
+    en: "1 voxel = 1 code line · {count} voxel",
+    de: "1 Voxel = 1 Codezeile · {count} Voxel",
+  },
   "panel.sectionMeta": {
     en: "{kind} · lines {start}–{end} · nesting depth {depth}",
     de: "{kind} · Zeilen {start}–{end} · Verschachtelungstiefe {depth}",
@@ -1045,6 +1130,10 @@ export const DICT = {
   "panel.moreSections": {
     en: "+ {count} more sections",
     de: "+ {count} weitere Abschnitte",
+  },
+  "panel.moreSectionsOne": {
+    en: "+ {count} more section",
+    de: "+ {count} weiterer Abschnitt",
   },
 
   // ── Info panel — per-file test run ────────────────────────────────────────
@@ -1079,6 +1168,10 @@ export const DICT = {
   "panel.moreFailures": {
     en: "+ {count} more failures",
     de: "+ {count} weitere Fehler",
+  },
+  "panel.moreFailuresOne": {
+    en: "+ {count} more failure",
+    de: "+ {count} weiterer Fehler",
   },
 
   // ── Findings panel ────────────────────────────────────────────────────────
@@ -1130,6 +1223,10 @@ export const DICT = {
     en: "{count} more sit on files this view does not draw",
     de: "{count} weitere liegen auf Dateien, die diese Ansicht nicht zeichnet",
   },
+  "findings.undrawnOne": {
+    en: "{count} more sits on a file this view does not draw",
+    de: "{count} weiterer liegt auf einer Datei, die diese Ansicht nicht zeichnet",
+  },
   "findings.orphanedReviews": {
     en: "Recorded verdicts with no matching finding here: {count} — a renamed file or a rewritten line moves a finding",
     de: "Gespeicherte Bewertungen ohne passenden Fund in dieser Stadt: {count} — eine umbenannte Datei oder eine umgeschriebene Zeile verschiebt einen Fund",
@@ -1137,6 +1234,10 @@ export const DICT = {
   "findings.moreRules": {
     en: "+{count} rules",
     de: "+{count} Regeln",
+  },
+  "findings.moreRulesOne": {
+    en: "+{count} rule",
+    de: "+{count} Regel",
   },
   "findings.moreRulesTitle": {
     en: "Show every rule",
@@ -1213,6 +1314,10 @@ export const DICT = {
   "findings.countTitle": {
     en: "{count} findings",
     de: "{count} Funde",
+  },
+  "findings.countTitleOne": {
+    en: "{count} finding",
+    de: "{count} Fund",
   },
   "findings.findingTitle": {
     en: "Show {name}, line {line}",
@@ -1342,6 +1447,10 @@ export const DICT = {
     en: "{files} files · {kb} KB",
     de: "{files} Dateien · {kb} KB",
   },
+  "analyze.filesBytesOne": {
+    en: "{files} file · {kb} KB",
+    de: "{files} Datei · {kb} KB",
+  },
   "analyze.success": {
     en: "✓ CITY BUILT — explore it below",
     de: "✓ STADT GEBAUT — unten erkunden",
@@ -1349,6 +1458,170 @@ export const DICT = {
   "analyze.cancel": {
     en: "CANCEL",
     de: "ABBRECHEN",
+  },
+
+  // ── Scan stages (the backend names stay the channel values; the UI shows these) ──
+  "stage.enumerating": {
+    en: "Enumerating files",
+    de: "Dateien aufzählen",
+  },
+  "stage.parsing": {
+    en: "Parsing files",
+    de: "Dateien parsen",
+  },
+  "stage.deepscan": {
+    en: "Deep scan (semgrep + gitleaks)",
+    de: "Tiefenscan (semgrep + gitleaks)",
+  },
+  "stage.deps": {
+    en: "Dependency audit",
+    de: "Abhängigkeitsaudit",
+  },
+  "stage.osv": {
+    en: "CVE lookup",
+    de: "CVE-Abgleich",
+  },
+  "stage.git": {
+    en: "Git history",
+    de: "Git-Historie",
+  },
+  "stage.dupes": {
+    en: "Duplicates",
+    de: "Dubletten",
+  },
+  "stage.coverage": {
+    en: "Coverage reports",
+    de: "Abdeckungsberichte",
+  },
+  "stage.final": {
+    en: "Finalizing results",
+    de: "Ergebnisse zusammenstellen",
+  },
+  "stage.done": {
+    en: "Complete",
+    de: "Fertig",
+  },
+
+  // ── Reading and upload phase (the counter that proves the program is alive) ──
+  "scan.reading": {
+    en: "{n} files read",
+    de: "{n} Dateien gelesen",
+  },
+  "scan.readingOne": {
+    en: "{n} file read",
+    de: "{n} Datei gelesen",
+  },
+  "scan.readingOf": {
+    en: "{n} of {total}",
+    de: "{n} von {total}",
+  },
+  "scan.uploading": {
+    en: "Uploading",
+    de: "Upload läuft",
+  },
+  "scan.elapsed": {
+    en: "elapsed {s} s",
+    de: "seit {s} s",
+  },
+  "scan.etaHint": {
+    en: "usually about {s} s",
+    de: "dauert meist {s} s",
+  },
+  "scan.cancelled": {
+    en: "Cancelled — nothing continues",
+    de: "Abgebrochen — nichts läuft weiter",
+  },
+  /**
+   * The sentences the scan hook throws today (measured in the German run: they
+   * stayed English). Each one has a home here so the hook only has to call t().
+   */
+  "scan.waiting": {
+    en: "Waiting for the scan",
+    de: "Warten auf den Scan",
+  },
+  "scan.uploadFailed": {
+    en: "Upload failed",
+    de: "Upload fehlgeschlagen",
+  },
+  "scan.uploadHttpStatus": {
+    en: "Upload failed (HTTP {status})",
+    de: "Upload fehlgeschlagen (HTTP {status})",
+  },
+  "scan.timedOut": {
+    en: "Analysis timed out — is the server still running?",
+    de: "Die Analyse hat die Zeit überschritten — läuft der Server noch?",
+  },
+  "scan.jobGone": {
+    en: "Analysis job not found — was the server restarted?",
+    de: "Analyseauftrag nicht gefunden — wurde der Server neu gestartet?",
+  },
+  "scan.serverFailed": {
+    en: "Analysis failed on the server — check the server logs.",
+    de: "Die Analyse ist auf dem Server fehlgeschlagen — prüfe die Server-Protokolle.",
+  },
+  "scan.cityLoadFailed": {
+    en: "The city data could not be loaded",
+    de: "Die Stadtdaten konnten nicht geladen werden",
+  },
+  "scan.noSource": {
+    en: "No analyzable source files in this folder (supported: {exts})",
+    de: "In diesem Ordner liegen keine analysierbaren Quelldateien (unterstützt: {exts})",
+  },
+
+  // ── Limits: a file may be refused, but never silently (measured: 30 of 62 gone) ──
+  "cap.filesFound": {
+    en: "{found} source files found, the limit is {max}",
+    de: "{found} Quelldateien gefunden, Grenze ist {max}",
+  },
+  "cap.filesFoundOne": {
+    en: "{found} source file found, the limit is {max}",
+    de: "{found} Quelldatei gefunden, Grenze ist {max}",
+  },
+  "cap.hint": {
+    en: "Exclude folders instead of giving up",
+    de: "Ordner ausschließen statt aufgeben",
+  },
+  "cap.excludeLabel": {
+    en: "Excluded folders",
+    de: "Ausgeschlossene Ordner",
+  },
+  "cap.excludePlaceholder": {
+    en: "e.g. generated, fixtures",
+    de: "z. B. generated, fixtures",
+  },
+  "drop.rejected": {
+    en: "{n} files exceeded the {max}-character path limit and were not read",
+    de: "{n} Dateien lagen über der Pfadgrenze von {max} Zeichen und wurden nicht gelesen",
+  },
+  "drop.rejectedOne": {
+    en: "{n} file exceeded the {max}-character path limit and was not read",
+    de: "{n} Datei lag über der Pfadgrenze von {max} Zeichen und wurde nicht gelesen",
+  },
+  "drop.skipped": {
+    en: "{n} files were too large or unreadable",
+    de: "{n} Dateien waren zu groß oder unlesbar",
+  },
+  "drop.skippedOne": {
+    en: "{n} file was too large or unreadable",
+    de: "{n} Datei war zu groß oder unlesbar",
+  },
+  "drop.unread": {
+    en: "{n} files could not be read",
+    de: "{n} Dateien konnten nicht gelesen werden",
+  },
+  "drop.unreadOne": {
+    en: "{n} file could not be read",
+    de: "{n} Datei konnte nicht gelesen werden",
+  },
+
+  // ── Read budget (measured: 600 reads / 15 min, polling ate 30 per minute) ──
+  "limit.hit": {
+    en: "The local server asked for a break — resuming in {s} s",
+    de: "Der lokale Server bittet um eine Pause — weiter in {s} s",
+  },
+  "limit.waiting": {
+    en: "Waiting for the read budget",
+    de: "Warte auf das Lesebudget",
   },
 
   // ── Security tour ─────────────────────────────────────────────────────────
@@ -1393,6 +1666,10 @@ export const DICT = {
   "tooltip.folderSubtitle": {
     en: "folder · {files} files · {loc} LOC",
     de: "Ordner · {files} Dateien · {loc} LOC",
+  },
+  "tooltip.folderSubtitleOne": {
+    en: "folder · {files} file · {loc} LOC",
+    de: "Ordner · {files} Datei · {loc} LOC",
   },
   "tooltip.badgeCriticalOne": {
     en: "{count} critical finding",
@@ -1687,6 +1964,10 @@ export const DICT = {
     en: "{count} lines of data{labels}",
     de: "{count} Zeilen Daten{labels}",
   },
+  "ctx.dataLinesOne": {
+    en: "{count} line of data{labels}",
+    de: "{count} Zeile Daten{labels}",
+  },
   "ctx.dataLinesTip": {
     en: "Translation catalogues, manifests and generated JSON have lines but no behaviour. They are counted apart from the code, never inside it.",
     de: "Übersetzungskataloge, Manifeste und erzeugtes JSON haben Zeilen, aber kein Verhalten. Sie zählen getrennt vom Code, nie darin.",
@@ -1706,6 +1987,10 @@ export const DICT = {
   "ctx.unchecked": {
     en: "{unverified} of {total} files here were never checked{by}",
     de: "{unverified} von {total} Dateien hier wurden nie geprüft{by}",
+  },
+  "ctx.uncheckedOne": {
+    en: "{unverified} of {total} files here was never checked{by}",
+    de: "{unverified} von {total} Dateien hier wurde nie geprüft{by}",
   },
   "ctx.uncheckedBy": {
     en: " by {engines}",
@@ -1734,6 +2019,10 @@ export const DICT = {
   "ctx.testFindings": {
     en: "{inTests} of {total} findings were found in test code",
     de: "{inTests} von {total} Funden stammen aus Testcode",
+  },
+  "ctx.testFindingsOne": {
+    en: "{inTests} of {total} findings was found in test code",
+    de: "{inTests} von {total} Funden stammt aus Testcode",
   },
   "ctx.drawTip": {
     en: "One building per file that fits the plots of this view. The rest are represented by a district plot or a podium marker, and every finding is still counted.",
@@ -1811,9 +2100,17 @@ export const DICT = {
   },
 
   // ── Why a district draws fewer buildings (layout helper) ──────────────────
+  "district.underground": {
+    en: "underground",
+    de: "im Untergrund",
+  },
   "layout.drawnHere": {
     en: "{drawn} of {files} files here stand as buildings — a folder draws at most {cap}, the rest share one podium marker.",
     de: "{drawn} von {files} Dateien hier stehen als Gebäude — ein Ordner zeichnet höchstens {cap}, der Rest teilt sich einen Sockel-Marker.",
+  },
+  "layout.drawnHereOne": {
+    en: "{drawn} of {files} files here stands as a building — a folder draws at most {cap}, the rest share one podium marker.",
+    de: "{drawn} von {files} Dateien hier steht als Gebäude — ein Ordner zeichnet höchstens {cap}, der Rest teilt sich einen Sockel-Marker.",
   },
   "layout.subDistrictsOne": {
     en: "{below} files live in {plots} sub-district; each plot shows up to {towers} of its most at-risk files.",
@@ -1855,6 +2152,10 @@ export const DICT = {
     en: "◈ No findings — {missing} did not run",
     de: "◈ Keine Funde — {missing} lief nicht",
   },
+  "summary.noFindingsMissingMany": {
+    en: "◈ No findings — {missing} did not run",
+    de: "◈ Keine Funde — {missing} liefen nicht",
+  },
   "summary.depthUnknown": {
     en: "◈ No findings — scan depth unknown",
     de: "◈ Keine Funde — Scan-Tiefe unbekannt",
@@ -1866,6 +2167,10 @@ export const DICT = {
   "summary.filesAnalyzed": {
     en: "{count} files analyzed",
     de: "{count} Dateien analysiert",
+  },
+  "summary.filesAnalyzedOne": {
+    en: "{count} file analyzed",
+    de: "{count} Datei analysiert",
   },
   "summary.sevRisk": {
     en: "{label} security risk",
@@ -1904,6 +2209,10 @@ export const DICT = {
   "profile.packTip": {
     en: "{count} rules · source: {source} · license: {license} · version {version}",
     de: "{count} Regeln · Quelle: {source} · Lizenz: {license} · Version {version}",
+  },
+  "profile.packTipOne": {
+    en: "{count} rule · source: {source} · license: {license} · version {version}",
+    de: "{count} Regel · Quelle: {source} · Lizenz: {license} · Version {version}",
   },
   "profile.packFetched": {
     en: "your own",
@@ -2269,6 +2578,140 @@ export const DICT = {
     en: "← KEEP CURRENT",
     de: "← AKTUELLES BEHALTEN",
   },
+
+  // ── City video studio (taken over from src/share/fallbackCopy.ts, Lane TEILER) ─
+  /**
+   * The 60 names are verbatim what the studio and the release card render today, so
+   * TEILER can swap `tx()` for `t()` without touching a call site. Six values got a
+   * German wording of their own: a byte-identical pair reads as untranslated and the
+   * guard in tests/panelI18n.test.tsx allows copies only for tool and format names.
+   */
+  "menu.item": { en: "Record city video", de: "Stadtvideo aufnehmen" },
+  "studio.title": { en: "City video", de: "Stadtvideo" },
+  "studio.intro": {
+    en: "Film the city while it rises, or as it stands. The file goes to your download folder and stays on this machine until you upload it yourself.",
+    de: "Film die Stadt beim Bauen oder im fertigen Zustand. Die Datei landet im Download-Ordner und bleibt auf diesem Rechner, bis du sie selbst hochlädst.",
+  },
+  "studio.close": { en: "Close", de: "Schließen" },
+  "studio.format": { en: "Format", de: "Ausgabeformat" },
+  "studio.length": { en: "Length", de: "Länge" },
+  "length.build": { en: "The build, start to finish", de: "Die Bau-Animation, einmal durch" },
+  "length.buildWaiting": {
+    en: "Runs while a city is still under construction.",
+    de: "Läuft nur, während eine Stadt noch gebaut wird.",
+  },
+  "length.15": { en: "15-second take", de: "15 Sekunden" },
+  "length.30": { en: "30-second take", de: "30 Sekunden" },
+  "length.manual": { en: "I stop it", de: "Eigener Stopp" },
+  "studio.quality": { en: "Quality", de: "Qualität" },
+  "quality.resolution": { en: "Picture", de: "Bild" },
+  "quality.fps": { en: "Frames", de: "Bilder" },
+  "quality.bitrate": { en: "Bitrate set to", de: "Bitrate eingestellt" },
+  "quality.codec": { en: "Codec", de: "Video-Codec" },
+  "quality.codecPending": { en: "asked for", de: "angefragt" },
+  "studio.names": { en: "Show names", de: "Namen zeigen" },
+  "studio.namesDisclosure": {
+    en: "This puts your project name and the district names of the current level into the picture itself. Leave it off and the video shows geometry only.",
+    de: "Das schreibt deinen Projektnamen und die Bezirksnamen der aktuellen Ebene ins Bild selbst. Ausgelassen zeigt das Video nur Geometrie.",
+  },
+  "studio.namesFileNote": {
+    en: "The saved file is always named after the project and the date. Never after the folder path.",
+    de: "Die gespeicherte Datei heißt immer nach Projekt und Datum. Nie nach dem Ordnerpfad.",
+  },
+  "studio.record": { en: "Record", de: "Aufnehmen" },
+  "studio.stop": { en: "Stop", de: "Stopp" },
+  "studio.preparing": { en: "Framing the shot", de: "Bild wird gerahmt" },
+  "studio.recording": { en: "Recording", de: "Aufnahme läuft" },
+  "studio.finalizing": { en: "Closing the encoder", de: "Encoder wird geschlossen" },
+  "studio.elapsed": { en: "elapsed {s} s", de: "seit {s} s" },
+  "studio.written": { en: "{bytes} bytes so far", de: "{bytes} Bytes bisher" },
+  "studio.errorNoCanvas": {
+    en: "No 3D canvas on screen. A city has to be standing before it can be filmed.",
+    de: "Kein 3D-Canvas auf dem Bildschirm. Eine Stadt muss erst dastehen, bevor sie gefilmt werden kann.",
+  },
+  "studio.errorNoRecorder": {
+    en: "This browser has no MediaRecorder, so the city cannot be filmed here.",
+    de: "Dieser Browser hat keinen MediaRecorder. Die Stadt lässt sich hier nicht filmen.",
+  },
+  "studio.errorEmpty": {
+    en: "The recorder wrote 0 bytes. Nothing was saved.",
+    de: "Der Encoder hat 0 Bytes geschrieben. Es wurde nichts gespeichert.",
+  },
+  "studio.errorSkew": {
+    en: "The shot came out out of proportion ({skew}). Recording stopped, nothing was saved.",
+    de: "Das Bild lief unverhältnismäßig aus der Form ({skew}). Aufnahme gestoppt, nichts gespeichert.",
+  },
+  "studio.unsupported": { en: "not available", de: "nicht verfügbar" },
+  "card.title": { en: "Done. The city is a file.", de: "Fertig. Die Stadt ist eine Datei." },
+  "card.sub": {
+    en: "Measured while recording, not estimated afterwards.",
+    de: "Während der Aufnahme gemessen, nicht danach geschätzt.",
+  },
+  "card.facts": { en: "What the file is", de: "Was die Datei ist" },
+  "card.size": { en: "Size", de: "Größe" },
+  "card.duration": { en: "Duration", de: "Dauer" },
+  "card.resolution": { en: "Resolution", de: "Auflösung" },
+  "card.fps": { en: "Frame rate", de: "Bildrate" },
+  "card.codec": { en: "Codec", de: "Video-Codec" },
+  "card.fileName": { en: "File name", de: "Dateiname" },
+  "card.frames": { en: "Frames composited", de: "Gerahmte Bilder" },
+  "card.download": { en: "Save the video", de: "Video speichern" },
+  "card.captions": { en: "Text to go with it", de: "Text dazu" },
+  "card.copy": { en: "Copy", de: "Kopieren" },
+  "card.copied": { en: "Copied", de: "Kopiert" },
+  "card.copyFailed": { en: "Copy failed", de: "Kopieren fehlgeschlagen" },
+  "card.tone.dry": { en: "Plain", de: "Trocken" },
+  "card.tone.warm": { en: "Friendly", de: "Freundlich" },
+  "card.tone.curious": { en: "Curious", de: "Neugierig" },
+  "card.privacy": {
+    en: "Nothing left this machine on the way here. It leaves only if you attach it somewhere.",
+    de: "Nichts hat diese Maschine auf dem Weg hier verlassen. Es geht erst raus, wenn du es selbst anhängst.",
+  },
+  "card.namesOff": {
+    en: "No name in the picture. Project, folder and file titles stayed on your screen.",
+    de: "Kein Name im Bild. Projekt-, Ordner- und Dateititel blieben auf deinem Bildschirm.",
+  },
+  "card.namesOn": {
+    en: "Names are burned into the picture: {names}.",
+    de: "Namen stehen im Bild eingebrannt: {names}.",
+  },
+  "card.noLink": {
+    en: "No destination is configured yet, so the texts name no target and hint at no star.",
+    de: "Es ist noch kein Ziel eingetragen, darum nennen die Texte kein Ziel und deuten auf keinen Stern.",
+  },
+  "card.cta": {
+    en: "Sharing your video helps a small project grow. Thank you, and a star on GitHub is welcome too.",
+    de: "Mit dem Teilen deines Videos hilfst du einem kleinen Projekt zu wachsen. Vielen Dank, und ein Stern auf GitHub wäre auch schön.",
+  },
+  "card.again": { en: "Record another take", de: "Noch einmal aufnehmen" },
+  "hint.text": {
+    en: "The city is finished. It films well.",
+    de: "Die Stadt ist fertig gebaut. Sie lässt sich gut filmen.",
+  },
+  "hint.action": { en: "Record it", de: "Jetzt aufnehmen" },
+  "hint.dismiss": { en: "Not now, and not again", de: "Nicht jetzt, und nie wieder" },
+  "hint.aria": { en: "City video suggestion", de: "Vorschlag für ein Stadtvideo" },
+
+  // ── Keyboard-only hints (taken over from the resolve() bridges, Lane WELT-GRIFF) ─
+  "hints.echoNote": {
+    en: "A key this view cannot use says so above the dock — that line is the answer, not an error.",
+    de: "Eine Taste, die diese Ansicht nicht kann, antwortet einen Satz über der Dockleiste — das ist die Antwort, kein Fehler.",
+  },
+  "keys.orbitReleased": { en: "Camera released — it flies free again", de: "Kamera wieder frei" },
+  "minimap.ariaKeyboard": {
+    en: "City map. Arrow keys move the marker, Enter flies the camera to it — the same as a click.",
+    de: "Übersichtskarte. Pfeiltasten bewegen die Markierung, Enter fliegt dorthin — wie ein Klick.",
+  },
+  "minimap.keys": { en: "← → ↑ ↓ marker · Enter flies", de: "← → ↑ ↓ Markierung · Enter fliegt" },
+  "tooltip.zoomHintKeyboard": { en: "Enter — walk in", de: "Enter — hineingehen" },
+  "tooltip.orbitHintKeyboard": {
+    en: "Enter — circle it, Esc frees the camera",
+    de: "Enter — umkreisen, Esc gibt die Kamera frei",
+  },
+  "tooltip.noFindingsOrbitHintKeyboard": {
+    en: "Enter — circle it, Esc frees the camera",
+    de: "Enter — umkreisen, Esc gibt die Kamera frei",
+  },
 } satisfies Record<string, { en: string; de: string }>;
 
 export type DictKey = keyof typeof DICT;
@@ -2285,4 +2728,23 @@ export function t(lang: Lang, key: DictKey, vars?: Record<string, string | numbe
     (acc, [name, value]) => acc.split(`{${name}}`).join(String(value)),
     text,
   );
+}
+
+/**
+ * Measured numbers are integers, so the thousands separator is the only locale
+ * difference that shows up in the UI. German groups with dots ("3.300 files" →
+ * "3.300 Dateien"), English with commas.
+ */
+export function formatCount(lang: Lang, n: number): string {
+  return n.toLocaleString(lang === "de" ? "de-DE" : "en-US");
+}
+
+/**
+ * The count phrase for places that build text from parts instead of picking a
+ * `…One`/`…Many` key: `plural("de", 1, "Fund", "Funde")` → "1 Fund". Only an
+ * exact 1 takes the singular — 0 and 0.5 stay plural in both languages, so a
+ * measured value can never read as a grammar bug.
+ */
+export function plural(lang: Lang, n: number, one: string, many: string): string {
+  return `${formatCount(lang, n)} ${n === 1 ? one : many}`;
 }

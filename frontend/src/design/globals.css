@@ -1690,3 +1690,112 @@ div[role="status"].animate-toast-rise {
   background: #45667f !important;
   border-color: #91b4cb !important;
 }
+
+/* ── Shared state lines for the scan pass (Lane TEXT, plan §5) ──────────────
+   New classes only — nothing above is redefined. They exist so lanes START,
+   LOKAL and STADT-UI render the same sentence shape: what is happening, how
+   long it takes, what was refused, and what the machine did NOT check. Colors
+   and sizes come from the tokens at the top of this file; the smallest text is
+   --fs-meta, so a state line never falls under the legibility floor. ────── */
+
+/* The stage list: every step of the scan visible, ticked as it finishes (S3). */
+.stage-list {
+  display: grid;
+  gap: 3px;
+  margin: 10px 0 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--fs-meta);
+  color: var(--meta);
+}
+.stage-list li {
+  display: flex;
+  align-items: baseline;
+  gap: 7px;
+}
+.stage-list li::before {
+  /* The mark is the state; the label stays readable without it. */
+  content: "·";
+  width: 11px;
+  flex: none;
+  text-align: center;
+  color: var(--meta-faint);
+}
+.stage-list li[data-state="running"] {
+  color: var(--color-text);
+}
+.stage-list li[data-state="running"]::before {
+  content: "▸";
+  color: var(--brand-red);
+}
+.stage-list li[data-state="done"]::before {
+  content: "✓";
+  color: var(--color-low);
+}
+
+/* Counters that prove work is happening: read files, elapsed, expected duration. */
+.scan-meters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  margin-top: 8px;
+  font-size: var(--fs-meta);
+  color: var(--meta-strong);
+  font-variant-numeric: tabular-nums;
+}
+.scan-meters strong {
+  color: var(--color-text);
+  font-weight: 600;
+}
+
+/* Refused or unread files: a number, not a silence (S4, S5). */
+.scan-refusal {
+  margin-top: 8px;
+  padding: 7px 9px;
+  border-left: 2px solid var(--color-medium);
+  background: rgba(255, 210, 63, 0.07);
+  font-size: var(--fs-small);
+  line-height: 1.5;
+  color: var(--color-text);
+}
+.scan-refusal + .scan-refusal {
+  margin-top: 4px;
+}
+
+/* Opt-in exclude field beside the file cap — the way around the wall. */
+.scan-exclude {
+  display: grid;
+  gap: 4px;
+  margin-top: 10px;
+  font-size: var(--fs-meta);
+  color: var(--meta-strong);
+}
+.scan-exclude input {
+  padding: 6px 8px;
+  border: 1px solid var(--glass-border);
+  border-radius: 6px;
+  background: var(--color-surface2);
+  color: var(--color-text);
+  font: inherit;
+  font-family: var(--font-mono);
+}
+
+/* Read budget: the server asked for a pause, and the UI says so (S10). */
+.scan-budget {
+  margin-top: 8px;
+  font-size: var(--fs-meta);
+  color: var(--color-medium);
+}
+
+/* Trust line under an empty finding list: no finding is not clean (S7). */
+.trust-line {
+  margin-top: 6px;
+  font-size: var(--fs-small);
+  line-height: 1.5;
+  color: var(--meta);
+}
+.trust-line--unchecked {
+  padding: 6px 8px;
+  border-left: 2px solid var(--color-safe);
+  color: var(--color-text);
+}
