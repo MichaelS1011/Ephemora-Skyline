@@ -1,0 +1,675 @@
+/**
+ * STADT-UI — the HUD in city mode: header, mode bar, search, action dock and
+ * the three panels. Own file by team rule (globals.css belongs to Lane TEXT);
+ * imported from HudOverlay.tsx, which is mounted for every city.
+ *
+ * The order this aims for: measurement first, control second, decoration last.
+ * Where globals.css already pins a box with `!important` (panel positions and
+ * widths), only the properties it leaves alone are set here.
+ */
+
+/* ── Header ────────────────────────────────────────────────────────────── */
+.workspace-header {
+  gap: 16px;
+  padding: 0 22px;
+}
+.workspace-brand {
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  color: var(--meta);
+}
+.workspace-project {
+  /* the name of the thing being measured outranks its status line */
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.15;
+  color: var(--brand-ink);
+  max-width: min(230px, 34vw);
+}
+.workspace-project > span {
+  font-size: var(--fs-meta);
+  font-weight: 400;
+  letter-spacing: 0.02em;
+  color: var(--meta-strong);
+  margin-top: 1px;
+}
+.workspace-files {
+  font-variant-numeric: tabular-nums;
+  font-size: 13px;
+  color: var(--brand-ink);
+}
+.workspace-files > span {
+  font-size: var(--fs-meta);
+  color: var(--meta-strong);
+}
+
+/* Severity chips — one shape per grade, so the order survives a screen that
+ * cannot tell #ff2e4d from #ffd23f. */
+.workspace-severities {
+  gap: 5px;
+}
+.workspace-severities button {
+  min-height: 32px;
+  border-radius: 6px;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.01em;
+}
+.workspace-header .workspace-severities button > span.severity-shape {
+  width: auto;
+  height: auto;
+  border-radius: 0;
+  background: none;
+  color: var(--severity);
+  font-size: var(--fs-meta);
+  line-height: 1;
+  /* the type floor is 11px; the glyph reads smaller through scale, not size */
+  transform: scale(0.78);
+}
+.workspace-severities button[aria-pressed="true"] > span.severity-shape {
+  font-weight: 700;
+}
+.severity-label {
+  color: var(--meta-strong);
+}
+.clean-status {
+  font-size: var(--fs-meta);
+  color: var(--meta-strong);
+}
+.clean-status[data-city-verdict="clear"] {
+  color: var(--color-low);
+}
+.clean-status[data-city-verdict="shallow"],
+.clean-status[data-city-verdict="unknown"] {
+  /* "nothing found" by engines that never ran is a gap, not a result */
+  color: #b0a89a;
+  border: 1px dashed rgba(150, 142, 128, 0.45);
+  border-radius: 5px;
+  padding: 5px 9px;
+  min-height: 32px;
+  display: inline-flex;
+  align-items: center;
+}
+
+/* ── Severity chip, shared vocabulary ──────────────────────────────────── */
+.severity-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+  border: 1px solid color-mix(in srgb, currentColor 34%, transparent);
+  background: color-mix(in srgb, currentColor 9%, transparent);
+  border-radius: 4px;
+  padding: 1px 6px;
+  font-weight: 600;
+  line-height: 1.5;
+}
+.severity-chip-shape {
+  font-size: var(--fs-meta);
+  line-height: 1;
+  opacity: 0.95;
+  transform: scale(0.78);
+}
+.severity-count {
+  border-width: 1px;
+  border-style: solid;
+}
+
+/* ── Card depth system ─────────────────────────────────────────────────── */
+.panel-card {
+  position: absolute;
+  background: rgba(24, 24, 22, 0.97);
+  border: 1px solid rgba(242, 239, 232, 0.14);
+  border-radius: 10px;
+  box-shadow:
+    0 18px 44px rgba(0, 0, 0, 0.5),
+    inset 0 1px 0 rgba(242, 239, 232, 0.06);
+  backdrop-filter: blur(14px);
+  color: var(--color-text);
+  font-family: var(--font-ui);
+  font-size: var(--fs-body);
+}
+
+/* ── Panel head, shared by the file panel and the findings list ────────── */
+.panel-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 14px 10px;
+}
+.panel-title {
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  color: var(--brand-ink);
+  line-height: 1.2;
+}
+.panel-subtitle {
+  margin-top: 3px;
+  font-size: var(--fs-small);
+  color: var(--meta-strong);
+  font-variant-numeric: tabular-nums;
+}
+.panel-note {
+  margin-top: 3px;
+  font-size: var(--fs-meta);
+  color: var(--meta);
+}
+.panel-close {
+  flex: none;
+  width: 32px;
+  height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  font-size: 16px;
+  line-height: 1;
+  color: var(--meta-strong);
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(242, 239, 232, 0.1);
+}
+.panel-close:hover {
+  color: var(--brand-ink);
+  background: rgba(255, 255, 255, 0.09);
+}
+
+/* ── Filter rows ───────────────────────────────────────────────────────── */
+/* The list of findings is the data; the two filter rows above it are chrome.
+   They sit in one compact band: priority first (four chips, one line), the
+   rule chips under it, and the divider under whichever row is last. */
+.filter-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 3px;
+  padding: 0 12px 6px;
+}
+.filter-row-priority {
+  border-bottom: 1px solid rgba(242, 239, 232, 0.1);
+  padding-bottom: 8px;
+  margin-bottom: 2px;
+}
+.filter-row-priority:has(+ .filter-row-rules) {
+  border-bottom: 0;
+  padding-bottom: 2px;
+  margin-bottom: 0;
+}
+.filter-row-rules {
+  border-bottom: 1px solid rgba(242, 239, 232, 0.1);
+  padding-bottom: 9px;
+  margin-bottom: 2px;
+}
+.filter-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 27px;
+  max-width: 100%;
+  padding: 0 8px;
+  border-radius: 6px;
+  border: 1px solid transparent;
+  font-size: var(--fs-meta);
+  font-weight: 500;
+  color: var(--meta-strong);
+}
+.filter-chip:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+.filter-chip[data-active] {
+  color: var(--brand-ink);
+  background: color-mix(in srgb, var(--severity, var(--brand-red)) 16%, transparent);
+  border-color: color-mix(in srgb, var(--severity, var(--brand-red)) 46%, transparent);
+}
+.filter-chip-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.filter-chip-rule {
+  font-family: var(--font-mono);
+  letter-spacing: 0.01em;
+}
+.filter-count {
+  flex: none;
+  font-variant-numeric: tabular-nums;
+  opacity: 0.8;
+}
+.filter-chip-quiet {
+  color: var(--meta);
+}
+
+/* ── Findings list ─────────────────────────────────────────────────────── */
+.panel-findings {
+  z-index: 30;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.finding-file-card {
+  overflow: hidden;
+  border-radius: 9px;
+  border: 1px solid rgba(242, 239, 232, 0.1);
+  /* the grade rides the left edge and the chip, never the edge alone */
+  border-left: 3px solid var(--severity);
+  background: rgba(18, 18, 16, 0.6);
+}
+.finding-file-card[data-selected] {
+  border-color: rgba(232, 80, 60, 0.45);
+  border-left-color: var(--severity);
+  background: rgba(232, 80, 60, 0.07);
+}
+.finding-file-head {
+  display: block;
+  width: 100%;
+  padding: 10px 12px;
+  text-align: left;
+}
+.finding-file-head:hover {
+  background: rgba(255, 255, 255, 0.04);
+}
+.finding-file-title-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+.finding-file-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--brand-ink);
+  overflow-wrap: anywhere;
+}
+.finding-file-tally {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex: none;
+}
+.finding-reviewed {
+  font-size: var(--fs-meta);
+  color: var(--meta);
+  font-variant-numeric: tabular-nums;
+}
+.finding-count {
+  min-width: 22px;
+  padding: 1px 6px;
+  border-radius: 6px;
+  font-size: var(--fs-meta);
+  font-weight: 600;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  color: var(--severity);
+  background: color-mix(in srgb, var(--severity) 14%, transparent);
+}
+.finding-file-path-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 7px;
+  margin-top: 3px;
+}
+.finding-file-dot {
+  margin-top: 6px;
+  width: 5px;
+  height: 5px;
+  flex: none;
+  border-radius: 50%;
+}
+.finding-file-path {
+  font-family: var(--font-mono);
+  font-size: var(--fs-meta);
+  line-height: 1.55;
+  color: var(--meta-strong);
+  overflow-wrap: anywhere;
+}
+.finding-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  width: 100%;
+  min-height: 40px;
+  padding: 9px 0;
+  border-top: 1px solid rgba(242, 239, 232, 0.06);
+  text-align: left;
+}
+.finding-row:hover {
+  background: rgba(255, 255, 255, 0.04);
+}
+.finding-review-dot {
+  margin-top: 7px;
+  width: 5px;
+  height: 5px;
+  flex: none;
+  border-radius: 50%;
+}
+.finding-severity {
+  margin-top: 1px;
+  flex: none;
+  font-size: var(--fs-meta);
+}
+.finding-row-text {
+  min-width: 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: #dedbd3;
+  overflow-wrap: anywhere;
+}
+.finding-row-meta {
+  display: block;
+  margin-top: 3px;
+  font-size: var(--fs-meta);
+  color: var(--meta);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── Bilingual finding text ────────────────────────────────────────────── */
+.finding-message {
+  display: block;
+}
+.finding-message-orig {
+  display: block;
+  margin-top: 6px;
+  font-family: var(--font-mono);
+  font-size: var(--fs-meta);
+  line-height: 1.55;
+  color: var(--meta-strong);
+}
+.finding-message-de {
+  display: block;
+  margin-top: 2px;
+  font-size: var(--fs-body);
+  line-height: 1.5;
+  color: #dedbd3;
+}
+.finding-lang-mark {
+  display: inline-block;
+  margin-right: 5px;
+  padding: 0 3px;
+  border: 1px solid rgba(242, 239, 232, 0.22);
+  border-radius: 3px;
+  font-family: var(--font-mono);
+  font-size: var(--fs-meta);
+  line-height: 1.45;
+  letter-spacing: 0.06em;
+  color: var(--meta);
+  vertical-align: 1px;
+}
+
+/* ── File panel ────────────────────────────────────────────────────────── */
+.panel-info {
+  padding: 14px;
+  z-index: 32 !important;
+  /* the panel floats over a `pointer-events-none` layer, and it scrolls */
+  pointer-events: auto;
+  overflow-y: auto;
+  /* globals.css pins the background and the radius with !important; the edge
+     keeps the language of the building it describes */
+  border-color: color-mix(in srgb, var(--accent) 42%, transparent) !important;
+  box-shadow:
+    0 18px 44px rgba(0, 0, 0, 0.5),
+    0 0 26px color-mix(in srgb, var(--accent) 12%, transparent);
+}
+.panel-metrics {
+  font-variant-numeric: tabular-nums;
+}
+.panel-file-name {
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 1.25;
+  color: var(--brand-ink);
+  word-break: break-all;
+}
+.panel-file-path {
+  margin-top: 2px;
+  font-size: var(--fs-meta);
+  line-height: 1.5;
+  color: var(--meta-strong);
+  word-break: break-all;
+}
+.panel-section-head {
+  font-variant-numeric: tabular-nums;
+}
+.panel-rule {
+  height: 1px;
+  background: rgba(242, 239, 232, 0.1);
+  margin: 0 0 12px;
+}
+
+/* Handover — the artefacts a reader passes on, one click from the file name. */
+.panel-handoff {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+.handoff-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 30px;
+  padding: 0 8px;
+  border: 1px solid rgba(232, 178, 60, 0.34);
+  border-radius: 6px;
+  background: rgba(232, 178, 60, 0.07);
+  font-family: var(--font-mono);
+  font-size: var(--fs-meta);
+  letter-spacing: 0.01em;
+  color: #d8c9a3;
+}
+.handoff-action:hover {
+  filter: brightness(1.18);
+}
+
+/* File verdict — checked-clean green and never-checked grey, one shape each. */
+.file-verdict {
+  font-variant-numeric: tabular-nums;
+}
+.file-verdict-mark {
+  font-size: 13px;
+  line-height: 1.3;
+}
+.file-verdict-unchecked .file-verdict-mark {
+  font-weight: 700;
+}
+
+.suggested-fix-title {
+  min-width: 0;
+  /* the recipe name is the whole point of the block: it wraps, it does not cut */
+  white-space: normal;
+  overflow: visible;
+  text-overflow: clip;
+  line-height: 1.45;
+}
+
+/* ── Editor control ────────────────────────────────────────────────────── */
+.ide-control {
+  margin-bottom: 12px;
+}
+.ide-control-row {
+  gap: 6px;
+}
+.ide-path {
+  display: block;
+  margin-top: 4px;
+  font-family: var(--font-mono);
+  font-size: var(--fs-meta);
+  line-height: 1.45;
+  color: var(--meta);
+  word-break: break-all;
+}
+.ide-hint {
+  margin-top: 3px;
+  font-size: var(--fs-meta);
+  line-height: 1.5;
+  color: #d8c9a3;
+}
+
+/* ── Search ───────────────────────────────────────────────────────────── */
+.search-hit {
+  display: flex;
+  width: 100%;
+  text-align: left;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 14px;
+  border-bottom: 1px solid rgba(232, 178, 60, 0.07);
+  transition: background-color 100ms;
+}
+.search-hit-severity {
+  margin-top: 2px;
+  flex: none;
+  font-size: var(--fs-meta);
+}
+.search-control .finding-message-de {
+  margin-top: 2px;
+  font-size: var(--fs-meta);
+  color: var(--meta-strong);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ── Context card notes ────────────────────────────────────────────────── */
+.ctx-note {
+  font-size: var(--fs-small);
+  line-height: 1.5;
+}
+
+/* ── Mode bar and heat channel: one segmented-control family ───────────── */
+/* Both are radiogroups over the same kind of choice ("which layer am I
+   looking at"), so they get one box model, one type size and one selected
+   state — the selected one also carries a dot, so the active lens is not
+   only a colour difference. */
+.workspace-modes .glass,
+.workspace-heatmap .glass {
+  gap: 4px;
+  padding: 4px 6px;
+  border-radius: 8px;
+  border: 1px solid rgba(242, 239, 232, 0.12);
+  background: rgba(24, 24, 22, 0.92);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+}
+.workspace-modes [role="radio"],
+.workspace-heatmap [role="radio"] {
+  position: relative;
+  min-height: 28px;
+  padding: 2px 8px;
+  border-radius: 6px;
+  font-size: var(--fs-meta);
+  letter-spacing: 0.06em;
+}
+.workspace-modes [role="radio"][aria-checked="true"]::before,
+.workspace-heatmap [role="radio"][aria-checked="true"]::before {
+  content: "•";
+  margin-right: 4px;
+  font-size: var(--fs-meta);
+  line-height: 1;
+}
+.workspace-heatmap [role="radio"][aria-disabled="true"] {
+  text-decoration: line-through;
+  text-decoration-color: rgba(150, 142, 128, 0.6);
+}
+
+/* ── Keyboard focus, one ring for the whole HUD ────────────────────────── */
+.workspace-header :is(button, a, input):focus-visible,
+.panel-card :is(button, a, input):focus-visible,
+.workspace-breadcrumbs button:focus-visible,
+.workspace-modes button:focus-visible,
+.workspace-heatmap button:focus-visible,
+.search-control :is(button, input):focus-visible,
+.action-dock :is(button):focus-visible {
+  outline: 2px solid #e8b23c;
+  outline-offset: 1px;
+}
+
+/* ── Narrow: the In-App-Panel and the 320 px floor ─────────────────────── */
+@media (max-width: 760px) {
+  /* The severity counts are the first thing a reader checks and the header
+     dropped them entirely; a compact row keeps them, without their labels.
+     Scoped through `.app-shell .workspace-header` on purpose: globals.css
+     hides the same class in the same media query, and in dev the injection
+     order of the two stylesheets is not something this file should bet on. */
+  .app-shell .workspace-header .workspace-severities {
+    display: flex;
+  }
+  .app-shell .workspace-header .workspace-severities button {
+    min-height: 30px;
+    padding: 4px 7px;
+    font-size: var(--fs-meta);
+  }
+  .app-shell .workspace-header .workspace-severities .severity-label {
+    display: none;
+  }
+  .app-shell .workspace-header .clean-status {
+    font-size: var(--fs-meta);
+    padding: 4px 6px;
+  }
+  .app-shell .workspace-breadcrumbs {
+    /* nowrap plus a scroll container hid the district trail behind a 0-px
+       window; wrapping costs a line and shows every segment */
+    flex-wrap: wrap;
+    white-space: normal;
+    overflow-x: visible;
+    max-width: calc(100% - 28px);
+  }
+  .workspace-header {
+    height: 64px;
+  }
+  .panel-handoff .handoff-action,
+  .ide-control {
+    flex: 1 1 auto;
+  }
+}
+
+@media (max-width: 520px) {
+  /* Brand + project + three severity chips + the analyse trigger need 399 px;
+     at 320 px that pushed "+ Projekt öffnen" past the screen edge. The status
+     block becomes the header's second row, and everything anchored below the
+     header steps down by that row (34 px) so nothing is covered. */
+  .app-shell .workspace-header {
+    height: auto;
+    min-height: 98px;
+    align-content: flex-start;
+    flex-wrap: wrap;
+    padding-top: 8px;
+    padding-bottom: 8px;
+    row-gap: 6px;
+  }
+  .app-shell .workspace-status {
+    width: 100%;
+    justify-content: flex-start;
+    gap: 10px;
+  }
+  .app-shell .workspace-search {
+    top: 110px;
+  }
+  .app-shell .workspace-breadcrumbs {
+    top: 158px;
+  }
+  .app-shell .context-reopen {
+    top: 264px;
+  }
+  .app-shell .panel-context-card {
+    top: 264px !important;
+    max-height: calc(100dvh - (288px + var(--dock-h, 54px))) !important;
+  }
+  .app-shell .panel-info,
+  .app-shell .panel-findings {
+    top: 264px !important;
+    max-height: calc(100dvh - (288px + var(--dock-h, 54px))) !important;
+  }
+  .workspace-project {
+    font-size: 13px;
+  }
+  .workspace-header {
+    gap: 8px;
+  }
+  .finding-message-de {
+    font-size: var(--fs-small);
+  }
+  .panel-head {
+    padding: 12px 12px 8px;
+  }
+}

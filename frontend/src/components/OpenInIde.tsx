@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useStore } from "../stores/useStore";
-import { t } from "../i18n";
+import { DICT, t, type DictKey } from "../i18n";
 import {
   editorDeepLink,
   openDeepLink,
@@ -26,6 +26,27 @@ const looksAbsolute = (p: string): boolean => {
   if (!trimmed) return false;
   return trimmed.startsWith("/") || /^[a-zA-Z]:[\\/]/.test(trimmed);
 };
+
+/**
+ * The browser cannot stat a path, so nothing here can promise the editor will
+ * find the file. What the UI does instead of opening a window silently: print
+ * the absolute path the link will ask for, and keep it correctable. The
+ * sentence that names the failure is a dictionary entry — shown as soon as
+ * Lane TEXT ships it, not invented here.
+ */
+const MISSING_PATH_KEY = "ide.pathMissingHint" as DictKey;
+
+export function pathMissingHint(lang: "en" | "de"): string | null {
+  const entry = (DICT as Record<string, { en: string; de: string } | undefined>)[MISSING_PATH_KEY];
+  return entry ? entry[lang] : null;
+}
+
+/** The absolute path the deep link will hand to the editor. */
+export function resolveWorkspacePath(root: string, filePath: string): string {
+  const rel = filePath.replace(/^\/+/, "");
+  const clean = root.trim().replace(/\\/g, "/").replace(/\/+$/, "");
+  return `${clean}/${rel}`;
+}
 
 export function OpenInIde({
   filePath,
@@ -109,40 +130,65 @@ export function OpenInIde({
     );
   }
 
+  const absolute = resolveWorkspacePath(root, filePath);
+  const hint = pathMissingHint(lang);
+
   return (
-    <div className="flex items-center gap-1.5 mb-3">
-      <button
-        onClick={() => link && openDeepLink(link)}
-        disabled={!link}
-        aria-label={
-          line != null
-            ? t(lang, "ide.openAriaLine", { path: filePath, editor: EDITOR_LABELS[editor], line })
-            : t(lang, "ide.openAria", { path: filePath, editor: EDITOR_LABELS[editor] })
-        }
-        className="inline-flex items-center gap-1.5 font-jetbrains text-[11px] tracking-wide px-2 py-1 rounded-sm
-                   transition-opacity hover:opacity-80 disabled:opacity-40 cursor-pointer"
-        style={{
-          color: "#f2d5a0",
-          border: "1px solid rgba(232,178,60,0.4)",
-          background: "rgba(232,178,60,0.07)",
-        }}
-      >
-        {t(lang, "ide.openIn", { editor: EDITOR_LABELS[editor].toUpperCase() })}
-      </button>
-      <button
-        onClick={() => {
-          const next: EditorId = editor === "vscode" ? "cursor" : "vscode";
-          setPreferredEditor(next);
-          setEditor(next);
-        }}
-        aria-label={t(lang, "ide.switchAria", {
-          editor: EDITOR_LABELS[editor === "vscode" ? "cursor" : "vscode"],
-        })}
-        className="font-jetbrains text-[11px] px-1.5 py-1 rounded-sm cursor-pointer hover:opacity-80"
-        style={{ color: "var(--meta)", border: "1px solid rgba(150,142,128,0.3)" }}
-      >
-        ⇄
-      </button>
+    <div className="ide-control">
+      <div className="ide-control-row flex items-center gap-1.5">
+        <button
+          onClick={() => link && openDeepLink(link)}
+          disabled={!link}
+          aria-label={
+            // The absolute path, not the repo-relative one: this is the name
+            // of the file the editor will be asked for.
+            line != null
+              ? t(lang, "ide.openAriaLine", { path: absolute, editor: EDITOR_LABELS[editor], line })
+              : t(lang, "ide.openAria", { path: absolute, editor: EDITOR_LABELS[editor] })
+          }
+          className="font-jetbrains text-[11px] tracking-wide px-2 py-1 rounded-sm
+                     transition-opacity hover:opacity-80 disabled:opacity-40 cursor-pointer"
+          style={{
+            color: "#f2d5a0",
+            border: "1px solid rgba(232,178,60,0.4)",
+            background: "rgba(232,178,60,0.07)",
+          }}
+        >
+          {t(lang, "ide.openIn", { editor: EDITOR_LABELS[editor].toUpperCase() })}
+        </button>
+        <button
+          onClick={() => {
+            const next: EditorId = editor === "vscode" ? "cursor" : "vscode";
+            setPreferredEditor(next);
+            setEditor(next);
+          }}
+          aria-label={t(lang, "ide.switchAria", {
+            editor: EDITOR_LABELS[editor === "vscode" ? "cursor" : "vscode"],
+          })}
+          className="font-jetbrains text-[11px] px-1.5 py-1 rounded-sm cursor-pointer hover:opacity-80"
+          style={{ color: "var(--meta)", border: "1px solid rgba(150,142,128,0.3)" }}
+        >
+          ⇄
+        </button>
+        <button
+          onClick={() => {
+            setDraftRoot(root);
+            setConfigured(false);
+          }}
+          aria-label={t(lang, "ide.pathAria")}
+          title={t(lang, "ide.setup")}
+          className="font-jetbrains text-[11px] px-1.5 py-1 rounded-sm cursor-pointer hover:opacity-80"
+          style={{ color: "var(--meta)", border: "1px solid rgba(150,142,128,0.3)" }}
+        >
+          ✎
+        </button>
+      </div>
+      {/* The link target, spelled out before the click — a wrong root used to
+          stay invisible and uncorrectable once saved. */}
+      <code className="ide-path" title={absolute}>
+        {absolute}
+      </code>
+      {hint && <p className="ide-hint">{hint}</p>}
     </div>
   );
 }

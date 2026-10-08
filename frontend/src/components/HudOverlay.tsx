@@ -1,19 +1,42 @@
 import { useStore } from "../stores/useStore";
 import { identityIsGuessed } from "../reviews";
 import { topLanguages, languageColor, severityColor } from "../city/palette";
+import { scanVerdict } from "../city/provenance";
 import { BrandWordmark } from "./Landing";
 import { AnalyzePanel } from "./AnalyzePanel";
 import { PHASE_0_MS } from "./CityTree";
-import { t } from "../i18n";
+import { t, formatCount, type DictKey, type Lang } from "../i18n";
+import "../design/stadt-ui.css";
 
 interface HudOverlayProps {
   apiStatus: "connecting" | "live" | "demo";
 }
 const SEVERITIES = [
-  { id: "P0", labelKey: "hud.sevCritical" },
-  { id: "P1", labelKey: "hud.sevHigh" },
-  { id: "P2", labelKey: "hud.sevMedium" },
+  { id: "P0", labelKey: "hud.sevCritical", shape: "▲" },
+  { id: "P1", labelKey: "hud.sevHigh", shape: "◆" },
+  { id: "P2", labelKey: "hud.sevMedium", shape: "●" },
 ] as const;
+
+/**
+ * "No findings" is the one header state that can be true and useless at the
+ * same time: if a security engine was switched off, nothing looked. The same
+ * `scanVerdict` the closing toast uses decides the wording, so the header
+ * cannot claim more than the toast it replaced a minute earlier.
+ */
+export function cleanStatement(
+  lang: Lang,
+  verdict: ReturnType<typeof scanVerdict>,
+): { key: DictKey; vars: Record<string, string | number> } {
+  if (verdict.kind === "shallow") {
+    const n = verdict.missing.length;
+    return {
+      key: n === 1 ? "hud.noFindingsQual" : "hud.noFindingsQualMany",
+      vars: { missing: verdict.missing.join(", ") },
+    };
+  }
+  if (verdict.kind === "unknown") return { key: "summary.depthUnknown", vars: {} };
+  return { key: "hud.noFindings", vars: {} };
+}
 
 export function HudOverlay({ apiStatus }: HudOverlayProps) {
   const cityData = useStore((s) => s.cityData);
@@ -40,10 +63,12 @@ export function HudOverlay({ apiStatus }: HudOverlayProps) {
   const constructing = buildPhase === "constructing";
   const phase0 = constructing && Date.now() < buildStartedAt + PHASE_0_MS;
   const pct = constructionTotal > 0 ? Math.round((constructionDone / constructionTotal) * 100) : 0;
+  const verdict = scanVerdict(cityData.scanProvenance, totalFindings, cityData.languages);
+  const statement = cleanStatement(lang, verdict);
 
   return (
     <>
-      <header className="workspace-header">
+      <header className="workspace-header" data-stadt-ui="1">
         <div className="workspace-identity">
           <button
             onClick={resetToLanding}
@@ -88,27 +113,32 @@ export function HudOverlay({ apiStatus }: HudOverlayProps) {
         </div>
         <div className="workspace-status">
           <span className="workspace-files">
-            {cityData.totalFiles.toLocaleString()} <span>{t(lang, "hud.filesUnit")}</span>
+            {formatCount(lang, cityData.totalFiles)} <span>{t(lang, "hud.filesUnit")}</span>
           </span>
           <div className="workspace-severities" aria-label={t(lang, "hud.filterBySeverityAria")}>
             {SEVERITIES.map(
-              ({ id, labelKey }) =>
+              ({ id, labelKey, shape }) =>
                 cityData.findingsBySeverity[id] > 0 && (
                   <button
                     key={id}
+                    data-severity={id}
                     onClick={() => setThreatFilter(threatFilter === id ? "all" : id)}
                     aria-pressed={threatFilter === id}
-                    aria-label={
-                      threatFilter === id
-                        ? t(lang, "hud.sevAriaOn", {
-                            label: t(lang, labelKey),
-                            count: cityData.findingsBySeverity[id],
-                          })
-                        : t(lang, "hud.sevAriaOff", {
-                            label: t(lang, labelKey),
-                            count: cityData.findingsBySeverity[id],
-                          })
-                    }
+                    aria-label={(() => {
+                      const count = cityData.findingsBySeverity[id];
+                      const label = t(lang, labelKey);
+                      // "1 Funde" was what the header read out on every single
+                      // finding — the singular variants are dictionary keys now.
+                      if (threatFilter === id)
+                        return t(lang, count === 1 ? "hud.sevAriaOnOne" : "hud.sevAriaOn", {
+                          label,
+                          count,
+                        });
+                      return t(lang, count === 1 ? "hud.sevAriaOffOne" : "hud.sevAriaOff", {
+                        label,
+                        count,
+                      });
+                    })()}
                     title={
                       threatFilter === id
                         ? t(lang, "hud.sevTitleOn", { label: t(lang, labelKey) })
@@ -116,14 +146,25 @@ export function HudOverlay({ apiStatus }: HudOverlayProps) {
                     }
                     style={{ "--severity": severityColor(id, colorblind) } as React.CSSProperties}
                   >
-                    <span aria-hidden="true" />
+                    {/* shape carries the grade where colour cannot: the
+                        colour-blind switch reaches --severity, and this glyph
+                        is the same order the list and the panel print */}
+                    <span aria-hidden="true" className="severity-shape">
+                      {shape}
+                    </span>
                     {cityData.findingsBySeverity[id]}
                     <span className="severity-label">{t(lang, labelKey)}</span>
                   </button>
                 ),
             )}
             {totalFindings === 0 && (
-              <span className="clean-status">{t(lang, "hud.noFindings")}</span>
+              <span
+                className="clean-status"
+                data-city-verdict={verdict.kind}
+                title={verdict.kind === "clear" ? undefined : t(lang, "ctx.blindTip")}
+              >
+                {t(lang, statement.key, statement.vars)}
+              </span>
             )}
           </div>
           <AnalyzePanel />

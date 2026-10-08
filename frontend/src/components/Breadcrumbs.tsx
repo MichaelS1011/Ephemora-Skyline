@@ -76,9 +76,12 @@ export function Breadcrumbs() {
             </span>
             <button
               onClick={() => setFocusPath(focusPath.slice(0, i + 1))}
-              aria-label={isActive ? `Current location: ${seg}` : `Navigate to ${seg}`}
+              // "Current location: src" as a literal was English text in a
+              // German run. `aria-current` says the same thing to a screen
+              // reader in the user's own language, and the folder name is
+              // already the button's visible label.
               aria-current={isActive ? "location" : undefined}
-              title={isActive ? "Current location" : `Go to ${seg}`}
+              title={`/${focusPath.slice(0, i + 1).join("/")}`}
               className="font-mono text-[11px] px-2 py-0.5 transition-colors"
               style={{
                 border: `1px solid ${isActive ? "#f2d5a0" : "rgba(165,158,144,0.35)"}`,

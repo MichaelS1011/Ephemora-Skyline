@@ -4,14 +4,19 @@ import { t } from "../i18n";
 import { explainDistrictDraw, resolveDir, tourStops } from "../city/layout";
 import { describeGitignoreSkips } from "../city/provenance";
 import { blindCategories, categoryMeta, summarizeCategories } from "../config/findingCategories";
-import { topLanguages, languageColor, SEVERITY_COLOR, authorColor } from "../city/palette";
+import { topLanguages, languageColor, severityColor, authorColor } from "../city/palette";
 import { MarkerLegend } from "./CoachMarks";
+import "../design/stadt-ui.css";
 
 const startCollapsed = () =>
   typeof window !== "undefined" && (window.matchMedia?.("(max-width: 767px)").matches ?? false);
 
+/** The grade order the shape glyph carries, same as the header and the list. */
+const SEVERITY_SHAPE: Record<"P0" | "P1" | "P2", string> = { P0: "▲", P1: "◆", P2: "●" };
+
 export function ContextCard() {
   const lang = useStore((s) => s.prefs.lang);
+  const colorblind = useStore((s) => s.prefs.colorblind);
   const cityData = useStore((s) => s.cityData);
   const buildPhase = useStore((s) => s.buildPhase);
   const focusPath = useStore((s) => s.focusPath);
@@ -187,7 +192,7 @@ export function ContextCard() {
         <div className="-mt-1 mb-1 space-y-1.5">
           {dataLines > 0 && (
             <div
-              className="text-[12px]"
+              className="ctx-note"
               style={{ color: "#aaa69c" }}
               title={t(lang, "ctx.dataLinesTip")}
             >
@@ -199,7 +204,7 @@ export function ContextCard() {
           )}
           {isRoot && skipped !== "" && (
             <div
-              className="text-[12px]"
+              className="ctx-note"
               style={{ color: "#aaa69c" }}
               title={t(lang, "ctx.keptOutTip")}
             >
@@ -208,7 +213,7 @@ export function ContextCard() {
           )}
           {uncheckedLine !== "" && (
             <div
-              className="text-[12px]"
+              className="ctx-note"
               style={{ color: "#8f8b82" }}
               title={t(lang, "ctx.uncheckedTip")}
             >
@@ -216,36 +221,24 @@ export function ContextCard() {
             </div>
           )}
           {kinds !== "" && (
-            <div
-              className="text-[12px]"
-              style={{ color: "#aaa69c" }}
-              title={t(lang, "ctx.kindsTip")}
-            >
+            <div className="ctx-note" style={{ color: "#aaa69c" }} title={t(lang, "ctx.kindsTip")}>
               {kinds}
             </div>
           )}
           {blind.length > 0 && (
-            <div
-              className="text-[12px]"
-              style={{ color: "#8f8b82" }}
-              title={t(lang, "ctx.blindTip")}
-            >
+            <div className="ctx-note" style={{ color: "#8f8b82" }} title={t(lang, "ctx.blindTip")}>
               {t(lang, "ctx.blind", { list: blind.join(", ") })}
             </div>
           )}
           {testLine !== "" && (
-            <div
-              className="text-[12px]"
-              style={{ color: "#aaa69c" }}
-              title={t(lang, "ctx.testTip")}
-            >
+            <div className="ctx-note" style={{ color: "#aaa69c" }} title={t(lang, "ctx.testTip")}>
               {testLine}
             </div>
           )}
           {drawLines.map((line) => (
             <div
               key={line}
-              className="text-[12px]"
+              className="ctx-note"
               style={{ color: "#aaa69c" }}
               title={t(lang, "ctx.drawTip")}
             >
@@ -275,14 +268,16 @@ export function ContextCard() {
                   <span
                     key={sev}
                     className="inline-flex items-center gap-1.5 text-[12px]"
-                    style={{ color: "#c5c0b5" }}
+                    data-severity={sev}
+                    style={{
+                      color: severityColor(sev, colorblind),
+                      ["--severity" as string]: severityColor(sev, colorblind),
+                    }}
                   >
-                    <span
-                      className="w-1.5 h-1.5 rounded-full"
-                      style={{ background: SEVERITY_COLOR[sev] }}
-                      aria-hidden
-                    />
-                    {t(lang, key)}
+                    <span className="severity-shape" aria-hidden="true">
+                      {SEVERITY_SHAPE[sev]}
+                    </span>
+                    <span style={{ color: "#c5c0b5" }}>{t(lang, key)}</span>
                     <span className="tabular-nums" style={{ color: "#f2efe8" }}>
                       {findings[sev]}
                     </span>

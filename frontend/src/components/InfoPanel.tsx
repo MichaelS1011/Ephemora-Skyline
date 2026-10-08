@@ -1,15 +1,18 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { cityOnDisk, useStore } from "../stores/useStore";
 import { findFileById } from "../city/layout";
-import { languageColor, SEVERITY_COLOR, authorColor } from "../city/palette";
+import { languageColor, severityColor, UNCHECKED_COLOR, authorColor } from "../city/palette";
+import { isUncheckedClean } from "../city/provenance";
+import { CATEGORY_IDS, categoryMeta } from "../config/findingCategories";
 import type { VoxelSectionSpec } from "../city/voxels";
 import { OpenInIde } from "./OpenInIde";
 import { useTestRunner } from "../hooks/useTestRunner";
 import { fixFor, type FixSuggestion } from "../findings/fixes";
 import { findingKey, reviewKeyFor } from "../reviews";
 import { findingContext } from "../findings/context";
-import { t, type DictKey } from "../i18n";
-import type { CityFile, CityFinding, ReviewStatus } from "../city/types";
+import { t, type DictKey, type Lang } from "../i18n";
+import type { CityFile, CityFinding, FindingCategory, ReviewStatus } from "../city/types";
+import "../design/stadt-ui.css";
 
 /** Amber accent of the triage focus ring. */
 const FOCUS_COLOR = "#e8b23c";
@@ -187,15 +190,97 @@ const SEVERITY_WORD: Record<"P0" | "P1" | "P2", DictKey> = {
   P2: "hud.sevMedium",
 };
 
-function SevChip({ severity }: { severity: "P0" | "P1" | "P2" }) {
+/** Same order as the words, so the shape reads without the colour. */
+const SEVERITY_SHAPE: Record<"P0" | "P1" | "P2", string> = {
+  P0: "▲",
+  P1: "◆",
+  P2: "●",
+};
+
+export function SevChip({ severity }: { severity: "P0" | "P1" | "P2" }) {
   const lang = useStore((s) => s.prefs.lang);
-  const cls = severity === "P0" ? "chip-p0" : severity === "P1" ? "chip-p1" : "chip-p2";
+  const colorblind = useStore((s) => s.prefs.colorblind);
   return (
     <span
-      className={`${cls} font-jetbrains text-[11px] px-1.5 py-px rounded-sm font-semibold`}
+      className="severity-chip font-jetbrains text-[11px] px-1.5 py-px rounded-sm font-semibold"
+      data-severity={severity}
+      style={{ color: severityColor(severity, colorblind) }}
       title={severity}
     >
+      <span aria-hidden="true" className="severity-chip-shape">
+        {SEVERITY_SHAPE[severity]}
+      </span>
       {t(lang, SEVERITY_WORD[severity])}
+    </span>
+  );
+}
+
+/* ── Bilingual finding text ──────────────────────────────────────────────
+ * The scanner speaks English: `message` comes from the adapters
+ * ("Hardcoded secret detected (generic-api-key) — gitleaks") and no `de`
+ * field exists in the payload yet. A German UI that stops at the second
+ * language exactly where the work is described is the seam the audit counted
+ * (Befund 7). Until Lane LOKAL ships `messageDe`, the line under the original
+ * is the curated sentence this product already owns for that finding class —
+ * and when the payload carries no class, nothing is shown. A guessed
+ * translation would be worse than the English line it replaced.
+ */
+
+/** What the backend will send once LOKAL delivers it (`city/types.ts` has no field yet). */
+export interface TranslatableFinding extends CityFinding {
+  messageDe?: string;
+}
+
+export function findingGermanLine(
+  finding: Pick<TranslatableFinding, "messageDe" | "category">,
+  lang: Lang,
+): string | null {
+  if (lang !== "de") return null;
+  const own = finding.messageDe?.trim();
+  if (own) return own;
+  const category = finding.category as FindingCategory | undefined;
+  if (!category || !CATEGORY_IDS.includes(category)) return null;
+  return t(lang, categoryMeta(category).meaning);
+}
+
+export function FindingGermanLine({
+  finding,
+  marked = true,
+}: {
+  finding: TranslatableFinding;
+  /** The list and the panel show the pair; a search row only needs the line. */
+  marked?: boolean;
+}) {
+  const lang = useStore((s) => s.prefs.lang);
+  const de = findingGermanLine(finding, lang);
+  if (!de) return null;
+  if (!marked)
+    return (
+      <span className="finding-message-de" data-finding-de="" lang="de">
+        {de}
+      </span>
+    );
+  return (
+    <span className="finding-message-de">
+      <span className="finding-lang-mark" aria-hidden="true">
+        DE
+      </span>
+      <span data-finding-de="" lang="de">
+        {de}
+      </span>
+    </span>
+  );
+}
+
+export function FindingMessage({ finding }: { finding: TranslatableFinding }) {
+  // Spans, not paragraphs: the findings list renders this inside a button,
+  // and a button may only hold phrasing content.
+  return (
+    <span className="finding-message" data-finding-block="">
+      <span className="finding-message-orig" data-finding-orig="" lang="en">
+        {finding.message}
+      </span>
+      <FindingGermanLine finding={finding} />
     </span>
   );
 }
@@ -297,7 +382,7 @@ function SuggestedFixBlock({
       }}
     >
       <div className="flex items-center justify-between gap-2">
-        <span className="min-w-0 truncate" style={{ opacity: 0.9 }}>
+        <span className="suggested-fix-title" style={{ opacity: 0.9 }}>
           {t(lang, "panel.suggestedFixHeader", { title })}
         </span>
         <button
@@ -359,9 +444,10 @@ function FindingRow({
   const [expanded, setExpanded] = useState(false);
   const [copied, setCopied] = useState(false);
   const lang = useStore((s) => s.prefs.lang);
+  const colorblind = useStore((s) => s.prefs.colorblind);
   const setReview = useStore((s) => s.setReview);
   const rowRef = useRef<HTMLDivElement>(null);
-  const color = SEVERITY_COLOR[finding.severity];
+  const color = severityColor(finding.severity, colorblind);
   // The triage focus wins over the review status, which wins over severity
   const leftColor = focused ? FOCUS_COLOR : review ? REVIEW_COLOR[review] : color;
   const suggestion = fixFor(finding);
@@ -485,13 +571,9 @@ function FindingRow({
           · {t(lang, "panel.sourceSeverity")} {finding.sourceSeverity ?? "UNKNOWN"}
         </p>
       )}
-      {/* Message (always visible) */}
-      <p
-        className="font-jetbrains text-[11px] mt-1.5 leading-relaxed"
-        style={{ color: "var(--meta-strong)" }}
-      >
-        {finding.message}
-      </p>
+      {/* Message (always visible) — the scanner's own words, plus the German
+          line for the class once the payload or the dictionary has one */}
+      <FindingMessage finding={finding} />
 
       {/* Review control — clicking the active segment again clears the status */}
       <div
@@ -584,9 +666,9 @@ function FindingRow({
 /* ── Main panel ────────────────────────────────────────────────────────── */
 export function InfoPanel() {
   const lang = useStore((s) => s.prefs.lang);
+  const colorblind = useStore((s) => s.prefs.colorblind);
   const cityData = useStore((s) => s.cityData);
   const selectedUnit = useStore((s) => s.selectedUnit);
-  const showFindings = useStore((s) => s.showFindings);
   const setSelectedUnit = useStore((s) => s.setSelectedUnit);
   const focusPath = useStore((s) => s.focusPath);
   const setFocusPath = useStore((s) => s.setFocusPath);
@@ -594,6 +676,7 @@ export function InfoPanel() {
   const reviews = useStore((s) => s.reviews);
   const focusedFindingKey = useStore((s) => s.focusedFindingKey);
   const closeRef = useRef<HTMLButtonElement>(null);
+  const [linkCopied, setLinkCopied] = useState(false);
   const selectedId = selectedUnit?.kind === "file" ? selectedUnit.id : null;
 
   useEffect(() => {
@@ -619,29 +702,40 @@ export function InfoPanel() {
   const hasFindings = file.findings.length > 0;
   const hasAst = file.findings.some((f) => f.provenance === "semgrep");
   const hasSecrets = file.findings.some((f) => f.provenance?.startsWith("gitleaks"));
+  // The heading wears the worst grade actually present instead of always P0
+  // red: a file whose only finding is medium must not shout critical, and the
+  // colour-blind switch has to reach this colour the way it reaches the city.
+  const worstSeverity = (["P0", "P1", "P2"] as const).find((sev) =>
+    file.findings.some((f) => f.severity === sev),
+  );
+  const engines = file.unverifiedBy ?? [];
+  const unchecked = isUncheckedClean(file);
+  // The line the editor should land on: a historical secret is evidence about
+  // a commit, not about this file, so it never becomes the jump target.
+  const firstLiveFindingLine = file.findings.find(
+    (f) => !f.historyCommit && f.provenance !== "gitleaks-history",
+  )?.line;
 
+  const copyCityLink = async (): Promise<void> => {
+    try {
+      await navigator.clipboard.writeText(window.location.href);
+      setLinkCopied(true);
+      setTimeout(() => setLinkCopied(false), 1400);
+    } catch {
+      /* clipboard unavailable — the button stays, the city link stays in the URL bar */
+    }
+  };
+
+  // Layout lives in design/stadt-ui.css; only what the data decides — the
+  // facade colour of this one file — travels as a custom property. The panel
+  // is a region, not a dialog: the city, the findings list and the dock all
+  // stay usable while it is open, and a `role="dialog"` without a focus trap
+  // promises screen-reader users a mode the app does not have.
   return (
     <div
-      className="absolute panel-scroll animate-slide-right panel-info"
-      style={{
-        top: "4.5rem",
-        right: showFindings ? "23rem" : "1rem",
-        width: 330,
-        maxHeight: "calc(100vh - 6rem)",
-        overflowY: "auto",
-        background: "rgba(18, 18, 16, 0.94)",
-        border: `1px solid ${accent}55`,
-        borderRadius: 5,
-        padding: "1rem",
-        color: "#e8e4da",
-        fontFamily: "var(--font-ui)",
-        fontSize: "0.75rem",
-        pointerEvents: "auto",
-        boxShadow: `0 0 30px ${accent}1a, 0 8px 32px rgba(0,0,0,0.5)`,
-        zIndex: 25,
-        backdropFilter: "blur(16px)",
-      }}
-      role="dialog"
+      className="panel-info panel-card panel-scroll animate-slide-right"
+      style={{ "--accent": accent } as React.CSSProperties}
+      role="region"
       aria-label={t(lang, "panel.fileDetailsAria", { name: file.name })}
     >
       {/* Keyframes for the triage focus pulse (see FOCUS_PULSE_CSS) */}
@@ -651,7 +745,7 @@ export function InfoPanel() {
       <div className="flex items-start justify-between mb-3">
         <div className="min-w-0 flex-1">
           {/* Language + stats row */}
-          <div className="flex items-center gap-1.5 mb-2 flex-wrap">
+          <div className="panel-metrics flex items-center gap-1.5 mb-2 flex-wrap">
             <span
               className="w-2.5 h-2.5 rounded-sm inline-block shrink-0"
               style={{ background: accent, boxShadow: `0 0 6px ${accent}` }}
@@ -686,18 +780,8 @@ export function InfoPanel() {
           </div>
 
           {/* Filename */}
-          <h3
-            className="font-jetbrains font-semibold leading-tight"
-            style={{ color: "#e8f0ff", fontSize: "0.82rem", wordBreak: "break-all" }}
-          >
-            {file.name}
-          </h3>
-          <p
-            className="font-jetbrains text-[11px] mt-0.5"
-            style={{ color: "var(--meta-strong)", wordBreak: "break-all" }}
-          >
-            {file.path}
-          </p>
+          <h3 className="panel-file-name font-jetbrains">{file.name}</h3>
+          <p className="panel-file-path font-jetbrains">{file.path}</p>
         </div>
 
         <button
@@ -879,29 +963,52 @@ export function InfoPanel() {
         )}
       </div>
 
-      {/* SARIF download */}
-      {analysisId && (
-        <a
-          href={`/api/result/${encodeURIComponent(analysisId)}/sarif`}
-          download={`ephemora-${analysisId}.sarif`}
-          className="inline-flex items-center gap-1.5 mb-3 font-jetbrains text-[11px] tracking-wide transition-opacity hover:opacity-80"
-          style={{ color: "#d8c9a3" }}
-          title={t(lang, "panel.sarifTitle")}
+      {/* Handover — what a reader does with this file right now: open it in
+          the editor at the finding's line, pull the report, hand the city
+          link to someone. Each is one click from the file name; before this
+          row the editor sat under the findings list and the link lived two
+          clicks deep in the dock menu. */}
+      <div className="panel-handoff">
+        {cityOnDisk(cityData) && (
+          <OpenInIde
+            filePath={file.path}
+            line={focusedLine ?? firstLiveFindingLine}
+            repoKey={`${cityData.repo.owner}/${cityData.repo.name}`}
+          />
+        )}
+        {analysisId && (
+          <a
+            href={`/api/result/${encodeURIComponent(analysisId)}/sarif`}
+            download={`ephemora-${analysisId}.sarif`}
+            className="handoff-action"
+            title={t(lang, "panel.sarifTitle")}
+          >
+            {t(lang, "panel.sarifExport")}
+          </a>
+        )}
+        <button
+          type="button"
+          onClick={() => void copyCityLink()}
+          className="handoff-action"
+          title={t(lang, "actions.copyLinkTitle")}
         >
-          {t(lang, "panel.sarifExport")}
-        </a>
-      )}
+          ⎘ {t(lang, "actions.copyLink")}
+        </button>
+        <span role="status" aria-live="polite" className="sr-only">
+          {linkCopied ? t(lang, "panel.copied") : ""}
+        </span>
+      </div>
 
       {/* Divider */}
-      <div style={{ height: 1, background: "rgba(232,178,60,0.1)", marginBottom: "0.75rem" }} />
+      <div className="panel-rule" />
 
       {/* Findings */}
       {hasFindings ? (
         <>
-          <div className="flex items-center justify-between mb-2.5">
+          <div className="panel-section-head flex items-center justify-between mb-2.5">
             <span
               className="font-jetbrains text-[11px] tracking-[0.2em] uppercase"
-              style={{ color: SEVERITY_COLOR.P0 }}
+              style={{ color: severityColor(worstSeverity!, colorblind) }}
             >
               {t(
                 lang,
@@ -940,37 +1047,51 @@ export function InfoPanel() {
             })}
           </div>
         </>
+      ) : unchecked ? (
+        /* The same file hovers grey in the city and its heat tile is grey:
+           engines that cover this language never ran on it, so "no finding"
+           is an unprovable claim, not a result. Green here would contradict
+           two other surfaces that are already right. */
+        <div
+          className="file-verdict file-verdict-unchecked flex items-start gap-2 px-3 py-2.5 rounded-sm"
+          data-file-verdict="unchecked"
+          style={{
+            color: UNCHECKED_COLOR,
+            background: "rgba(107,106,99,0.10)",
+            border: `1px solid ${UNCHECKED_COLOR}55`,
+          }}
+        >
+          <span aria-hidden="true" className="file-verdict-mark">
+            ⊘
+          </span>
+          <span className="min-w-0">
+            <span className="font-jetbrains text-[11px] block leading-relaxed">
+              {t(
+                lang,
+                engines.length === 1 ? "panel.noFindingsUncheckedOne" : "panel.noFindingsUnchecked",
+                { n: engines.length },
+              )}
+            </span>
+            <span className="font-jetbrains text-[11px] block mt-1" style={{ opacity: 0.85 }}>
+              {engines.join(" · ")}
+            </span>
+          </span>
+        </div>
       ) : (
         <div
-          className="flex items-center gap-2 px-3 py-2.5 rounded-sm"
+          className="file-verdict file-verdict-checked flex items-center gap-2 px-3 py-2.5 rounded-sm"
+          data-file-verdict="checked"
           style={{ background: "rgba(41,211,152,0.07)", border: "1px solid rgba(41,211,152,0.2)" }}
         >
-          <span style={{ color: "#29d398" }}>✓</span>
+          <span aria-hidden="true" className="file-verdict-mark" style={{ color: "#29d398" }}>
+            ✓
+          </span>
           <span className="font-jetbrains text-[11px]" style={{ color: "#29d398" }}>
-            {t(lang, "panel.noFindingsInFile")}
+            {t(lang, "panel.noFindingsChecked")}
           </span>
         </div>
       )}
       <div className="mt-4">
-        {/* Jump straight into the code at the first finding's line. Only for a
-          city whose folder is on this machine: the demo's paths are invented,
-          and an editor link to them opens a file that was never written. */}
-        {cityOnDisk(cityData) && (
-          <>
-            <OpenInIde
-              filePath={file.path}
-              line={
-                focusedLine ??
-                file.findings.find((f) => !f.historyCommit && f.provenance !== "gitleaks-history")
-                  ?.line
-              }
-              repoKey={(() => {
-                const city = useStore.getState().cityData;
-                return city ? `${city.repo.owner}/${city.repo.name}` : undefined;
-              })()}
-            />
-          </>
-        )}
         <RunTestsButton filePath={file.path} analysisOnDisk={cityOnDisk(cityData)} />
         <TestResultsBlock filePath={file.path} />
 
@@ -1003,6 +1124,7 @@ export function InfoPanel() {
  * (pulse + scroll) on the matching row in the findings list below. */
 function VoxelStructureBlock({ file }: { file: CityFile }) {
   const lang = useStore((s) => s.prefs.lang);
+  const colorblind = useStore((s) => s.prefs.colorblind);
   const setFocusedFindingKey = useStore((s) => s.setFocusedFindingKey);
   const [expanded, setExpanded] = useState<ReadonlySet<number>>(new Set());
   const payload = file as CityFile & {
@@ -1082,10 +1204,11 @@ function VoxelStructureBlock({ file }: { file: CityFile }) {
                   <span className="truncate min-w-0 flex-1">{s.name}</span>
                   {sectionFindings.length > 0 && (
                     <span
-                      className="shrink-0 font-jetbrains text-[length:var(--fs-meta)] px-1 rounded-sm"
+                      className="shrink-0 font-jetbrains text-[length:var(--fs-meta)] px-1 rounded-sm severity-count"
+                      data-severity={sectionFindings[0]!.severity}
                       style={{
-                        color: SEVERITY_COLOR[sectionFindings[0]!.severity],
-                        border: `1px solid ${SEVERITY_COLOR[sectionFindings[0]!.severity]}55`,
+                        color: severityColor(sectionFindings[0]!.severity, colorblind),
+                        borderColor: `${severityColor(sectionFindings[0]!.severity, colorblind)}55`,
                       }}
                       title={t(lang, "panel.sectionFindingsTitle")}
                     >
@@ -1321,7 +1444,6 @@ function SourceBlock({
               {t(lang, "panel.loadSource")}
             </button>
           )}
-          {status === "error" && unavailable}
           {status === "idle" && !analysisId && unavailable}
           {status === "loading" && (
             <div
@@ -1331,6 +1453,8 @@ function SourceBlock({
               ⟳ {t(lang, "panel.sourceLoading")}
             </div>
           )}
+          {/* one note per state — `error` used to print it twice, once for the
+              failed fetch and once for the empty line list */}
           {(status === "error" || (status === "ready" && lines !== null && lines.length === 0)) &&
             unavailable}
           {status === "ready" && lines !== null && lines.length > 0 && (

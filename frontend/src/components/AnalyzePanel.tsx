@@ -1,7 +1,8 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useLocalAnalysis } from "../hooks/useLocalAnalysis";
 import { ProfileChips } from "./ProfileChips";
 import { useStore } from "../stores/useStore";
+import { progressLine } from "../config/scanStages";
 import { t } from "../i18n";
 
 function ProgressBar({ progress, stage }: { progress: number; stage: string }) {
@@ -16,8 +17,11 @@ function ProgressBar({ progress, stage }: { progress: number; stage: string }) {
       aria-label={t(lang, "analyze.progressAria", { progress })}
     >
       <div className="flex justify-between items-center mb-1">
-        <span className="font-mono text-[11px] text-[#e8b23c] tracking-widest truncate max-w-[200px]">
-          {stage || t(lang, "analyze.initializing")}
+        {/* The server names its stages in English; `progressLine` answers with
+            the dictionary, and with "analysis running" for a stage nobody
+            mapped — never with the raw string in a German wait screen. */}
+        <span className="font-mono text-[11px] text-[#e8b23c] tracking-widest analyze-stage">
+          {progressLine(lang, stage) || t(lang, "analyze.initializing")}
         </span>
         <span className="font-mono text-[11px] text-[#e8503c] ml-2 shrink-0">{progress}%</span>
       </div>
@@ -46,6 +50,8 @@ function ProgressBar({ progress, stage }: { progress: number; stage: string }) {
 export function AnalyzePanel({ className = "" }: { className?: string }) {
   const lang = useStore((s) => s.prefs.lang);
   const [isOpen, setIsOpen] = useState(false);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const popoverRef = useRef<HTMLDivElement>(null);
   const {
     state,
     errorMessage,
@@ -81,11 +87,28 @@ export function AnalyzePanel({ className = "" }: { className?: string }) {
     return () => clearTimeout(t);
   }, [state]);
 
+  // Focus follows the surface a keyboard user just opened, and returns to its
+  // trigger when it closes. The popover stays non-modal on purpose: the city,
+  // the filters and the dock all remain usable while a scan runs behind it, so
+  // a focus trap would fence in a screen that is not a mode.
+  const everOpened = useRef(false);
+  useEffect(() => {
+    if (isOpen) {
+      everOpened.current = true;
+      popoverRef.current?.querySelector<HTMLElement>("button, input")?.focus({
+        preventScroll: true,
+      });
+    } else if (everOpened.current) {
+      triggerRef.current?.focus({ preventScroll: true });
+    }
+  }, [isOpen]);
+
   const borderColor = state === "error" ? "#ff0044" : state === "success" ? "#e8503c" : "#e8b23c";
 
   return (
     <div className={`analyze-control relative ${className}`}>
       <button
+        ref={triggerRef}
         onClick={() => setIsOpen((v) => !v)}
         aria-expanded={isOpen}
         aria-controls="analyze-panel"
@@ -108,10 +131,11 @@ export function AnalyzePanel({ className = "" }: { className?: string }) {
 
       {isOpen && (
         <div
+          ref={popoverRef}
           id="analyze-panel"
           role="dialog"
           aria-label={t(lang, "analyze.dialogAria")}
-          className="analyze-popover absolute top-full right-0 mt-2 w-80 z-50"
+          className="analyze-popover absolute top-full right-0 mt-2 w-80 z-50 panel-card"
           style={{
             background: "rgba(16, 16, 14, 0.96)",
             border: `1px solid ${borderColor}`,

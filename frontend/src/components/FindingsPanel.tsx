@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useStore } from "../stores/useStore";
 import { allFiles } from "../city/layout";
-import { SEVERITY_COLOR, languageColor } from "../city/palette";
+import { severityColor, languageColor } from "../city/palette";
 import type { CityFile, CityFinding, ReviewStatus, Severity } from "../city/types";
 import { findingKey, reviewKeyFor } from "../reviews";
 import { t, type DictKey } from "../i18n";
+import { FindingMessage } from "./InfoPanel";
 
 const SEVERITY_RANK: Record<Severity, number> = { P0: 0, P1: 1, P2: 2 };
 /** Severity → i18n label (reuses the HUD filter vocabulary). */
@@ -13,6 +14,8 @@ const SEVERITY_LABEL_KEY: Record<Severity, DictKey> = {
   P1: "hud.sevHigh",
   P2: "hud.sevMedium",
 };
+/** The same grade order as the words, so the badge reads without colour. */
+const SEVERITY_SHAPE: Record<Severity, string> = { P0: "▲", P1: "◆", P2: "●" };
 
 /** Status dot colors per review state (matches the InfoPanel review control). */
 const REVIEW_DOT_COLOR: Record<ReviewStatus, string> = {
@@ -52,6 +55,7 @@ function ruleIdOf(finding: CityFinding): string {
 /** Findings grouped by file, with severity + rule filters combined (AND). */
 export function FindingsPanel() {
   const lang = useStore((s) => s.prefs.lang);
+  const colorblind = useStore((s) => s.prefs.colorblind);
   const orphanedReviews = useStore((s) => s.orphanedReviews);
   const cityData = useStore((s) => s.cityData);
   const showFindings = useStore((s) => s.showFindings);
@@ -215,34 +219,21 @@ export function FindingsPanel() {
     <section
       id="findings-panel"
       aria-labelledby="findings-heading"
-      className="panel-findings absolute top-[100px] right-4 bottom-[264px] z-30 flex flex-col overflow-hidden rounded-xl pointer-events-auto"
-      style={{
-        width: "min(400px, calc(100vw - 32px))",
-        background: "rgba(32,32,30,0.97)",
-        border: "1px solid rgba(242,239,232,0.16)",
-        backdropFilter: "blur(14px)",
-        boxShadow: "0 8px 32px rgba(0,0,0,0.3)",
-      }}
+      className="panel-findings panel-card pointer-events-auto"
     >
-      <div className="flex shrink-0 items-start justify-between gap-3 px-4 pb-3 pt-4">
-        <div>
-          <h2
-            id="findings-heading"
-            className="text-base font-semibold"
-            style={{ color: "#f2efe8" }}
-          >
+      <div className="panel-head">
+        <div className="min-w-0">
+          <h2 id="findings-heading" className="panel-title">
             {t(lang, "findings.heading")}
           </h2>
-          <p className="mt-1 text-xs" style={{ color: "#bab7ae" }}>
+          <p className="panel-subtitle">
             {t(lang, summaryKey, { count: totalFindings, files: groups.length })}
           </p>
           {undrawn > 0 && (
-            <p className="mt-1 text-xs" style={{ color: "#8f8b82" }}>
-              {t(lang, "findings.undrawn", { count: undrawn })}
-            </p>
+            <p className="panel-note">{t(lang, "findings.undrawn", { count: undrawn })}</p>
           )}
           {orphanedReviews > 0 && (
-            <p className="mt-1 text-xs" style={{ color: "#8f8b82" }}>
+            <p className="panel-note">
               {t(lang, "findings.orphanedReviews", { count: orphanedReviews })}
             </p>
           )}
@@ -252,77 +243,14 @@ export function FindingsPanel() {
           type="button"
           onClick={() => setShowFindings(false)}
           aria-label={t(lang, "findings.closeAria")}
-          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-lg hover:bg-white/10"
-          style={{ color: "#dedbd3", background: "rgba(255,255,255,0.04)" }}
+          className="panel-close"
         >
           ×
         </button>
       </div>
 
-      {ruleChips.length > 0 && (
-        <div
-          className="finding-rule-filters flex shrink-0 flex-wrap gap-1 px-3 pb-2"
-          role="group"
-          aria-label={t(lang, "findings.ruleGroupAria")}
-        >
-          <button
-            type="button"
-            aria-pressed={ruleFilter === null}
-            onClick={() => setRuleFilter(null)}
-            title={t(lang, "findings.allRulesTitle")}
-            className="min-h-9 rounded-lg px-3 text-xs font-medium hover:bg-white/5"
-            style={{
-              color: ruleFilter === null ? "#fff2e9" : "#bab7ae",
-              background: ruleFilter === null ? "rgba(232,80,60,0.16)" : undefined,
-              border: `1px solid ${ruleFilter === null ? "rgba(232,80,60,0.4)" : "transparent"}`,
-            }}
-          >
-            {t(lang, "findings.allRules")}
-            <span className="ml-1.5 tabular-nums" style={{ opacity: 0.75 }}>
-              {severityTotal}
-            </span>
-          </button>
-          {ruleChips.map(([rule, count]) => {
-            const active = ruleFilter === rule;
-            return (
-              <button
-                key={rule}
-                type="button"
-                aria-pressed={active}
-                onClick={() => setRuleFilter(active ? null : rule)}
-                title={t(lang, "findings.ruleTitle", { rule })}
-                className="flex min-h-9 max-w-full items-center gap-1.5 rounded-lg px-3 text-xs font-medium hover:bg-white/5"
-                style={{
-                  color: active ? "#fff2e9" : "#bab7ae",
-                  background: active ? "rgba(232,80,60,0.16)" : undefined,
-                  border: `1px solid ${active ? "rgba(232,80,60,0.4)" : "transparent"}`,
-                }}
-              >
-                <span className="truncate font-jetbrains">{rule}</span>
-                <span className="shrink-0 tabular-nums" style={{ opacity: 0.75 }}>
-                  {count}
-                </span>
-              </button>
-            );
-          })}
-          {ruleCounts.size > RULE_CHIP_LIMIT && (
-            <button
-              type="button"
-              onClick={() => setShowAllRules((v) => !v)}
-              title={t(lang, showAllRules ? "findings.fewerRulesTitle" : "findings.moreRulesTitle")}
-              className="min-h-9 rounded-lg px-3 text-xs font-medium hover:bg-white/5"
-              style={{ color: "#8f8b82", border: "1px solid transparent" }}
-            >
-              {showAllRules
-                ? t(lang, "findings.fewerRules")
-                : t(lang, "findings.moreRules", { count: ruleCounts.size - RULE_CHIP_LIMIT })}
-            </button>
-          )}
-        </div>
-      )}
-
       <div
-        className="flex shrink-0 flex-wrap gap-1 border-b border-white/10 px-3 pb-3"
+        className="filter-row filter-row-priority"
         role="group"
         aria-label={t(lang, "findings.priorityGroupAria")}
       >
@@ -342,17 +270,26 @@ export function FindingsPanel() {
                       label: t(lang, SEVERITY_LABEL_KEY[priority]),
                     })
               }
-              className="min-h-9 rounded-lg px-3 text-xs font-medium hover:bg-white/5"
-              style={{
-                color: active ? "#fff2e9" : "#bab7ae",
-                background: active ? "rgba(232,80,60,0.16)" : undefined,
-                border: `1px solid ${active ? "rgba(232,80,60,0.4)" : "transparent"}`,
-              }}
+              className="filter-chip"
+              data-active={active || undefined}
+              data-severity={priority === "all" ? undefined : priority}
+              style={
+                priority === "all"
+                  ? undefined
+                  : ({
+                      "--severity": severityColor(priority as Severity, colorblind),
+                    } as React.CSSProperties)
+              }
             >
+              {priority !== "all" && (
+                <span aria-hidden="true" className="severity-shape">
+                  {SEVERITY_SHAPE[priority as Severity]}
+                </span>
+              )}
               {priority === "all"
                 ? t(lang, "findings.allPriorities")
                 : t(lang, SEVERITY_LABEL_KEY[priority as Severity])}
-              <span className="ml-1.5 tabular-nums" style={{ opacity: 0.75 }}>
+              <span className="filter-count">
                 {priority === "all"
                   ? cityData.findingsBySeverity.P0 +
                     cityData.findingsBySeverity.P1 +
@@ -363,6 +300,55 @@ export function FindingsPanel() {
           );
         })}
       </div>
+
+      {ruleChips.length > 0 && (
+        <div
+          className="filter-row filter-row-rules"
+          role="group"
+          aria-label={t(lang, "findings.ruleGroupAria")}
+        >
+          <button
+            type="button"
+            aria-pressed={ruleFilter === null}
+            onClick={() => setRuleFilter(null)}
+            title={t(lang, "findings.allRulesTitle")}
+            className="filter-chip"
+            data-active={ruleFilter === null || undefined}
+          >
+            {t(lang, "findings.allRules")}
+            <span className="filter-count">{severityTotal}</span>
+          </button>
+          {ruleChips.map(([rule, count]) => {
+            const active = ruleFilter === rule;
+            return (
+              <button
+                key={rule}
+                type="button"
+                aria-pressed={active}
+                onClick={() => setRuleFilter(active ? null : rule)}
+                title={t(lang, "findings.ruleTitle", { rule })}
+                className="filter-chip filter-chip-rule"
+                data-active={active || undefined}
+              >
+                <span className="filter-chip-label font-jetbrains">{rule}</span>
+                <span className="filter-count">{count}</span>
+              </button>
+            );
+          })}
+          {ruleCounts.size > RULE_CHIP_LIMIT && (
+            <button
+              type="button"
+              onClick={() => setShowAllRules((v) => !v)}
+              title={t(lang, showAllRules ? "findings.fewerRulesTitle" : "findings.moreRulesTitle")}
+              className="filter-chip filter-chip-quiet"
+            >
+              {showAllRules
+                ? t(lang, "findings.fewerRules")
+                : t(lang, "findings.moreRules", { count: ruleCounts.size - RULE_CHIP_LIMIT })}
+            </button>
+          )}
+        </div>
+      )}
 
       <div className="min-h-0 flex-1 space-y-3 overflow-y-auto p-3">
         {groups.length === 0 && (
@@ -415,7 +401,7 @@ export function FindingsPanel() {
         )}
         {visibleGroups.map(({ file, worst, count, findings: groupFindings }) => {
           const fileSeverity: Severity = worst === 0 ? "P0" : worst === 1 ? "P1" : "P2";
-          const accent = SEVERITY_COLOR[fileSeverity];
+          const accent = severityColor(fileSeverity, colorblind);
           const isSelected = selectedUnit?.kind === "file" && selectedUnit.id === file.id;
           const reviewedCount = groupFindings.filter(
             ({ index, finding }) => reviews[reviewKeyFor(file, index, finding)],
@@ -427,62 +413,40 @@ export function FindingsPanel() {
                 if (element) rowRefs.current.set(file.id, element);
                 else rowRefs.current.delete(file.id);
               }}
-              className="overflow-hidden rounded-lg"
-              style={{
-                // longhand on every side: mixing borderColor with borderLeftColor makes React warn on each repaint
-                borderStyle: "solid",
-                borderTopWidth: 1,
-                borderRightWidth: 1,
-                borderBottomWidth: 1,
-                borderLeftWidth: 3,
-                borderTopColor: isSelected ? "rgba(232,80,60,0.45)" : "rgba(242,239,232,0.1)",
-                borderRightColor: isSelected ? "rgba(232,80,60,0.45)" : "rgba(242,239,232,0.1)",
-                borderBottomColor: isSelected ? "rgba(232,80,60,0.45)" : "rgba(242,239,232,0.1)",
-                borderLeftColor: accent,
-                background: isSelected ? "rgba(232,80,60,0.06)" : "rgba(22,22,20,0.55)",
-              }}
+              className="finding-file-card"
+              data-selected={isSelected || undefined}
+              data-severity={fileSeverity}
+              style={{ "--severity": accent } as React.CSSProperties}
             >
               <button
                 type="button"
                 onClick={() => navigateToFile(file.id)}
                 title={t(lang, "findings.fileTitle", { name: file.name })}
-                className="w-full px-3 py-3 text-left hover:bg-white/5"
+                className="finding-file-head"
                 aria-label={t(lang, "findings.fileAria", { path: file.path })}
               >
-                <div className="flex items-start justify-between gap-3">
-                  <span className="break-all text-sm font-semibold" style={{ color: "#f2efe8" }}>
-                    {file.name}
-                  </span>
-                  <span className="flex shrink-0 items-center gap-2">
-                    <span
-                      className="text-[11px] tabular-nums"
-                      style={{ color: "#aaa79e" }}
-                      title={t(lang, "findings.reviewedTitle")}
-                    >
+                <span className="finding-file-title-row">
+                  <span className="finding-file-name">{file.name}</span>
+                  <span className="finding-file-tally">
+                    <span className="finding-reviewed" title={t(lang, "findings.reviewedTitle")}>
                       {t(lang, "findings.reviewedCount", { reviewed: reviewedCount, count })}
                     </span>
                     <span
-                      className="rounded-md px-1.5 py-0.5 text-xs tabular-nums"
-                      style={{ color: accent, background: `${accent}15` }}
+                      className="finding-count"
                       title={t(lang, "findings.countTitle", { count })}
                     >
                       {count}
                     </span>
                   </span>
-                </div>
-                <div className="mt-1 flex items-start gap-2">
+                </span>
+                <span className="finding-file-path-row">
                   <span
                     aria-hidden="true"
-                    className="mt-1.5 inline-block h-1.5 w-1.5 shrink-0 rounded-full"
+                    className="finding-file-dot"
                     style={{ background: languageColor(file.language) }}
                   />
-                  <span
-                    className="break-all font-jetbrains text-xs leading-relaxed"
-                    style={{ color: "#aaa79e" }}
-                  >
-                    {file.path}
-                  </span>
-                </div>
+                  <span className="finding-file-path">{file.path}</span>
+                </span>
               </button>
 
               <div className="px-3 pb-2">
@@ -494,6 +458,7 @@ export function FindingsPanel() {
                   )
                   .map(({ finding, index }) => {
                     const review = reviews[reviewKeyFor(file, index, finding)];
+                    const sevColor = severityColor(finding.severity, colorblind);
                     return (
                       <button
                         key={index}
@@ -502,7 +467,7 @@ export function FindingsPanel() {
                           navigateToFile(file.id);
                           useStore.getState().setFocusedFindingKey(findingKey(file.id, index));
                         }}
-                        className="flex min-h-10 w-full items-start gap-2 border-t border-white/5 py-2.5 text-left hover:bg-white/5"
+                        className="finding-row"
                         title={t(lang, "findings.findingTitle", {
                           name: file.name,
                           line: finding.line,
@@ -511,30 +476,27 @@ export function FindingsPanel() {
                         {review && (
                           <span
                             aria-hidden="true"
-                            className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full"
+                            className="finding-review-dot"
                             style={{ background: REVIEW_DOT_COLOR[review] }}
                           />
                         )}
                         <span
-                          className="mt-px shrink-0 whitespace-nowrap rounded px-1.5 py-0.5 text-xs font-medium"
-                          style={{
-                            color: SEVERITY_COLOR[finding.severity],
-                            background: `${SEVERITY_COLOR[finding.severity]}12`,
-                            border: `1px solid ${SEVERITY_COLOR[finding.severity]}44`,
-                          }}
+                          className="severity-chip finding-severity"
+                          data-severity={finding.severity}
+                          style={{ color: sevColor }}
                           title={finding.severity}
                         >
+                          <span aria-hidden="true" className="severity-chip-shape">
+                            {SEVERITY_SHAPE[finding.severity]}
+                          </span>
                           {t(lang, SEVERITY_LABEL_KEY[finding.severity])}
                         </span>
-                        <span
-                          className="min-w-0 text-[13px] leading-relaxed"
-                          style={{ color: "#dedbd3", overflowWrap: "anywhere" }}
-                        >
+                        <span className="finding-row-text">
                           {review && (
                             <span className="sr-only">{t(lang, REVIEW_LABEL_KEY[review])}: </span>
                           )}
-                          {finding.message}
-                          <span className="mt-1 block text-xs" style={{ color: "#aaa79e" }}>
+                          <FindingMessage finding={finding} />
+                          <span className="finding-row-meta">
                             {t(lang, "panel.sourceLine", { line: finding.line })}{" "}
                             <span aria-hidden="true">·</span> {finding.type}
                           </span>

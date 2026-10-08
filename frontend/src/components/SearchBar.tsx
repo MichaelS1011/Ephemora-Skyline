@@ -1,10 +1,18 @@
 import { useRef, useState, useEffect, useCallback, useId } from "react";
 import { useStore } from "../stores/useStore";
 import { searchFiles, searchFindings } from "../city/layout";
-import { languageColor, SEVERITY_COLOR, THREAT_COLOR } from "../city/palette";
-import type { CityFile, CityFinding } from "../city/types";
+import { languageColor, severityColor, THREAT_COLOR } from "../city/palette";
+import type { CityFile, CityFinding, Severity } from "../city/types";
 import { findingKey } from "../reviews";
-import { t } from "../i18n";
+import { t, type DictKey } from "../i18n";
+import { FindingGermanLine } from "./InfoPanel";
+
+/** Severity → the word the header and the list use, so one grade reads the same everywhere. */
+const SEVERITY_LABEL_KEY: Record<Severity, DictKey> = {
+  P0: "hud.sevCritical",
+  P1: "hud.sevHigh",
+  P2: "hud.sevMedium",
+};
 
 /** One entry of the flat, keyboard-navigable option list. */
 type FlatHit =
@@ -19,6 +27,7 @@ type FlatHit =
 
 export function SearchBar() {
   const lang = useStore((s) => s.prefs.lang);
+  const colorblind = useStore((s) => s.prefs.colorblind);
   const cityData = useStore((s) => s.cityData);
   const navigateToFile = useStore((s) => s.navigateToFile);
   const setFocusedFindingKey = useStore((s) => s.setFocusedFindingKey);
@@ -263,7 +272,19 @@ export function SearchBar() {
             )}
             {fileHits.map(({ file }, i) => {
               const isActive = activeIdx === i && activeHit?.kind === "file";
-              const threatColor = THREAT_COLOR[file.threatLevel];
+              // The same alarm colour the city and the list use, so switching
+              // to the colour-blind palette does not leave the search behind.
+              const threatSeverity: Severity | null =
+                file.threatLevel === "critical"
+                  ? "P0"
+                  : file.threatLevel === "high"
+                    ? "P1"
+                    : file.threatLevel === "medium"
+                      ? "P2"
+                      : null;
+              const threatColor = threatSeverity
+                ? severityColor(threatSeverity, colorblind)
+                : THREAT_COLOR[file.threatLevel];
               return (
                 <button
                   key={file.id}
@@ -340,7 +361,7 @@ export function SearchBar() {
             )}
             {findingHits.map((hit, i) => {
               const isActive = activeIdx === fileHits.length + i;
-              const sevColor = SEVERITY_COLOR[hit.finding.severity];
+              const sevColor = severityColor(hit.finding.severity, colorblind);
               const label = hit.finding.ruleId ?? hit.finding.type;
               return (
                 <button
@@ -350,11 +371,9 @@ export function SearchBar() {
                   onClick={() => handleFindingSelect(hit.file.id, hit.index)}
                   onMouseDown={(e) => e.preventDefault()}
                   onMouseEnter={() => setActiveIdx(fileHits.length + i)}
-                  className="w-full text-left px-4 py-3 transition-colors duration-100 flex items-start justify-between gap-3"
+                  className="search-hit"
                   style={{
                     background: isActive ? "rgba(232,178,60,0.1)" : "transparent",
-                    borderBottom:
-                      i < findingHits.length - 1 ? "1px solid rgba(232,178,60,0.07)" : "none",
                   }}
                   role="option"
                   aria-selected={isActive}
@@ -362,14 +381,19 @@ export function SearchBar() {
                   <div className="min-w-0 flex items-start gap-2">
                     {/* Severity chip */}
                     <span
-                      className="font-jetbrains text-[length:var(--fs-meta)] px-1.5 py-0.5 rounded shrink-0 mt-0.5"
-                      style={{
-                        color: sevColor,
-                        border: `1px solid ${sevColor}55`,
-                        background: `${sevColor}12`,
-                      }}
+                      className="severity-chip search-hit-severity font-jetbrains"
+                      data-severity={hit.finding.severity}
+                      style={{ color: sevColor }}
+                      title={hit.finding.severity}
                     >
-                      {hit.finding.severity}
+                      <span aria-hidden="true" className="severity-chip-shape">
+                        {hit.finding.severity === "P0"
+                          ? "▲"
+                          : hit.finding.severity === "P1"
+                            ? "◆"
+                            : "●"}
+                      </span>
+                      {t(lang, SEVERITY_LABEL_KEY[hit.finding.severity])}
                     </span>
                     <div className="min-w-0">
                       <span
@@ -387,6 +411,7 @@ export function SearchBar() {
                       >
                         {highlight(hit.finding.message, query)}
                       </span>
+                      <FindingGermanLine finding={hit.finding} marked={false} />
                       <span
                         className="block font-jetbrains text-[length:var(--fs-meta)] truncate mt-0.5"
                         style={{ color: "var(--meta)" }}
