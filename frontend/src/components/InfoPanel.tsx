@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useStore } from "../stores/useStore";
+import { cityOnDisk, useStore } from "../stores/useStore";
 import { findFileById } from "../city/layout";
 import { languageColor, SEVERITY_COLOR, authorColor } from "../city/palette";
 import type { VoxelSectionSpec } from "../city/voxels";
@@ -928,7 +928,13 @@ export function InfoPanel() {
                   filePath={file.path}
                   reviewKey={key}
                   review={reviews[key] ?? null}
-                  focused={focusedFindingKey === key}
+                  // The focus channel is positional and stays that way: every
+                  // writer (triage, search, findings list) names the entry as
+                  // `${fileId}#${index}`. A verdict is keyed by fingerprint.
+                  // Comparing the focused finding against the verdict key meant
+                  // no row ever lit up on a scan whose findings carry
+                  // fingerprints — which is every scan the city mapper maps.
+                  focused={focusedFindingKey === findingKey(file.id, i)}
                 />
               );
             })}
@@ -946,20 +952,26 @@ export function InfoPanel() {
         </div>
       )}
       <div className="mt-4">
-        {/* Jump straight into the code at the first finding's line */}
-        <OpenInIde
-          filePath={file.path}
-          line={
-            focusedLine ??
-            file.findings.find((f) => !f.historyCommit && f.provenance !== "gitleaks-history")?.line
-          }
-          repoKey={(() => {
-            const city = useStore.getState().cityData;
-            return city ? `${city.repo.owner}/${city.repo.name}` : undefined;
-          })()}
-        />
-
-        <RunTestsButton filePath={file.path} />
+        {/* Jump straight into the code at the first finding's line. Only for a
+          city whose folder is on this machine: the demo's paths are invented,
+          and an editor link to them opens a file that was never written. */}
+        {cityOnDisk(cityData) && (
+          <>
+            <OpenInIde
+              filePath={file.path}
+              line={
+                focusedLine ??
+                file.findings.find((f) => !f.historyCommit && f.provenance !== "gitleaks-history")
+                  ?.line
+              }
+              repoKey={(() => {
+                const city = useStore.getState().cityData;
+                return city ? `${city.repo.owner}/${city.repo.name}` : undefined;
+              })()}
+            />
+          </>
+        )}
+        <RunTestsButton filePath={file.path} analysisOnDisk={cityOnDisk(cityData)} />
         <TestResultsBlock filePath={file.path} />
 
         {/* Honest-building structure — sections + voxel legend (only when the
@@ -1309,6 +1321,7 @@ function SourceBlock({
               {t(lang, "panel.loadSource")}
             </button>
           )}
+          {status === "error" && unavailable}
           {status === "idle" && !analysisId && unavailable}
           {status === "loading" && (
             <div
@@ -1432,7 +1445,13 @@ function SourceView({
 /* ── Run tests — for the file's own test suite ─────────────────────────── */
 const TEST_FILE = /\.(test|spec)\.[jt]sx?$|(^|\/)(tests?|__tests__)\//i;
 
-function RunTestsButton({ filePath }: { filePath: string }) {
+function RunTestsButton({
+  filePath,
+  analysisOnDisk,
+}: {
+  filePath: string;
+  analysisOnDisk: boolean;
+}) {
   const lang = useStore((s) => s.prefs.lang);
   const testRun = useStore((s) => s.testRun);
   const analysisId = useStore((s) => s.analysisId);
@@ -1445,7 +1464,7 @@ function RunTestsButton({ filePath }: { filePath: string }) {
   return (
     <button
       onClick={() => void runTests([filePath])}
-      disabled={busy || !analysisId}
+      disabled={busy || !analysisId || !analysisOnDisk}
       className="w-full mb-3 py-1.5 font-jetbrains text-[11px] tracking-widest rounded-sm
                  transition-all duration-150 hover:brightness-110 focus:outline-none focus:ring-1 focus:ring-[#29d398]
                  disabled:opacity-40 cursor-pointer"

@@ -1,5 +1,18 @@
-import { useEffect, useRef, useState, type ButtonHTMLAttributes, type KeyboardEvent } from "react";
-import { useStore } from "../stores/useStore";
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ButtonHTMLAttributes,
+  type KeyboardEvent,
+} from "react";
+import {
+  cityOnDisk,
+  nextOpenTriageIndex,
+  openTriageCount,
+  triageList,
+  useStore,
+} from "../stores/useStore";
 import { useTestRunner } from "../hooks/useTestRunner";
 import { t } from "../i18n";
 
@@ -54,6 +67,9 @@ export function ActionBar() {
   const nextTriage = useStore((s) => s.nextTriage);
   const prevTriage = useStore((s) => s.prevTriage);
   const endTriage = useStore((s) => s.endTriage);
+  const reviews = useStore((s) => s.reviews);
+  const threatFilter = useStore((s) => s.threatFilter);
+  const ruleFilter = useStore((s) => s.ruleFilter);
   const { runTests } = useTestRunner();
   const [menuOpen, setMenuOpen] = useState(false);
   const [feedback, setFeedback] = useState<{ message: string; error?: boolean } | null>(null);
@@ -93,6 +109,23 @@ export function ActionBar() {
     document.addEventListener("pointerdown", onPointerDown);
     return () => document.removeEventListener("pointerdown", onPointerDown);
   }, [menuOpen]);
+
+  /**
+   * What the triage queue holds, and how much of it still needs a verdict.
+   * Walked from the same list the stepper steps through, under the same
+   * filters — a number the dock shows has to be a number the queue delivers.
+   * Not recomputed while the city rises: the build progress is not a dep.
+   */
+  const queue = useMemo(() => {
+    if (!cityData) return null;
+    const list = triageList(cityData, threatFilter, ruleFilter);
+    return {
+      total: list.length,
+      open: openTriageCount(list, reviews),
+      ahead: nextOpenTriageIndex(list, reviews, triageCursor + 1, 1) !== -1,
+      behind: nextOpenTriageIndex(list, reviews, triageCursor - 1, -1) !== -1,
+    };
+  }, [cityData, threatFilter, ruleFilter, reviews, triageCursor]);
 
   if (!cityData) return null;
 
@@ -175,6 +208,23 @@ export function ActionBar() {
     } catch {
       setFeedback({ message: t(lang, "actions.exportFailed"), error: true });
     }
+  };
+
+  /**
+   * Pull a whole-scan report down through the browser's save dialog. The
+   * endpoint reads the analysis the local backend already holds — nothing
+   * leaves the machine, and the file is the same bytes `/api/result/:id`
+   * answers with.
+   */
+  const downloadReport = (endpoint: "sarif" | "handoff", ext: "sarif" | "ndjson"): void => {
+    closeMenu();
+    if (!analysisId) return;
+    const name = `ephemora-${analysisId}.${ext}`;
+    const a = document.createElement("a");
+    a.href = `/api/result/${encodeURIComponent(analysisId)}/${endpoint}`;
+    a.download = name;
+    a.click();
+    setFeedback({ message: t(lang, "actions.exportReportStarted", { name }) });
   };
 
   const statusMessage = feedback?.message ?? (testRun.status !== "idle" ? testRun.stage : null);
@@ -264,8 +314,16 @@ export function ActionBar() {
             <button
               type="button"
               onClick={prevTriage}
+              // aria-disabled, not disabled: why the step is empty is a title,
+              // and a disabled button is never hovered, so it never explains.
+              aria-disabled={!queue?.behind}
+              title={
+                queue?.behind
+                  ? t(lang, "actions.triagePrevTitle")
+                  : t(lang, "actions.triageNoneBehind")
+              }
               className="flex h-8 items-center gap-1 rounded-md px-2 text-[13px] font-medium transition-colors hover:bg-white/10"
-              style={{ color: "#fff2e9", whiteSpace: "nowrap" }}
+              style={{ color: "#fff2e9", whiteSpace: "nowrap", opacity: queue?.behind ? 1 : 0.4 }}
             >
               <span aria-hidden="true">‹</span>
               {t(lang, "actions.prev")}
@@ -273,14 +331,26 @@ export function ActionBar() {
             <span
               className="shrink-0 px-1 font-mono text-xs tabular-nums"
               style={{ color: "#dedbd3" }}
+              title={t(lang, "actions.triageOpenTitle", { open: queue?.open ?? 0 })}
             >
               {triageCursor + 1} / {triageTotal}
+              {queue && queue.total > 0 && (
+                <span className="ml-1.5" style={{ color: queue.open > 0 ? "#e8b23c" : "#29d398" }}>
+                  · {queue.open} {t(lang, "actions.triageOpenWord")}
+                </span>
+              )}
             </span>
             <button
               type="button"
               onClick={nextTriage}
+              aria-disabled={!queue?.ahead}
+              title={
+                queue?.ahead
+                  ? t(lang, "actions.triageNextTitle")
+                  : t(lang, "actions.triageNoneAhead")
+              }
               className="flex h-8 items-center gap-1 rounded-md px-2 text-[13px] font-medium transition-colors hover:bg-white/10"
-              style={{ color: "#fff2e9", whiteSpace: "nowrap" }}
+              style={{ color: "#fff2e9", whiteSpace: "nowrap", opacity: queue?.ahead ? 1 : 0.4 }}
             >
               {t(lang, "actions.next")}
               <span aria-hidden="true">›</span>
@@ -299,7 +369,11 @@ export function ActionBar() {
             type="button"
             onClick={startTriage}
             disabled={totalFindings === 0}
-            title={t(lang, "actions.triageStartAria")}
+            title={
+              queue && queue.total > 0 && queue.open === 0
+                ? t(lang, "actions.triageAllJudgedTitle")
+                : t(lang, "actions.triageStartAria")
+            }
             className="flex min-h-10 items-center justify-center gap-2 rounded-lg px-3 text-[13px] font-medium transition-colors hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-40"
             style={{
               color: "#fff2e9",
@@ -309,6 +383,17 @@ export function ActionBar() {
             }}
           >
             {t(lang, "actions.triage")}
+            {/* The count that survived the last round: a re-scan of the same
+                folder starts on what is left, and this is the only place that
+                says so before the queue is opened. */}
+            {queue && queue.total > 0 && (
+              <span
+                className="font-mono text-xs tabular-nums"
+                style={{ color: queue.open > 0 ? "#e8b23c" : "#29d398" }}
+              >
+                {queue.open} {t(lang, "actions.triageOpenWord")}
+              </span>
+            )}
             <span aria-hidden="true">▶</span>
           </button>
         )}
@@ -380,7 +465,7 @@ export function ActionBar() {
               <button
                 role="menuitem"
                 type="button"
-                disabled={testing || !analysisId}
+                disabled={testing || !analysisId || !cityOnDisk(cityData)}
                 onClick={() => {
                   closeMenu();
                   setFeedback(null);
@@ -390,7 +475,9 @@ export function ActionBar() {
                 title={
                   !analysisId
                     ? t(lang, "actions.runTestsNoScanTitle")
-                    : t(lang, "actions.runTestsTitle")
+                    : !cityOnDisk(cityData)
+                      ? t(lang, "actions.runTestsNoFolderTitle")
+                      : t(lang, "actions.runTestsTitle")
                 }
               >
                 <span aria-hidden="true">▷</span>
@@ -404,6 +491,42 @@ export function ActionBar() {
               >
                 <span aria-hidden="true">↓</span>
                 {t(lang, "actions.exportPng")}
+              </button>
+              {/* The two report exports. They live here, next to the picture,
+                  because both describe the whole city — the SARIF link in the
+                  file panel is easy to miss for anyone who has not opened a
+                  building yet. */}
+              <button
+                role="menuitem"
+                type="button"
+                aria-disabled={!analysisId}
+                title={
+                  analysisId
+                    ? t(lang, "actions.exportSarifTitle")
+                    : t(lang, "actions.exportNoScanTitle")
+                }
+                onClick={() => downloadReport("sarif", "sarif")}
+                className="flex min-h-10 w-full items-center gap-3 rounded-lg px-3 text-left hover:bg-white/5"
+                style={{ opacity: analysisId ? 1 : 0.4 }}
+              >
+                <span aria-hidden="true">↓</span>
+                {t(lang, "actions.exportSarif")}
+              </button>
+              <button
+                role="menuitem"
+                type="button"
+                aria-disabled={!analysisId}
+                title={
+                  analysisId
+                    ? t(lang, "actions.exportHandoffTitle")
+                    : t(lang, "actions.exportNoScanTitle")
+                }
+                onClick={() => downloadReport("handoff", "ndjson")}
+                className="flex min-h-10 w-full items-center gap-3 rounded-lg px-3 text-left hover:bg-white/5"
+                style={{ opacity: analysisId ? 1 : 0.4 }}
+              >
+                <span aria-hidden="true">↓</span>
+                {t(lang, "actions.exportHandoff")}
               </button>
               {/* Display preference, not a scan action: it sits before the
                   final "Copy city link" item so End keeps landing on the

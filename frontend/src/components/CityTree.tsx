@@ -59,7 +59,10 @@ export function CityTree() {
   // lanes between the plaza's file buildings. Shared with RoadSystem so
   // the zebra stripes sit exactly where walkers cross.
   const sidewalks = useMemo(
-    () => (layout ? buildSidewalkNetwork(layout.streets, plazaLanes(layout.buildings)) : null),
+    () =>
+      layout
+        ? buildSidewalkNetwork(layout.streets, plazaLanes(layout.buildings, layout.streets))
+        : null,
     [layout],
   );
   const landmarkId = useMemo(() => (cityData ? landmarkFileId(cityData) : null), [cityData]);

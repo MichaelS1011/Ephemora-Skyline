@@ -5,6 +5,7 @@ import { ProfileChips } from "./ProfileChips";
 import { SCAN_PROFILES } from "../config/scanProfiles";
 import { OUTBOUND_CALLS } from "../config/networkSurface";
 import { t, type Lang } from "../i18n";
+import type { CityData } from "../city/types";
 
 export const BRAND = { ink: "#F2EFE8", red: "#E8503C", bg: "#161614", panel: "#1C1C1A" };
 
@@ -161,6 +162,7 @@ export function Landing() {
   const cityData = useStore((s) => s.cityData);
   const isLoading = useStore((s) => s.isLoading);
   const setCityData = useStore((s) => s.setCityData);
+  const setAnalysisId = useStore((s) => s.setAnalysisId);
   const scanProfile = useStore((s) => s.scanProfile);
   const lang = useStore((s) => s.prefs.lang);
   const setPref = useStore((s) => s.setPref);
@@ -251,7 +253,13 @@ export function Landing() {
     try {
       const res = await fetch("/api/cities/default");
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      setCityData(await res.json());
+      const data = (await res.json()) as CityData;
+      setCityData(data);
+      // The demo is a scan the local backend holds like any other: without its
+      // id the report exports and the city link stayed greyed out here, while
+      // reloading the same ?city=demo-001 address gave them. Provenance only —
+      // verdicts are keyed by project, not by this id.
+      setAnalysisId(data.analysisId ?? null);
     } catch {
       setDemoError(t(lang, "landing.demoError"));
     } finally {

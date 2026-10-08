@@ -372,6 +372,35 @@ export const DICT = {
     en: "Start triage",
     de: "Triage starten",
   },
+  /** The queue walks findings WITHOUT a verdict; this says how many are left. */
+  "actions.triageOpenWord": {
+    en: "open",
+    de: "offen",
+  },
+  "actions.triageOpenTitle": {
+    en: "{open} findings in this queue still need a verdict",
+    de: "{open} Funde in dieser Warteschlange brauchen noch ein Urteil",
+  },
+  "actions.triageAllJudgedTitle": {
+    en: "Every finding in this view already has a verdict — the queue opens on the first one",
+    de: "Jeder Fund in dieser Ansicht hat schon ein Urteil — die Warteschlange öffnet beim ersten",
+  },
+  "actions.triagePrevTitle": {
+    en: "Previous finding without a verdict",
+    de: "Vorheriger Fund ohne Urteil",
+  },
+  "actions.triageNextTitle": {
+    en: "Next finding without a verdict",
+    de: "Nächster Fund ohne Urteil",
+  },
+  "actions.triageNoneBehind": {
+    en: "No finding without a verdict behind this one",
+    de: "Kein Fund ohne Urteil weiter zurück",
+  },
+  "actions.triageNoneAhead": {
+    en: "No finding without a verdict ahead of this one",
+    de: "Kein Fund ohne Urteil weiter vorn",
+  },
   "actions.prev": {
     en: "Prev",
     de: "Zurück",
@@ -520,6 +549,34 @@ export const DICT = {
     en: "Export PNG",
     de: "PNG exportieren",
   },
+  "actions.exportSarif": {
+    en: "Export SARIF",
+    de: "SARIF exportieren",
+  },
+  "actions.exportSarifTitle": {
+    en: "Every finding of this scan as one SARIF file — the format scanners and code review tools read",
+    de: "Alle Funde dieses Scans als eine SARIF-Datei — das Format, das Scanner und Code-Review-Werkzeuge lesen",
+  },
+  "actions.exportHandoff": {
+    en: "Export findings (NDJSON)",
+    de: "Funde exportieren (NDJSON)",
+  },
+  "actions.exportHandoffTitle": {
+    en: "One finding per line with its fingerprint — the machine channel a coding agent reads",
+    de: "Ein Fund pro Zeile, mit Fingerprint — der Maschinenkanal, den ein Coding-Agent liest",
+  },
+  "actions.exportReportStarted": {
+    en: "{name} saved to your downloads.",
+    de: "{name} liegt in den Downloads deines Browsers.",
+  },
+  "actions.runTestsNoFolderTitle": {
+    en: "The demo city has no folder on this machine, so there is nothing to run",
+    de: "Die Demo-Stadt hat keinen Ordner auf diesem Rechner, da läuft nichts",
+  },
+  "actions.exportNoScanTitle": {
+    en: "This city has no scan the local server still holds",
+    de: "Diese Stadt hat keinen Scan, den der lokale Server noch hält",
+  },
   "actions.copyLink": {
     en: "Copy city link",
     de: "Stadt-Link kopieren",
@@ -636,12 +693,12 @@ export const DICT = {
     de: "Tour beenden",
   },
   "hints.triageNext": {
-    en: "Next finding (Triage)",
-    de: "Nächster Fund (Triage)",
+    en: "Next finding without a verdict (Triage)",
+    de: "Nächster Fund ohne Urteil (Triage)",
   },
   "hints.triagePrev": {
-    en: "Previous finding (Triage)",
-    de: "Vorheriger Fund (Triage)",
+    en: "Previous finding without a verdict (Triage)",
+    de: "Vorheriger Fund ohne Urteil (Triage)",
   },
   "hints.catCamera": {
     en: "Camera",

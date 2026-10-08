@@ -26,6 +26,7 @@ import {
   countStrandedVerdicts,
   findingKey,
   loadReviewsForCity,
+  reviewKeyFor,
   saveReviews,
 } from "../reviews";
 import { loadPrefs, savePrefs, type Prefs } from "../prefs";
@@ -60,6 +61,18 @@ export interface CameraInfo {
 }
 
 export type HeatChannel = "threat" | "complexity" | "churn";
+
+/**
+ * Whether this city's folder is on the machine the backend runs on.
+ *
+ * A local scan stages its files, so the source view, the editor jump and the
+ * project's own test run have something to read. The demo city is synthesised:
+ * its paths exist in no directory, and the endpoints answer 404. Three
+ * controls have to know which of the two they are pointing at.
+ */
+export function cityOnDisk(city: CityData | null): boolean {
+  return !!city && city.repo.owner === "local";
+}
 
 /**
  * City-wide view mode (spec §14): which information layer the skyline shows.
@@ -300,9 +313,43 @@ function buildingShot(layoutBounds: number, h: number): { dist: number; targetY:
   };
 }
 
-interface TriageEntry {
+export interface TriageEntry {
   file: ReturnType<typeof allFiles>[number]["file"];
   index: number; // position within file.findings — stable per analysis
+}
+
+/** The verdicts of the project the city on screen belongs to. */
+type ReviewMap = Record<string, ReviewStatus>;
+
+/** The verdict a queue entry already carries; null means it still needs one. */
+function verdictOf(reviews: ReviewMap, entry: TriageEntry): ReviewStatus | null {
+  const finding = entry.file.findings[entry.index];
+  if (!finding) return null;
+  return reviews[reviewKeyFor(entry.file, entry.index, finding)] ?? null;
+}
+
+/**
+ * The next queue entry without a verdict, walking `step` (+1/-1) from `from`.
+ * -1 when none is left in that direction — the caller stays where it is
+ * rather than landing on a finding the user already decided about.
+ */
+export function nextOpenTriageIndex(
+  list: TriageEntry[],
+  reviews: ReviewMap,
+  from: number,
+  step: 1 | -1,
+): number {
+  for (let i = from; i >= 0 && i < list.length; i += step) {
+    if (!verdictOf(reviews, list[i]!)) return i;
+  }
+  return -1;
+}
+
+/** How many findings of this queue still need a verdict. */
+export function openTriageCount(list: TriageEntry[], reviews: ReviewMap): number {
+  let open = 0;
+  for (const entry of list) if (!verdictOf(reviews, entry)) open++;
+  return open;
 }
 
 /**
@@ -341,8 +388,13 @@ const SEVERITY_RANK: Record<Severity, number> = { P0: 0, P1: 1, P2: 2 };
 /**
  * The triage queue: every finding in the city matching the current
  * severity + rule filters, worst first (severity → risk → path → line).
+ * Exported so the dock can state how much of the queue still needs a verdict.
  */
-function triageList(city: CityData, threat: Severity | "all", rule: string | null): TriageEntry[] {
+export function triageList(
+  city: CityData,
+  threat: Severity | "all",
+  rule: string | null,
+): TriageEntry[] {
   const out: TriageEntry[] = [];
   for (const { file } of allFiles(city)) {
     file.findings.forEach((f, index) => {
@@ -626,10 +678,15 @@ export const useStore = create<AppState>((set, get) => ({
     if (!cityData) return;
     const list = triageList(cityData, get().threatFilter, get().ruleFilter);
     if (list.length === 0) return;
-    const first = list[0]!;
+    // A verdict is a finished decision. The round opens on the first finding
+    // that still needs one, so re-scanning the same folder tomorrow does not
+    // walk the whole queue again. When every finding is judged, entry 0 stays
+    // reachable — inspecting a past decision must not require a filter.
+    const at = nextOpenTriageIndex(list, get().reviews, 0, 1);
+    const first = list[at === -1 ? 0 : at]!;
     set({
       triageActive: true,
-      triageCursor: 0,
+      triageCursor: at === -1 ? 0 : at,
       triageTotal: list.length,
       focusedFindingKey: findingKey(first.file.id, first.index),
     });
@@ -645,10 +702,13 @@ export const useStore = create<AppState>((set, get) => ({
     if (!cityData || !triageActive) return;
     const list = triageList(cityData, get().threatFilter, get().ruleFilter);
     if (list.length === 0) return;
-    const next = Math.min(list.length - 1, triageCursor + 1);
-    const target = list[next]!;
+    // Step to the next finding WITHOUT a verdict. A judge that lands on the
+    // already-decided entry next to it costs the user a decision twice.
+    const at = nextOpenTriageIndex(list, get().reviews, triageCursor + 1, 1);
+    if (at === -1) return;
+    const target = list[at]!;
     set({
-      triageCursor: next,
+      triageCursor: at,
       triageTotal: list.length,
       focusedFindingKey: findingKey(target.file.id, target.index),
     });
@@ -662,13 +722,14 @@ export const useStore = create<AppState>((set, get) => ({
     if (!cityData || !triageActive) return;
     const list = triageList(cityData, get().threatFilter, get().ruleFilter);
     if (list.length === 0) return;
-    // Clamp against the CURRENT list length too: filters may have shrunk
-    // the queue while the triage was running — the stale cursor must not
-    // point past the end.
-    const prev = Math.min(list.length - 1, Math.max(0, triageCursor - 1));
-    const target = list[prev]!;
+    // Same walk backwards. Filters may have shrunk the queue while the triage
+    // ran, so the walk starts no later than the last entry of the new list.
+    const from = Math.min(list.length - 1, triageCursor - 1);
+    const at = nextOpenTriageIndex(list, get().reviews, from, -1);
+    if (at === -1) return;
+    const target = list[at]!;
     set({
-      triageCursor: prev,
+      triageCursor: at,
       triageTotal: list.length,
       focusedFindingKey: findingKey(target.file.id, target.index),
     });

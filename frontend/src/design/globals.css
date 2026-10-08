@@ -1302,26 +1302,29 @@ div[role="status"].animate-toast-rise {
     top: 124px;
     left: 14px;
     right: 14px;
-    max-width: none;
+    /* `calc(50% - 178px)` is a wide-screen cap and is applied unconditionally
+       further down this file — at 320 px it computes to -18 px and the chip
+       renders 0 px wide with 83 px of content scrolled inside it. */
+    max-width: calc(100% - 28px);
   }
   .panel-context-card {
-    top: 176px !important;
+    top: 236px !important;
     left: 14px !important;
     width: calc(100% - 28px) !important;
-    max-height: calc(100dvh - 310px) !important;
+    max-height: calc(100dvh - (260px + var(--dock-h, 54px))) !important;
   }
   .context-reopen {
-    top: 170px;
+    top: 230px;
     left: 14px;
   }
   .panel-info,
   .panel-findings {
-    top: 170px !important;
+    top: 230px !important;
     left: 14px !important;
     right: 14px !important;
     width: auto !important;
-    bottom: 86px !important;
-    max-height: calc(100dvh - 256px) !important;
+    bottom: calc(24px + var(--dock-h, 54px)) !important;
+    max-height: calc(100dvh - (254px + var(--dock-h, 54px))) !important;
   }
   .panel-info {
     z-index: 36 !important;
@@ -1338,11 +1341,11 @@ div[role="status"].animate-toast-rise {
     display: none !important;
   }
   .workspace-heatmap {
-    bottom: 86px;
+    bottom: calc(24px + var(--dock-h, 54px));
     left: 14px;
   }
   .workspace-shortcuts {
-    bottom: 86px;
+    bottom: calc(24px + var(--dock-h, 54px));
     left: auto;
     right: 14px;
   }
@@ -1362,7 +1365,7 @@ div[role="status"].animate-toast-rise {
   }
   .security-tour {
     z-index: 40;
-    bottom: 86px !important;
+    bottom: calc(24px + var(--dock-h, 54px)) !important;
   }
 }
 @media (max-width: 380px) {
@@ -1409,7 +1412,11 @@ div[role="status"].animate-toast-rise {
 }
 @media (max-width: 760px) {
   .action-dock-row {
-    flex-wrap: nowrap;
+    /* nowrap here pushed the dock past both screen edges: at 320 px its
+       content is 309 px inside a 292 px box, so Triage started at -4 px and
+       More ended at 324 px. Wrapping costs a second row, and ActionBar
+       publishes that height as --dock-h for everything sitting above it. */
+    flex-wrap: wrap;
     gap: 2px;
   }
   .action-dock-row .action-button,
@@ -1545,8 +1552,30 @@ div[role="status"].animate-toast-rise {
   color: #f6e3b0;
   outline: none;
 }
-.workspace-breadcrumbs {
-  max-width: calc(50% - 178px);
+/* Wide screen only: the chip gives way to the centred mode bar and the search
+   field, and 50% - 178px is how far it may reach. Below 761px those two are on
+   their own rows, and this cap would squeeze the chip to nothing. */
+@media (min-width: 761px) {
+  .workspace-breadcrumbs {
+    max-width: calc(50% - 178px);
+  }
+}
+
+/* ── Narrow workspace: the mode switch and the camera rescue get their own row ─
+   Their base rules live further down this file, so the same-value declarations
+   inside the @media (max-width: 760px) block above lost the cascade — measured
+   on the running app: at 760→320 px all three mode buttons kept top:85..115 and
+   stayed covered by the full-width search field. Below 760 px the search box
+   spans 76..118, the toast band starts at 128 and the breadcrumb chip owns
+   124..162, so 176 is the first free row. */
+@media (max-width: 760px) {
+  .workspace-modes {
+    top: 176px;
+  }
+  .camera-rescue {
+    top: 230px;
+    z-index: 42;
+  }
 }
 .finding-rule-filters {
   max-height: 116px;
