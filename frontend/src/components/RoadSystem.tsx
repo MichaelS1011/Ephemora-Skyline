@@ -33,8 +33,25 @@ export function RoadSystem({
   active?: boolean;
 }) {
   // ── Concrete curbs framing both sides of every street ───────────────────
+  // Drawn from the walking graph's own kerb stretches, so the stone stops where
+  // the sidewalk stops: at the mouth of every junction, and along every plaza
+  // lane the crowd is given. Without a network (nothing to walk on yet) the
+  // streets still get their full-length kerbs.
   const curbData = useMemo(() => {
     const items: Array<{ x: number; z: number; rotY: number; len: number }> = [];
+    if (sidewalks) {
+      for (const k of sidewalks.kerbs) {
+        const len = Math.hypot(k.x2 - k.x1, k.z2 - k.z1);
+        if (len < 0.5) continue;
+        items.push({
+          x: (k.x1 + k.x2) / 2,
+          z: (k.z1 + k.z2) / 2,
+          rotY: -Math.atan2(k.z2 - k.z1, k.x2 - k.x1),
+          len,
+        });
+      }
+      return items;
+    }
     for (const s of layout.streets) {
       const len = Math.hypot(s.x2 - s.x1, s.z2 - s.z1);
       if (len < 3) continue;
@@ -57,7 +74,7 @@ export function RoadSystem({
       }
     }
     return items;
-  }, [layout]);
+  }, [layout, sidewalks]);
 
   const curbRef = useRef<THREE.InstancedMesh>(null);
   useLayoutEffect(() => {

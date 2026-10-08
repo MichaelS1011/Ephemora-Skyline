@@ -67,6 +67,13 @@ export interface StreetLine {
   z1: number;
   x2: number;
   z2: number;
+  /**
+   * A plaza lane whose corridor is narrower than two curb bands carries ONE
+   * pavement instead of two: its axis sits on the façade the walkers pass, and
+   * the walking band is on the +normal side of the axis as written
+   * (`nx = -(z2 - z1), nz = x2 - x1`). Streets never set it.
+   */
+  oneSided?: boolean;
 }
 
 export interface DirLayout {

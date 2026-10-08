@@ -210,18 +210,23 @@ export function cellBoundarySegments(cells: VoronoiCell[]): Array<{
 }> {
   const seen = new Set<string>();
   const out: Array<{ x1: number; z1: number; x2: number; z2: number }> = [];
+  // A segment is identified by its ENDPOINT PAIR, compared as a sorted pair of
+  // points. Sorting the four numbers together instead collides two genuinely
+  // different edges whenever their coordinates come out of the same multiset —
+  // which is exactly the case for a square: (−h,−h)→(h,−h) and (−h,h)→(−h,−h)
+  // both read as {−h,−h,−h,h}. A district with no sub-folders owns one cell,
+  // and that collision deleted two of its four boundary roads, so the plaza
+  // stood inside an open bracket instead of a closed street and nothing that
+  // needed to arrive from the far side of the level could reach it.
+  const at = (p: Point): string => `${Math.round(p.x * 100)},${Math.round(p.z * 100)}`;
   for (const cell of cells) {
     for (let i = 0; i < cell.polygon.length; i++) {
       const p = cell.polygon[i]!;
       const q = cell.polygon[(i + 1) % cell.polygon.length]!;
-      const key = [
-        Math.round(p.x * 100),
-        Math.round(p.z * 100),
-        Math.round(q.x * 100),
-        Math.round(q.z * 100),
-      ]
-        .sort((a, b) => a - b)
-        .join(",");
+      const a = at(p);
+      const b = at(q);
+      if (a === b) continue;
+      const key = a < b ? `${a}|${b}` : `${b}|${a}`;
       if (seen.has(key)) continue;
       seen.add(key);
       out.push({ x1: p.x, z1: p.z, x2: q.x, z2: q.z });

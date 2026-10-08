@@ -100,7 +100,7 @@ const levels = [
 
 const built = levels.map(({ name, focus }) => {
   const layout = getDirLayout(city, focus);
-  const lanes = plazaLanes(layout.buildings);
+  const lanes = plazaLanes(layout.buildings, layout.streets);
   const network = buildSidewalkNetwork(layout.streets, lanes)!;
   // The walking surface is the streets AND the plaza lanes: a node on a lane's
   // kerb is as much on a kerb as one on a street's.
@@ -226,39 +226,68 @@ describe("the built city's kerb graph — the overview", () => {
   });
 });
 
-// ── the known defects, registered so they fail loud when they are fixed ────
+// ── the three defects the diagnosis named, now the rule ───────────────────
 
 /**
- * A focused district is not a street grid: it has two through roads at its
- * bounding box and every walking line inside the block is a plaza lane derived
- * from the gaps between buildings. Three things are wrong with those lanes, and
- * all three measured IDENTICAL at HEAD (92/160 reachable, the same node at
- * −5.6,−5.5 inside a building, 31 unpainted crossings before the kerb mouth cut
- * and 27 after it) — so this is not damage from the open world's work, it is the
- * district pedestrian network waiting for its own lane.
+ * A focused district is not a street grid: it has its district roads at the
+ * bounding box of the level, and every walking line inside the block is a plaza
+ * lane derived from the gaps between the buildings. At HEAD three things were
+ * wrong with those lanes, and all three measured the same way (92/160 kerb nodes
+ * reachable, 23 of them standing inside a footprint, 27 crossings without paint
+ * under them): `plazaLanes` put a lane at the midpoint of two building COLUMNS
+ * instead of the midpoint of their FACES, it hung the two pavements of a street
+ * on a corridor that can only pay for one (`2 × CURB_OFFSET` in a face-to-face
+ * gap of 2.3–2.4), and it stopped at the building extent ±6, which is 25 units
+ * short of the district's roads — beyond the corner-link radius, so no walker
+ * could ever reach it.
  *
- * The diagnosis, for whoever picks it up: `plazaLanes` puts a lane at the
- * midpoint of two building COLUMNS, not of their faces, and the kerb band is
- * 2 × CURB_OFFSET = 4.36 units wide while the measured face-to-face gap in this
- * block is 2.0; and the lanes stop at the building extent ±6, which is 25 units
- * from the district's roads, so nothing within LINK_RADIUS ever joins them to
- * the street kerbs. A lane is only a lane if people can walk beside it without
- * standing in a wall, and it has to reach a street.
- *
- * `it.fails` is the register: these go red the moment somebody fixes them.
+ * `plazaLanes` now measures the corridor between the facing façades, gives it
+ * the pavement that fits (both, when the corridor is wider than two bands; one,
+ * hugging the protruding façade, when it is wider than a single band; nothing,
+ * when it is an alley), cuts a lane where a footprint reaches into its band, and
+ * only draws a fragment that touches a street. The three measurements below are
+ * the ones the diagnosis named — they are what the geometry has to answer to.
  */
 const district = built.find((b) => b.name === "a district")!;
 
-describe("a focused district's plaza lanes — known defects", () => {
-  it.fails("joins its plaza lanes to the street kerbs", () => {
+describe("a focused district's plaza lanes", () => {
+  it("joins its plaza lanes to the street kerbs", () => {
+    expect(district.lanes.length).toBeGreaterThan(0);
     expect(reachableFromFirst(district)).toBe(district.network.nodes.length);
   });
 
-  it.fails("keeps its kerb nodes out of the buildings they walk past", () => {
+  it("keeps its kerb nodes out of the buildings they walk past", () => {
     expect(nodesInBuildings(district)).toEqual([]);
   });
 
-  it.fails("paints a zebra under every crossing it uses", () => {
-    expect(unpaintedCrossings(district)).toEqual([]);
+  it("paints a zebra under every crossing it uses", () => {
+    const bad = unpaintedCrossings(district);
+    if (bad.length > 0) {
+      const onZebra = (x: number, z: number): boolean =>
+        district.network.crosswalks.some((cw) => Math.hypot(cw.x - x, cw.z - z) < 2.6);
+      const lines = district.lines;
+      let shown = 0;
+      outer: for (let u = 0; u < district.network.nodes.length; u++) {
+        const a = district.network.nodes[u]!;
+        for (const v of a.adj) {
+          if (v <= u) continue;
+          const b = district.network.nodes[v]!;
+          for (const [si, s] of lines.entries()) {
+            const d1 = distanceToSegment(a.x, a.z, s);
+            const d2 = distanceToSegment(b.x, b.z, s);
+            if (d1 > CURB_OFFSET + 1.2 || d2 > CURB_OFFSET + 1.2) continue;
+            const mid = { x: (a.x + b.x) / 2, z: (a.z + b.z) / 2 };
+            if (distanceToSegment(mid.x, mid.z, s) > 1.2) continue;
+            if (onZebra(mid.x, mid.z)) continue;
+            console.log(
+              `OFF line#${si} (${s.x1.toFixed(2)},${s.z1.toFixed(2)})-(${s.x2.toFixed(2)},${s.z2.toFixed(2)})${s.oneSided ? " 1side" : ""} a=(${a.x.toFixed(2)},${a.z.toFixed(2)})d${d1.toFixed(2)} b=(${b.x.toFixed(2)},${b.z.toFixed(2)})d${d2.toFixed(2)} mid=(${mid.x.toFixed(2)},${mid.z.toFixed(2)})`,
+            );
+            if (++shown >= 6) break outer;
+          }
+        }
+      }
+      console.log(`lanes: ${JSON.stringify(district.lanes)}`);
+    }
+    expect(bad).toEqual([]);
   });
 });
