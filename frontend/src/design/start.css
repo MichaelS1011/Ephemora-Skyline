@@ -1,0 +1,1095 @@
+/* ── Lane START: the first path, from the landing to the first look ─────────
+ * Everything here is scoped to `.start-v2` (the landing) or to a `start-*`
+ * class this lane owns, so it never restyles a surface another lane draws.
+ * The rules that retouch a selector globals.css also owns are written as
+ * `.landing-shell.start-v2 …` — same result, higher specificity, no fight. */
+
+/* ── 1. The shell: an unbuilt plot, not a black screen ─────────────────────
+ * Behind the landing sits the real world with its streets closed and no
+ * buildings on it. A flat opaque panel made that read as a crash, so the
+ * scrim is a diagonal: solid where the words are, thinning over the ground
+ * the scan will fill. */
+.landing-shell.start-v2 {
+  background:
+    radial-gradient(
+      78% 120% at 6% 34%,
+      rgba(22, 22, 20, 0.985) 0%,
+      rgba(22, 22, 20, 0.94) 46%,
+      rgba(22, 22, 20, 0) 100%
+    ),
+    linear-gradient(
+      101deg,
+      rgba(23, 23, 21, 0.97) 0%,
+      rgba(23, 23, 21, 0.93) 38%,
+      rgba(23, 23, 21, 0.74) 58%,
+      rgba(23, 23, 21, 0.42) 78%,
+      rgba(23, 23, 21, 0.28) 100%
+    );
+}
+.landing-shell.start-v2::after {
+  /* the horizon line of the plot — one hairline that says: this is ground */
+  content: "";
+  position: absolute;
+  inset: auto 0 0 0;
+  height: 34%;
+  pointer-events: none;
+  background: linear-gradient(180deg, rgba(22, 22, 20, 0) 0%, rgba(22, 22, 20, 0.55) 100%);
+}
+
+/* ── 2. Header ──────────────────────────────────────────────────────────── */
+.landing-shell.start-v2 .landing-header {
+  min-height: 78px;
+  border-bottom: 1px solid rgba(242, 239, 232, 0.07);
+}
+.start-lang button[aria-pressed="true"] {
+  text-decoration: underline;
+  text-underline-offset: 5px;
+  text-decoration-color: #e8503c;
+}
+
+/* ── 3. The two columns and their axes ──────────────────────────────────── */
+.landing-shell.start-v2 .landing-main {
+  width: 88%;
+  max-width: 1280px;
+  grid-template-columns: minmax(0, 1.04fr) minmax(0, 0.96fr);
+  column-gap: clamp(28px, 4.5vw, 76px);
+  align-items: center;
+  padding: clamp(28px, 5vh, 64px) 0;
+  position: relative;
+  z-index: 1;
+}
+.landing-shell.start-v2 .landing-intro {
+  max-width: 620px;
+}
+.landing-shell.start-v2 .landing-category {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin: 0 0 18px;
+  font: 500 11px/1 var(--font-mono);
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: #c8baa1;
+}
+.landing-category-tick {
+  width: 6px;
+  height: 6px;
+  background: #e8503c;
+  box-shadow: 0 0 10px rgba(232, 80, 60, 0.55);
+}
+.landing-shell.start-v2 .landing-intro h1 {
+  font-size: clamp(38px, 4.1vw, 60px);
+  line-height: 1.06;
+  font-weight: 600;
+  letter-spacing: -0.032em;
+  text-wrap: balance;
+  margin: 0 0 20px;
+  color: #f2efe8;
+}
+.landing-shell.start-v2 .landing-description {
+  max-width: 47ch;
+  font-size: 15px;
+  line-height: 1.72;
+  color: #b1b1a8;
+  margin: 0 0 28px;
+}
+
+/* ── 4. The offer: two buttons, then what they cost ─────────────────────── */
+.landing-shell.start-v2 .primary-button,
+.landing-shell.start-v2 .secondary-button {
+  min-height: 50px;
+  padding: 13px 20px;
+  border-radius: 8px;
+  font-size: 14px;
+  letter-spacing: 0.005em;
+  transition:
+    background 0.15s,
+    border-color 0.15s,
+    box-shadow 0.15s,
+    transform 0.15s;
+}
+.landing-shell.start-v2 .primary-button {
+  background: #e8503c;
+  border: 1px solid #f06b58;
+  box-shadow: 0 8px 22px rgba(232, 80, 60, 0.16);
+}
+.landing-shell.start-v2 .primary-button:hover:not(:disabled) {
+  background: #fb7965;
+  box-shadow: 0 10px 26px rgba(232, 80, 60, 0.24);
+}
+.landing-shell.start-v2 .primary-button:disabled {
+  box-shadow: none;
+}
+.landing-shell.start-v2 .secondary-button {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(242, 239, 232, 0.17);
+}
+/* privacy note and the network disclosure belong together: one claim, one
+   proof under it, so they sit in one block with one axis */
+.landing-shell.start-v2 .landing-assure {
+  margin-top: 18px;
+  padding-left: 14px;
+  border-left: 1px solid rgba(242, 239, 232, 0.1);
+  max-width: 520px;
+}
+.landing-shell.start-v2 .landing-privacy {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.65;
+  color: #959b90;
+}
+.landing-shell.start-v2 .landing-network {
+  margin-top: 4px;
+  max-width: none;
+}
+.landing-shell.start-v2 .landing-network summary {
+  min-height: 34px;
+  padding: 6px 0;
+  font: 500 11px/1.4 var(--font-mono);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #8f9689;
+}
+.landing-shell.start-v2 .landing-network-list li {
+  padding-left: 9px;
+  border-left: 1px solid rgba(242, 239, 232, 0.12);
+}
+
+/* ── 5. Scan settings ───────────────────────────────────────────────────── */
+.landing-shell.start-v2 .scan-settings {
+  margin-top: 26px;
+  max-width: 520px;
+}
+.landing-shell.start-v2 .scan-settings summary {
+  min-height: 54px;
+  padding: 10px 14px;
+  border-radius: 8px;
+  border-color: rgba(242, 239, 232, 0.13);
+  background: rgba(255, 255, 255, 0.025);
+}
+.landing-shell.start-v2 .scan-settings summary > span:first-child {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  font: 500 11px/1 var(--font-mono);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--meta-faint);
+}
+.landing-shell.start-v2 .scan-settings strong {
+  margin: 0;
+  font: 600 14px/1 var(--font-ui);
+  letter-spacing: 0;
+  text-transform: none;
+  color: #e8e4da;
+}
+.landing-shell.start-v2 .scan-settings-content {
+  padding: 14px 0 4px;
+}
+
+/* ── 6. The plate: the schematic gets a ground of its own ───────────────── */
+.landing-shell.start-v2 .city-illustration {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+}
+.start-plate {
+  position: relative;
+  padding: 18px 18px 12px;
+  border: 1px solid rgba(242, 239, 232, 0.08);
+  border-radius: 10px;
+  background:
+    radial-gradient(120% 90% at 72% 26%, rgba(232, 178, 60, 0.05) 0%, rgba(232, 178, 60, 0) 60%),
+    rgba(24, 25, 23, 0.55);
+  box-shadow: inset 0 1px 0 rgba(242, 239, 232, 0.05);
+}
+.start-plate-axis {
+  position: absolute;
+  top: 14px;
+  bottom: 14px;
+  left: 0;
+  width: 1px;
+  background: linear-gradient(180deg, rgba(232, 80, 60, 0.45), rgba(232, 80, 60, 0));
+}
+.start-plate figcaption {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(242, 239, 232, 0.07);
+  font-size: 11px;
+  color: #a6ab9e;
+}
+.start-plate figcaption span {
+  color: #7f8979;
+}
+.start-street-note {
+  margin: 0;
+  padding-left: 16px;
+  max-width: 52ch;
+  font: 400 11px/1.6 var(--font-mono);
+  letter-spacing: 0.02em;
+  color: #7f8979;
+}
+.start-street-note::before {
+  content: "◦";
+  margin-right: 7px;
+  color: #6f7a6a;
+}
+
+/* ── 7. Footer ──────────────────────────────────────────────────────────── */
+.landing-shell.start-v2 .landing-footer {
+  position: relative;
+  z-index: 1;
+  min-height: 62px;
+  border-top: 1px solid rgba(242, 239, 232, 0.07);
+  font: 400 11px/1.5 var(--font-mono);
+  letter-spacing: 0.02em;
+  color: #7e847a;
+}
+
+/* ── 8. The waiting room ────────────────────────────────────────────────── */
+.start-progress {
+  margin-top: 26px;
+  max-width: 560px;
+  padding: 15px 17px 16px;
+  border: 1px solid rgba(242, 239, 232, 0.1);
+  border-radius: 10px;
+  background: rgba(24, 25, 23, 0.82);
+  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.34);
+}
+.start-progress-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+.start-kicker {
+  display: block;
+  font: 500 11px/1.4 var(--font-mono);
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--meta-faint);
+}
+.start-elapsed {
+  font: 500 13px/1 var(--font-mono);
+  color: #e8b23c;
+  font-variant-numeric: tabular-nums;
+}
+.start-progress-current {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 8px 0 0;
+  font-size: 15px;
+  line-height: 1.35;
+  color: #f2efe8;
+}
+.start-progress-pct {
+  font: 500 12px/1 var(--font-mono);
+  color: var(--meta-strong);
+  font-variant-numeric: tabular-nums;
+}
+.start-progress .progress-track {
+  height: 5px;
+  margin: 11px 0 12px;
+  border-radius: 3px;
+  background: rgba(242, 239, 232, 0.09);
+  position: relative;
+}
+.start-progress .progress-track span {
+  background: linear-gradient(90deg, #c9432f, #e8503c);
+  transition: width 0.45s ease-out;
+}
+/* A stage that stands still must still say it is alive: one travelling
+   highlight across the track, and the active row breathing with it. */
+.start-progress .progress-track.is-indeterminate::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    90deg,
+    rgba(232, 80, 60, 0) 0%,
+    rgba(232, 178, 60, 0.55) 45%,
+    rgba(232, 80, 60, 0) 90%
+  );
+  background-size: 42% 100%;
+  background-repeat: no-repeat;
+  animation: start-sweep 2.4s linear infinite;
+}
+@keyframes start-sweep {
+  0% {
+    background-position: -45% 0;
+  }
+  100% {
+    background-position: 145% 0;
+  }
+}
+.start-progress-count {
+  margin: 0 0 12px;
+  font: 400 12px/1.5 var(--font-mono);
+  color: var(--meta-strong);
+  font-variant-numeric: tabular-nums;
+}
+.start-budget-wait {
+  color: #e8b23c;
+}
+.start-stages {
+  list-style: none;
+  margin: 0 0 14px;
+  padding: 12px 0 0;
+  border-top: 1px solid rgba(242, 239, 232, 0.07);
+  display: grid;
+  /* ten stages in one column push the cancel button below the fold on a
+     1000-px-tall window — the two columns keep the whole state on screen */
+  grid-template-columns: 1fr;
+  gap: 3px 16px;
+}
+@media (min-width: 900px) and (max-width: 1420px) {
+  .start-stages {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+@media (min-width: 1421px) {
+  .start-stages {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+.start-stages li {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-height: 20px;
+  font: 400 12px/1.5 var(--font-mono);
+  color: #6e7369;
+}
+.start-stages li.is-done {
+  color: #9aa394;
+}
+.start-stages li.is-done .start-stage-mark {
+  color: #7fa876;
+}
+.start-stages li.is-active {
+  color: #f2efe8;
+}
+.start-stages li.is-active .start-stage-mark {
+  color: #e8503c;
+}
+.start-progress.is-stalled .start-stages li.is-active .start-stage-mark {
+  animation: start-breathe 1.6s ease-in-out infinite;
+}
+@keyframes start-breathe {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.25;
+  }
+}
+.start-stage-mark {
+  width: 12px;
+  flex: none;
+  text-align: center;
+}
+.start-stage-hold {
+  margin-left: auto;
+  font-size: 11px;
+  color: #e8b23c;
+  font-variant-numeric: tabular-nums;
+}
+.start-progress-meta {
+  margin: -6px 0 12px;
+  font: 400 11px/1.4 var(--font-mono);
+  color: var(--meta-faint);
+}
+.start-cancel {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 38px;
+  padding: 8px 14px;
+  border: 1px solid rgba(242, 239, 232, 0.18);
+  border-radius: 7px;
+  background: rgba(255, 255, 255, 0.03);
+  color: #d7d3c9;
+  font: 500 12px/1 var(--font-ui);
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  transition:
+    border-color 0.15s,
+    background 0.15s,
+    color 0.15s;
+}
+.start-cancel:hover {
+  border-color: rgba(232, 80, 60, 0.6);
+  background: rgba(232, 80, 60, 0.07);
+  color: #f2efe8;
+}
+.start-cancel::before {
+  content: "✕";
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--meta-faint);
+}
+.start-cancelled {
+  margin-top: 20px;
+  padding: 9px 12px;
+  border-left: 2px solid #7fa876;
+  background: rgba(41, 211, 152, 0.06);
+  font: 400 12px/1.5 var(--font-mono);
+  color: #a8b8a2;
+}
+
+/* ── 9. Boundary states ─────────────────────────────────────────────────── */
+.start-state {
+  display: grid;
+  grid-template-columns: 26px minmax(0, 1fr);
+  gap: 12px;
+  margin-top: 22px;
+  max-width: 560px;
+  padding: 13px 15px 13px 13px;
+  border: 1px solid rgba(242, 239, 232, 0.1);
+  border-left: 3px solid var(--meta-faint);
+  border-radius: 8px;
+  background: rgba(24, 25, 23, 0.9);
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.3);
+}
+.start-state-glyph {
+  font-family: var(--font-mono);
+  font-size: 17px;
+  line-height: 1.3;
+  color: var(--meta-strong);
+}
+.start-state-body {
+  min-width: 0;
+}
+.start-state-row {
+  margin: 0 0 9px;
+}
+.start-state-row:last-child {
+  margin-bottom: 0;
+}
+.start-state-figure {
+  display: block;
+  margin: 2px 0 1px;
+  font: 600 26px/1.1 var(--font-mono);
+  color: #e8b23c;
+  font-variant-numeric: tabular-nums;
+}
+.start-state-text {
+  display: block;
+  font-size: 13px;
+  line-height: 1.6;
+  color: #e8e4da;
+  overflow-wrap: anywhere;
+}
+.start-state-next {
+  display: block;
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--meta-strong);
+}
+.start-state-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 11px;
+}
+.start-state-action {
+  min-height: 34px;
+  padding: 7px 13px;
+  border: 1px solid rgba(242, 239, 232, 0.18);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.03);
+  color: #e5e2d9;
+  font: 500 12px/1 var(--font-ui);
+  cursor: pointer;
+  transition:
+    border-color 0.15s,
+    background 0.15s;
+}
+.start-state-action:hover {
+  border-color: rgba(232, 80, 60, 0.6);
+  background: rgba(232, 80, 60, 0.07);
+}
+.start-state-raw {
+  margin-top: 10px;
+}
+.start-state-raw summary {
+  display: inline-block;
+  cursor: pointer;
+  list-style: none;
+  font: 400 11px/1.4 var(--font-mono);
+  color: var(--meta-faint);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.start-state-raw summary::-webkit-details-marker {
+  display: none;
+}
+.start-state-raw code {
+  display: block;
+  margin-top: 6px;
+  padding: 7px 9px;
+  border: 1px solid rgba(242, 239, 232, 0.08);
+  border-radius: 5px;
+  background: rgba(0, 0, 0, 0.28);
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--meta-strong);
+  overflow-wrap: anywhere;
+}
+/* the walls differ in colour, not in shape: a limit is amber, a lost server
+   is vermilion, an empty folder is the grey of ground nobody built on */
+.start-state--cap,
+.start-state--upload-too-large,
+.start-state--rate-limit {
+  border-left-color: #e8b23c;
+}
+.start-state--cap .start-state-glyph,
+.start-state--upload-too-large .start-state-glyph,
+.start-state--rate-limit .start-state-glyph {
+  color: #e8b23c;
+}
+.start-state--no-source {
+  border-left-color: #6f7a6a;
+}
+.start-state--no-source .start-state-figure {
+  color: #a8a49a;
+}
+.start-state--server-down,
+.start-state--job-gone,
+.start-state--timeout,
+.start-state--demo,
+.start-state--deadlink,
+.start-state--failed {
+  border-left-color: #e8503c;
+}
+.start-state--server-down .start-state-glyph,
+.start-state--job-gone .start-state-glyph,
+.start-state--timeout .start-state-glyph,
+.start-state--demo .start-state-glyph,
+.start-state--deadlink .start-state-glyph,
+.start-state--failed .start-state-glyph {
+  color: #e8503c;
+}
+
+/* ── 10. Recently opened ────────────────────────────────────────────────── */
+.start-recent {
+  position: relative;
+  z-index: 1;
+  margin: 0 5.5% 22px;
+  padding-top: 16px;
+  border-top: 1px solid rgba(242, 239, 232, 0.07);
+}
+.start-recent > .start-kicker {
+  margin-bottom: 10px;
+}
+.start-recent ul {
+  list-style: none;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(212px, 300px));
+  gap: 9px;
+  margin: 0;
+  padding: 0;
+}
+.start-recent a {
+  display: grid;
+  gap: 2px;
+  padding: 10px 12px;
+  border: 1px solid rgba(242, 239, 232, 0.09);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.02);
+  text-decoration: none;
+  transition:
+    border-color 0.15s,
+    background 0.15s;
+}
+.start-recent a:hover,
+.start-recent a:focus-visible {
+  border-color: rgba(232, 80, 60, 0.5);
+  background: rgba(232, 80, 60, 0.05);
+}
+.start-recent-name {
+  font: 600 13px/1.3 var(--font-ui);
+  color: #e8e4da;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.start-recent-meta {
+  font: 400 11px/1.4 var(--font-mono);
+  color: var(--meta-faint);
+  font-variant-numeric: tabular-nums;
+}
+.start-recent-open {
+  font: 500 11px/1.4 var(--font-mono);
+  color: #b8705f;
+  opacity: 0.6;
+  transition: opacity 0.15s;
+}
+.start-recent a:hover .start-recent-open,
+.start-recent a:focus-visible .start-recent-open {
+  opacity: 1;
+}
+
+/* ── 11. The narrow panel the operator actually reads this in ───────────── */
+@media (max-width: 1080px) {
+  .landing-shell.start-v2 .landing-main {
+    grid-template-columns: minmax(0, 1fr);
+    row-gap: 30px;
+  }
+  .landing-shell.start-v2 .landing-intro,
+  .landing-shell.start-v2 .landing-assure,
+  .landing-shell.start-v2 .scan-settings,
+  .start-progress,
+  .start-state,
+  .start-street-note {
+    max-width: 640px;
+  }
+}
+@media (max-width: 620px) {
+  .landing-shell.start-v2 .landing-main {
+    width: 90%;
+    padding: 22px 0 30px;
+    row-gap: 24px;
+  }
+  .landing-shell.start-v2 .landing-intro h1 {
+    font-size: clamp(30px, 8.6vw, 40px);
+    letter-spacing: -0.02em;
+    margin-bottom: 14px;
+  }
+  .landing-shell.start-v2 .landing-description {
+    font-size: 14px;
+    margin-bottom: 20px;
+  }
+  .landing-shell.start-v2 .landing-actions {
+    gap: 9px;
+  }
+  .landing-shell.start-v2 .primary-button,
+  .landing-shell.start-v2 .secondary-button {
+    width: 100%;
+    min-height: 46px;
+  }
+  .start-plate {
+    padding: 10px 10px 8px;
+  }
+  .start-recent ul {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .landing-shell.start-v2 .landing-footer {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+    padding-bottom: 10px;
+  }
+}
+
+/* ── 12. Reduced motion: the state stays, the movement goes ─────────────── */
+@media (prefers-reduced-motion: reduce) {
+  .start-progress .progress-track.is-indeterminate::after,
+  .start-progress.is-stalled .start-stages li.is-active .start-stage-mark {
+    animation: none;
+  }
+  .start-progress .progress-track span {
+    transition: none;
+  }
+}
+
+/* ── 13. The scan-summary card ──────────────────────────────────────────── */
+.start-summary-slot,
+.start-summary-strip-slot {
+  position: absolute;
+  top: 128px;
+  inset-inline: 0;
+  z-index: 40;
+  display: flex;
+  justify-content: center;
+  pointer-events: none;
+  padding: 0 16px;
+}
+.start-summary {
+  pointer-events: auto;
+  position: relative;
+  display: grid;
+  gap: 8px;
+  max-width: min(620px, 100%);
+  padding: 11px 14px 10px 16px;
+  border: 1px solid rgba(242, 239, 232, 0.16);
+  border-radius: 6px;
+  background: rgba(18, 18, 16, 0.94);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(12px);
+  animation: start-summary-in 0.35s ease-out both;
+  font-family: var(--font-ui);
+}
+@keyframes start-summary-in {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+/* the border says the verdict's shape: a checked sweep is closed, an
+   unverified one is dashed, a finding is solid and coloured by severity */
+.start-summary.is-unverified {
+  border-style: dashed;
+}
+.start-summary.is-clear {
+  border-style: solid;
+}
+.start-summary-rule {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  border-radius: 6px 0 0 6px;
+}
+.start-summary-main {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px 12px;
+}
+.start-summary-status {
+  font: 600 12px/1.4 var(--font-mono);
+  letter-spacing: 0.06em;
+}
+.start-summary-files,
+.start-summary-missing {
+  font: 400 11px/1.5 var(--font-mono);
+  color: #8f8b82;
+}
+.start-summary-missing {
+  flex-basis: 100%;
+  color: #cbb98f;
+}
+.start-summary-severities {
+  display: flex;
+  gap: 6px;
+}
+.start-summary-chip {
+  font: 400 11px/1 var(--font-mono);
+  padding: 3px 6px;
+  border-radius: 3px;
+}
+.start-summary-drops {
+  list-style: none;
+  margin: 0;
+  padding: 8px 0 0;
+  border-top: 1px solid rgba(242, 239, 232, 0.08);
+  display: grid;
+  gap: 3px;
+}
+.start-summary-drops li {
+  font: 400 11px/1.5 var(--font-mono);
+  color: #b9b4a9;
+  padding-left: 12px;
+  position: relative;
+}
+.start-summary-drops li::before {
+  content: "▪";
+  position: absolute;
+  left: 0;
+  color: #e8b23c;
+}
+.start-summary-drops li.is-gitignore::before {
+  content: "◦";
+  color: #6f7a6a;
+}
+.start-summary-foot {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.start-summary-dwell {
+  flex: 1;
+  font: 400 11px/1.4 var(--font-mono);
+  letter-spacing: 0.04em;
+  color: #6f7469;
+  font-variant-numeric: tabular-nums;
+}
+.start-summary-pin,
+.start-summary-strip-open {
+  border: 1px solid rgba(242, 239, 232, 0.16);
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.03);
+  color: #cfcabe;
+  font: 500 11px/1 var(--font-mono);
+  letter-spacing: 0.06em;
+  padding: 5px 8px;
+  cursor: pointer;
+}
+.start-summary-pin.is-on {
+  border-color: rgba(232, 178, 60, 0.55);
+  color: #e8b23c;
+}
+.start-summary-pin:hover,
+.start-summary-strip-open:hover {
+  border-color: rgba(232, 80, 60, 0.6);
+  color: #f2efe8;
+}
+.start-summary-close {
+  width: 26px;
+  height: 26px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(242, 239, 232, 0.14);
+  border-radius: 4px;
+  background: transparent;
+  color: #a8a49a;
+  font: 400 11px/1 var(--font-mono);
+  cursor: pointer;
+}
+.start-summary-close:hover {
+  color: #f2efe8;
+  border-color: rgba(232, 80, 60, 0.6);
+}
+/* the line that stays: everything the card said that matters after it closed */
+.start-summary-strip {
+  pointer-events: auto;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 6px 8px 6px 10px;
+  border: 1px solid rgba(242, 239, 232, 0.12);
+  border-radius: 999px;
+  background: rgba(18, 18, 16, 0.9);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35);
+  backdrop-filter: blur(10px);
+}
+.start-summary-strip.is-unverified {
+  border-style: dashed;
+}
+.start-summary-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex: none;
+}
+.start-summary-strip-text {
+  font: 500 11px/1.4 var(--font-mono);
+  letter-spacing: 0.05em;
+  color: #e8e4da;
+}
+.start-summary-strip-meta {
+  font: 400 11px/1.4 var(--font-mono);
+  color: #8f8b82;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── 14. The first-look guide, out of the frame ─────────────────────────── */
+/* Same anchor the primer had (bottom-centre above the dock — globals.css keeps
+   `--dock-h` current there), but it rests as one line: the first view of the
+   city is the city. One <details>, so the closed card is out of the picture
+   and a click opens it — no second state to keep honest. */
+.start-coach {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 40;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+  width: min(460px, calc(100vw - 44px));
+  padding: 11px 11px 12px;
+  border: 1px solid rgba(242, 239, 232, 0.14);
+  border-radius: 9px;
+  background: rgba(20, 20, 18, 0.9);
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(14px);
+  font-family: var(--font-ui);
+  pointer-events: auto;
+  max-height: 46vh;
+  overflow-y: auto;
+}
+.start-coach:not([open]) {
+  width: auto;
+  max-width: calc(100vw - 44px);
+  padding: 4px 4px 4px 12px;
+  border-radius: 999px;
+  max-height: none;
+  overflow: visible;
+}
+.start-coach-strip {
+  display: flex;
+  align-items: baseline;
+  gap: 9px;
+  padding: 3px 0;
+  cursor: pointer;
+  list-style: none;
+  color: #e8e4da;
+  font: 500 12px/1.3 var(--font-ui);
+}
+.start-coach-strip::-webkit-details-marker {
+  display: none;
+}
+.start-coach-glyph {
+  color: #e8b23c;
+  font-family: var(--font-mono);
+}
+.start-coach-strip-hint {
+  font: 400 11px/1.3 var(--font-mono);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #7f8979;
+}
+.start-coach-strip:hover .start-coach-strip-hint {
+  color: #c8baa1;
+}
+.start-coach-close {
+  width: 24px;
+  height: 24px;
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(242, 239, 232, 0.12);
+  border-radius: 4px;
+  background: transparent;
+  color: #a8a49a;
+  cursor: pointer;
+}
+.start-coach-close:hover {
+  color: #f2efe8;
+  border-color: rgba(232, 80, 60, 0.6);
+}
+.start-coach-card {
+  flex: 1 1 100%;
+  min-width: 0;
+}
+.start-coach-hints {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 9px 14px;
+}
+.start-coach-hint {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+.start-coach-icon {
+  width: 24px;
+  height: 24px;
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(242, 239, 232, 0.12);
+  border-radius: 4px;
+  background: rgba(232, 228, 218, 0.04);
+  color: #c5c0b5;
+  font: 400 13px/1 var(--font-mono);
+}
+.start-coach-hint-title {
+  display: block;
+  font: 500 12px/1.35 var(--font-ui);
+  color: #e8e4da;
+}
+.start-coach-hint-detail {
+  display: block;
+  margin-top: 1px;
+  font: 400 11px/1.45 var(--font-ui);
+  color: #aaa69c;
+}
+.start-coach-legend-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  margin-top: 11px;
+  padding: 8px 0 0;
+  border: 0;
+  border-top: 1px solid rgba(150, 142, 128, 0.18);
+  background: none;
+  color: #c5c0b5;
+  font: 400 12px/1.3 var(--font-ui);
+  text-align: left;
+  cursor: pointer;
+}
+.start-coach-legend {
+  margin-top: 12px;
+}
+@media (max-width: 760px) {
+  /* globals.css hides the primer below 761px. The resting line is one row and
+     the operator reads the app at ~439px, so the offer stays; the opened card
+     is the part that would not fit. */
+  .start-coach:not([open]) {
+    display: flex !important;
+  }
+  .start-coach {
+    width: calc(100vw - 28px);
+    max-height: 40vh;
+  }
+  .start-coach-hints {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ── 15. The boot screen: what is known while the server thinks ─────────── */
+.start-boot {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 8px;
+  padding: 2rem clamp(20px, 6vw, 64px);
+  background: rgba(22, 22, 20, 0.96);
+  transition: opacity 0.45s ease-out;
+  font-family: var(--font-mono);
+}
+.start-boot::before {
+  /* the same scanline the workspace uses, so the wait looks like the same tool */
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 2px,
+    rgba(232, 80, 60, 0.03) 2px,
+    rgba(232, 80, 60, 0.03) 4px
+  );
+}
+.start-boot-line {
+  position: relative;
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.5;
+  letter-spacing: 0.01em;
+  color: #f2efe8;
+}
+.start-boot-caret {
+  color: #e8503c;
+}
+.start-boot-id {
+  color: #c8baa1;
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+.start-boot-meta {
+  position: relative;
+  margin: 0;
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  color: #8f8b82;
+  font-variant-numeric: tabular-nums;
+}
+.start-boot.is-slow .start-boot-meta {
+  color: #e8b23c;
+}

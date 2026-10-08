@@ -2,6 +2,8 @@ import { useEffect, useState } from "react";
 import type { CSSProperties, ReactNode } from "react";
 import { useStore } from "../stores/useStore";
 import { t, type DictKey } from "../i18n";
+import { ts } from "./startCopy";
+import "../design/start.css";
 
 // v3: the arrow keys became the camera turntable, so the primer is shown
 // once more — otherwise nobody discovers the new binding.
@@ -173,8 +175,11 @@ export function CoachMarks() {
   const focusPath = useStore((s) => s.focusPath);
   const buildPhase = useStore((s) => s.buildPhase);
   const [visible, setVisible] = useState(false);
-  // Start collapsed: the four steps are the one-glance story; the 13-row
-  // marker legend is opt-in detail (progressive disclosure), never a wall.
+  // Start collapsed: the first look at the city belongs to the city. The
+  // strip names what is on offer and stays out of the frame; the four steps
+  // and the 13-row marker legend are one click away, never in the way.
+  const [expanded, setExpanded] = useState(false);
+  // The marker legend is opt-in detail (progressive disclosure), never a wall.
   const [primerOpen, setPrimerOpen] = useState(false);
 
   useEffect(() => {
@@ -232,62 +237,51 @@ export function CoachMarks() {
   // occupies the same bottom-center slot during the build cinematic
   if (!visible || tourActive || buildPhase === "constructing") return null;
 
+  /* One <details>: the summary is the one-line offer that rests over the city,
+   * the card is its content. Collapsed content is out of the picture but stays
+   * in the document — the same disclosure the scan settings already use, and
+   * no second state to keep in sync. */
   return (
-    <div className="absolute left-1/2 -translate-x-1/2 z-40 w-[min(90vw,520px)] pointer-events-none city-coach">
-      <div
-        className="pointer-events-auto animate-fade-up w-full"
-        style={{
-          background: "rgba(24, 24, 22, 0.94)",
-          border: "1px solid rgba(150,142,128,0.26)",
-          borderRadius: 12,
-          padding: "14px 18px",
-          boxShadow: "0 12px 36px rgba(0,0,0,0.3)",
-          backdropFilter: "blur(20px)",
-          maxHeight: "60vh",
-          overflowY: "auto",
-          fontFamily: "var(--font-sans, ui-sans-serif, system-ui, sans-serif)",
-        }}
-        role="region"
-        aria-label={t(lang, "coach.regionAria")}
+    <details
+      className="city-coach start-coach"
+      role="region"
+      aria-label={t(lang, "coach.regionAria")}
+      open={expanded}
+      onToggle={(e) => setExpanded(e.currentTarget.open)}
+    >
+      <summary className="start-coach-strip">
+        <span className="start-coach-glyph" aria-hidden="true">
+          ⌂
+        </span>
+        <span className="start-coach-strip-text">{t(lang, "coach.title")}</span>
+        <span className="start-coach-strip-hint">{ts(lang, "coach.expand")}</span>
+      </summary>
+      <button
+        onClick={dismiss}
+        className="start-coach-close"
+        aria-label={t(lang, "coach.dismissAria")}
+        title={t(lang, "coach.dismissTip")}
       >
-        <div className="flex items-center justify-between gap-3 mb-3">
-          <h2 className="text-[14px] font-semibold" style={{ color: "#f2efe8" }}>
-            {t(lang, "coach.title")}
-          </h2>
-          <button
-            onClick={dismiss}
-            className="btn-ghost shrink-0 w-8 h-8 flex items-center justify-center !p-0"
-            aria-label={t(lang, "coach.dismissAria")}
-            title={t(lang, "coach.dismissTip")}
-          >
-            <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
-              <path
-                d="m3 3 8 8M11 3l-8 8"
-                stroke="currentColor"
-                strokeWidth="1.5"
-                strokeLinecap="round"
-              />
-            </svg>
-          </button>
-        </div>
-        <div className="grid grid-cols-2 gap-x-6 gap-y-3">
+        <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
+          <path
+            d="m3 3 8 8M11 3l-8 8"
+            stroke="currentColor"
+            strokeWidth="1.5"
+            strokeLinecap="round"
+          />
+        </svg>
+      </button>
+      <div className="start-coach-card">
+        <div className="start-coach-hints">
           {HINTS.map((hint) => (
-            <div key={hint.icon} className="flex items-start gap-2.5">
-              <span
-                className="w-7 h-7 flex items-center justify-center shrink-0 text-[15px]"
-                style={{ color: "#c5c0b5", background: "rgba(232,228,218,0.05)", borderRadius: 5 }}
-                aria-hidden
-              >
+            <div key={hint.icon} className="start-coach-hint">
+              <span className="start-coach-icon" aria-hidden="true">
                 {hint.icon}
               </span>
-              <div className="text-[12px] leading-snug">
-                <div className="font-medium" style={{ color: "#e8e4da" }}>
-                  {t(lang, hint.text)}
-                </div>
-                <div className="mt-0.5" style={{ color: "#aaa69c" }}>
-                  {t(lang, hint.detail)}
-                </div>
-              </div>
+              <span className="start-coach-hint-body">
+                <span className="start-coach-hint-title">{t(lang, hint.text)}</span>
+                <span className="start-coach-hint-detail">{t(lang, hint.detail)}</span>
+              </span>
             </div>
           ))}
         </div>
@@ -295,18 +289,17 @@ export function CoachMarks() {
           onClick={() => setPrimerOpen((open) => !open)}
           aria-expanded={primerOpen}
           aria-controls="coach-city-legend"
-          className="w-full flex items-center justify-between gap-2 mt-3 pt-3 text-[12px] text-left"
-          style={{ color: "#c5c0b5", borderTop: "1px solid rgba(150,142,128,0.18)" }}
+          className="start-coach-legend-toggle"
         >
           {t(lang, "coach.legendToggle")}
           <span aria-hidden>{primerOpen ? "−" : "+"}</span>
         </button>
         {primerOpen && (
-          <div id="coach-city-legend" className="mt-4">
-            <MarkerLegend columns={2} />
+          <div id="coach-city-legend" className="start-coach-legend">
+            <MarkerLegend columns={1} />
           </div>
         )}
       </div>
-    </div>
+    </details>
   );
 }

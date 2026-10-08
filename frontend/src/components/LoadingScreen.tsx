@@ -1,50 +1,45 @@
-import { useState, useEffect } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useStore } from "../stores/useStore";
-import { t, type DictKey } from "../i18n";
+import { t } from "../i18n";
+import { ts } from "./startCopy";
+import "../design/start.css";
 
-interface BootLine {
-  text: DictKey;
-  delay: number; // ms delay before this line appears
+/** The id this address asks the local server for — the honest subject line. */
+function cityInAddress(): string | null {
+  const id = new URLSearchParams(window.location.search).get("city");
+  return id && id.length > 6 ? `${id.slice(0, 8)}…${id.slice(-4)}` : null;
 }
-
-const BOOT_LINES: BootLine[] = [
-  { text: "load.line1", delay: 200 },
-  { text: "load.line2", delay: 900 },
-  { text: "load.line3", delay: 1600 },
-  { text: "load.line4", delay: 2400 },
-];
 
 interface LoadingScreenProps {
   isVisible: boolean;
 }
 
+/**
+ * Shown while the app waits for a city the address asked for. The four boot
+ * lines this screen used to type out on a timer were decoration with a
+ * `>` in front of them: they advanced whether the server answered or not.
+ * What is on screen now is what is actually known — which id is being asked
+ * for, and how long the asking has taken.
+ */
 export function LoadingScreen({ isVisible }: LoadingScreenProps) {
   const lang = useStore((s) => s.prefs.lang);
-  const [visibleLines, setVisibleLines] = useState<number[]>([]);
   const [isFadingOut, setIsFadingOut] = useState(false);
+  const [seconds, setSeconds] = useState(0);
+  const started = useRef(0);
+  const city = cityInAddress();
 
-  // Show lines one by one when visible
   useEffect(() => {
-    if (!isVisible) {
-      setIsFadingOut(true);
-      const t = setTimeout(() => {
-        setVisibleLines([]);
-        setIsFadingOut(false);
-      }, 600);
-      return () => clearTimeout(t);
+    if (isVisible) {
+      started.current = Date.now();
+      setSeconds(0);
+      const id = setInterval(() => {
+        setSeconds(Math.round((Date.now() - started.current) / 1000));
+      }, 500);
+      return () => clearInterval(id);
     }
-
-    setVisibleLines([]);
-    const timers: ReturnType<typeof setTimeout>[] = [];
-
-    BOOT_LINES.forEach((line, index) => {
-      const t = setTimeout(() => {
-        setVisibleLines((prev) => [...prev, index]);
-      }, line.delay);
-      timers.push(t);
-    });
-
-    return () => timers.forEach(clearTimeout);
+    setIsFadingOut(true);
+    const id = setTimeout(() => setIsFadingOut(false), 450);
+    return () => clearTimeout(id);
   }, [isVisible]);
 
   if (!isVisible && !isFadingOut) return null;
@@ -54,95 +49,25 @@ export function LoadingScreen({ isVisible }: LoadingScreenProps) {
       role="status"
       aria-live="polite"
       aria-label={t(lang, "load.aria")}
-      className="loading-screen"
-      style={{
-        position: "fixed",
-        inset: 0,
-        zIndex: 100,
-        background: "#161614",
-        display: "flex",
-        flexDirection: "column",
-        alignItems: "flex-start",
-        justifyContent: "center",
-        padding: "2rem",
-        opacity: isFadingOut ? 0 : 1,
-        transition: "opacity 0.6s ease-out",
-        pointerEvents: isVisible ? "auto" : "none",
-      }}
+      className={`start-boot ${seconds >= 5 ? "is-slow" : ""}`}
+      style={{ opacity: isFadingOut && !isVisible ? 0 : 1 }}
     >
-      {/* Scanline overlay */}
-      <div
-        aria-hidden="true"
-        style={{
-          position: "absolute",
-          inset: 0,
-          background:
-            "repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(232,80,60,0.03) 2px, rgba(232,80,60,0.03) 4px)",
-          pointerEvents: "none",
-        }}
-      />
-
-      {/* Boot text lines */}
-      <div
-        style={{
-          position: "relative",
-          zIndex: 1,
-          maxWidth: "600px",
-          width: "100%",
-        }}
-      >
-        {BOOT_LINES.map((line, index) => (
-          <div
-            key={index}
-            aria-hidden={!visibleLines.includes(index)}
-            style={{
-              fontFamily: "var(--font-mono)",
-              fontSize: "0.9rem",
-              color: index === BOOT_LINES.length - 1 ? "#f2efe8" : "#e8503c",
-              letterSpacing: "0.05em",
-              lineHeight: "2",
-              opacity: visibleLines.includes(index) ? 1 : 0,
-              transform: visibleLines.includes(index) ? "translateX(0)" : "translateX(-8px)",
-              transition: "opacity 0.4s ease-out, transform 0.4s ease-out",
-              // Respect reduced motion
-              ...(typeof window !== "undefined" &&
-              window.matchMedia("(prefers-reduced-motion: reduce)").matches
-                ? { transition: "none" }
-                : {}),
-            }}
-          >
-            {t(lang, line.text)}
-            {/* Blinking cursor on the last visible line */}
-            {index === Math.max(...visibleLines, -1) && visibleLines.includes(index) && (
-              <span
-                aria-hidden="true"
-                style={{
-                  display: "inline-block",
-                  width: "0.6em",
-                  height: "1em",
-                  background: index === BOOT_LINES.length - 1 ? "#f2efe8" : "#e8503c",
-                  marginLeft: "2px",
-                  verticalAlign: "text-bottom",
-                  animation: "blink-cursor 1s step-end infinite",
-                }}
-              />
-            )}
-          </div>
-        ))}
-      </div>
-
-      {/* CSS for cursor blink — injected inline to avoid external deps */}
-      <style>{`
-        @keyframes blink-cursor {
-          0%, 100% { opacity: 1; }
-          50% { opacity: 0; }
-        }
-        @media (prefers-reduced-motion: reduce) {
-          @keyframes blink-cursor {
-            0%, 100% { opacity: 1; }
-          }
-        }
-      `}</style>
+      <p className="start-boot-line">
+        <span aria-hidden="true" className="start-boot-caret">
+          &gt;
+        </span>{" "}
+        {city ? (
+          <>
+            {ts(lang, "start.loadingCity")} <code className="start-boot-id">{city}</code>
+          </>
+        ) : (
+          t(lang, "load.line1").replace(/^>\s*/, "")
+        )}
+      </p>
+      <p className="start-boot-meta">
+        {t(lang, "scan.elapsed", { s: seconds })}
+        {seconds >= 5 && <> · {ts(lang, "start.stillLoading", { s: seconds })}</>}
+      </p>
     </div>
   );
 }
