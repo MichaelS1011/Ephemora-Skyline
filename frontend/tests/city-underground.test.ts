@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { STRIP_BARS, districtUnderground, groupStrip, knownSubtreeFiles } from "../src/city/layout";
+import {
+  STRIP_BARS,
+  districtUnderground,
+  groupStrip,
+  knownSubtreeFiles,
+  undergroundPlateLine,
+} from "../src/city/layout";
 import {
   COMPLEXITY_TICKS,
   blockThreatState,
@@ -80,6 +86,12 @@ describe("districtUnderground — the number on the street sign", () => {
   it("stays at zero hidden when every file stands as its own building", () => {
     const dir = dirWith({ path: "small", fileCount: 2, remainingFiles: 0 });
     expect(districtUnderground(dir)).toEqual({ hidden: 0, total: 2 });
+  });
+
+  it("reads the same plate line in both languages, from dictionary words only", () => {
+    expect(undergroundPlateLine("de", 865, 900)).toBe("⌄ 865/900 Dateien im Untergrund");
+    expect(undergroundPlateLine("en", 865, 900)).toBe("⌄ 865/900 files underground");
+    expect(undergroundPlateLine("de", 0, 42)).toBe("42 Dateien");
   });
 });
 

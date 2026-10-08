@@ -10,6 +10,7 @@ import {
   getDirLayout,
   landmarkFileId,
   planConstruction,
+  undergroundPlateLine,
 } from "../city/layout";
 import { buildSidewalkNetwork, plazaLanes } from "../city/sidewalks";
 import { ENV } from "../city/palette";
@@ -25,6 +26,7 @@ import { HeatCells } from "./HeatCells";
 import { Pedestrians } from "./Pedestrians";
 import { useLodLevel } from "../hooks/useLodLevel";
 import { computeFocusTiers, type FocusTier } from "../city/focus";
+import "../design/city-funktion.css";
 
 /**
  * Renders the visible semantic-zoom level. Every level is a REAL city:
@@ -39,6 +41,7 @@ export const PHASE_0_MS = 1600;
 export function CityTree() {
   const cityData = useStore((s) => s.cityData);
   const focusPath = useStore((s) => s.focusPath);
+  const lang = useStore((s) => s.prefs.lang);
   const threatFilter = useStore((s) => s.threatFilter);
   const ruleFilter = useStore((s) => s.ruleFilter);
   const reviews = useStore((s) => s.reviews);
@@ -274,7 +277,11 @@ export function CityTree() {
       {lodFar && <HeatCells layout={layout} />}
 
       {/* Far-zoom district labels — only for small levels, beyond that the
-          labels would flood the heat grid */}
+          labels would flood the heat grid. A folded folder keeps its
+          underground number here too: the distance level must not swallow a
+          measurement the close level states on the street sign. These chips
+          scale with `distanceFactor` (see tests/typeFloor) — their px values
+          are not screen pixels. */}
       {lodFar &&
         layout.blocks.length <= 24 &&
         layout.blocks.map((b) => (
@@ -296,9 +303,15 @@ export function CityTree() {
                 padding: "2px 6px",
                 whiteSpace: "nowrap",
                 pointerEvents: "none",
+                textAlign: "center",
               }}
             >
               {b.dir.name}
+              {b.dir.remainingFiles > 0 && (
+                <div style={{ fontSize: 10, opacity: 0.85 }}>
+                  {undergroundPlateLine(lang, b.dir.remainingFiles, b.dir.fileCount)}
+                </div>
+              )}
             </div>
           </Html>
         ))}
@@ -369,20 +382,10 @@ export function CityTree() {
             />
           </mesh>
           <Html center distanceFactor={40} position={[0, 1.9, 0]} zIndexRange={[8, 0]}>
-            <div
-              style={{
-                fontFamily: "'JetBrains Mono', ui-monospace, Menlo, monospace",
-                fontSize: 10,
-                color: "var(--meta-strong)",
-                background: "#121210",
-                border: "1px solid rgba(90,120,180,0.35)",
-                borderRadius: 3,
-                padding: "2px 6px",
-                whiteSpace: "nowrap",
-                pointerEvents: "none",
-              }}
-            >
-              +{layout.podium.count} more files
+            <div className="cf-plate" style={{ background: "#121210" }}>
+              <div className="cf-plate-under">
+                {undergroundPlateLine(lang, layout.podium.count, layout.dir.fileCount)}
+              </div>
             </div>
           </Html>
         </group>

@@ -166,6 +166,19 @@ export function districtUnderground(dir: CityDir): { hidden: number; total: numb
   return { hidden: Math.max(0, dir.remainingFiles), total: dir.fileCount };
 }
 
+/**
+ * The underground line of a bundled plate — the district street sign and the
+ * plaza podium render the same payload numbers the same way, in both
+ * languages, from here. Words are existing dictionary keys
+ * (`hud.filesUnit`, `district.underground`); the numbers come from
+ * `remainingFiles` and `fileCount` and are never estimated.
+ */
+export function undergroundPlateLine(lang: Lang, hidden: number, total: number): string {
+  return hidden > 0
+    ? `⌄ ${hidden}/${total} ${t(lang, "hud.filesUnit")} ${t(lang, "district.underground")}`
+    : `${total} ${t(lang, "hud.filesUnit")}`;
+}
+
 export interface BlockPlacement {
   dir: CityDir;
   x: number;

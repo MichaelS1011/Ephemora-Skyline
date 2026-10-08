@@ -5,7 +5,7 @@ import { Html } from "@react-three/drei";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import type { BlockPlacement, StripBar } from "../city/layout";
-import { districtUnderground } from "../city/layout";
+import { districtUnderground, undergroundPlateLine } from "../city/layout";
 import { ENV, SEVERITY_COLOR, languageColor } from "../city/palette";
 import { complexityForHeight } from "../city/mapping";
 import { reducedSettle } from "../city/motion";
@@ -279,9 +279,7 @@ export function District({ placement, appearAt, skylineAt, constructing }: Distr
             )}
           </div>
           <div className="cf-plate-under">
-            {underground.hidden > 0
-              ? `⌄ ${underground.hidden}/${underground.total} ${t(lang, "hud.filesUnit")} ${t(lang, "district.underground")}`
-              : `${underground.total} ${t(lang, "hud.filesUnit")}`}
+            {undergroundPlateLine(lang, underground.hidden, underground.total)}
           </div>
           {tallH > 0 && (
             <div className="cf-plate-height">↑ {complexityForHeight(tallH).toFixed(2)}</div>
