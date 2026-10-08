@@ -1,12 +1,17 @@
 "use client";
 
 import { useLayoutEffect, useMemo, useRef } from "react";
+import { Html } from "@react-three/drei";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import type { DirLayout } from "../city/layout";
 import { CURB_OFFSET, type SidewalkNetwork } from "../city/sidewalks";
 import { ENV } from "../city/palette";
+import { COMPLEXITY_TICKS, heightForComplexity } from "../city/mapping";
 import { reducedSettle } from "../city/motion";
+import { t } from "../i18n";
+import { useStore } from "../stores/useStore";
+import "../design/city-funktion.css";
 
 /**
  * Streets & city furniture, Minecraft-flavoured: asphalt strips between
@@ -23,6 +28,9 @@ const dummy = new THREE.Object3D();
 const LANE_OFFSET = 0.95; // car center offset from the street centerline
 const CROSSWALK_BARS = [-1.65, -1.1, -0.55, 0, 0.55, 1.1, 1.65];
 
+/** Top of the measuring mast — the saturated end of the mapping height rail. */
+const MAST_TOP = heightForComplexity(1);
+
 export function RoadSystem({
   layout,
   sidewalks = null,
@@ -32,6 +40,19 @@ export function RoadSystem({
   sidewalks?: SidewalkNetwork | null;
   active?: boolean;
 }) {
+  const lang = useStore((s) => s.prefs.lang);
+  // ── Height measuring mast ────────────────────────────────────────────────
+  // The skyline's height is a measurement (synthetic complexity on the
+  // 2.2..34 rail of city/mapping), so the rail stands in the picture: a pole
+  // at the plaza corner opposite the podium, ticks at 0 / .25 / .5 / .75 / 1
+  // complexity, one bundled label. Empty levels get no mast.
+  const mast = useMemo(() => {
+    const hasData = layout.buildings.length > 0 || layout.blocks.length > 0;
+    if (!hasData) return null;
+    const r = Math.max(layout.plazaExtent, 12) + 2.6;
+    return { x: layout.plazaCenter.x - r, z: layout.plazaCenter.z - r };
+  }, [layout]);
+
   // ── Concrete curbs framing both sides of every street ───────────────────
   // Drawn from the walking graph's own kerb stretches, so the stone stops where
   // the sidewalk stops: at the mouth of every junction, and along every plaza
@@ -462,6 +483,37 @@ export function RoadSystem({
         <boxGeometry args={[0.5, 0.2, 0.36]} />
         <meshStandardMaterial color={ENV.road} roughness={0.3} metalness={0.4} />
       </instancedMesh>
+
+      {/* The height rail, standing in the picture — see the mast memo above */}
+      {mast && (
+        <group position={[mast.x, 0, mast.z]}>
+          <mesh position={[0, MAST_TOP / 2, 0]} raycast={() => null}>
+            <boxGeometry args={[0.14, MAST_TOP, 0.14]} />
+            <meshStandardMaterial color="#3a4a68" roughness={0.7} />
+          </mesh>
+          {COMPLEXITY_TICKS.map((c) => (
+            <mesh key={c} position={[0, heightForComplexity(c), 0]} raycast={() => null}>
+              <boxGeometry args={[0.95, 0.09, 0.14]} />
+              <meshBasicMaterial color={ENV.plotEdge} toneMapped={false} />
+            </mesh>
+          ))}
+          <Html
+            center
+            distanceFactor={60}
+            position={[1.6, MAST_TOP / 2 + 2, 0]}
+            zIndexRange={[8, 0]}
+          >
+            <div className="cf-mast">
+              <div className="cf-mast-title">{t(lang, "hud.heightComplexity")}</div>
+              <div className="cf-mast-ticks">
+                {[...COMPLEXITY_TICKS].reverse().map((c) => (
+                  <div key={c}>{c.toFixed(2)}</div>
+                ))}
+              </div>
+            </div>
+          </Html>
+        </group>
+      )}
     </group>
   );
 }

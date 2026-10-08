@@ -1,0 +1,74 @@
+/*
+ * Lane WELT-FUNKTION — city readability pieces.
+ * Bundled district street sign (`District.tsx`) and the height measuring
+ * mast (`RoadSystem.tsx`). Everything on these plates is a payload number:
+ * file counts, folded ("underground") files, and heights on the mapping
+ * rail from city/mapping.ts.
+ */
+
+.cf-plate {
+  font-family: "JetBrains Mono", ui-monospace, Menlo, monospace;
+  font-size: 11px;
+  line-height: 1.35;
+  color: #a9bbdd;
+  background: #121210;
+  border: 1px solid rgba(90, 120, 180, 0.4);
+  border-radius: 3px;
+  padding: 2px 7px 3px;
+  white-space: nowrap;
+  pointer-events: none;
+  text-align: center;
+  user-select: none;
+}
+
+.cf-plate-alarm {
+  color: #ffb3bc;
+  border-color: rgba(255, 46, 77, 0.5);
+}
+
+.cf-plate-name {
+  font-size: 12px;
+}
+
+.cf-plate-risk {
+  margin-left: 5px;
+  font-size: 11px;
+}
+
+.cf-plate-under {
+  font-size: 11px;
+  color: #7f9cc0;
+  margin-top: 1px;
+}
+
+.cf-plate-height {
+  font-size: 11px;
+  color: var(--meta-strong, #9aa7bd);
+  margin-top: 1px;
+}
+
+/* Height measuring mast (RoadSystem) */
+.cf-mast {
+  font-family: "JetBrains Mono", ui-monospace, Menlo, monospace;
+  font-size: 11px;
+  color: #8ea3c4;
+  background: #121210;
+  border: 1px solid rgba(90, 120, 180, 0.3);
+  border-radius: 3px;
+  padding: 3px 6px;
+  white-space: nowrap;
+  pointer-events: none;
+  user-select: none;
+}
+
+.cf-mast-title {
+  color: #c6d2e6;
+  margin-bottom: 2px;
+}
+
+.cf-mast-ticks {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+}

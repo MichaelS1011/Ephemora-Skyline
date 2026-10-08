@@ -35,6 +35,137 @@ import { generateVoxelLayout, type VoxelLayout } from "./voxels";
 
 // ── Placement types ────────────────────────────────────────────────────────
 
+/**
+ * One bar of a wide folder's group strip: it stands for `count` real files of
+ * the subtree and is as tall as the tallest among them (same
+ * `mapping.buildingHeight` rail as a single building), so the strip keeps the
+ * height axis true while replacing "six towers, silence about the rest".
+ */
+export interface StripBar {
+  /** local offset from the plot centre along the strip row */
+  x: number;
+  z: number;
+  /** world-unit width the renderer should draw */
+  w: number;
+  /** world-unit depth (constant per strip) */
+  d: number;
+  /** world-unit height = tallest file in this bin */
+  h: number;
+  /** how many files this bar represents */
+  count: number;
+  /** language carrying the most lines in the bin */
+  language: string;
+  /** worst severity in the bin, or null when the bin holds no finding */
+  worst: Severity | null;
+  /** findings counted across the bin */
+  findings: number;
+}
+
+/** Bars a strip splits a wide folder into — reads left (riskiest) to right. */
+export const STRIP_BARS = 12;
+/** Depth of a strip bar in world units. */
+const STRIP_DEPTH = 0.7;
+
+/**
+ * The files of a subtree the payload ACTUALLY delivers: the tree's own
+ * detail files (mapped or representative) plus every folded file the city
+ * shipped in `additionalFiles` under this folder's path. Nothing else is
+ * invented — where the payload stops, `groupStrip` refuses to draw.
+ */
+export function knownSubtreeFiles(dir: CityDir, additional: readonly CityFile[]): CityFile[] {
+  const byId = new Map<string, CityFile>();
+  const walk = (d: CityDir): void => {
+    for (const f of d.detailFiles) byId.set(f.id, f);
+    for (const f of d.districtFiles ?? []) byId.set(f.id, f);
+    d.children.forEach(walk);
+  };
+  walk(dir);
+  const prefix = dir.path ? `${dir.path}/` : "";
+  for (const f of additional) {
+    if (!prefix || f.path.startsWith(prefix)) byId.set(f.id, f);
+  }
+  return [...byId.values()];
+}
+
+/**
+ * Bin the subtree's known files into a readable strip — only when every file
+ * it claims is actually measured. Returns null when the payload does not know
+ * all `fileCount` files (an honest strip cannot summarise what it never saw),
+ * or when the folder is too small for a strip to say more than the towers do.
+ *
+ * Order: risk first (`byRisk` — tests stop leading), then height, so the
+ * leftmost bar is the district's worst address and heights fall toward the
+ * rim. Bins are equal-count, which keeps every bar's `count` a real number of
+ * files rather than a fraction of a rounded remainder.
+ */
+export function groupStrip(
+  child: CityDir,
+  plotW: number,
+  known: readonly CityFile[],
+  bars = STRIP_BARS,
+): StripBar[] | null {
+  if (known.length < child.fileCount) return null;
+  if (child.fileCount <= 6) return null;
+  const sorted = [...known].sort((a, b) => {
+    const r = byRisk(a, b);
+    if (r !== 0) return r;
+    return heightOf(b) - heightOf(a);
+  });
+  const n = Math.min(bars, sorted.length);
+  const per = Math.ceil(sorted.length / n);
+  const usable = Math.max(1, plotW - 1.4);
+  const slot = usable / n;
+  const out: StripBar[] = [];
+  for (let i = 0; i < n; i++) {
+    const bin = sorted.slice(i * per, (i + 1) * per);
+    if (bin.length === 0) break;
+    let h = 0;
+    let findings = 0;
+    let worstRank = 0;
+    const linesByLang = new Map<string, number>();
+    for (const f of bin) {
+      h = Math.max(h, heightOf(f));
+      findings += f.findings.length;
+      for (const fd of f.findings) {
+        worstRank = Math.max(worstRank, fd.severity === "P0" ? 3 : fd.severity === "P1" ? 2 : 1);
+      }
+      linesByLang.set(f.language, (linesByLang.get(f.language) ?? 0) + f.linesOfCode);
+    }
+    const worst: Severity | null =
+      worstRank === 3 ? "P0" : worstRank === 2 ? "P1" : worstRank === 1 ? "P2" : null;
+    let language = "";
+    let bestLines = -1;
+    for (const [name, lines] of linesByLang) {
+      if (lines > bestLines) {
+        bestLines = lines;
+        language = name;
+      }
+    }
+    out.push({
+      x: -usable / 2 + slot * (i + 0.5),
+      z: 0,
+      w: slot * 0.72,
+      d: STRIP_DEPTH,
+      h,
+      count: bin.length,
+      language,
+      worst,
+      findings,
+    });
+  }
+  return out;
+}
+
+/**
+ * The district's underground tally — the two numbers the audit asked to see
+ * on the plot itself: how many files of this folder are NOT standing as their
+ * own building, and the folder's total. Both come straight from the payload
+ * (`remainingFiles`, `fileCount`); nothing here estimates.
+ */
+export function districtUnderground(dir: CityDir): { hidden: number; total: number } {
+  return { hidden: Math.max(0, dir.remainingFiles), total: dir.fileCount };
+}
+
 export interface BlockPlacement {
   dir: CityDir;
   x: number;
@@ -43,6 +174,12 @@ export interface BlockPlacement {
   d: number;
   /** Representative towers (district skyline), local offsets from the plot centre. */
   skyline: BuildingPlacement[];
+  /**
+   * Group strip for a wide folder: bins over EVERY file of the subtree whose
+   * measurements the payload actually delivers (see `groupStrip`). Absent when
+   * the subtree is not fully known or small enough to read as towers alone.
+   */
+  strip?: StripBar[] | null;
 }
 
 export interface BuildingPlacement {
@@ -84,6 +221,8 @@ export interface DirLayout {
   streets: StreetLine[];
   bounds: number; // half-extent of the whole scene
   plazaExtent: number; // half-extent of the central file plaza
+  /** Centre of the central plaza in world XZ — where a level's own files stand. */
+  plazaCenter: { x: number; z: number };
   /**
    * Where this level actually is: the centre of the box its own placed
    * geometry fills. Neither the world origin nor the plaza — an organic
@@ -156,7 +295,7 @@ const BLOCK_GRID_MIN = 30;
 const PLAZA_SITE_KEY = "__plaza__";
 
 /** Legacy grid layout — retained as the deterministic fallback mode. */
-function computeGridLayout(dir: CityDir): DirLayout {
+function computeGridLayout(dir: CityDir, additional: readonly CityFile[]): DirLayout {
   const files = [...dir.detailFiles].sort((a, b) => heightOf(b) - heightOf(a));
   const children = [...dir.children].sort((a, b) => b.linesOfCode - a.linesOfCode);
 
@@ -212,6 +351,7 @@ function computeGridLayout(dir: CityDir): DirLayout {
     const cell = blockCells[i] ?? { x: 0, z: 0 };
     const w = blockFootprint(child.linesOfCode);
     const skyline = buildSkyline(child, w);
+    const strip = groupStrip(child, w, knownSubtreeFiles(child, additional));
 
     blockPlacements.push({
       dir: child,
@@ -220,6 +360,7 @@ function computeGridLayout(dir: CityDir): DirLayout {
       w,
       d: w,
       skyline,
+      strip,
     });
   });
 
@@ -263,6 +404,7 @@ function computeGridLayout(dir: CityDir): DirLayout {
     streets,
     bounds,
     plazaExtent,
+    plazaCenter: { x: 0, z: 0 },
     centre,
   };
 }
@@ -358,7 +500,7 @@ function buildSkyline(child: CityDir, blockW: number): BuildingPlacement[] {
  * subtree size. Same DirLayout contract as the grid: blocks at cell
  * centroids, plaza in the central cell, cell boundaries as streets.
  */
-function computeVoronoiLayout(dir: CityDir): DirLayout {
+function computeVoronoiLayout(dir: CityDir, additional: readonly CityFile[]): DirLayout {
   const files = [...dir.detailFiles].sort((a, b) => heightOf(b) - heightOf(a));
   const children = [...dir.children].sort((a, b) => b.linesOfCode - a.linesOfCode);
 
@@ -458,6 +600,7 @@ function computeVoronoiLayout(dir: CityDir): DirLayout {
     // The plot must sit comfortably inside its organic cell
     const w = Math.min(blockFootprint(child.linesOfCode), Math.max(cellRadius * 1.35, 8));
     const skyline = buildSkyline(child, w);
+    const strip = groupStrip(child, w, knownSubtreeFiles(child, additional));
     blockPlacements.push({
       dir: child,
       x: vCell.centroid.x + jitter(child.path, 0.8),
@@ -465,6 +608,7 @@ function computeVoronoiLayout(dir: CityDir): DirLayout {
       w,
       d: w,
       skyline,
+      strip,
     });
   }
 
@@ -497,6 +641,7 @@ function computeVoronoiLayout(dir: CityDir): DirLayout {
     streets,
     bounds,
     plazaExtent,
+    plazaCenter: plazaCenter,
     centre,
   };
 }
@@ -869,8 +1014,11 @@ export function getDirLayout(city: CityData, focusPath: string[]): DirLayout {
   const hit = perCity.get(key);
   if (hit) return hit;
   const target = resolveDir(city.tree, focusPath);
+  const additional = city.additionalFiles ?? [];
   const layout =
-    activeLayoutMode === "voronoi" ? computeVoronoiLayout(target) : computeGridLayout(target);
+    activeLayoutMode === "voronoi"
+      ? computeVoronoiLayout(target, additional)
+      : computeGridLayout(target, additional);
   perCity.set(key, layout);
   return layout;
 }

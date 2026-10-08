@@ -4,13 +4,18 @@ import { useEffect, useMemo, useRef } from "react";
 import { Html } from "@react-three/drei";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
-import type { BlockPlacement } from "../city/layout";
-import { ENV, SEVERITY_COLOR } from "../city/palette";
+import type { BlockPlacement, StripBar } from "../city/layout";
+import { districtUnderground } from "../city/layout";
+import { ENV, SEVERITY_COLOR, languageColor } from "../city/palette";
+import { complexityForHeight } from "../city/mapping";
 import { reducedSettle } from "../city/motion";
+import { t } from "../i18n";
 import { claimHover, easeGlow, inkOpacity, releaseHover } from "../interaction/hover";
 import { FOOTPRINT_EDGES, makeInkMaterial } from "../interaction/hoverInk";
 import { useStore } from "../stores/useStore";
+import type { Severity } from "../city/types";
 import { Building } from "./Building";
+import "../design/city-funktion.css";
 
 /**
  * A district — a BUILT plot: curb, nameplate and a skyline of up to six
@@ -42,8 +47,22 @@ export function District({ placement, appearAt, skylineAt, constructing }: Distr
   const drillIn = useStore((s) => s.drillIn);
   const setHoveredId = useStore((s) => s.setHoveredId);
 
-  const { dir, x, z, w, d, skyline } = placement;
+  const { dir, x, z, w, d, skyline, strip } = placement;
   const hasP0 = dir.findingsBySeverity.P0 > 0;
+  const lang = useStore((s) => s.prefs.lang);
+  const sev = dir.findingsBySeverity;
+  const totalFindings = sev.P0 + sev.P1 + sev.P2;
+  const worstSev: Severity | null =
+    sev.P0 > 0 ? "P0" : sev.P1 > 0 ? "P1" : sev.P2 > 0 ? "P2" : null;
+  /** The two payload numbers the audit wanted ON the plot, not behind a hover. */
+  const underground = districtUnderground(dir);
+  /** Tallest real file standing (or binned) on this plot — height-rail units. */
+  const tallH = useMemo(() => {
+    let m = 0;
+    for (const b of skyline) m = Math.max(m, b.h);
+    for (const bar of strip ?? []) m = Math.max(m, bar.h);
+    return m;
+  }, [skyline, strip]);
 
   const curbColor = hasP0 ? ENV.windowAlarm : "#3a4a68";
   /** Emissive level of the curb at rest and under the pointer. */
@@ -203,7 +222,23 @@ export function District({ placement, appearAt, skylineAt, constructing }: Distr
         />
       ))}
 
-      {/* Podium marker — files not individually rendered */}
+      {/* Group strip — bins over EVERY file of a wide folder whose data the
+          payload delivers (city/layout.ts `groupStrip`). Riskiest bin left,
+          height = tallest file inside, colour = worst finding or the
+          dominant language. Boxes only: no voxels, no per-file budget. */}
+      {strip?.map((bar, i) => (
+        <StripBarMesh
+          key={`strip-${i}`}
+          bar={bar}
+          plotD={d}
+          onOver={handleOver}
+          onOut={handleOut}
+          onClick={handleClick}
+        />
+      ))}
+
+      {/* Podium marker — files not individually rendered. The count itself
+          rides on the bundled nameplate below, not on a second Html node. */}
       {dir.remainingFiles > 0 && (
         <group position={[w / 2 - 1.4, 0, d / 2 - 1.4]}>
           <mesh
@@ -223,47 +258,66 @@ export function District({ placement, appearAt, skylineAt, constructing }: Distr
               emissiveIntensity={0.35}
             />
           </mesh>
-          <Html center distanceFactor={44} position={[0, 1.7, 0]} zIndexRange={[8, 0]}>
-            <div
-              style={{
-                fontFamily: "'JetBrains Mono', ui-monospace, Menlo, monospace",
-                fontSize: 11,
-                color: "var(--meta-strong)",
-                background: "#121210",
-                border: "1px solid rgba(90,120,180,0.35)",
-                borderRadius: 3,
-                padding: "1px 5px",
-                whiteSpace: "nowrap",
-                pointerEvents: "none",
-              }}
-            >
-              +{dir.remainingFiles}
-            </div>
-          </Html>
         </group>
       )}
 
-      {/* Nameplate — a street sign at the plot edge, not a floating label */}
+      {/* The ONE bundled street sign for this plot: name + risk, the
+          underground tally (865 of 900 files — no longer hover-only), and
+          the tallest file's complexity, in the measuring mast's coordinates. */}
       <Html center distanceFactor={52} position={[0, 0.6, d / 2 + 2.2]} zIndexRange={[8, 0]}>
         <div
-          style={{
-            fontFamily: "'JetBrains Mono', ui-monospace, Menlo, monospace",
-            fontSize: 12,
-            color: hasP0 ? "#ffb3bc" : "#a9bbdd",
-            background: "#121210",
-            border: `1px solid ${hasP0 ? "rgba(255,46,77,0.5)" : "rgba(90,120,180,0.4)"}`,
-            borderRadius: 3,
-            padding: "2px 7px",
-            whiteSpace: "nowrap",
-            pointerEvents: "none",
-            textAlign: "center",
-          }}
+          className={`cf-plate${hasP0 ? " cf-plate-alarm" : ""}`}
+          style={{ background: "#121210" }}
+          aria-label={`${dir.name} — ${underground.total} ${t(lang, "hud.filesUnit")}`}
         >
-          {dir.name}
-          {hasP0 && <span style={{ color: SEVERITY_COLOR.P0, marginLeft: 5 }}>●</span>}
-          <span style={{ opacity: 0.7, marginLeft: 6, fontSize: 11 }}>{dir.fileCount}</span>
+          <div className="cf-plate-name">
+            {dir.name}
+            {worstSev && (
+              <span className="cf-plate-risk" style={{ color: SEVERITY_COLOR[worstSev] }}>
+                ●{totalFindings}
+              </span>
+            )}
+          </div>
+          <div className="cf-plate-under">
+            {underground.hidden > 0
+              ? `⌄ ${underground.hidden}/${underground.total} ${t(lang, "hud.filesUnit")} ${t(lang, "district.underground")}`
+              : `${underground.total} ${t(lang, "hud.filesUnit")}`}
+          </div>
+          {tallH > 0 && (
+            <div className="cf-plate-height">↑ {complexityForHeight(tallH).toFixed(2)}</div>
+          )}
         </div>
       </Html>
     </group>
+  );
+}
+
+/** One bin bar of the strip — a plain box, hoverable like the plot. */
+function StripBarMesh({
+  bar,
+  plotD,
+  onOver,
+  onOut,
+  onClick,
+}: {
+  bar: StripBar;
+  plotD: number;
+  onOver: (e: { stopPropagation: () => void }) => void;
+  onOut: () => void;
+  onClick: (e: { stopPropagation: () => void }) => void;
+}) {
+  const color = bar.worst ? SEVERITY_COLOR[bar.worst] : languageColor(bar.language);
+  // Row sits against the far kerb, behind the towers.
+  const z = -plotD / 2 + bar.d / 2 + 0.6;
+  return (
+    <mesh
+      position={[bar.x, bar.h / 2 + 0.18, z]}
+      onClick={onClick}
+      onPointerOver={onOver}
+      onPointerOut={onOut}
+    >
+      <boxGeometry args={[bar.w, bar.h, bar.d]} />
+      <meshStandardMaterial color={color} roughness={0.8} metalness={0.15} />
+    </mesh>
   );
 }

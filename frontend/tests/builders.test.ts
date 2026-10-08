@@ -74,6 +74,7 @@ const LAYOUT: DirLayout = {
   streets: [],
   bounds: 40,
   plazaExtent: 10,
+  plazaCenter: { x: 0, z: 0 },
 };
 
 const plan = planConstruction(LAYOUT, 1000);

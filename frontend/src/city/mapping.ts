@@ -77,8 +77,59 @@ const clamp = (v: number, lo: number, hi: number): number => Math.max(lo, Math.m
 
 /** Building height from synthetic complexity (2.2 .. 34 world units) */
 export function buildingHeight(file: CityFile): number {
-  const s = syntheticComplexity(file);
-  return clamp(2.2 + Math.pow(s, 0.9) * 31.8, 2.2, 34);
+  return heightForComplexity(syntheticComplexity(file));
+}
+
+/**
+ * The height rail as a readout axis: 0 .. 1 synthetic complexity mapped onto
+ * the same 2.2 .. 34 world units `buildingHeight` uses. The far ends are the
+ * saturation rails themselves — a building of height 34 is one whose
+ * cyclomatic, coupling and size ALL reach `NORM_REFERENCE` — so a measuring
+ * mast drawn with this function states exactly what the skyline measures.
+ */
+export function heightForComplexity(c: number): number {
+  return clamp(2.2 + Math.pow(Math.max(0, Math.min(1, c)), 0.9) * 31.8, 2.2, 34);
+}
+
+/**
+ * Inverse of the mast: the complexity value a drawn height stands for. A
+ * street sign quotes the tallest file of its plot in the SAME coordinates as
+ * the measuring mast, so the number and the rail it sits on agree by
+ * construction, not by convention. (Outside the clamp's linear zone the
+ * inversion is exact; the clamped ends resolve to 0 and 1.)
+ */
+export function complexityForHeight(h: number): number {
+  if (h <= 2.2) return 0;
+  if (h >= 34) return 1;
+  return Math.pow((h - 2.2) / 31.8, 1 / 0.9);
+}
+
+/** Where the mast puts its ticks — complexity values, monotone upward. */
+export const COMPLEXITY_TICKS = [0, 0.25, 0.5, 0.75, 1] as const;
+
+/** Which threat verdict a folder earns — the far-zoom heat tile's colour key. */
+export type BlockThreatState = "P0" | "P1" | "P2" | "unchecked" | "safe";
+
+/**
+ * The district's threat verdict, ranked over ALL files of its subtree (the
+ * payload's own tally), not just the ones drawn.
+ *
+ * `unchecked` used to require EVERY file to be unverified — a district of 900
+ * files with 500 files no scanner ever saw painted itself `safe` in the heat
+ * grid: the loudest claim the tile can make, with the grey population
+ * swallowed by exactly the zoom level a reader uses to look for it. Any
+ * unverified file now keeps the tile grey — the same decision
+ * `isUncheckedClean` makes per file.
+ */
+export function blockThreatState(dir: {
+  findingsBySeverity: { P0: number; P1: number; P2: number };
+  unverifiedFiles?: number;
+}): BlockThreatState {
+  if (dir.findingsBySeverity.P0 > 0) return "P0";
+  if (dir.findingsBySeverity.P1 > 0) return "P1";
+  if (dir.findingsBySeverity.P2 > 0) return "P2";
+  if ((dir.unverifiedFiles ?? 0) > 0) return "unchecked";
+  return "safe";
 }
 
 /**

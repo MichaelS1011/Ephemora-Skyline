@@ -14,7 +14,7 @@ import {
   UNCHECKED_COLOR,
 } from "../city/palette";
 import { isUncheckedClean } from "../city/provenance";
-import { syntheticComplexity, findingBarHeightForCount } from "../city/mapping";
+import { blockThreatState, syntheticComplexity, findingBarHeightForCount } from "../city/mapping";
 
 /**
  * Far-zoom LOD: the whole city collapses into ONE instanced mesh of flat
@@ -146,25 +146,27 @@ export function HeatCells({ layout }: { layout: DirLayout }) {
     for (const blk of layout.blocks) {
       // Blocks aggregate their subtree: worst threat / avg complexity / max churn
       const subtree = allSubtreeFiles(blk.dir);
+      const state = blockThreatState(blk.dir);
       const color =
         heatChannel === "threat"
-          ? (subtree.findingsBySeverity.P0 ?? 0) > 0
+          ? state === "P0"
             ? severityColor("P0", colorblind)
-            : (subtree.findingsBySeverity.P1 ?? 0) > 0
+            : state === "P1"
               ? severityColor("P1", colorblind)
-              : (subtree.findingsBySeverity.P2 ?? 0) > 0
+              : state === "P2"
                 ? severityColor("P2", colorblind)
-                : blk.dir.unverifiedFiles === blk.dir.fileCount &&
-                    (blk.dir.unverifiedFiles ?? 0) > 0
+                : state === "unchecked"
                   ? UNCHECKED_COLOR
                   : THREAT_COLOR.safe
           : heatChannel === "complexity"
             ? complexityColor(subtree.avgComplexity, colorblind)
             : churnColor(subtree.maxChurn ?? 0, colorblind);
       const subtreeTotal =
-        (subtree.findingsBySeverity.P0 ?? 0) +
-        (subtree.findingsBySeverity.P1 ?? 0) +
-        (subtree.findingsBySeverity.P2 ?? 0);
+        (blk.dir.findingsBySeverity.P0 ?? 0) +
+        (blk.dir.findingsBySeverity.P1 ?? 0) +
+        (blk.dir.findingsBySeverity.P2 ?? 0);
+      // The payload's subtree tally, not just the findings of drawn files —
+      // a folded finding still lifts the tile it lives under.
       const blockRise = heatCellRise(heatChannel, {
         findingCount: subtreeTotal,
         value:
