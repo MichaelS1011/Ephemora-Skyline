@@ -1,5 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { Canvas } from "@react-three/fiber";
+import { useFrame, useThree } from "@react-three/fiber";
+import * as THREE from "three";
 import { EffectComposer, Bloom, ToneMapping } from "@react-three/postprocessing";
 import { ToneMappingMode } from "postprocessing";
 import { ModeBar } from "./components/ModeBar";
@@ -25,6 +27,135 @@ import { useStore } from "./stores";
 import { t } from "./i18n";
 import { getDirLayout } from "./city/layout";
 import type { CityData } from "./city/types";
+import { currentVisit, writePoseParam, type CameraPose } from "./urlState";
+
+/** How long a restored pose is held against scripted flights after it is set. */
+const POSE_GRAB_MS = 320;
+/** Write the camera to the address once the pilot has stopped for this long. */
+const POSE_SETTLE_MS = 700;
+
+const samePose = (a: CameraPose, b: CameraPose): boolean =>
+  Math.abs(a.x - b.x) < 0.05 &&
+  Math.abs(a.y - b.y) < 0.05 &&
+  Math.abs(a.z - b.z) < 0.05 &&
+  Math.abs(a.yaw - b.yaw) < 0.005 &&
+  Math.abs(a.pitch - b.pitch) < 0.005;
+
+const _euler = new THREE.Euler();
+
+function poseOf(camera: THREE.Camera): CameraPose {
+  _euler.setFromQuaternion(camera.quaternion, "YXZ");
+  return {
+    x: camera.position.x,
+    y: camera.position.y,
+    z: camera.position.z,
+    yaw: _euler.y,
+    pitch: _euler.x,
+  };
+}
+
+function applyPose(camera: THREE.Camera, p: CameraPose): void {
+  camera.position.set(p.x, p.y, p.z);
+  camera.rotation.order = "YXZ";
+  camera.rotation.set(p.pitch, p.yaw, 0);
+}
+
+/**
+ * The camera end of the address.
+ *
+ * Lives inside the canvas because a pose is the one piece of state the store
+ * only ever receives second-hand: the rig reports where it put the camera, and
+ * a flight is derived from where the camera already is
+ * (`approachFromCurrentDirection` keeps the viewing direction). So the address
+ * can ask for a flight, but it cannot ask to be put back — that needs something
+ * standing at the camera itself.
+ *
+ * Mount AFTER CityScene so the frame write lands after the rig's and the crane's
+ * for the duration of the grab, and is the last word on the frame.
+ */
+function VisitCamera() {
+  const { camera } = useThree();
+  const poseRequest = useStore((s) => s.poseRequest);
+  const buildPhase = useStore((s) => s.buildPhase);
+  const cityOnScreen = useStore((s) => s.cityData !== null);
+  const requestBuildSkip = useStore((s) => s.requestBuildSkip);
+
+  const requested = useRef<CameraPose | null>(null);
+  const armed = useRef<CameraPose | null>(null);
+  const grabUntil = useRef(0);
+  const skipped = useRef(false);
+  const sample = useRef<CameraPose | null>(null);
+  const settledAt = useRef(0);
+  const written = useRef<CameraPose | null>(null);
+
+  useEffect(() => {
+    if (!poseRequest) return;
+    requested.current = poseRequest.pose;
+    armed.current = poseRequest.pose;
+    grabUntil.current = Date.now() + POSE_GRAB_MS;
+    skipped.current = false;
+    applyPose(camera, poseRequest.pose);
+    written.current = poseRequest.pose;
+  }, [poseRequest, camera]);
+
+  // A shared link opened on a city this machine has never seen plays the
+  // construction cinematic AND carries a pose. The crane owns the camera for
+  // the length of the build and the reveal glide starts only when the city
+  // stands, so the returning pilot is put back a second time once that lands —
+  // otherwise the address asks for one view and the screen shows another.
+  useEffect(() => {
+    const want = requested.current;
+    if (buildPhase !== "built" || !want || samePose(poseOf(camera), want)) return;
+    armed.current = want;
+    grabUntil.current = Date.now() + POSE_GRAB_MS;
+    skipped.current = false;
+  }, [buildPhase, camera]);
+
+  useFrame(() => {
+    const now = Date.now();
+    // The open world's camera is not a visit. Without this gate the landing
+    // page would carry a `cam=` parameter for a city that is not on screen.
+    if (!cityOnScreen) {
+      requested.current = null;
+      armed.current = null;
+      sample.current = null;
+      written.current = null;
+      settledAt.current = 0;
+      return;
+    }
+    const held = armed.current;
+    if (held && now < grabUntil.current) {
+      applyPose(camera, held);
+      // A flight scripted for this arrival (the glide out to the overview) must
+      // not drag the returning pilot away. Asked from the frame, not the effect:
+      // the rig clears a tween in the commit AFTER the one that armed it.
+      if (!skipped.current) {
+        skipped.current = true;
+        requestBuildSkip();
+      }
+      return;
+    }
+    if (held) armed.current = null;
+
+    const live = poseOf(camera);
+    if (!sample.current || !samePose(live, sample.current)) {
+      sample.current = live;
+      settledAt.current = now;
+      return;
+    }
+    if (
+      settledAt.current > 0 &&
+      now - settledAt.current >= POSE_SETTLE_MS &&
+      !(written.current && samePose(live, written.current))
+    ) {
+      written.current = live;
+      settledAt.current = 0;
+      writePoseParam(live);
+    }
+  });
+
+  return null;
+}
 
 export default function App() {
   const cityData = useStore((s) => s.cityData);
@@ -49,46 +180,67 @@ export default function App() {
 
   // ── City loading: only ?city=<id> permalinks auto-load. A fresh visit
   // lands on the empty world (the Landing hero), never a prebuilt city. ────
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const cityId = params.get("city");
-    if (!cityId) {
-      setApiStatus("demo");
-      return;
-    }
-    let cancelled = false;
-    setIsLoading(true);
-    (async (): Promise<void> => {
+  const loadCity = useCallback(
+    async (cityId: string): Promise<void> => {
+      setIsLoading(true);
       try {
         const res = await fetch(`/api/result/${encodeURIComponent(cityId)}/city`, {
           headers: { Accept: "application/json" },
         });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data = (await res.json()) as CityData;
-        if (!cancelled) {
-          setCityData(data);
-          // AFTER setCityData — the store resets the review map there, and
-          // setAnalysisId then loads this permalink's saved reviews on top.
-          // Also registers the permalink city for SARIF export.
-          setAnalysisId(cityId);
-          setApiStatus("live");
-        }
+        setCityData(data);
+        // AFTER setCityData — the store resets the review map there, and
+        // setAnalysisId then loads this permalink's saved reviews on top.
+        // Also registers the permalink city for SARIF export.
+        setAnalysisId(cityId);
+        setApiStatus("live");
       } catch {
         // The id resolved to nothing. Say what is true rather than guessing:
         // it may never have existed (a mistyped or stale link) or its scan may
         // have been dropped — the store is in-memory with a 24 h ceiling.
-        if (!cancelled) {
-          setApiStatus("demo");
-          setPermalinkError(t(lang, "app.permalinkError"));
-        }
+        setApiStatus("demo");
+        setPermalinkError(t(lang, "app.permalinkError"));
       } finally {
-        if (!cancelled) setIsLoading(false);
+        setIsLoading(false);
       }
-    })();
-    return () => {
-      cancelled = true;
+    },
+    [setCityData, setIsLoading, setAnalysisId, lang],
+  );
+
+  useEffect(() => {
+    const cityId = new URLSearchParams(window.location.search).get("city");
+    if (!cityId) {
+      setApiStatus("demo");
+      return;
+    }
+    void loadCity(cityId);
+  }, [loadCity]);
+
+  // ── The history is the undo of the visit ────────────────────────────────
+  // The wordmark leaves the address of the work behind as a history entry, and
+  // Back has to mean what it says: the city comes back out of that address with
+  // its district, its selection and its camera. No document reload — the app is
+  // the only thing here that knows how to put a city on a screen.
+  useEffect(() => {
+    const onPopState = () => {
+      const visit = currentVisit();
+      const state = useStore.getState();
+      if (!visit.cityId) {
+        if (state.cityData) state.resetToLandingFromHistory();
+        return;
+      }
+      if (state.cityData && state.cityData.analysisId === visit.cityId) {
+        // The same city, a different moment in it: setCityData re-reads the
+        // address, so the district, the selection and the pose come back too.
+        state.setCityData(state.cityData);
+        return;
+      }
+      void loadCity(visit.cityId);
     };
-  }, [setCityData, setIsLoading, setAnalysisId]);
+    window.addEventListener("popstate", onPopState);
+    return () => window.removeEventListener("popstate", onPopState);
+  }, [loadCity]);
 
   // Status chip must tell the truth about where the city came from —
   // local scans and permalinks are live results, the demo city is not.
@@ -284,6 +436,10 @@ export default function App() {
           gl={{ antialias: true, preserveDrawingBuffer: true }}
         >
           <CityScene />
+          {/* After CityScene on purpose: the pose of the address is the last
+              word on the frame, and a scripted flight of this arrival has to
+              be asked away from inside a frame, not from an effect. */}
+          <VisitCamera />
           {/* gfxLite skips the bloom pass entirely — the one expensive
               post-processing step — and caps the pixel ratio above.
               The ToneMapping effect is not a look choice: `<EffectComposer>`

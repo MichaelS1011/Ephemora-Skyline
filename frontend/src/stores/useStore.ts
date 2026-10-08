@@ -30,6 +30,17 @@ import {
   saveReviews,
 } from "../reviews";
 import { loadPrefs, savePrefs, type Prefs } from "../prefs";
+import { mergeEngineGaps } from "../city/provenance";
+import { hasCityVisit, recordCityVisit } from "../recentCities";
+import {
+  clearVisitParams,
+  currentVisit,
+  pathOfSelectedFile,
+  resolveVisit,
+  writeCityParam,
+  writeNavParams,
+  type CameraPose,
+} from "../urlState";
 
 export interface FlyRequest {
   x: number;
@@ -51,6 +62,12 @@ export interface FlyRequest {
 
 /** A scripted flight, as asked for by the caller (the rig adds the nonce). */
 export type FlyOptions = Omit<FlyRequest, "nonce" | "distance"> & { distance?: number };
+
+/** One pose the address asked to be put back on the camera. */
+export interface PoseRequest {
+  pose: CameraPose;
+  nonce: number;
+}
 
 export interface CameraInfo {
   x: number;
@@ -96,6 +113,7 @@ export interface TestRunState {
 }
 
 let flyNonce = 0;
+let poseNonce = 0;
 
 interface AppState {
   // ── City data ──────────────────────────────────────────────────────────
@@ -114,7 +132,17 @@ interface AppState {
   /** Epoch ms when a build skip was requested (null = no skip requested). */
   buildSkipAt: number | null;
   setCityData: (data: CityData | null) => void;
+  /**
+   * Tear the view down for the Landing.
+   *
+   * The visit the user was working in goes into the history rather than being
+   * replaced: one Back is the way back, and the Landing's index of opened
+   * cities is the second one (measured: replacing it left the teardown with no
+   * undo at all — the address was gone with the city).
+   */
   resetToLanding: () => void;
+  /** Same teardown for a handler that is reacting to the history itself. */
+  resetToLandingFromHistory: () => void;
   setBuildPhase: (phase: "empty" | "constructing" | "built") => void;
   setConstructionProgress: (done: number, total: number) => void;
   requestBuildSkip: () => void;
@@ -158,6 +186,17 @@ interface AppState {
   // ── Camera command channel ─────────────────────────────────────────────
   flyRequest: FlyRequest | null;
   requestFly: (req: FlyOptions) => void;
+  /**
+   * A camera pose the address asked for, handed to the pilot who restores it.
+   *
+   * Not a fly request: a flight is derived from where the camera already is
+   * (`approachFromCurrentDirection` keeps the user's viewing direction), so
+   * asking the rig to fly somewhere can never put the camera back where it was.
+   * The pose is a position plus a heading, and only something standing at the
+   * camera can write it onto the camera.
+   */
+  poseRequest: PoseRequest | null;
+  requestPose: (pose: CameraPose | null) => void;
   cameraInfo: CameraInfo;
   setCameraInfo: (info: CameraInfo) => void;
   /** The pilot has flown so far that no corner of the level is in frame. The
@@ -220,11 +259,27 @@ interface AppState {
   reviews: Record<string, ReviewStatus>;
   /** Verdicts sitting in a pre-fingerprint bucket this project cannot read. */
   orphanedReviews: number;
+  /**
+   * A verdict could not be written to storage.
+   *
+   * The bucket survives reloads only as long as localStorage takes it, and the
+   * one way to lose a day of triage silently is a full quota swallowed by a
+   * `catch {}`. Reported so the screen can say the verdict is session-only.
+   */
+  verdictsBlocked: boolean;
   setReview: (key: string, status: ReviewStatus | null) => void;
 
   // ── User preferences (lang, rendering effects, CVD palette) ────────────
   prefs: Prefs;
   setPref: <K extends keyof Prefs>(key: K, value: Prefs[K]) => void;
+  /**
+   * Switch the passive release check on or off, and say what it is now.
+   *
+   * `prefs.updateCheck` existed and was read (`Landing.tsx:177`) but never set
+   * by anything: the one network call the app makes on its own had no switch.
+   * This is the state side of that switch; the menu row is ordered at Lane STADT-UI.
+   */
+  toggleUpdateCheck: () => boolean;
 
   // ── Test runner ──────────────────────────────────────────────────────────
   testRun: TestRunState;
@@ -450,61 +505,13 @@ function reanchorTriage(set: (partial: Partial<AppState>) => void, get: () => Ap
   }
 }
 
-export const useStore = create<AppState>((set, get) => ({
-  cityData: null,
-  buildPhase: "empty",
-  buildStartedAt: 0,
-  buildDuration: 0,
-  constructionTotal: 0,
-  constructionDone: 0,
-  setCityData: (data) => {
-    // Review state belongs to the PROJECT, not to the scan that happened to
-    // produce this city: a re-scan reads back the same verdicts.
-    const reviews = data ? loadReviewsForCity(data) : {};
-    set({
-      cityData: data,
-      focusPath: [],
-      selectedUnit: null,
-      hoveredId: null,
-      // Stale view state must never leak into a new city: a P0 filter from
-      // the previous repo would dim the new one with no visible indicator
-      // (chips hide when a severity has 0 findings), and a running tour
-      // would keep walking a city it was never started for.
-      threatFilter: "all",
-      ruleFilter: null,
-      // A new city is a neutral stage: the previous repo's view mode must not
-      // dim or re-lighten the fresh skyline before the user has chosen a lens.
-      viewMode: "structure",
-      tourActive: false,
-      tourIndex: 0,
-      triageActive: false,
-      triageCursor: 0,
-      triageTotal: 0,
-      focusedFindingKey: null,
-      cameraMode: "free",
-      reviews,
-      orphanedReviews: countStrandedVerdicts(reviews, data),
-      testRun: { status: "idle", stage: "" },
-      testResults: {},
-      buildPhase: data ? "constructing" : "empty",
-      buildStartedAt: data ? Date.now() : 0,
-      constructionDone: 0,
-      constructionTotal: 0,
-    });
-    // The address names the city that is on screen, so a reload comes back to
-    // it instead of the empty world. Written from the payload's own scan id —
-    // which is why every city, the demo included, now carries one.
-    if (typeof window === "undefined") return;
-    const url = new URL(window.location.href);
-    if (data?.analysisId) url.searchParams.set("city", data.analysisId);
-    else url.searchParams.delete("city");
-    if (url.pathname + url.search !== window.location.pathname + window.location.search) {
-      window.history.replaceState({}, "", url.toString());
-    }
-  },
-
-  /** Tear the city down and return to the Landing screen ("start over"). */
-  resetToLanding: () => {
+export const useStore = create<AppState>((set, get) => {
+  /**
+   * One teardown, two history policies: the wordmark leaves an entry behind the
+   * user can step back into, the history handler must not add one to the stack
+   * it is reacting to.
+   */
+  const teardownVisit = (push: boolean) => {
     set({
       cityData: null,
       buildPhase: "empty",
@@ -512,363 +519,481 @@ export const useStore = create<AppState>((set, get) => ({
       isLoading: false,
       analysisProgress: 0,
       analysisStage: "",
+      poseRequest: null,
     });
-    if (typeof window !== "undefined" && window.history.replaceState) {
-      window.history.replaceState(null, "", window.location.pathname);
-    }
-  },
-  setBuildPhase: (phase) => set({ buildPhase: phase }),
-  setConstructionProgress: (done, total) =>
-    set({ constructionDone: done, constructionTotal: total }),
-  buildSkipAt: null,
-  requestBuildSkip: () => set({ buildSkipAt: Date.now() }),
+    if (typeof window !== "undefined") clearVisitParams(push);
+  };
 
-  focusPath: [],
-  selectedUnit: null,
-  hoveredId: null,
-  setHoveredId: (id) => set({ hoveredId: id }),
-
-  setFocusPath: (path, opts) => {
-    set({ focusPath: path, ...(opts?.keepSelection ? {} : { selectedUnit: null }) });
-    const city = get().cityData;
-    if (city) flyToDirOverview(set, city, path);
-  },
-
-  drillIn: (dirName) => {
-    const { focusPath, cityData } = get();
-    if (!cityData) return;
-    const next = [...focusPath, dirName];
-    set({ focusPath: next, selectedUnit: null });
-    flyToDirOverview(set, cityData, next);
-  },
-
-  drillOut: () => {
-    const { focusPath, cityData } = get();
-    if (!cityData || focusPath.length === 0) return;
-    get().setFocusPath(focusPath.slice(0, -1));
-  },
-
-  resetFocus: () => {
-    const { cityData } = get();
-    set({ focusPath: [], selectedUnit: null });
-    if (cityData) flyToDirOverview(set, cityData, []);
-  },
-
-  setSelectedUnit: (unit) => set({ selectedUnit: unit }),
-
-  navigateToFile: (fileId) => {
-    const { cityData } = get();
-    if (!cityData) return;
-    const hit = findFileById(cityData, fileId);
-    if (!hit) return;
-    set({ focusPath: hit.chain, selectedUnit: { kind: "file", id: fileId } });
-    const layout = getDirLayout(cityData, hit.chain);
-    const placement = layout.buildings.find((b) => b.file.id === fileId);
-    if (placement) {
-      const shot = buildingShot(layout.bounds, placement.h);
+  return {
+    cityData: null,
+    buildPhase: "empty",
+    buildStartedAt: 0,
+    buildDuration: 0,
+    constructionTotal: 0,
+    constructionDone: 0,
+    setCityData: (data) => {
+      // One engine truth before anything reads the payload: the backend
+      // attributes gitleaks/semgrep/ruff to files and stops there, so a project
+      // scanned without the dependency audit arrives with lockfiles that read as
+      // checked. Done here, at the one door a city comes in through, so tooltip,
+      // heatmap and panel cannot disagree.
+      if (data) mergeEngineGaps(data);
+      // Review state belongs to the PROJECT, not to the scan that happened to
+      // produce this city: a re-scan reads back the same verdicts.
+      const reviews = data ? loadReviewsForCity(data) : {};
+      // The address names the city it was written for. When that is the city
+      // arriving, the visit continues out of the URL instead of starting over.
+      const visit = currentVisit();
+      const resuming = !!data && !!data.analysisId && visit.cityId === data.analysisId;
+      const restored = data && resuming ? resolveVisit(data, visit) : { chain: [], file: null };
+      const pose = resuming ? visit.pose : null;
+      // The construction cinematic is for the city a person is seeing for the
+      // first time on this machine, not for the tenth reload of a visit they are
+      // in the middle of (measured: every reload re-raised 10 of 10 buildings).
+      const seenBefore = hasCityVisit(data?.analysisId);
       set({
-        flyRequest: {
-          x: placement.x,
-          z: placement.z,
-          distance: shot.dist,
-          targetY: shot.targetY,
-          nonce: ++flyNonce,
-        },
+        cityData: data,
+        focusPath: restored.chain,
+        selectedUnit: restored.file ? { kind: "file", id: restored.file.id } : null,
+        hoveredId: null,
+        // Stale view state must never leak into a new city: a P0 filter from
+        // the previous repo would dim the new one with no visible indicator
+        // (chips hide when a severity has 0 findings), and a running tour
+        // would keep walking a city it was never started for.
+        threatFilter: "all",
+        ruleFilter: null,
+        // A new city is a neutral stage: the previous repo's view mode must not
+        // dim or re-lighten the fresh skyline before the user has chosen a lens.
+        viewMode: "structure",
+        tourActive: false,
+        tourIndex: 0,
+        triageActive: false,
+        triageCursor: 0,
+        triageTotal: 0,
+        focusedFindingKey: null,
+        cameraMode: "free",
+        reviews,
+        orphanedReviews: countStrandedVerdicts(reviews, data),
+        verdictsBlocked: false,
+        testRun: { status: "idle", stage: "" },
+        testResults: {},
+        buildPhase: data ? (seenBefore ? "built" : "constructing") : "empty",
+        buildStartedAt: data ? Date.now() : 0,
+        constructionDone: 0,
+        constructionTotal: 0,
+        // The camera belongs to the address too — but a pose is not a flight, so
+        // it goes out on its own channel for the tracker inside the canvas.
+        poseRequest: pose ? { pose, nonce: ++poseNonce } : null,
       });
-    } else {
-      flyToDirOverview(set, cityData, hit.chain);
-    }
-  },
+      if (data) recordCityVisit(data);
+      // The address names the city that is on screen, so a reload comes back to
+      // it instead of the empty world. Written from the payload's own scan id —
+      // which is why every city, the demo included, now carries one.
+      if (typeof window === "undefined") return;
+      writeCityParam(data?.analysisId ?? null);
+      if (restored.file) writeNavParams(restored.chain, restored.file.path);
+      else if (restored.chain.length > 0) writeNavParams(restored.chain, null);
+      // An address that names a file but no camera still means "I was looking at
+      // this one": the sanctioned flight is the honest way to honour it, and a
+      // selection the screen shows nowhere would be a half-restored visit.
+      if (restored.file && !pose) get().navigateToFile(restored.file.id);
+    },
 
-  selectBuilding: (fileId) => {
-    // Click selection is pilot-only: focus + selection change, the camera
-    // never moves. (navigateToFile remains the fly-to variant for search,
-    // triage, tour and breadcrumbs.)
-    const { cityData } = get();
-    if (!cityData) return;
-    const hit = findFileById(cityData, fileId);
-    if (!hit) return;
-    set({ focusPath: hit.chain, selectedUnit: { kind: "file", id: fileId } });
-  },
+    /** Tear the city down and return to the Landing screen ("start over"). */
+    resetToLanding: () => teardownVisit(true),
+    resetToLandingFromHistory: () => teardownVisit(false),
+    setBuildPhase: (phase) => set({ buildPhase: phase }),
+    setConstructionProgress: (done, total) =>
+      set({ constructionDone: done, constructionTotal: total }),
+    buildSkipAt: null,
+    requestBuildSkip: () => set({ buildSkipAt: Date.now() }),
 
-  cameraMode: "free",
-  focusBuilding: (fileId) => {
-    // Double-click: select, fly from the user's current direction, and hand
-    // the building to the orbit controller for inspection.
-    const { cityData } = get();
-    if (!cityData) return;
-    const hit = findFileById(cityData, fileId);
-    if (!hit) return;
-    set({
-      focusPath: hit.chain,
-      selectedUnit: { kind: "file", id: fileId },
-      cameraMode: "orbit",
-    });
-    const layout = getDirLayout(cityData, hit.chain);
-    const placement = layout.buildings.find((b) => b.file.id === fileId);
-    if (placement) {
-      const shot = buildingShot(layout.bounds, placement.h);
+    focusPath: [],
+    selectedUnit: null,
+    hoveredId: null,
+    setHoveredId: (id) => set({ hoveredId: id }),
+
+    setFocusPath: (path, opts) => {
+      set({ focusPath: path, ...(opts?.keepSelection ? {} : { selectedUnit: null }) });
+      const city = get().cityData;
+      if (city) flyToDirOverview(set, city, path);
+    },
+
+    drillIn: (dirName) => {
+      const { focusPath, cityData } = get();
+      if (!cityData) return;
+      const next = [...focusPath, dirName];
+      set({ focusPath: next, selectedUnit: null });
+      flyToDirOverview(set, cityData, next);
+    },
+
+    drillOut: () => {
+      const { focusPath, cityData } = get();
+      if (!cityData || focusPath.length === 0) return;
+      get().setFocusPath(focusPath.slice(0, -1));
+    },
+
+    resetFocus: () => {
+      const { cityData } = get();
+      set({ focusPath: [], selectedUnit: null });
+      if (cityData) flyToDirOverview(set, cityData, []);
+    },
+
+    setSelectedUnit: (unit) => set({ selectedUnit: unit }),
+
+    navigateToFile: (fileId) => {
+      const { cityData } = get();
+      if (!cityData) return;
+      const hit = findFileById(cityData, fileId);
+      if (!hit) return;
+      set({ focusPath: hit.chain, selectedUnit: { kind: "file", id: fileId } });
+      const layout = getDirLayout(cityData, hit.chain);
+      const placement = layout.buildings.find((b) => b.file.id === fileId);
+      if (placement) {
+        const shot = buildingShot(layout.bounds, placement.h);
+        set({
+          flyRequest: {
+            x: placement.x,
+            z: placement.z,
+            distance: shot.dist,
+            targetY: shot.targetY,
+            nonce: ++flyNonce,
+          },
+        });
+      } else {
+        flyToDirOverview(set, cityData, hit.chain);
+      }
+    },
+
+    selectBuilding: (fileId) => {
+      // Click selection is pilot-only: focus + selection change, the camera
+      // never moves. (navigateToFile remains the fly-to variant for search,
+      // triage, tour and breadcrumbs.)
+      const { cityData } = get();
+      if (!cityData) return;
+      const hit = findFileById(cityData, fileId);
+      if (!hit) return;
+      set({ focusPath: hit.chain, selectedUnit: { kind: "file", id: fileId } });
+    },
+
+    cameraMode: "free",
+    focusBuilding: (fileId) => {
+      // Double-click: select, fly from the user's current direction, and hand
+      // the building to the orbit controller for inspection.
+      const { cityData } = get();
+      if (!cityData) return;
+      const hit = findFileById(cityData, fileId);
+      if (!hit) return;
       set({
-        flyRequest: {
-          x: placement.x,
-          z: placement.z,
-          distance: shot.dist,
-          targetY: shot.targetY,
-          nonce: ++flyNonce,
-        },
+        focusPath: hit.chain,
+        selectedUnit: { kind: "file", id: fileId },
+        cameraMode: "orbit",
       });
-    }
-  },
-  exitOrbit: () => set({ cameraMode: "free" }),
+      const layout = getDirLayout(cityData, hit.chain);
+      const placement = layout.buildings.find((b) => b.file.id === fileId);
+      if (placement) {
+        const shot = buildingShot(layout.bounds, placement.h);
+        set({
+          flyRequest: {
+            x: placement.x,
+            z: placement.z,
+            distance: shot.dist,
+            targetY: shot.targetY,
+            nonce: ++flyNonce,
+          },
+        });
+      }
+    },
+    exitOrbit: () => set({ cameraMode: "free" }),
 
-  flyRequest: null,
-  requestFly: ({ distance = 40, ...rest }) =>
-    set({ flyRequest: { ...rest, distance, nonce: ++flyNonce } }),
-  cameraInfo: { x: 0, z: 60, angle: 0, dist: 80 },
-  setCameraInfo: (info) => set({ cameraInfo: info }),
-  cityLostView: false,
-  setCityLostView: (lost) => {
-    if (get().cityLostView === lost) return;
-    set({ cityLostView: lost });
-  },
-  cameraManualAt: 0,
-  // throttled: the walk path calls this every frame a key is held down
-  noteCameraManual: () => {
-    const now = Date.now();
-    if (now - get().cameraManualAt < 250) return;
-    set({ cameraManualAt: now });
-  },
+    flyRequest: null,
+    requestFly: ({ distance = 40, ...rest }) =>
+      set({ flyRequest: { ...rest, distance, nonce: ++flyNonce } }),
+    poseRequest: null,
+    requestPose: (pose) => set({ poseRequest: pose ? { pose, nonce: ++poseNonce } : null }),
+    cameraInfo: { x: 0, z: 60, angle: 0, dist: 80 },
+    setCameraInfo: (info) => set({ cameraInfo: info }),
+    cityLostView: false,
+    setCityLostView: (lost) => {
+      if (get().cityLostView === lost) return;
+      set({ cityLostView: lost });
+    },
+    cameraManualAt: 0,
+    // throttled: the walk path calls this every frame a key is held down
+    noteCameraManual: () => {
+      const now = Date.now();
+      if (now - get().cameraManualAt < 250) return;
+      set({ cameraManualAt: now });
+    },
 
-  craneFraming: null,
-  // The director writes this ~10 Hz while the city rises; unchanged shots are
-  // dropped so a standing still-frame never re-renders the rig.
-  setCraneFraming: (shot) => {
-    const cur = get().craneFraming;
-    if (cur === null || shot === null) {
-      if (cur === shot) return;
-    } else if (cur.dist === shot.dist && cur.targetY === shot.targetY) return;
-    set({ craneFraming: shot });
-  },
+    craneFraming: null,
+    // The director writes this ~10 Hz while the city rises; unchanged shots are
+    // dropped so a standing still-frame never re-renders the rig.
+    setCraneFraming: (shot) => {
+      const cur = get().craneFraming;
+      if (cur === null || shot === null) {
+        if (cur === shot) return;
+      } else if (cur.dist === shot.dist && cur.targetY === shot.targetY) return;
+      set({ craneFraming: shot });
+    },
 
-  threatFilter: "all",
-  setThreatFilter: (f) => {
-    set({ threatFilter: f });
-    reanchorTriage(set, get);
-  },
+    threatFilter: "all",
+    setThreatFilter: (f) => {
+      set({ threatFilter: f });
+      reanchorTriage(set, get);
+    },
 
-  ruleFilter: null,
-  setRuleFilter: (rule) => {
-    set({ ruleFilter: rule });
-    reanchorTriage(set, get);
-  },
+    ruleFilter: null,
+    setRuleFilter: (rule) => {
+      set({ ruleFilter: rule });
+      reanchorTriage(set, get);
+    },
 
-  heatChannel: "threat",
-  setHeatChannel: (c) => set({ heatChannel: c }),
+    heatChannel: "threat",
+    setHeatChannel: (c) => set({ heatChannel: c }),
 
-  viewMode: "structure",
-  setViewMode: (m) => set({ viewMode: m }),
+    viewMode: "structure",
+    setViewMode: (m) => set({ viewMode: m }),
 
-  // ── Triage implementation ────────────────────────────────────────────────
-  triageActive: false,
-  triageCursor: 0,
-  triageTotal: 0,
-  focusedFindingKey: null,
-  startTriage: () => {
-    const { cityData } = get();
-    if (!cityData) return;
-    const list = triageList(cityData, get().threatFilter, get().ruleFilter);
-    if (list.length === 0) return;
-    // A verdict is a finished decision. The round opens on the first finding
-    // that still needs one, so re-scanning the same folder tomorrow does not
-    // walk the whole queue again. When every finding is judged, entry 0 stays
-    // reachable — inspecting a past decision must not require a filter.
-    const at = nextOpenTriageIndex(list, get().reviews, 0, 1);
-    const first = list[at === -1 ? 0 : at]!;
-    set({
-      triageActive: true,
-      triageCursor: at === -1 ? 0 : at,
-      triageTotal: list.length,
-      focusedFindingKey: findingKey(first.file.id, first.index),
-    });
-    get().navigateToFile(first.file.id);
-    // Voxel-focus V3: besides the building-center flight, dive to the exact
-    // voxel. flyToVoxel overrides the flyRequest only when a cell exists —
-    // otherwise the previous behavior stays.
-    const line = first.file.findings[first.index]?.line;
-    if (line !== undefined) flyToVoxel(set, cityData, first.file.id, line);
-  },
-  nextTriage: () => {
-    const { cityData, triageActive, triageCursor } = get();
-    if (!cityData || !triageActive) return;
-    const list = triageList(cityData, get().threatFilter, get().ruleFilter);
-    if (list.length === 0) return;
-    // Step to the next finding WITHOUT a verdict. A judge that lands on the
-    // already-decided entry next to it costs the user a decision twice.
-    const at = nextOpenTriageIndex(list, get().reviews, triageCursor + 1, 1);
-    if (at === -1) return;
-    const target = list[at]!;
-    set({
-      triageCursor: at,
-      triageTotal: list.length,
-      focusedFindingKey: findingKey(target.file.id, target.index),
-    });
-    get().navigateToFile(target.file.id);
-    // Voxel-focus V3 — see startTriage.
-    const line = target.file.findings[target.index]?.line;
-    if (line !== undefined) flyToVoxel(set, cityData, target.file.id, line);
-  },
-  prevTriage: () => {
-    const { cityData, triageActive, triageCursor } = get();
-    if (!cityData || !triageActive) return;
-    const list = triageList(cityData, get().threatFilter, get().ruleFilter);
-    if (list.length === 0) return;
-    // Same walk backwards. Filters may have shrunk the queue while the triage
-    // ran, so the walk starts no later than the last entry of the new list.
-    const from = Math.min(list.length - 1, triageCursor - 1);
-    const at = nextOpenTriageIndex(list, get().reviews, from, -1);
-    if (at === -1) return;
-    const target = list[at]!;
-    set({
-      triageCursor: at,
-      triageTotal: list.length,
-      focusedFindingKey: findingKey(target.file.id, target.index),
-    });
-    get().navigateToFile(target.file.id);
-    // Voxel-focus V3 — see startTriage.
-    const line = target.file.findings[target.index]?.line;
-    if (line !== undefined) flyToVoxel(set, cityData, target.file.id, line);
-  },
-  endTriage: () =>
-    set({ triageActive: false, triageCursor: 0, triageTotal: 0, focusedFindingKey: null }),
-  setFocusedFindingKey: (key) => set({ focusedFindingKey: key }),
-  refocusVoxel: () => {
-    const { cityData, focusedFindingKey } = get();
-    if (!cityData || !focusedFindingKey) return;
-    // findingKey format: `${fileId}#${index}` — lastIndexOf keeps file ids
-    // that themselves contain '#' intact.
-    const sep = focusedFindingKey.lastIndexOf("#");
-    if (sep <= 0) return;
-    const fileId = focusedFindingKey.slice(0, sep);
-    const index = Number(focusedFindingKey.slice(sep + 1));
-    if (!Number.isInteger(index) || index < 0) return;
-    const hit = findFileById(cityData, fileId);
-    if (!hit) return;
-    const line = hit.file.findings[index]?.line;
-    if (line !== undefined) flyToVoxel(set, cityData, fileId, line);
-  },
+    // ── Triage implementation ────────────────────────────────────────────────
+    triageActive: false,
+    triageCursor: 0,
+    triageTotal: 0,
+    focusedFindingKey: null,
+    startTriage: () => {
+      const { cityData } = get();
+      if (!cityData) return;
+      const list = triageList(cityData, get().threatFilter, get().ruleFilter);
+      if (list.length === 0) return;
+      // A verdict is a finished decision. The round opens on the first finding
+      // that still needs one, so re-scanning the same folder tomorrow does not
+      // walk the whole queue again. When every finding is judged, entry 0 stays
+      // reachable — inspecting a past decision must not require a filter.
+      const at = nextOpenTriageIndex(list, get().reviews, 0, 1);
+      const first = list[at === -1 ? 0 : at]!;
+      set({
+        triageActive: true,
+        triageCursor: at === -1 ? 0 : at,
+        triageTotal: list.length,
+        focusedFindingKey: findingKey(first.file.id, first.index),
+      });
+      get().navigateToFile(first.file.id);
+      // Voxel-focus V3: besides the building-center flight, dive to the exact
+      // voxel. flyToVoxel overrides the flyRequest only when a cell exists —
+      // otherwise the previous behavior stays.
+      const line = first.file.findings[first.index]?.line;
+      if (line !== undefined) flyToVoxel(set, cityData, first.file.id, line);
+    },
+    nextTriage: () => {
+      const { cityData, triageActive, triageCursor } = get();
+      if (!cityData || !triageActive) return;
+      const list = triageList(cityData, get().threatFilter, get().ruleFilter);
+      if (list.length === 0) return;
+      // Step to the next finding WITHOUT a verdict. A judge that lands on the
+      // already-decided entry next to it costs the user a decision twice.
+      const at = nextOpenTriageIndex(list, get().reviews, triageCursor + 1, 1);
+      if (at === -1) return;
+      const target = list[at]!;
+      set({
+        triageCursor: at,
+        triageTotal: list.length,
+        focusedFindingKey: findingKey(target.file.id, target.index),
+      });
+      get().navigateToFile(target.file.id);
+      // Voxel-focus V3 — see startTriage.
+      const line = target.file.findings[target.index]?.line;
+      if (line !== undefined) flyToVoxel(set, cityData, target.file.id, line);
+    },
+    prevTriage: () => {
+      const { cityData, triageActive, triageCursor } = get();
+      if (!cityData || !triageActive) return;
+      const list = triageList(cityData, get().threatFilter, get().ruleFilter);
+      if (list.length === 0) return;
+      // Same walk backwards. Filters may have shrunk the queue while the triage
+      // ran, so the walk starts no later than the last entry of the new list.
+      const from = Math.min(list.length - 1, triageCursor - 1);
+      const at = nextOpenTriageIndex(list, get().reviews, from, -1);
+      if (at === -1) return;
+      const target = list[at]!;
+      set({
+        triageCursor: at,
+        triageTotal: list.length,
+        focusedFindingKey: findingKey(target.file.id, target.index),
+      });
+      get().navigateToFile(target.file.id);
+      // Voxel-focus V3 — see startTriage.
+      const line = target.file.findings[target.index]?.line;
+      if (line !== undefined) flyToVoxel(set, cityData, target.file.id, line);
+    },
+    endTriage: () =>
+      set({ triageActive: false, triageCursor: 0, triageTotal: 0, focusedFindingKey: null }),
+    setFocusedFindingKey: (key) => set({ focusedFindingKey: key }),
+    refocusVoxel: () => {
+      const { cityData, focusedFindingKey } = get();
+      if (!cityData || !focusedFindingKey) return;
+      // findingKey format: `${fileId}#${index}` — lastIndexOf keeps file ids
+      // that themselves contain '#' intact.
+      const sep = focusedFindingKey.lastIndexOf("#");
+      if (sep <= 0) return;
+      const fileId = focusedFindingKey.slice(0, sep);
+      const index = Number(focusedFindingKey.slice(sep + 1));
+      if (!Number.isInteger(index) || index < 0) return;
+      const hit = findFileById(cityData, fileId);
+      if (!hit) return;
+      const line = hit.file.findings[index]?.line;
+      if (line !== undefined) flyToVoxel(set, cityData, fileId, line);
+    },
 
-  reviews: {},
-  orphanedReviews: 0,
-  setReview: (key, status) => {
-    const { reviews, cityData } = get();
-    const next = { ...reviews };
-    if (status === null) delete next[key];
-    else next[key] = status;
-    if (cityData) saveReviews(bucketKeyFor(cityData), next);
-    set({ reviews: next });
-  },
+    reviews: {},
+    orphanedReviews: 0,
+    verdictsBlocked: false,
+    setReview: (key, status) => {
+      const { reviews, cityData } = get();
+      const next = { ...reviews };
+      if (status === null) delete next[key];
+      else next[key] = status;
+      // A verdict that cannot be written is a verdict that dies with the tab.
+      // The storage call used to swallow that (`catch {}`) — say so on screen
+      // rather than let a full day of triage look saved.
+      const written = cityData ? saveReviews(bucketKeyFor(cityData), next) : true;
+      set({ reviews: next, verdictsBlocked: !written });
+    },
 
-  prefs: loadPrefs(),
-  setPref: (key, value) => {
-    const prefs = { ...get().prefs, [key]: value };
-    savePrefs(prefs);
-    set({ prefs });
-  },
+    prefs: loadPrefs(),
+    setPref: (key, value) => {
+      const prefs = { ...get().prefs, [key]: value };
+      savePrefs(prefs);
+      set({ prefs });
+    },
+    toggleUpdateCheck: () => {
+      const next = !get().prefs.updateCheck;
+      get().setPref("updateCheck", next);
+      return next;
+    },
 
-  testRun: { status: "idle", stage: "" },
-  testResults: {},
-  setTestRun: (run) => set({ testRun: run }),
-  setTestResults: (files) =>
-    set((state) => {
-      const next = { ...state.testResults };
-      for (const f of files) next[f.path] = f;
-      return { testResults: next };
-    }),
+    testRun: { status: "idle", stage: "" },
+    testResults: {},
+    setTestRun: (run) => set({ testRun: run }),
+    setTestResults: (files) =>
+      set((state) => {
+        const next = { ...state.testResults };
+        for (const f of files) next[f.path] = f;
+        return { testResults: next };
+      }),
 
-  showFindings: false,
-  setShowFindings: (v) => set({ showFindings: v }),
+    showFindings: false,
+    setShowFindings: (v) => set({ showFindings: v }),
 
-  scanProfile: loadSavedProfile(),
-  scanCategories: loadSavedCategories(),
-  toggleScanCategory: (c) => {
-    const current = get().scanCategories;
-    const next = current.includes(c)
-      ? // the last chip stays on: "nothing selected" is not "nothing scanned"
-        current.length > 1
-        ? current.filter((x) => x !== c)
-        : current
-      : [...current, c];
-    saveCategories(next);
-    set({ scanCategories: next });
-  },
-  setScanProfile: (p) => {
-    saveProfile(p);
-    set({ scanProfile: p });
-  },
+    scanProfile: loadSavedProfile(),
+    scanCategories: loadSavedCategories(),
+    toggleScanCategory: (c) => {
+      const current = get().scanCategories;
+      const next = current.includes(c)
+        ? // the last chip stays on: "nothing selected" is not "nothing scanned"
+          current.length > 1
+          ? current.filter((x) => x !== c)
+          : current
+        : [...current, c];
+      saveCategories(next);
+      set({ scanCategories: next });
+    },
+    setScanProfile: (p) => {
+      saveProfile(p);
+      set({ scanProfile: p });
+    },
 
-  scanPacks: loadSavedPacks(),
-  availablePacks: [],
-  setAvailablePacks: (packs) => {
-    // A saved id for a pack that is no longer on disk must not silently vanish
-    // from the scan: drop it and say which ones remain.
-    const known = new Set(packs.map((p) => p.id));
-    const before = get().scanPacks;
-    const kept = before.filter((id) => known.has(id));
-    if (kept.length !== before.length) savePacks(kept);
-    set({ availablePacks: packs, scanPacks: kept });
-  },
-  toggleScanPack: (id) => {
-    const current = get().scanPacks;
-    const next = current.includes(id) ? current.filter((x) => x !== id) : [...current, id];
-    savePacks(next);
-    set({ scanPacks: next });
-  },
+    scanPacks: loadSavedPacks(),
+    availablePacks: [],
+    setAvailablePacks: (packs) => {
+      // A saved id for a pack that is no longer on disk must not silently vanish
+      // from the scan: drop it and say which ones remain.
+      const known = new Set(packs.map((p) => p.id));
+      const before = get().scanPacks;
+      const kept = before.filter((id) => known.has(id));
+      if (kept.length !== before.length) savePacks(kept);
+      set({ availablePacks: packs, scanPacks: kept });
+    },
+    toggleScanPack: (id) => {
+      const current = get().scanPacks;
+      const next = current.includes(id) ? current.filter((x) => x !== id) : [...current, id];
+      savePacks(next);
+      set({ scanPacks: next });
+    },
 
-  tourActive: false,
-  tourIndex: 0,
-  startTour: () => {
-    const { cityData } = get();
-    if (!cityData || tourStops(cityData).length === 0) return;
-    set({ tourActive: true, tourIndex: 0 });
-    const stop = tourStops(cityData)[0];
-    if (stop) get().navigateToFile(stop.file.id);
-  },
-  endTour: () => set({ tourActive: false }),
-  nextTour: () => {
-    const { cityData, tourIndex } = get();
-    if (!cityData) return;
-    const stops = tourStops(cityData);
-    if (stops.length === 0) return;
-    const next = Math.min(stops.length - 1, tourIndex + 1);
-    set({ tourIndex: next });
-    get().navigateToFile(stops[next]!.file.id);
-  },
-  prevTour: () => {
-    const { cityData, tourIndex } = get();
-    if (!cityData) return;
-    const stops = tourStops(cityData);
-    if (stops.length === 0) return;
-    const prev = Math.max(0, tourIndex - 1);
-    set({ tourIndex: prev });
-    get().navigateToFile(stops[prev]!.file.id);
-  },
+    tourActive: false,
+    tourIndex: 0,
+    startTour: () => {
+      const { cityData } = get();
+      if (!cityData || tourStops(cityData).length === 0) return;
+      set({ tourActive: true, tourIndex: 0 });
+      const stop = tourStops(cityData)[0];
+      if (stop) get().navigateToFile(stop.file.id);
+    },
+    endTour: () => set({ tourActive: false }),
+    nextTour: () => {
+      const { cityData, tourIndex } = get();
+      if (!cityData) return;
+      const stops = tourStops(cityData);
+      if (stops.length === 0) return;
+      const next = Math.min(stops.length - 1, tourIndex + 1);
+      set({ tourIndex: next });
+      get().navigateToFile(stops[next]!.file.id);
+    },
+    prevTour: () => {
+      const { cityData, tourIndex } = get();
+      if (!cityData) return;
+      const stops = tourStops(cityData);
+      if (stops.length === 0) return;
+      const prev = Math.max(0, tourIndex - 1);
+      set({ tourIndex: prev });
+      get().navigateToFile(stops[prev]!.file.id);
+    },
 
-  isLoading: false,
-  setIsLoading: (loading) => set({ isLoading: loading }),
-  analysisProgress: 0,
-  setAnalysisProgress: (p) => set({ analysisProgress: p }),
-  analysisStage: "",
-  setAnalysisStage: (s) => set({ analysisStage: s }),
-  analysisId: null,
-  setAnalysisId: (id) => {
-    // Provenance only. Review state is keyed by project and fingerprint, so a
-    // new scan of the same folder must NOT reset the map — that reset is what
-    // made every verdict die with its per-scan uuid.
-    set({ analysisId: id });
-  },
-}));
+    isLoading: false,
+    setIsLoading: (loading) => set({ isLoading: loading }),
+    analysisProgress: 0,
+    setAnalysisProgress: (p) => set({ analysisProgress: p }),
+    analysisStage: "",
+    setAnalysisStage: (s) => set({ analysisStage: s }),
+    analysisId: null,
+    setAnalysisId: (id) => {
+      // Provenance only. Review state is keyed by project and fingerprint, so a
+      // new scan of the same folder must NOT reset the map — that reset is what
+      // made every verdict die with its per-scan uuid.
+      set({ analysisId: id });
+    },
+  };
+});
 
 // Debug/testing hook: lets automated E2E checks drive navigation directly.
 if (typeof window !== "undefined") {
   (window as unknown as Record<string, unknown>).__cityStore = useStore;
+}
+
+// ── The address follows the visit ──────────────────────────────────────────
+// One subscriber rather than a write in every action: drillIn, drillOut,
+// navigateToFile, selectBuilding, focusBuilding, the triage stepper and the
+// tour all move the visit, and an address that only some of them kept would be
+// a half-truth about where the user is. Replaces in place — a pilot crossing
+// the city would otherwise leave one history entry per district.
+if (typeof window !== "undefined") {
+  let lastNav: string | null = null;
+  let lastPathRef: string[] | null = null;
+  let lastUnitRef: AppState["selectedUnit"] = null;
+  useStore.subscribe((state) => {
+    const city = state.cityData;
+    if (!city) return;
+    // The camera reports through this store ~10 Hz, so the lookup that turns a
+    // selection into a path may not run on every notification — only when one
+    // of the two values the address carries actually changed identity.
+    if (state.focusPath === lastPathRef && state.selectedUnit === lastUnitRef) return;
+    lastPathRef = state.focusPath;
+    lastUnitRef = state.selectedUnit;
+    const fileId = state.selectedUnit?.kind === "file" ? state.selectedUnit.id : null;
+    const path = pathOfSelectedFile(city, fileId);
+    const key = `${state.focusPath.join("/")}|${path ?? ""}`;
+    if (key === lastNav) return;
+    lastNav = key;
+    writeNavParams(state.focusPath, path);
+  });
 }

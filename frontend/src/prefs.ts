@@ -10,7 +10,14 @@ export interface Prefs {
   gfxLite: boolean;
   /** Colorblind-safe severity palette + shape-coded beacons. */
   colorblind: boolean;
-  /** Passive update check against public GitHub releases (no telemetry). */
+  /**
+   * Passive update check against public GitHub releases (no telemetry).
+   *
+   * Read by the landing page before it asks the backend for a release
+   * (`Landing.tsx:177`), and settable through the store (`setPref`,
+   * `toggleUpdateCheck`). The menu row that shows it is ordered at Lane
+   * STADT-UI (`requests/staat.md` §1.1).
+   */
   updateCheck: boolean;
 }
 

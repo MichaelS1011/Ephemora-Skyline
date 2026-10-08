@@ -29,12 +29,22 @@ export function loadReviews(analysisId: string): Record<string, ReviewStatus> {
   }
 }
 
-export function saveReviews(analysisId: string, reviews: Record<string, ReviewStatus>): void {
-  if (typeof window === "undefined" || !analysisId) return;
+/**
+ * Write a project's verdicts.
+ *
+ * Returns whether the storage accepted them. A full quota used to be swallowed
+ * here (`catch {}`), so a day of triage could die with the tab while the screen
+ * still looked saved. The caller is the one place that knows what to say about
+ * it (`useStore.setReview` → `verdictsBlocked`).
+ */
+export function saveReviews(analysisId: string, reviews: Record<string, ReviewStatus>): boolean {
+  if (typeof window === "undefined" || !analysisId) return false;
   try {
     window.localStorage.setItem(PREFIX + analysisId, JSON.stringify(reviews));
+    return true;
   } catch {
-    // Storage full / disabled — triage state simply stays session-only
+    // Storage full or disabled — the verdicts live in this session only
+    return false;
   }
 }
 
