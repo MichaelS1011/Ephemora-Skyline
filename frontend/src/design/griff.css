@@ -1,0 +1,80 @@
+/**
+ * Griff — the styles of the keyboard's own feedback.
+ *
+ * New file on purpose: `design/globals.css` belongs to Lane TEXT (plan.md §4)
+ * and its `canvas { outline: none }` at line 498 stays exactly as it is — the
+ * focus ring this lane draws is an additional ring, not a rewrite of the global
+ * one.
+ */
+
+/* ── The sentence a key gets back ─────────────────────────────────────────── */
+.key-echo {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  /* Above the action dock, whose live height the dock publishes; the band below
+     it belongs to the primer and the legend. */
+  bottom: calc(44px + var(--dock-h, 96px));
+  z-index: 45;
+  max-width: min(560px, calc(100vw - 48px));
+  padding: 9px 14px;
+  border-radius: 8px;
+  font-family: var(--font-mono);
+  font-size: var(--fs-small, 12px);
+  line-height: 1.45;
+  text-align: center;
+  color: #f2d5a0;
+  background: rgba(18, 18, 16, 0.94);
+  border: 1px solid rgba(232, 178, 60, 0.38);
+  box-shadow: 0 4px 22px rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(10px);
+  pointer-events: none;
+  opacity: 0;
+  transition:
+    opacity 140ms ease-out,
+    transform 140ms ease-out;
+}
+.key-echo:not(:empty) {
+  opacity: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .key-echo {
+    transition: none;
+  }
+}
+
+/* ── Minimap: the keyboard's cursor ───────────────────────────────────────── */
+.city-minimap canvas {
+  /* globals.css gives every canvas `outline: none`; the ring for this one is a
+     focus ring, so it comes back when — and only when — the keyboard is on it. */
+  outline: none;
+  border-radius: 3px;
+}
+.city-minimap canvas:focus-visible {
+  outline: 2px solid rgba(232, 178, 60, 0.9);
+  outline-offset: 2px;
+}
+.minimap-keys {
+  font-family: var(--font-mono);
+  /* 11 px, not 10: tests/typeFloor.test.ts is the project's own legibility
+     floor and it fails any stylesheet that goes below it. */
+  font-size: 11px;
+  line-height: 1.4;
+  letter-spacing: 0.02em;
+  color: #f2d5a0;
+  padding: 4px 2px 1px;
+  border-top: 1px solid rgba(232, 178, 60, 0.22);
+  margin-top: 4px;
+}
+
+/* ── Tooltip pinned for a keyboard reader ─────────────────────────────────── */
+.tooltip-keyboard {
+  border-color: rgba(232, 178, 60, 0.55) !important;
+  box-shadow:
+    0 0 0 1px rgba(232, 178, 60, 0.18),
+    0 4px 16px rgba(0, 0, 0, 0.5) !important;
+}
+.tooltip-keyboard .tooltip-hint {
+  color: #f2d5a0;
+}

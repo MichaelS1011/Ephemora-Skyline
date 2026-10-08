@@ -1,17 +1,47 @@
-import { useEffect, useRef, useCallback } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useStore } from "../stores/useStore";
-import { getDirLayout } from "../city/layout";
+import { getDirLayout, type DirLayout } from "../city/layout";
 import { languageColor, ENV, SEVERITY_COLOR } from "../city/palette";
 import { t } from "../i18n";
+import { resolve } from "../interaction/shortcuts";
+import { getKeyboardMark } from "../interaction/keyboardMark";
+import "../design/griff.css";
 
 /**
  * City map — shows the CURRENT semantic-zoom level with the REAL camera
  * position and heading (the old minimap had a decorative static arrow).
- * Click anywhere to fly there.
+ * Click anywhere to fly there; the keyboard aims a marker and flies there.
+ *
+ * Click and Enter now share one geometry and one target. Measured before
+ * (`protokoll-vorher.log`): clicking the map at minimap pixel (26,30) and then
+ * pressing Enter moved 709 of 1000 screen cells — the key flew to the world
+ * origin instead of the point that had just been chosen, so the two hands got
+ * two different cities.
  */
 
 const MAP_SIZE = 190;
 const PADDING = 12;
+/** Gold, and deliberately not `ENV.selection`: that colour already means
+ *  "chosen" in the world, and here it marks the camera itself. */
+const MARKER_COLOR = "#e8b23c";
+
+/** The one mapping between world and plate — click and keyboard aim through it. */
+function geometry(layout: DirLayout): {
+  extent: number;
+  toX: (x: number) => number;
+  toY: (z: number) => number;
+  worldFromPixel: (px: number, py: number) => { x: number; z: number };
+} {
+  const extent = Math.max(layout.bounds + 8, 20);
+  const span = MAP_SIZE - PADDING * 2;
+  const toX = (x: number): number => PADDING + ((x + extent) / (extent * 2)) * span;
+  const toY = (z: number): number => PADDING + ((z + extent) / (extent * 2)) * span;
+  const worldFromPixel = (px: number, py: number): { x: number; z: number } => ({
+    x: ((px - PADDING) / span) * extent * 2 - extent,
+    z: ((py - PADDING) / span) * extent * 2 - extent,
+  });
+  return { extent, toX, toY, worldFromPixel };
+}
 
 export function Minimap({ show = true }: { show?: boolean }) {
   const lang = useStore((s) => s.prefs.lang);
@@ -19,7 +49,16 @@ export function Minimap({ show = true }: { show?: boolean }) {
   const cityData = useStore((s) => s.cityData);
   const focusPath = useStore((s) => s.focusPath);
   const cameraInfo = useStore((s) => s.cameraInfo);
+  const selectedUnit = useStore((s) => s.selectedUnit);
   const requestFly = useStore((s) => s.requestFly);
+
+  /** The point the keyboard is aiming at, in world units. */
+  const [marker, setMarker] = useState<{ x: number; z: number } | null>(null);
+  const [focused, setFocused] = useState(false);
+
+  useEffect(() => {
+    setMarker(null);
+  }, [cityData, focusPath]);
 
   useEffect(() => {
     if (!show || !cityData) return;
@@ -29,16 +68,11 @@ export function Minimap({ show = true }: { show?: boolean }) {
     if (!ctx) return;
 
     const layout = getDirLayout(cityData, focusPath);
-    const extent = Math.max(layout.bounds + 8, 20);
+    const { extent, toX, toY } = geometry(layout);
     const dpr = window.devicePixelRatio || 1;
     canvas.width = MAP_SIZE * dpr;
     canvas.height = MAP_SIZE * dpr;
     ctx.scale(dpr, dpr);
-
-    const toX = (x: number): number =>
-      PADDING + ((x + extent) / (extent * 2)) * (MAP_SIZE - PADDING * 2);
-    const toY = (z: number): number =>
-      PADDING + ((z + extent) / (extent * 2)) * (MAP_SIZE - PADDING * 2);
 
     ctx.clearRect(0, 0, MAP_SIZE, MAP_SIZE);
     ctx.fillStyle = "rgba(16, 16, 14, 0.85)";
@@ -88,6 +122,28 @@ export function Minimap({ show = true }: { show?: boolean }) {
       ctx.strokeRect(x - 2.5, y - 2.5, 5, 5);
     }
 
+    // the keyboard's aim: crosshair + ring, drawn under the camera cone
+    if (marker) {
+      const mx = toX(marker.x);
+      const my = toY(marker.z);
+      ctx.strokeStyle = MARKER_COLOR;
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.arc(mx, my, 5.5, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(mx - 9, my);
+      ctx.lineTo(mx - 6.5, my);
+      ctx.moveTo(mx + 6.5, my);
+      ctx.lineTo(mx + 9, my);
+      ctx.moveTo(mx, my - 9);
+      ctx.lineTo(mx, my - 6.5);
+      ctx.moveTo(mx, my + 6.5);
+      ctx.lineTo(mx, my + 9);
+      ctx.stroke();
+      ctx.lineWidth = 1;
+    }
+
     // REAL camera position + heading
     const cx = toX(cameraInfo.x);
     const cy = toY(cameraInfo.z);
@@ -103,36 +159,80 @@ export function Minimap({ show = true }: { show?: boolean }) {
     ctx.closePath();
     ctx.fill();
     ctx.restore();
-  }, [show, cityData, focusPath, cameraInfo]);
+  }, [show, cityData, focusPath, cameraInfo, marker]);
+
+  /** Where a fresh aim should start: the thing the reader is already looking at. */
+  const defaultMarker = useCallback((): { x: number; z: number } | null => {
+    if (!cityData) return null;
+    const layout = getDirLayout(cityData, focusPath);
+    const selected =
+      selectedUnit?.kind === "file"
+        ? layout.buildings.find((b) => b.file.id === selectedUnit.id)
+        : undefined;
+    if (selected) return { x: selected.x, z: selected.z };
+    const mark = getKeyboardMark();
+    const block = mark ? layout.blocks.find((b) => b.dir.path === mark.path) : undefined;
+    if (block) return { x: block.x, z: block.z };
+    return { x: layout.centre.x, z: layout.centre.z };
+  }, [cityData, focusPath, selectedUnit]);
+
+  const flyTo = useCallback(
+    (x: number, z: number): void => {
+      if (!cityData) return;
+      const layout = getDirLayout(cityData, focusPath);
+      requestFly({ x, z, distance: layout.bounds * 1.1 });
+    },
+    [cityData, focusPath, requestFly],
+  );
 
   const handleClick = useCallback(
     (e: React.MouseEvent<HTMLCanvasElement>) => {
       if (!cityData) return;
       const rect = e.currentTarget.getBoundingClientRect();
-      const px = e.clientX - rect.left;
-      const py = e.clientY - rect.top;
       const layout = getDirLayout(cityData, focusPath);
-      const extent = Math.max(layout.bounds + 8, 20);
-      const worldX = ((px - PADDING) / (MAP_SIZE - PADDING * 2)) * extent * 2 - extent;
-      const worldZ = ((py - PADDING) / (MAP_SIZE - PADDING * 2)) * extent * 2 - extent;
-      requestFly({ x: worldX, z: worldZ, distance: layout.bounds * 1.1 });
+      const { worldFromPixel } = geometry(layout);
+      const world = worldFromPixel(e.clientX - rect.left, e.clientY - rect.top);
+      setMarker(world);
+      flyTo(world.x, world.z);
     },
-    [cityData, focusPath, requestFly],
+    [cityData, focusPath, flyTo],
   );
 
-  // WCAG 2.1.1: the click-to-fly minimap must also be keyboard-operable.
-  // Enter/Space flies to the city centre — the same action the Overview
-  // button performs — so a keyboard user is never locked out of navigation.
+  // WCAG 2.1.1: the click-to-fly minimap is keyboard-operable on the same terms
+  // as the pointer — arrows aim a visible marker, Enter flies to THAT marker.
   const handleKey = useCallback(
     (e: React.KeyboardEvent<HTMLCanvasElement>) => {
       if (!cityData) return;
+      const layout = getDirLayout(cityData, focusPath);
+      const { extent } = geometry(layout);
+      const step = Math.max(2, extent / 10);
+      const clamp = (v: number): number => Math.max(-extent, Math.min(extent, v));
+      const at = marker ?? defaultMarker();
+
       if (e.key === "Enter" || e.key === " ") {
         e.preventDefault();
-        const layout = getDirLayout(cityData, focusPath);
-        requestFly({ x: 0, z: 0, distance: layout.bounds * 1.1 });
+        e.stopPropagation();
+        if (!at) return;
+        setMarker(at);
+        flyTo(at.x, at.z);
+        return;
+      }
+      if (
+        e.key === "ArrowLeft" ||
+        e.key === "ArrowRight" ||
+        e.key === "ArrowUp" ||
+        e.key === "ArrowDown"
+      ) {
+        e.preventDefault();
+        e.stopPropagation();
+        if (!at) return;
+        setMarker({
+          x: clamp(at.x + (e.key === "ArrowRight" ? step : e.key === "ArrowLeft" ? -step : 0)),
+          z: clamp(at.z + (e.key === "ArrowDown" ? step : e.key === "ArrowUp" ? -step : 0)),
+        });
       }
     },
-    [cityData, focusPath, requestFly],
+    [cityData, focusPath, marker, defaultMarker, flyTo],
   );
 
   if (!show) return null;
@@ -161,10 +261,29 @@ export function Minimap({ show = true }: { show?: boolean }) {
         style={{ width: MAP_SIZE, height: MAP_SIZE, cursor: "crosshair", display: "block" }}
         onClick={handleClick}
         onKeyDown={handleKey}
+        onFocus={() => {
+          setFocused(true);
+          setMarker((m) => m ?? defaultMarker());
+        }}
+        onBlur={() => setFocused(false)}
+        data-key-owner="minimap"
         tabIndex={0}
         role="button"
-        aria-label={t(lang, "minimap.aria")}
+        aria-label={resolve(lang, {
+          key: "minimap.ariaKeyboard",
+          en: "City map. Arrow keys move the marker, Enter flies the camera to it — the same as a click.",
+          de: "Übersichtskarte. Pfeiltasten bewegen die Markierung, Enter fliegt dorthin — wie ein Klick.",
+        })}
       />
+      {focused && (
+        <div className="minimap-keys">
+          {resolve(lang, {
+            key: "minimap.keys",
+            en: "← → ↑ ↓ marker · Enter flies",
+            de: "← → ↑ ↓ Markierung · Enter fliegt",
+          })}
+        </div>
+      )}
     </div>
   );
 }

@@ -7,6 +7,7 @@ import { useStore } from "../stores/useStore";
 import type { CameraInfo } from "../stores/useStore";
 import { getDirLayout } from "../city/layout";
 import type { CraneShot } from "../city/layout";
+import { getKeyboardMark } from "../interaction/keyboardMark";
 
 /** Shortest signed distance between two headings, so ±π does not look like a jump. */
 function angleDelta(a: number, b: number): number {
@@ -329,6 +330,8 @@ interface CityFrame {
   centre: LevelCentre;
   /** Top of the tallest geometry — the frustum rescue's ceiling. */
   top: number;
+  /** The plots on this level, for the keyboard's district mark. */
+  blocks: ReturnType<typeof getDirLayout>["blocks"];
 }
 function useCityFrame(): CityFrame | null {
   const cityData = useStore((s) => s.cityData);
@@ -343,7 +346,12 @@ function useCityFrame(): CityFrame | null {
       ...layout.blocks.flatMap((b) => b.skyline.map((s) => s.h)),
       ...layout.buildings.map((b) => b.h),
     );
-    return { bounds: layout.bounds, centre: layout.centre, top: Math.max(2, tallest) };
+    return {
+      bounds: layout.bounds,
+      centre: layout.centre,
+      top: Math.max(2, tallest),
+      blocks: layout.blocks,
+    };
   }, [cityData, focusPath]);
 }
 
@@ -357,8 +365,23 @@ function dialogOpen(): boolean {
   return !!document.querySelector('[aria-modal="true"]');
 }
 
+/**
+ * HUD elements that own their keys. The minimap aims its marker with the arrow
+ * keys, and a camera that turns while the reader is placing a marker makes the
+ * two hands fight over the same four keys. The minimap declares itself with
+ * `data-key-owner`; nothing else in the HUD steers the view.
+ */
+function ownsTheKeys(el: EventTarget | null): boolean {
+  const node = el as HTMLElement | null;
+  return !!node?.closest?.("[data-key-owner]");
+}
+
+/** The keyboard's own colour: the accent every keycap in the HUD wears. */
+const MARKER_COLOR = "#e8b23c";
+
 export function CameraRig() {
   const controlsRef = useRef<OrbitControlsImpl>(null);
+  const markRef = useRef<THREE.Mesh>(null);
   const { camera, gl } = useThree();
   const flyRequest = useStore((s) => s.flyRequest);
   const setCameraInfo = useStore((s) => s.setCameraInfo);
@@ -497,9 +520,10 @@ export function CameraRig() {
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
       if (!isNavKey(e.code)) return;
-      // Typing or an open modal dialog owns the keyboard — drop all held keys
-      // so no stale key keeps gliding behind the dialog.
-      if (isTypingTarget(e.target) || dialogOpen()) {
+      // Typing, an open modal dialog, or a HUD element that steers its own
+      // arrows owns the keyboard — drop all held keys so no stale key keeps
+      // gliding behind it.
+      if (isTypingTarget(e.target) || dialogOpen() || ownsTheKeys(e.target)) {
         pressedKeys.current.clear();
         return;
       }
@@ -541,10 +565,27 @@ export function CameraRig() {
     // the very first flight of a fresh city keeps the legacy fallback
     // (modeled by collapsing camPos onto camTarget — the helper's
     // degenerate case).
-    const preserve = !!controls && !firstFlightRef.current;
-    const anchor = preserve
-      ? { x: fromTarget.x, y: fromTarget.y, z: fromTarget.z }
-      : { x: fromPos.x, y: fromPos.y, z: fromPos.z };
+    //
+    // In FREE mode the orbit target is stale: `camera.lookAt()` moves the view
+    // and never touches `controls.target`, so the vector the helper would read
+    // is the one the last ORBIT flight left behind — often the world origin.
+    // Measured: clicking the minimap on a plot and pressing Enter on the marker
+    // the same click had just placed changed 931 of 1000 screen cells, because
+    // the second flight swung around a stale anchor and arrived at the same
+    // point from a different side. The live view axis is what "keep the
+    // direction" has to mean while flying free.
+    const preserve = !firstFlightRef.current;
+    let anchor: XYZ;
+    if (modeRef.current === "free" && preserve) {
+      camera.getWorldDirection(_dir);
+      anchor = {
+        x: fromPos.x + _dir.x * 12,
+        y: fromPos.y + _dir.y * 12,
+        z: fromPos.z + _dir.z * 12,
+      };
+    } else {
+      anchor = preserve && controls ? fromTarget : fromPos;
+    }
     const pos = approachFromCurrentDirection(
       { x: fromPos.x, y: fromPos.y, z: fromPos.z },
       anchor,
@@ -593,7 +634,12 @@ export function CameraRig() {
     if (keys.size > 0) {
       // Re-check the guard per frame: a dialog may have opened (or focus
       // moved into an input, or the tour started) while a key was held down.
-      if (isTypingTarget(document.activeElement) || dialogOpen() || tourActive) {
+      if (
+        isTypingTarget(document.activeElement) ||
+        dialogOpen() ||
+        tourActive ||
+        ownsTheKeys(document.activeElement)
+      ) {
         keys.clear();
       } else {
         tweenRef.current = null;
@@ -718,6 +764,20 @@ export function CameraRig() {
       if (tween.t >= 1) tweenRef.current = null;
     }
 
+    // The bracket pair's mark on a district plot. Read every frame rather than
+    // through React state: the mark changes on a keypress, and a re-render of
+    // the scene graph for one outline is not a price the world should pay.
+    const markMesh = markRef.current;
+    if (markMesh) {
+      const mark = getKeyboardMark();
+      const block = mark && frame ? frame.blocks.find((b) => b.dir.path === mark.path) : null;
+      markMesh.visible = !!block;
+      if (block) {
+        markMesh.position.set(block.x, 1.4, block.z);
+        markMesh.scale.set(block.w / 2 + 5, block.d / 2 + 5, 1);
+      }
+    }
+
     frameCount.current++;
     // The pilot's one question they cannot ask themselves: is the city still
     // in my frame? A quarter-second beat, counted in seconds and not in
@@ -782,19 +842,34 @@ export function CameraRig() {
   });
 
   return (
-    <OrbitControls
-      ref={controlsRef}
-      makeDefault
-      enabled={cameraMode === "orbit"}
-      maxPolarAngle={Math.PI / 2.05}
-      minDistance={3}
-      maxDistance={520}
-      enableDamping
-      dampingFactor={0.11}
-      rotateSpeed={0.85}
-      zoomSpeed={1.15}
-      panSpeed={1.0}
-      screenSpacePanning
-    />
+    <>
+      <OrbitControls
+        ref={controlsRef}
+        makeDefault
+        enabled={cameraMode === "orbit"}
+        maxPolarAngle={Math.PI / 2.05}
+        minDistance={3}
+        maxDistance={520}
+        enableDamping
+        dampingFactor={0.11}
+        rotateSpeed={0.85}
+        zoomSpeed={1.15}
+        panSpeed={1.0}
+        screenSpacePanning
+      />
+      {/* The district the bracket pair is standing on. Drawn over everything on
+          purpose: it answers a key the user just pressed, and a mark the podium
+          hides would leave the answer unverifiable. */}
+      <mesh ref={markRef} visible={false} rotation-x={-Math.PI / 2}>
+        <ringGeometry args={[0.86, 1, 48]} />
+        <meshBasicMaterial
+          color={MARKER_COLOR}
+          transparent
+          opacity={0.92}
+          depthTest={false}
+          toneMapped={false}
+        />
+      </mesh>
+    </>
   );
 }
