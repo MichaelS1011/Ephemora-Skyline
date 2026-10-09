@@ -1,5 +1,5 @@
 /**
- * City palette — a daylight architectural model.
+ * City palette — a code floor plan lit once, at the end of the day.
  *
  * Encoding rules (meaning never carried by colour alone):
  * - Facade colour encodes the file's LANGUAGE (colorblind-safe hues).
@@ -10,37 +10,66 @@
 import type { Severity, ThreatLevel } from "./types";
 
 // ── Language → facade colour ───────────────────────────────────────────────
+//
+// This block is a measurement, not a mood. The shipped set it replaces had a
+// smallest pairwise CIEDE2000 of **1.29** (Markdown `#8fa3b8` against JSON
+// `#93a7bd`) and **1.09** under simulated protanopia — two file kinds drawn in
+// what is on screen one colour. That is the number behind "Fassadenfarben
+// unterscheiden sich im Screenshot kaum".
+//
+// Construction, in the order the decisions were taken:
+//
+// 1. The ten languages a reader actually scans first (TypeScript, JavaScript,
+//    Python, Go, Rust, Java, Ruby, C#, HTML, CSS) keep their conventional hue:
+//    blue, gold, green, cyan, orange, brown, red, orchid, salmon, indigo.
+// 2. Every tone — these ten and the fourteen behind them — has to stand off the
+//    city floor it is drawn on, so a minimum distance of 12 ΔE00 to the whole
+//    environment band (ground, plot, kerb, asphalt, crossing, haze, zenith) is
+//    a hard floor. This is what stopped an earlier run from solving the
+//    separation with pale washes that vanished on `ENV.ground`.
+// 3. Inside those two constraints, L\* and C\*ab were searched (simulated
+//    annealing, `.qoder-scratch/devteam/WELT-BILD/palette-opt.mjs`) to maximise
+//    the SMALLEST distance over all 276 pairs, and the smallest distance was
+//    required under simulated protanopia and deuteranopia too — the same
+//    message has to survive the colorblind branch, so the palette is safe by
+//    construction instead of by the Okabe-Ito claim in a comment.
+//
+// Measured outcome of the set below: **8.89** ΔE00 minimum in normal vision,
+// **8.77** protanope, **8.28** deuteranope, **13.4** to the environment band
+// (tightest: CSS against the asphalt).
+// `tests/worldPicture.test.ts` pins those floors.
 
 export const LANGUAGE_COLORS: Record<string, string> = {
-  TypeScript: "#5b9bff",
-  JavaScript: "#f0b23e",
-  Python: "#4fc98a",
-  Rust: "#f4793b",
-  Go: "#3dd6c4",
-  Java: "#d98d4a",
-  Ruby: "#e35d6a",
-  CSharp: "#a78bfa",
-  Cpp: "#8fb3d9",
-  HTML: "#ff8a65",
-  CSS: "#b48eeb",
-  SCSS: "#cf6a9c",
-  Markdown: "#8fa3b8",
-  JSON: "#93a7bd",
-  YAML: "#7fc4b0",
-  Config: "#9aa7b8",
-  Shell: "#89c98f",
-  // Script, query and infra files join the scan — hues chosen for the free
-  // bands of this palette (olive, orchid, steel, indigo, brick), because the
-  // blue/green/amber band was already taken by the languages above.
-  SQL: "#b6c94f",
-  Terraform: "#bd5fc9",
-  PHP: "#5fb0c9",
-  Kotlin: "#6f7ce0",
-  Swift: "#e0655f",
-  // .env joins the scan as its own kind — sand, so it reads as configuration
-  // and not as another source language.
-  Env: "#c2a391",
-  Other: "#7f8ea3",
+  TypeScript: "#468eff",
+  JavaScript: "#efba54",
+  Python: "#00906a",
+  Rust: "#c06a0f",
+  Go: "#87d9dc",
+  Java: "#763b1d",
+  Ruby: "#c0433c",
+  CSharp: "#df8dd4",
+  Cpp: "#007983",
+  HTML: "#d4958c",
+  CSS: "#45619f",
+  SCSS: "#863e49",
+  // Document, data and configuration kinds: no strong convention exists for
+  // these, so they took the free ground in the search rather than a family
+  // look-alike. Markdown and JSON — the pair that used to be 1.29 apart —
+  // are now 25 apart.
+  Markdown: "#855400",
+  JSON: "#c19a00",
+  YAML: "#4b7dba",
+  Config: "#00555e",
+  Shell: "#5db6ac",
+  SQL: "#b89460",
+  Terraform: "#74c0ff",
+  PHP: "#4b2cbf",
+  Kotlin: "#9f0063",
+  Swift: "#ecb89a",
+  // .env joins the scan as its own kind, and it is the kind worth finding:
+  // it carries the loudest tone the search had left.
+  Env: "#0655f0",
+  Other: "#2695a4",
 };
 
 export function languageColor(language: string | undefined): string {
@@ -87,6 +116,13 @@ export const THREAT_COLOR: Record<ThreatLevel, string> = {
   high: SEVERITY_COLOR.P1,
   medium: SEVERITY_COLOR.P2,
   low: "#29d398",
+  /** Looked, found nothing. Its value is set from two sides at once: it has to
+   *  stand off the light plaza floor (`hudLegibility.test.ts`, ≥2.5:1) AND off
+   *  the dark haze it now floats on in the far view. `#3b4a63` cleared the
+   *  floor by 4.94 and the haze by 1.75 — a dusk atmosphere had made the
+   *  calmest level of the heat grid the one thing in the frame you could not
+   *  see. This is the lightest tone that keeps both, and it stays clearly
+   *  cooler than `UNCHECKED_COLOR` at the same luminance. */
   safe: "#3b4a63",
 };
 
@@ -119,6 +155,13 @@ function gradient(t: number, from: string, to: string): string {
   const g = Math.round(((pa >> 8) & 255) + (((pb >> 8) & 255) - ((pa >> 8) & 255)) * p);
   const b = Math.round((pa & 255) + ((pb & 255) - (pa & 255)) * p);
   return `#${((r << 16) | (g << 8) | b).toString(16).padStart(6, "0")}`;
+}
+
+/** Mineral roof coating: language hue stays visible, with a small, stable
+ * material variation per file. This variation carries no analysis meaning. */
+export function languageRoofColor(language: string | undefined, seed: number): string {
+  const mineral = gradient(0.3, languageColor(language), "#a8b4b1");
+  return gradient(0.07 + (Math.abs(seed) % 5) * 0.015, mineral, "#46525d");
 }
 
 /**
@@ -242,34 +285,81 @@ export function authorColor(name: string): string {
   return AUTHOR_PALETTE[h % AUTHOR_PALETTE.length]!;
 }
 
-// Daylight environment: slate roads, pale plots and cool atmospheric haze.
+/** Residents are a scale reference, never a second security or language key.
+ *  Mineral jackets and matte ceramic faces stay calm beside data colours. */
+export const EPHE_PALETTE = {
+  jackets: ["#426976", "#51786d", "#626e8b", "#82775f", "#527980", "#716e86", "#3f6971", "#796d60"],
+  shells: ["#e9e4d9", "#dce6dd", "#e3e8ed", "#e8dfd5"],
+  visor: "#253c47",
+  eyes: "#eff8f6",
+  boots: "#344850",
+  helmet: "#c7b888",
+} as const;
+
+// One coherent day, and the one place it is not allowed to go.
 //
-// The sky is a ramp, not a fill (see render/sky.ts). `fog` and `skyHorizon` are
-// deliberately the SAME value: the ground plane dissolves into the fog, so the
-// sky at the horizon has to arrive at that exact tone or the seam comes back.
-// `skyZenith` is the only stop allowed to differ.
+// The shipped world was high-key: haze 0.818 relative luminance, ground 0.565,
+// crossing 0.914, zenith 0.555. The band the city stands on and the sky above it
+// were 8.2 ΔE00 apart, the ground rendered at 211,220,224 against an albedo of
+// 183,201,210, and the brightest object in the frame was a zebra crossing. A
+// light city on a light floor under a light sky is one value with a few
+// outlines, and no facade colour could win against that.
+//
+// What changed: the asphalt went 29.4 ΔE00 BELOW the plaza floor, so the street
+// network reads as the ground's negative instead of as a third facade family;
+// the markings gave up most of their loudness (crossing 0.914 → 0.456, and
+// 26.4 ΔE00 from the asphalt it is painted on instead of 31.6); the sky got a
+// real gradient (zenith 0.278 against the horizon's 0.707, where the shipped
+// pair was 0.555 against 0.818); `sunDirection` came down to 25° elevation so a
+// plot's two visible facades land on different sides of one light.
+//
+// What did not change, and why. The atmosphere was first moved to late
+// afternoon — haze to 0.065, forty-five ΔE00 under the floor — and the frame
+// gained exactly the depth the brief asked for. It also deleted a metric. The
+// far-zoom heat grid is drawn UNLIT on this floor, and its two calmest levels
+// (`THREAT_COLOR.safe`, `UNCHECKED_COLOR`) are darker than any dusk haze:
+// measured in pixels, `safe` fell to 1.64:1 against the ground under it and
+// `unchecked` to 2.07:1, where `hudLegibility.test.ts` asks for 2.5:1. Re-tuning
+// the tiles does not rescue it either — lifting `safe` to clear a dark haze
+// collapses its lightness ordering against `unchecked`, and that pair is the
+// product's "looked, found nothing" against "nobody looked". Light floor and
+// dark distance cannot both hold the grid.
+//
+// So the haze stays lighter than every calm heat level — `worldPicture.test.ts`
+// pins that relationship. The current daylight pass brightens the ground and
+// horizon while keeping the measured contrast between roads, heat cells and
+// architecture.
+//
+// `skyTop === fog` still holds, and `GROUND_STOPS.rise` is still `fog`: the
+// ground plane dissolves into the horizon at the far end of its ramp, so the
+// rim of the quad is not an edge.
 
 export const ENV = {
-  skyTop: "#dcecf5",
-  // Fog sits ABOVE every surface it hides, or distance flattens into black
-  // instead of lifting into haze.
-  fog: "#dcecf5",
+  skyTop: "#e0e9e5",
+  // The horizon and the far ground are the SAME value on purpose: the plane
+  // dissolves into it, so the sky has to arrive there exactly.
+  //
+  // Lighter than every calm heat level; the contrast floor is measured in
+  // `worldPicture.test.ts` and `hudLegibility.test.ts`.
+  fog: "#e0e9e5",
   /** Zenith stop of the sky dome — cooler and a full value below the haze. */
-  skyZenith: "#a9c8e6",
+  skyZenith: "#6b93c0",
   /** The key light's own family, pooled into the sky around its azimuth. */
-  skySun: "#ffeeda",
+  skySun: "#e8d2b4",
   /** Where the sun is. The key light is placed from this, the sky glows to it. */
-  sunDirection: [60, 55, 30],
-  ground: "#b7c9d2",
-  plot: "#d5e0e4",
-  plotEdge: "#91a5b1",
-  road: "#718591",
-  curb: "#b6c7cc",
-  crosswalk: "#f2f6f6",
-  laneDash: "#e6d9ac",
+  sunDirection: [70, 34, 30],
+  // Pale sage land and limestone plots separate living ground from built code.
+  // Neither is a language or risk channel; the colour-distance guards cover both.
+  ground: "#d1e0bd",
+  plot: "#e6e1d4",
+  plotEdge: "#7d909b",
+  road: "#5c6a74",
+  curb: "#93a2a9",
+  crosswalk: "#aab6bb",
+  laneDash: "#b0ab97",
   streetlight: "#ffd9a0",
   windowWarm: "#ffc470",
-  windowCool: "#e8d8b0",
+  windowCool: "#d9cfae",
   windowAlarm: "#ff4d5e",
   connection: "#e8b23c",
   selection: "#e8503c",

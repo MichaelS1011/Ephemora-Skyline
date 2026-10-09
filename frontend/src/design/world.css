@@ -1,0 +1,45 @@
+/**
+ * The world's screen-space grade — the part of the atmosphere that is not
+ * in the scene graph.
+ *
+ * The dome and the ground ramp can only grade what they cover. What they
+ * cannot do is darken the corners of the FRAME, and at the overview distance
+ * that is where the measurement is thinnest: the audit's 900-file shot had its
+ * six towers in the middle third and nothing but asphalt, kerb and crossing
+ * out to the edges. A frame whose brightest pixels are at its rim is a frame
+ * that points away from its own subject.
+ *
+ * Two layers, both static, both in CSS:
+ *
+ * — a very soft radial falloff toward the corners, and
+ * — a cool edge along the top, leaving the centre of the city in open daylight.
+ *
+ * It is DOM on purpose. The same rules apply in the full-quality path and in
+ * `gfxLite` (where the bloom pass is off and the tone mapping takes a different
+ * route through the renderer), so the graphics preference cannot move the
+ * atmosphere — which is the contract `lookDev.test.ts` holds the shader to.
+ * It also costs no GPU work per frame: no clock, no uniform, no re-render.
+ *
+ * `pointer-events: none` and a low alpha: this layer never takes a click from
+ * the city, and it never covers a number.
+ */
+
+.world-grade {
+  /* Portalled into the canvas wrapper, so it sits between the picture and the
+     HUD in paint order and dims the world without ever dimming a number. */
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(
+      120% 95% at 50% 42%,
+      rgba(0, 0, 0, 0) 45%,
+      rgba(35, 50, 58, 0.035) 78%,
+      rgba(35, 50, 58, 0.07) 100%
+    ),
+    linear-gradient(to bottom, rgba(41, 79, 102, 0.04) 0%, rgba(41, 79, 102, 0) 28%);
+}
+
+/* Reduced motion does not touch this layer — it has no motion to still. The
+   rule is here so the next reader does not add one: the grade is part of the
+   lighting, and the lighting does not animate. */

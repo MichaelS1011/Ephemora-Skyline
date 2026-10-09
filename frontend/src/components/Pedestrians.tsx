@@ -16,6 +16,9 @@ import {
 } from "../city/openWorldStreets";
 import { prefersReducedMotion, reducedSettle } from "../city/motion";
 import type { BuildSite } from "../city/layout";
+import { EPHE_PALETTE } from "../city/palette";
+import { surfaceMatrix, surfacePoint } from "../city/worldSurface";
+import { useWorldSurface } from "../render/WorldSurface";
 
 /**
  * The Ephe's — the citizens of Ephemora Skyline.
@@ -34,9 +37,9 @@ import type { BuildSite } from "../city/layout";
  *   (coloured by the language the unit is made of) to the plot that is about
  *   to rise, set it on the roof as the tower comes up, and stroll on
  *
- * Everything is instanced (2 draw calls for all walkers, +2 when the
- * builders' hats and blocks are in the scene) plus one taxi, one bus, one
- * bus-stop sign and a 3-sprite pool for the chat bubbles.
+ * Five instanced draws carry the whole crowd, including arms and hands;
+ * +2 carry builders' helmets and blocks. Traffic shares two instanced draws,
+ * and conversations use a three-sprite pool.
  */
 
 interface StreetLine {
@@ -75,6 +78,9 @@ interface Ephe {
   fat: number; // 0.8 .. 1.5
   tall: number; // 0.75 .. 1.3
   phase: number;
+  /** Integrated from distance travelled, so a turning or waiting resident
+   *  does not keep walking in place. */
+  gait: number;
   color: THREE.Color;
   // walk target
   tx: number;
@@ -97,17 +103,81 @@ interface Ephe {
   hustle: number; // builders hurry; everyone else strolls
 }
 
-const WALKER_COLORS = [
-  "#527f93",
-  "#658c7b",
-  "#7487b3",
-  "#d2a55d",
-  "#7b96a6",
-  "#a4869a",
-  "#437d80",
-  "#ac8260",
-];
+const WALKER_COLORS = EPHE_PALETTE.jackets;
+
+export type EpheGesture = "idle" | "chat" | "carry" | "lift";
+export interface EpheLimbPose {
+  footX: number;
+  footY: number;
+  footZ: number;
+  handX: number;
+  handY: number;
+  handZ: number;
+}
+
+/** Local-space gait and task pose. Reuses the caller's scratch object: six
+ *  limb instances add no per-frame allocations or extra crowd draw calls. */
+export function writeEpheLimbPose(
+  out: EpheLimbPose,
+  stride: number,
+  side: -1 | 1,
+  gesture: EpheGesture,
+  gesturePhase = 0,
+): void {
+  const step = Math.max(-1, Math.min(1, stride)) * side;
+  out.footX = side * 0.12;
+  out.footY = 0.078 + Math.max(0, step) * 0.045;
+  out.footZ = step * 0.13;
+  out.handX = side * 0.28;
+  out.handY = 0.32;
+  out.handZ = -step * 0.1;
+  if (gesture === "carry") {
+    out.handX = side * 0.25;
+    out.handY = 0.58;
+    out.handZ = 0.43;
+  } else if (gesture === "lift") {
+    out.handX = side * 0.28;
+    out.handY = 1.22;
+    out.handZ = 0.12;
+  } else if (gesture === "chat" && side === 1) {
+    out.handY = 0.65 + Math.sin(gesturePhase) * 0.025;
+    out.handZ = 0.19;
+  }
+}
+/**
+ * How many Ephe's this frame actually needs.
+ *
+ * `count` is the capacity the instanced meshes were allocated for, not a
+ * quota to fill. The shipped behaviour was to stand 72 figures on a level
+ * whatever stood on it: measured against the 900-file city that is 2.1
+ * citizens per rendered file, against the two-file repo **36** — a crowd
+ * thirty-six times the size of the thing being inspected, and the reason the
+ * overview of a small repo reads as a street scene with a building in it.
+ *
+ * In a city the crowd follows the buildings it lives in: one figure per plaza
+ * file, capped by the capacity. Six is the floor, and it is a functional one —
+ * the bus stop needs a queue and the cab needs someone to pick up, and below
+ * that the transit choreography stops being legible at all.
+ *
+ * `openWorld` is the one case where there is no data to be under: the world
+ * before the first scan is an establishing shot, and its crowd IS the subject.
+ * It is passed in rather than inferred from `plots === 0`, because a scanned
+ * level can have an empty plaza too — the two-file repo is exactly that, its
+ * files live in one sub-district — and reading that as "no city yet" gave the
+ * smallest city in the test set its full 72-figure crowd and a bus line.
+ */
+export function crowdFor(plots: number, capacity: number, openWorld = false): number {
+  if (openWorld) return capacity;
+  return Math.max(Math.min(6, capacity), Math.min(capacity, plots));
+}
+
+/** A hamlet has no bus line: below this many plots the stop sign and the cab
+ *  stay and the bus — the loudest single piece of traffic geometry in a small
+ *  city's frame — leaves the street. */
+export const BUS_MIN_PLOTS = 12;
+
 const WALK_SPEED = 2.3;
+
 const TURN_SPEED = 3.4;
 const ARRIVE = 0.55;
 /** A kerb hop ends ON the kerb node, not near it: a figure that stops half a
@@ -121,8 +191,8 @@ const NODE_ARRIVE = 0.14;
  *  is ~0.7 units, so a 180° turn-around at a street end swings more than a unit
  *  away from the graph before it comes back. */
 const TURN_IN_PLACE = 2.05;
-/** Builder hat colour — brand amber, instanced on the hat mesh. */
-const HAT_COLOR = new THREE.Color("#e8b23c");
+/** Sand helmets distinguish the crew without borrowing an alarm colour. */
+const HAT_COLOR = new THREE.Color(EPHE_PALETTE.helmet);
 /** One tower's rise — must stay in step with Building.tsx. */
 const RISE_MS = 700;
 /** A crew member is on a deadline; a stroller is not. */
@@ -165,6 +235,7 @@ function makeEphe(
     fat: 0.82 + shape * 0.68,
     tall: 0.78 + (((i * 29) % 100) / 100) * 0.5,
     phase: (i * 1.7) % (Math.PI * 2),
+    gait: (i * 1.7) % (Math.PI * 2),
     color: new THREE.Color(WALKER_COLORS[i % WALKER_COLORS.length]!),
     tx: 0,
     tz: 0,
@@ -273,11 +344,12 @@ export function Pedestrians({
    *  approach off-graph and every step should visibly follow a street. */
   directStep?: number;
 }) {
+  const surface = useWorldSurface();
   const bodyRef = useRef<THREE.InstancedMesh>(null);
   const headRef = useRef<THREE.InstancedMesh>(null);
   const faceRef = useRef<THREE.InstancedMesh>(null);
   const eyeRef = useRef<THREE.InstancedMesh>(null);
-  const footRef = useRef<THREE.InstancedMesh>(null);
+  const limbRef = useRef<THREE.InstancedMesh>(null);
   const hatRef = useRef<THREE.InstancedMesh>(null);
   const cargoRef = useRef<THREE.InstancedMesh>(null);
   const plateRef = useRef<THREE.InstancedMesh>(null);
@@ -295,14 +367,26 @@ export function Pedestrians({
   const cityLife = homes.length > 0 && onGraph;
   const transitReady = onGraph && hasStreets;
 
+  /** The world before the first scan paints its own flat street plates; a
+   *  scanned level leaves the streets to `RoadSystem` and passes none. That is
+   *  how this component knows it is standing in a city rather than on bare
+   *  ground — and it has to be read off the plates, not off an empty `homes`,
+   *  because a scanned level CAN have an empty plaza: the two-file repo is
+   *  exactly that, both files live in one sub-district. */
+  const openWorld = !!streetPlates && streetPlates.length > 0;
+  const crowd = useMemo(() => crowdFor(homes.length, count, openWorld), [count, homes, openWorld]);
+
+  /** See {@link BUS_MIN_PLOTS}. */
+  const busLine = openWorld || homes.length >= BUS_MIN_PLOTS;
+
   const walkers = useMemo<Ephe[]>(
-    () => Array.from({ length: count }, (_, i) => makeEphe(i, bounds, network, homes, count)),
-    [count, bounds, network, homes],
+    () => Array.from({ length: crowd }, (_, i) => makeEphe(i, bounds, network, homes, crowd)),
+    [crowd, bounds, network, homes],
   );
 
   // Builders on the stage at once: most of the population, because the plots
   // that rise in the same second are scattered all over the city.
-  const CREW_SIZE = Math.max(6, Math.ceil(count * 0.6));
+  const CREW_SIZE = Math.max(6, Math.ceil(crowd * 0.6));
 
   // ── Transit infrastructure (needs a street list, not a built city) ────────
   /** The stop sign, the taxi curb and the two lanes they belong to, from one
@@ -397,12 +481,42 @@ export function Pedestrians({
 
   const dummy = useMemo(() => new THREE.Object3D(), []);
   const scratchColor = useMemo(() => new THREE.Color(), []);
-  const bodyGeo = useMemo(() => new THREE.CapsuleGeometry(0.2, 0.38, 4, 10), []);
-  const headGeo = useMemo(() => new THREE.SphereGeometry(0.23, 12, 8), []);
+  const bodyGeo = useMemo(() => new THREE.CapsuleGeometry(0.2, 0.32, 4, 10), []);
+  const headGeo = useMemo(() => new THREE.SphereGeometry(0.245, 12, 8), []);
   const faceGeo = useMemo(() => new THREE.SphereGeometry(1, 10, 6), []);
-  const eyeGeo = useMemo(() => new THREE.SphereGeometry(0.028, 6, 4), []);
-  const footGeo = useMemo(() => new THREE.SphereGeometry(1, 8, 6), []);
-  const hatGeo = useMemo(() => new THREE.ConeGeometry(0.25, 0.2, 12), []);
+  const eyeGeo = useMemo(() => new THREE.SphereGeometry(0.032, 6, 4), []);
+  // Boots, sleeves and hands share one unit sphere, coloured per instance.
+  const limbGeo = useMemo(() => new THREE.SphereGeometry(1, 8, 6), []);
+  const hatGeo = useMemo(
+    () =>
+      new THREE.LatheGeometry(
+        [
+          new THREE.Vector2(0, -0.035),
+          new THREE.Vector2(0.27, -0.035),
+          new THREE.Vector2(0.27, 0),
+          new THREE.Vector2(0.235, 0.015),
+          new THREE.Vector2(0.215, 0.085),
+          new THREE.Vector2(0.165, 0.145),
+          new THREE.Vector2(0.09, 0.18),
+          new THREE.Vector2(0, 0.19),
+        ],
+        12,
+      ),
+    [],
+  );
+  const limbPose = useMemo<EpheLimbPose>(
+    () => ({
+      footX: 0,
+      footY: 0,
+      footZ: 0,
+      handX: 0,
+      handY: 0,
+      handZ: 0,
+    }),
+    [],
+  );
+  const armDirection = useMemo(() => new THREE.Vector3(), []);
+  const armUp = useMemo(() => new THREE.Vector3(0, 1, 0), []);
   // One full-size building block, not a pebble: at the framing the build
   // plays in, a 0.3-unit cube is three pixels and the choreography is lost.
   const cargoGeo = useMemo(() => new THREE.BoxGeometry(0.82, 0.82, 0.82), []);
@@ -440,13 +554,34 @@ export function Pedestrians({
   useLayoutEffect(() => {
     const mesh = bodyRef.current;
     if (!mesh) return;
-    walkers.forEach((e, i) => mesh.setColorAt(i, e.color));
-    if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
-  }, [walkers]);
+    // Capacity is `count`; the population is `crowd`. Everything after the
+    // crowd's last figure is simply not drawn.
+    for (const m of [bodyRef, headRef, faceRef, hatRef, cargoRef]) {
+      if (m.current) m.current.count = crowd;
+    }
+    if (eyeRef.current) eyeRef.current.count = crowd * 2;
+    if (limbRef.current) limbRef.current.count = crowd * 6;
+    walkers.forEach((e, i) => {
+      mesh.setColorAt(i, e.color);
+      const shell = scratchColor.set(EPHE_PALETTE.shells[i % EPHE_PALETTE.shells.length]!);
+      headRef.current?.setColorAt(i, shell);
+      for (let side = 0; side < 2; side++) {
+        limbRef.current?.setColorAt(i * 6 + side, scratchColor.set(EPHE_PALETTE.boots));
+        limbRef.current?.setColorAt(i * 6 + 2 + side, e.color);
+        limbRef.current?.setColorAt(
+          i * 6 + 4 + side,
+          scratchColor.set(EPHE_PALETTE.shells[i % EPHE_PALETTE.shells.length]!),
+        );
+      }
+    });
+    for (const ref of [bodyRef, headRef, limbRef]) {
+      if (ref.current?.instanceColor) ref.current.instanceColor.needsUpdate = true;
+    }
+  }, [walkers, crowd, scratchColor]);
 
   // Hats and carried blocks start collapsed (scale 0) so nothing pokes out of
   // the ground before the first frame positions them; every walker gets the
-  // amber instance colour up front — only builders ever scale the hat up.
+  // sand instance colour up front — only builders ever scale the helmet up.
   useLayoutEffect(() => {
     for (const mesh of [hatRef.current, cargoRef.current]) {
       if (!mesh) continue;
@@ -454,7 +589,7 @@ export function Pedestrians({
       dummy.rotation.set(0, 0, 0);
       dummy.scale.setScalar(0);
       dummy.updateMatrix();
-      for (let i = 0; i < count; i++) mesh.setMatrixAt(i, dummy.matrix);
+      for (let i = 0; i < crowd; i++) mesh.setMatrixAt(i, surfaceMatrix(surface, dummy.matrix));
       mesh.instanceMatrix.needsUpdate = true;
     }
     const hats = hatRef.current;
@@ -462,7 +597,7 @@ export function Pedestrians({
       walkers.forEach((_, i) => hats.setColorAt(i, HAT_COLOR));
       if (hats.instanceColor) hats.instanceColor.needsUpdate = true;
     }
-  }, [walkers, count, buildSites, dummy]);
+  }, [walkers, crowd, buildSites, dummy, surface]);
 
   // ── the street and its traffic: two instanced meshes ─────────────────────
   // Colours are per-instance and never change; the street paint is placed once
@@ -482,7 +617,7 @@ export function Pedestrians({
       td.quaternion.setFromAxisAngle(AXIS_Y, p.rotY);
       td.scale.set(p.w, p.h, p.d);
       td.updateMatrix();
-      plates.setMatrixAt(i, td.matrix);
+      plates.setMatrixAt(i, surfaceMatrix(surface, td.matrix));
       plates.setColorAt(i, scratchColor.set(p.color));
     });
     plates.setColorAt(paintedCount, scratchColor.set(STOP_BOARD.color));
@@ -496,7 +631,7 @@ export function Pedestrians({
     plates.instanceMatrix.needsUpdate = true;
     posts.instanceMatrix.needsUpdate = true;
     placeTraffic();
-  }, [streetPlates, paintedCount, plateInstances, postInstances]);
+  }, [streetPlates, paintedCount, plateInstances, postInstances, surface]);
 
   /** Write the sign and both vehicles onto their instances. Not a simulation
    *  step: `dt` never enters here, so reduced motion still gets a full frame. */
@@ -513,7 +648,7 @@ export function Pedestrians({
       td.quaternion.identity();
       td.scale.setScalar(0);
       td.updateMatrix();
-      mesh.setMatrixAt(i, td.matrix);
+      mesh.setMatrixAt(i, surfaceMatrix(surface, td.matrix));
     };
     if (!on || !st) {
       collapse(plates, paintedCount);
@@ -525,13 +660,17 @@ export function Pedestrians({
       td.position.set(st.stopPoint.x, STOP_POST.y, st.stopPoint.z);
       td.scale.set(STOP_POST.r, STOP_POST.h, STOP_POST.r);
       td.updateMatrix();
-      posts.setMatrixAt(0, td.matrix);
+      posts.setMatrixAt(0, surfaceMatrix(surface, td.matrix));
       td.position.set(st.stopPoint.x, STOP_BOARD.y, st.stopPoint.z);
       td.scale.set(STOP_BOARD.w, STOP_BOARD.h, STOP_BOARD.d);
       td.updateMatrix();
-      plates.setMatrixAt(paintedCount, td.matrix);
+      plates.setMatrixAt(paintedCount, surfaceMatrix(surface, td.matrix));
       let bi = paintedCount + 1;
       for (const part of VEHICLE_BOXES) {
+        if (part.vehicle === "bus" && !busLine) {
+          collapse(plates, bi++);
+          continue;
+        }
         const pose = part.vehicle === "taxi" ? S.traffic.taxi : S.traffic.bus;
         td.position.set(
           pose.x + Math.sin(pose.rot) * part.z,
@@ -541,10 +680,14 @@ export function Pedestrians({
         td.quaternion.setFromAxisAngle(AXIS_Y, pose.rot);
         td.scale.set(part.w, part.h, part.d);
         td.updateMatrix();
-        plates.setMatrixAt(bi++, td.matrix);
+        plates.setMatrixAt(bi++, surfaceMatrix(surface, td.matrix));
       }
       let wi = 1;
       for (const wheel of VEHICLE_WHEELS) {
+        if (wheel.vehicle === "bus" && !busLine) {
+          collapse(posts, wi++);
+          continue;
+        }
         const pose = wheel.vehicle === "taxi" ? S.traffic.taxi : S.traffic.bus;
         td.position.set(
           pose.x + Math.sin(pose.rot) * wheel.z,
@@ -557,7 +700,7 @@ export function Pedestrians({
           .multiply(rollQ.setFromAxisAngle(AXIS_Z, Math.PI / 2));
         td.scale.set(wheel.r, wheel.t, wheel.r);
         td.updateMatrix();
-        posts.setMatrixAt(wi++, td.matrix);
+        posts.setMatrixAt(wi++, surfaceMatrix(surface, td.matrix));
       }
     }
     plates.instanceMatrix.needsUpdate = true;
@@ -934,10 +1077,12 @@ export function Pedestrians({
       const sprite = spriteRefs.current[k];
       if (sprite) {
         sprite.visible = true;
-        sprite.position.set(
+        surfacePoint(
+          surface,
           (ea.x + eb.x) / 2,
           2.05 + Math.sin(now * 2 + k) * 0.05,
           (ea.z + eb.z) / 2,
+          sprite.position,
         );
       }
     }
@@ -1014,7 +1159,7 @@ export function Pedestrians({
     }
 
     // ── bus ────────────────────────────────────────────────────────────────
-    if (transitReady && vehiclesActive && st?.stopPoint) {
+    if (transitReady && vehiclesActive && busLine && st?.stopPoint) {
       const bus = S.bus;
       const pose = S.traffic.bus;
       if (bus.mode === 0) {
@@ -1111,7 +1256,7 @@ export function Pedestrians({
     }
 
     // ── stop refill: send walkers to wait at the bus stop ──────────────────
-    if (transitReady && vehiclesActive && st?.stopPoint) {
+    if (transitReady && vehiclesActive && busLine && st?.stopPoint) {
       S.tStopRefill -= dt;
       const waiting = walkers.filter((e) => e.mode === "waitBus").length;
       if (S.tStopRefill <= 0 && waiting < 3) {
@@ -1206,6 +1351,8 @@ export function Pedestrians({
 
     // ── walkers ────────────────────────────────────────────────────────────
     walkers.forEach((e, i) => {
+      const previousX = e.x;
+      const previousZ = e.z;
       let visibleScale = 1;
       if (
         e.hidden ||
@@ -1297,8 +1444,10 @@ export function Pedestrians({
       }
 
       // ── render transform ─────────────────────────────────────────────────
-      const moving =
-        (e.mode === "walk" || e.mode === "toTaxi" || e.mode === "toSite") && e.pause <= 0;
+      const travelled = Math.hypot(e.x - previousX, e.z - previousZ);
+      const moving = dt > 0 && travelled > 0.00001;
+      if (moving) e.gait += (travelled * 5.5) / e.tall;
+      const stride = moving ? Math.sin(e.gait) : 0;
       const grow =
         e.mode === "exit" || e.mode === "enter"
           ? Math.max(e.anim, 0)
@@ -1308,17 +1457,17 @@ export function Pedestrians({
       // work bob: gentle up/down plus a small nod — same sin(now*9)*0.04
       // pattern the chat idle uses
       const bob = moving
-        ? Math.abs(Math.sin(now * 7 * e.tall + e.phase)) * 0.05
+        ? Math.abs(stride) * 0.035
         : e.mode === "work"
           ? Math.sin(now * 9) * 0.04
           : 0;
-      const y = (0.44 + bob) * e.tall * grow;
+      const y = (0.46 + bob) * e.tall * grow;
       const vScale = e.tall * grow * visibleScale;
 
       dummy.position.set(e.x, y, e.z);
       dummy.rotation.set(
         moving
-          ? Math.sin(now * 7 + e.phase) * 0.06
+          ? stride * 0.04
           : e.mode === "work"
             ? Math.sin(now * 9) * 0.04
             : Math.sin(now * 1.6 + e.phase) * 0.02,
@@ -1331,57 +1480,89 @@ export function Pedestrians({
         e.fat * grow * visibleScale,
       );
       dummy.updateMatrix();
-      bodies.setMatrixAt(i, dummy.matrix);
+      bodies.setMatrixAt(i, surfaceMatrix(surface, dummy.matrix));
 
-      dummy.position.set(e.x, y + 0.46 * e.tall * grow, e.z);
+      dummy.position.set(e.x, y + 0.44 * e.tall * grow, e.z);
       dummy.scale.set(
         e.fat * grow * visibleScale,
         e.tall * grow * visibleScale,
         e.fat * grow * visibleScale,
       );
       dummy.updateMatrix();
-      heads.setMatrixAt(i, dummy.matrix);
+      heads.setMatrixAt(i, surfaceMatrix(surface, dummy.matrix));
 
-      // A cream head, dark face and two eyes give each Ephe a readable direction.
-      // All residents share five instanced meshes; no per-resident draw calls.
+      // Ceramic heads, an ink visor and two pearl eyes carry the facing direction.
+      // Limbs reuse a single instanced sphere mesh for boots, sleeves and hands.
       const forwardX = Math.sin(e.angle);
       const forwardZ = Math.cos(e.angle);
       const width = e.fat * grow * visibleScale;
-      const headY = y + 0.46 * e.tall * grow;
+      const headY = y + 0.44 * e.tall * grow;
       dummy.rotation.set(0, e.angle, 0);
-      dummy.position.set(e.x + forwardX * 0.19 * width, headY, e.z + forwardZ * 0.19 * width);
-      dummy.scale.set(0.17 * width, 0.12 * vScale, 0.07 * width);
+      dummy.position.set(e.x + forwardX * 0.2 * width, headY, e.z + forwardZ * 0.2 * width);
+      dummy.scale.set(0.185 * width, 0.12 * vScale, 0.065 * width);
       dummy.updateMatrix();
-      faceRef.current?.setMatrixAt(i, dummy.matrix);
+      faceRef.current?.setMatrixAt(i, surfaceMatrix(surface, dummy.matrix));
+      const gesture: EpheGesture =
+        e.mode === "chat"
+          ? "chat"
+          : e.mode === "work"
+            ? "lift"
+            : e.mode === "toSite"
+              ? "carry"
+              : "idle";
       for (let side = 0; side < 2; side++) {
         const lateral = side === 0 ? -1 : 1;
         dummy.position.set(
-          e.x + (forwardX * 0.252 + forwardZ * lateral * 0.065) * width,
+          e.x + (forwardX * 0.267 + forwardZ * lateral * 0.068) * width,
           headY + 0.016 * vScale,
-          e.z + (forwardZ * 0.252 - forwardX * lateral * 0.065) * width,
+          e.z + (forwardZ * 0.267 - forwardX * lateral * 0.068) * width,
         );
         dummy.scale.setScalar(vScale);
         dummy.updateMatrix();
-        eyeRef.current?.setMatrixAt(i * 2 + side, dummy.matrix);
-        const step = moving ? Math.sin(now * 7 * e.tall + e.phase) * lateral : 0;
+        eyeRef.current?.setMatrixAt(i * 2 + side, surfaceMatrix(surface, dummy.matrix));
+        writeEpheLimbPose(limbPose, stride, lateral, gesture, now * 2.8 + e.phase);
         dummy.position.set(
-          e.x + (forwardZ * lateral * 0.12 + forwardX * step * 0.1) * width,
-          (0.075 + Math.max(0, step) * 0.05) * vScale,
-          e.z + (-forwardX * lateral * 0.12 + forwardZ * step * 0.1) * width,
+          e.x + (forwardZ * limbPose.footX + forwardX * limbPose.footZ) * width,
+          limbPose.footY * vScale,
+          e.z + (-forwardX * limbPose.footX + forwardZ * limbPose.footZ) * width,
         );
-        dummy.scale.set(0.1 * width, 0.075 * vScale, 0.16 * width);
+        dummy.rotation.set(0, e.angle, 0);
+        dummy.scale.set(0.1 * width, 0.075 * vScale, 0.17 * width);
         dummy.updateMatrix();
-        footRef.current?.setMatrixAt(i * 2 + side, dummy.matrix);
+        limbRef.current?.setMatrixAt(i * 6 + side, surfaceMatrix(surface, dummy.matrix));
+
+        const handX = e.x + (forwardZ * limbPose.handX + forwardX * limbPose.handZ) * width;
+        const handY = (limbPose.handY + bob) * vScale;
+        const handZ = e.z + (-forwardX * limbPose.handX + forwardZ * limbPose.handZ) * width;
+        const shoulderX = e.x + forwardZ * lateral * 0.205 * width;
+        const shoulderY = y + 0.14 * vScale;
+        const shoulderZ = e.z - forwardX * lateral * 0.205 * width;
+        armDirection.set(handX - shoulderX, handY - shoulderY, handZ - shoulderZ);
+        const armLength = armDirection.length();
+        dummy.position.set(
+          (handX + shoulderX) / 2,
+          (handY + shoulderY) / 2,
+          (handZ + shoulderZ) / 2,
+        );
+        dummy.quaternion.setFromUnitVectors(armUp, armDirection.normalize());
+        dummy.scale.set(0.075 * width, armLength / 2, 0.075 * width);
+        dummy.updateMatrix();
+        limbRef.current?.setMatrixAt(i * 6 + 2 + side, surfaceMatrix(surface, dummy.matrix));
+        dummy.position.set(handX, handY, handZ);
+        dummy.rotation.set(0, e.angle, 0);
+        dummy.scale.set(0.075 * width, 0.075 * vScale, 0.075 * width);
+        dummy.updateMatrix();
+        limbRef.current?.setMatrixAt(i * 6 + 4 + side, surfaceMatrix(surface, dummy.matrix));
       }
 
       if (hats) {
         // only builders wear the hat; everyone else collapses to scale 0
         const builder = (e.mode === "work" || e.mode === "toSite") && visibleScale > 0;
-        dummy.position.set(e.x, y + 0.46 * e.tall * grow + 0.24 * vScale, e.z);
+        dummy.position.set(e.x, headY + 0.185 * vScale, e.z);
         dummy.rotation.set(0, 0, 0);
-        dummy.scale.setScalar(builder ? vScale : 0);
+        dummy.scale.set(builder ? width : 0, builder ? vScale : 0, builder ? width : 0);
         dummy.updateMatrix();
-        hats.setMatrixAt(i, dummy.matrix);
+        hats.setMatrixAt(i, surfaceMatrix(surface, dummy.matrix));
       }
 
       if (cargos) {
@@ -1398,12 +1579,12 @@ export function Pedestrians({
           // every builder hauls the same block, so the crew reads as a crew
           const s = grow * visibleScale;
           const k = (epochNow - site.at) / RISE_MS;
-          const overhead = e.mode === "work" && k <= 0;
+          const overhead = e.mode === "work";
           const reach = overhead ? 0.12 : 0.62;
           const hand = {
-            x: e.x + Math.sin(e.angle) * reach,
-            y: overhead ? y + 1.05 * s : y + 0.18 * s,
-            z: e.z + Math.cos(e.angle) * reach,
+            x: e.x + Math.sin(e.angle) * reach * width,
+            y: (overhead ? 1.46 : 0.62) * vScale,
+            z: e.z + Math.cos(e.angle) * reach * width,
           };
           if (k <= 0) {
             dummy.position.set(hand.x, hand.y, hand.z);
@@ -1420,15 +1601,16 @@ export function Pedestrians({
           dummy.scale.setScalar(s);
         }
         dummy.updateMatrix();
-        cargos.setMatrixAt(i, dummy.matrix);
+        cargos.setMatrixAt(i, surfaceMatrix(surface, dummy.matrix));
       }
     });
     bodies.instanceMatrix.needsUpdate = true;
     heads.instanceMatrix.needsUpdate = true;
-    for (const mesh of [faceRef.current, eyeRef.current, footRef.current]) {
+    for (const mesh of [faceRef.current, eyeRef.current, limbRef.current]) {
       if (mesh) mesh.instanceMatrix.needsUpdate = true;
     }
     if (hats) hats.instanceMatrix.needsUpdate = true;
+    if (cargos) cargos.instanceMatrix.needsUpdate = true;
     // the sign and the two vehicles, written from their poses every frame so a
     // still frame (dt = 0) is still a complete frame
     placeTraffic();
@@ -1440,17 +1622,17 @@ export function Pedestrians({
         <meshStandardMaterial roughness={0.85} metalness={0.02} />
       </instancedMesh>
       <instancedMesh ref={headRef} args={[headGeo, undefined, count]} frustumCulled={false}>
-        <meshStandardMaterial color="#f6ead4" roughness={0.8} />
+        <meshStandardMaterial roughness={0.78} />
       </instancedMesh>
 
       <instancedMesh ref={faceRef} args={[faceGeo, undefined, count]} frustumCulled={false}>
-        <meshStandardMaterial color="#263e4b" roughness={0.75} />
+        <meshStandardMaterial color={EPHE_PALETTE.visor} roughness={0.75} />
       </instancedMesh>
       <instancedMesh ref={eyeRef} args={[eyeGeo, undefined, count * 2]} frustumCulled={false}>
-        <meshBasicMaterial color="#f8fcff" />
+        <meshBasicMaterial color={EPHE_PALETTE.eyes} />
       </instancedMesh>
-      <instancedMesh ref={footRef} args={[footGeo, undefined, count * 2]} frustumCulled={false}>
-        <meshStandardMaterial color="#354b59" roughness={0.9} />
+      <instancedMesh ref={limbRef} args={[limbGeo, undefined, count * 6]} frustumCulled={false}>
+        <meshStandardMaterial roughness={0.9} />
       </instancedMesh>
 
       {/* Builder hats — only in the scene while build sites are scheduled */}

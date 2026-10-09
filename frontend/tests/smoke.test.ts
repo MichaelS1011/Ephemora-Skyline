@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { THREAT_COLOR, LANGUAGE_COLORS } from "../src/city/palette";
+import { THREAT_COLOR, LANGUAGE_COLORS, languageColor } from "../src/city/palette";
 import { getDirLayout } from "../src/city/layout";
 import type { CityData } from "../src/city/types";
 
@@ -7,7 +7,10 @@ describe("frontend smoke", () => {
   it("palette has threat levels", () => {
     expect(THREAT_COLOR).toBeDefined();
     expect(Object.keys(THREAT_COLOR).length).toBe(5);
-    expect(LANGUAGE_COLORS.TypeScript).toBe("#5b9bff");
+    // The facade hexes are a measured decision and `worldPicture.test.ts` owns
+    // them; repeating one here only made two files disagree after a re-tune.
+    expect(Object.keys(LANGUAGE_COLORS).length).toBeGreaterThanOrEqual(24);
+    expect(languageColor("TypeScript")).toBe(LANGUAGE_COLORS.TypeScript);
   });
 
   it("layout returns empty for null focus", () => {

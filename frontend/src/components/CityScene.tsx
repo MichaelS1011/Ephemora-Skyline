@@ -2,10 +2,13 @@
 
 import { useEffect, useMemo, useRef } from "react";
 import { useThree } from "@react-three/fiber";
+import type { PerspectiveCamera } from "three";
 import { useStore } from "../stores/useStore";
-import { getDirLayout, OVERVIEW_FACTOR } from "../city/layout";
+import { getDirLayout, overviewShot } from "../city/layout";
 import { OPEN_WORLD_DIRECT_STEP, buildOpenWorld } from "../city/openWorldStreets";
 import { ENV } from "../city/palette";
+import { FLAT_SURFACE, surfaceForLayout } from "../city/worldSurface";
+import { WorldSurfaceContext } from "../render/WorldSurface";
 import { SkyDome } from "../render/SkyDome";
 import { SUN_POSITION } from "../render/sky";
 import {
@@ -13,19 +16,70 @@ import {
   groundFrameRadius,
   makeGroundMaterial,
   setGroundFrame,
+  makeSurfaceGroundGeometry,
 } from "../render/ground";
 import { CELL_SPREAD } from "./HeatCells";
 import { CameraRig } from "./CameraRig";
 import { CityTree } from "./CityTree";
 import { Pedestrians } from "./Pedestrians";
+import "../design/world.css";
 
 /** The empty world's crowd is smaller than a city's, and its street network is
  *  built once at module scope, not per render. */
 const OPEN_WORLD_COUNT = 46;
 
 /**
- * A daylight city: broad skylight, warm key light, cool fill,
- * distant haze that scales with the district you are in, and the ground.
+ * The atmosphere's near and far plane, in world units, for a level of `bounds`.
+ *
+ * Exported because the number is a contract, not a taste: the far-zoom heat
+ * grid is unlit and sits on this floor, and `tests/worldPicture.test.ts` holds
+ * the fog to being a thin wash at the distance where that grid is on screen
+ * (the far-LOD exit) and at the outer clamp the camera is built with. At the
+ * shipped `bounds * 2.2 / bounds * 4 + 220` the level behind the grid reached a
+ * rendered floor of #314248 — darker than the `safe` tile on it — and the two
+ * calmest heat levels fell to 1.0 and 2.07 contrast against their own ground.
+ */
+export function fogRange(bounds: number): [number, number] {
+  return [bounds * 6, bounds * 9 + 600];
+}
+
+/**
+ * The frame's own grade — see `design/world.css`.
+ *
+ * It lives here because this is the component that owns what the picture is
+ * lit by, and it is DOM because the grade must not depend on which rendering
+ * path the graphics preference chose. It is built imperatively rather than
+ * returned as JSX: inside `<Canvas>` the reconciler is three's, and a `<div>`
+ * reaching it is a boot error, not a portal.
+ */
+function WorldGrade() {
+  const { gl } = useThree();
+  useEffect(() => {
+    const host = gl.domElement.parentElement;
+    if (!host) return;
+    const el = document.createElement("div");
+    el.className = "world-grade";
+    el.setAttribute("aria-hidden", "true");
+    host.appendChild(el);
+    return () => {
+      el.remove();
+    };
+  }, [gl]);
+  return null;
+}
+
+/**
+ * The world at the end of the day: the model lit to its own values, the
+ * atmosphere behind it, and a screen-space grade that costs no GPU frame.
+ *
+ * The lights used to sum to ~1.5× over the surfaces they fell on — measured:
+ * the ground plane rendered at 220 of 255 while its own albedo is 183, and the
+ * frame's brightest object was a zebra crossing. A city whose floor is brighter
+ * than its facades cannot carry a measurement, so the key light now does the
+ * shaping and the ambient term stops washing it out. `toneMappingExposure`
+ * dropped with it, for the same reason: the midtones were sitting in the
+ * shoulder of the curve, where ACES desaturates hardest — which is the other
+ * half of why twenty-four language colours arrived on screen as four.
  */
 export function CityScene() {
   const cityData = useStore((s) => s.cityData);
@@ -41,9 +95,10 @@ export function CityScene() {
    *  figures standing on them. */
   const openWorld = useMemo(() => buildOpenWorld(), []);
 
-  // Preserve daylight midtones without clipping light facades.
+  // Keep the model at its own values instead of lifting it into the shoulder
+  // of the tone curve, where the language colours collapse into each other.
   useEffect(() => {
-    gl.toneMappingExposure = 1.1;
+    gl.toneMappingExposure = 1.0;
     return () => {
       gl.toneMappingExposure = 1;
     };
@@ -66,8 +121,9 @@ export function CityScene() {
       // below.
       if (craneBuildRef.current !== buildStartedAt) {
         craneBuildRef.current = buildStartedAt;
-        camera.position.set(14, 2.2, 26);
-        camera.lookAt(0, 1.5, 0);
+        const { centre } = getDirLayout(cityData, []);
+        camera.position.set(centre.x + 14, 2.2, centre.z + 26);
+        camera.lookAt(centre.x, 1.5, centre.z);
       }
       return;
     }
@@ -84,19 +140,32 @@ export function CityScene() {
     if (craneBuildRef.current !== buildStartedAt || overviewRef.current === buildStartedAt) return;
     overviewRef.current = buildStartedAt;
     const layout = getDirLayout(cityData, []);
-    // The same factor the crane's last shot used, on the one geometry the
-    // crane did not include (bounds carries the street margin) — so the
-    // handover from crane to reveal is a short, continuous glide.
+    // The shot the store's own "Overview" flight uses — not a distance floor of
+    // its own. `bounds × 1.6` sized to the level's half-extent is right for a
+    // city that fills its square; for the two-file repo the audit photographed
+    // it put the whole town in a handful of pixels, because `bounds` carries a
+    // 12-unit street margin per side and a 130-unit floor on top of that.
+    // `overviewShot` sizes the frame to what actually stands: the footprint,
+    // the crown, and the distance beyond which the renderer would swap the
+    // city for its heat grid.
+    const tallest = Math.max(
+      0,
+      ...layout.blocks.flatMap((b) => b.skyline.map((s) => s.h)),
+      ...layout.buildings.map((b) => b.h),
+    );
+    const shot = overviewShot(layout.bounds, tallest);
     requestFly({
-      x: 0,
-      z: 0,
-      distance: Math.max(layout.bounds * OVERVIEW_FACTOR, 130),
+      x: layout.centre.x,
+      z: layout.centre.z,
+      distance: shot.dist,
+      targetY: shot.targetY,
+      overview: true,
       duration: 2.6,
     });
   }, [cityData, buildPhase, buildStartedAt, requestFly]);
 
   const frame = useMemo(() => {
-    if (!cityData) return { bounds: 60, centre: { x: 0, z: 0 }, radius: 60 };
+    if (!cityData) return { bounds: 60, centre: { x: 0, z: 0 }, radius: 60, surface: FLAT_SURFACE };
     const layout = getDirLayout(cityData, focusPath);
     // The floor's ruler is what actually covers the floor: the far-zoom heat
     // cells overhang their plots by `CELL_SPREAD`, while `bounds` carries the
@@ -109,22 +178,41 @@ export function CityScene() {
       ],
       layout.centre,
     );
-    return { bounds: layout.bounds, centre: layout.centre, radius };
+    return {
+      bounds: layout.bounds,
+      centre: layout.centre,
+      radius,
+      surface: surfaceForLayout(layout, focusPath.length > 0),
+    };
   }, [cityData, focusPath]);
   const { bounds } = frame;
+  useEffect(() => {
+    const view = camera as PerspectiveCamera;
+    const previous = view.far;
+    const globeDepth = frame.surface.radius <= 1200 ? frame.surface.radius * 2 + 1000 : 0;
+    view.far = Math.max(1600, bounds * 12 + 900, globeDepth);
+    view.updateProjectionMatrix();
+    return () => {
+      view.far = previous;
+      view.updateProjectionMatrix();
+    };
+  }, [camera, bounds, frame.surface]);
 
   // The ground's haze ramp is aimed at the level that is on screen. `centre`,
   // not the world origin: an organic level's buildings sit wherever their
   // Voronoi cells put them.
   const groundMaterial = useMemo(() => makeGroundMaterial(), []);
+  const groundGeometry = useMemo(() => makeSurfaceGroundGeometry(frame.surface), [frame.surface]);
+  useEffect(() => () => groundGeometry.dispose(), [groundGeometry]);
   useEffect(() => {
-    setGroundFrame(groundMaterial, frame.centre, frame.radius);
-  }, [groundMaterial, frame.centre, frame.radius]);
+    setGroundFrame(groundMaterial, frame.centre, frame.radius, frame.surface.strength);
+  }, [groundMaterial, frame.centre, frame.radius, frame.surface]);
   useEffect(() => () => groundMaterial.dispose(), [groundMaterial]);
 
   return (
-    <>
+    <WorldSurfaceContext.Provider value={frame.surface}>
       <CameraRig />
+      <WorldGrade />
 
       {/* Soft daylight keeps buildings and citizens readable without glow. */}
       {/* The dome paints the sky; the background colour behind it is only the
@@ -132,17 +220,32 @@ export function CityScene() {
           tone the dome converges to at the horizon. */}
       <color attach="background" args={[ENV.skyTop]} />
       <SkyDome />
-      <hemisphereLight args={["#e5f4ff", "#9caeb2", 2.2]} />
-      <directionalLight position={SUN_POSITION} intensity={2.1} color="#fff4df" />
-      <directionalLight position={[-45, 35, -35]} intensity={0.85} color="#c6e4ff" />
-      <ambientLight intensity={0.65} />
-      {/* Atmosphere scales with the current district size. `near` starts past
-          the far edge of the plaza, so the city itself is never hazed away. */}
-      <fog attach="fog" args={[ENV.fog, bounds * 2.2, bounds * 4 + 220]} />
+      {/* Four terms, and one job each. The hemisphere is the sky: cool from
+          above, the asphalt's own colour bouncing back from below. The key is
+          the sun at 25° elevation — low enough that a plot's two visible
+          facades land on different sides of it, which is the shape cue a reader
+          uses before any colour. The fill is the opposite sky, and the ambient
+          term is what is left after both: it was 0.65, and at 0.65 it added a
+          flat third to every facade, which is exactly the amount that turns
+          twenty-four language colours into four. */}
+      <hemisphereLight args={["#cfe3f2", "#4a5560", 1.15]} />
+      <directionalLight position={SUN_POSITION} intensity={1.5} color="#ffd9ac" />
+      <directionalLight position={[-45, 35, -35]} intensity={0.4} color="#9fc4e8" />
+      <ambientLight intensity={0.25} />
+      {/* Atmosphere scales with the current district size.
+          The seam at the horizon is NOT this fog's job — `render/ground.ts`
+          carries the floor into the haze tone with its own ramp, which is what
+          lets the quad's rim meet the sky exactly. This fog is perspective
+          depth for the open ground beyond, and it therefore starts well past
+          the far edge of the level: measured at `bounds * 2.2` it pulled a
+          far-zoom level down to a rendered floor of #314248, which is DARKER
+          than the `safe` heat tile (#3b4a63) sitting on it — the calmest level
+          of the heat grid had contrast 1.0 against its own ground, and the
+          `unchecked` tile 2.07 where the shipped guard asks for 2.5. A dusk
+          atmosphere may not eat a measurement. */}
+      <fog attach="fog" args={[ENV.fog, ...fogRange(bounds)]} />
       {/* Asphalt ground — graded toward the haze, see render/ground.ts */}
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.05, 0]} material={groundMaterial}>
-        <planeGeometry args={[1200, 1200]} />
-      </mesh>
+      <mesh geometry={groundGeometry} material={groundMaterial} />
 
       {/* The Ephe's — ambient citizens. They live on the empty world already
           and keep walking the streets once the city has risen between them.
@@ -164,6 +267,6 @@ export function CityScene() {
       )}
 
       {cityData && <CityTree />}
-    </>
+    </WorldSurfaceContext.Provider>
   );
 }

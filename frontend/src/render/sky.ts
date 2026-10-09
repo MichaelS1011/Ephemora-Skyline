@@ -47,6 +47,22 @@ export const SKY_SUN_CONCENTRATION = 7;
 /** Peak added brightness of the sun glow, in working (linear) space. */
 export const SKY_SUN_GAIN = 0.12;
 
+/** Quiet, stationary cloud banks add scale to a street-level sky. They fade
+ *  before the horizon and zenith, preserving the ground/sky seam. */
+export const SKY_CLOUD_BAND = [0.08, 0.2, 0.48, 0.8] as const;
+export const SKY_CLOUD_GAIN = 0.11;
+
+export function skyCloudBand(elevation: number): number {
+  const smooth = (a: number, b: number): number => {
+    const t = Math.max(0, Math.min(1, (elevation - a) / (b - a)));
+    return t * t * (3 - 2 * t);
+  };
+  return (
+    smooth(SKY_CLOUD_BAND[0], SKY_CLOUD_BAND[1]) *
+    (1 - smooth(SKY_CLOUD_BAND[2], SKY_CLOUD_BAND[3]))
+  );
+}
+
 /**
  * How far below the horizon the sun's pool is allowed to reach.
  *
@@ -55,13 +71,9 @@ export const SKY_SUN_GAIN = 0.12;
  * depth the ramp exists to create. The glow is a sky phenomenon; at and below
  * the horizon it is gone.
  *
- * Opened and left open: the row the eye reads as "the sky at the horizon" measures
- * 247.79 with the post stack on and 231.02 in gfxLite, while the frame's own
- * background fill reads 220.55 in both. Neither number is produced by this fade —
- * moving its lower edge to the horizon line changed the measurement by nothing at
- * all — so the gap is not the glow's but the dome's output path disagreeing with
- * the built-in materials' about who encodes the sky, which needs `App.tsx`'s
- * `<EffectComposer>` block and this shader settled together.
+ * The dome and built-in materials need the same output encoding in both the
+ * full-quality and `gfxLite` paths. `<ToneMapping>` in `App.tsx` preserves that
+ * agreement; the horizon colour itself is defined by `ENV.fog`.
  */
 export const SKY_SUN_HORIZON_FADE: readonly [number, number] = [-0.02, 0.16];
 
@@ -130,6 +142,15 @@ export const SKY_FRAGMENT_SHADER = /* glsl */ `
     // Same ramp as skyRamp(): pow(clamp(elev, 0.0, 1.0), 0.55).
     float t = pow(clamp(max(dir.y, 0.0), 0.0, 1.0), ${SKY_RAMP_EXPONENT.toFixed(2)});
     vec3 sky = mix(uHorizon, uZenith, t);
+    // Two broad bands rather than a moving noise texture: the same cloud
+    // field is present in the live world, still exports and every video frame.
+    vec2 cloudUV = dir.xz / max(0.2, dir.y + 0.45);
+    float cloudPattern = sin(cloudUV.x * 3.3 + cloudUV.y * 1.5)
+      + sin(cloudUV.x * 1.1 - cloudUV.y * 4.0) * 0.6;
+    float cloud = smoothstep(0.35, 1.25, cloudPattern);
+    float cloudBand = smoothstep(${SKY_CLOUD_BAND[0].toFixed(2)}, ${SKY_CLOUD_BAND[1].toFixed(2)}, dir.y)
+      * (1.0 - smoothstep(${SKY_CLOUD_BAND[2].toFixed(2)}, ${SKY_CLOUD_BAND[3].toFixed(2)}, dir.y));
+    sky = mix(sky, mix(uHorizon, uSun, 0.08), cloud * cloudBand * ${SKY_CLOUD_GAIN.toFixed(2)});
     // A broad, weak pool toward the key light. Kept additive and small so the
     // look stays a daylight architectural model rather than a sunset.
     float sun = pow(max(dot(dir, normalize(uSunDir)), 0.0), ${SKY_SUN_CONCENTRATION.toFixed(1)});

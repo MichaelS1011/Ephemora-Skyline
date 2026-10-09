@@ -4,8 +4,10 @@
  * The plane the city stands on was a single 1200 x 1200 quad in one colour, and
  * the scene's fog saturates everything beyond the plaza to the haze tone anyway,
  * so most of the frame was literally one number: measured 220.55 from the city's
- * edge to the rim of the quad. A city on a floor with no value structure reads
- * as a decal floating over paper, which is what the overview shots showed.
+ * edge to the rim of the quad, against an albedo of 183 — the light sum was
+ * lifting the floor thirty-five levels above its own material, and a city on a
+ * floor with no value structure reads as a decal floating over paper, which is
+ * what the overview shots showed.
  *
  * Two ramps, both a function of the distance from the level's centre and
  * nothing else:
@@ -14,16 +16,21 @@
  *    ambient occlusion, radially symmetric on purpose: it makes no claim about
  *    where the sun's cast shadow falls, which would need a shadow map and the
  *    buildings' cooperation (`castShadow` lives in another lane's file).
- * 2. `groundHazeMix` — the open ground beyond that climbs to the fog colour, so
+ * 2. `groundHazeMix` — the open ground beyond that goes to the fog colour, so
  *    the quad's rim arrives at exactly the horizon's value and stops being an
  *    edge. Because the built-in fog mixes toward the same colour, the two can
  *    only converge: no double haze, no overshoot, no seam.
  *
+ * Which way that convergence runs is the atmosphere's business, not the ramp's.
+ * The current daylight palette lets open ground rise gently toward a lighter
+ * horizon; the streets and architecture carry the stronger value contrast.
+ *
  * The ramp deliberately does NOT touch the ground the city is drawn on
  * (`GROUND_RAMP.untouched`): that is the band the far-zoom heat grid sits on,
  * and `tests/hudLegibility.test.ts` measures the calm tiles against `ENV.ground`.
- * Darkening under the city would have quietly broken that guard's intent while
- * leaving its hex arithmetic green.
+ * Shading under the city would have quietly broken that guard's intent while
+ * leaving its hex arithmetic green: the calmest heat levels would sit on a
+ * different tone than the one the contrast test measured.
  *
  * Two decisions make that promise hold instead of merely scoring green:
  *
@@ -51,6 +58,37 @@
 
 import * as THREE from "three";
 import { ENV } from "../city/palette";
+import { surfacePoint, type WorldSurface } from "../city/worldSurface";
+
+/** A real surface, so normals, shadows and the city's anchors agree.
+ * Large-radius views use a sampled cap; a sufficiently curved world gets a
+ * complete sphere with a visible horizon. Both have a fixed geometry budget. */
+export function makeSurfaceGroundGeometry(surface: WorldSurface): THREE.BufferGeometry {
+  if (surface.strength > 0 && surface.radius <= 1200) {
+    return new THREE.SphereGeometry(surface.radius, 96, 48).translate(
+      surface.centre.x,
+      -surface.radius - 0.05,
+      surface.centre.z,
+    );
+  }
+  const diameter = Math.max(1200, surface.extent * 2.6);
+  const geometry = new THREE.PlaneGeometry(
+    diameter,
+    diameter,
+    surface.strength > 0 ? 96 : 1,
+    surface.strength > 0 ? 96 : 1,
+  ).rotateX(-Math.PI / 2);
+  geometry.translate(surface.centre.x, 0, surface.centre.z);
+  const positions = geometry.getAttribute("position");
+  const point = new THREE.Vector3();
+  for (let i = 0; i < positions.count; i++) {
+    surfacePoint(surface, positions.getX(i), -0.05, positions.getZ(i), point);
+    positions.setXYZ(i, point.x, point.y, point.z);
+  }
+  geometry.computeVertexNormals();
+  geometry.computeBoundingSphere();
+  return geometry;
+}
 
 export const GROUND_RAMP = {
   /** Up to this multiple of the cell field's half-extent the ground is
@@ -147,7 +185,11 @@ export function groundAo(normalisedDistance: number): number {
   return 1 - smoothstep(GROUND_RAMP.aoPeak, GROUND_RAMP.aoEnd, d);
 }
 
-/** 0 on the city's own asphalt, 1 out in the haze. */
+/**
+ * 0 on the city's own asphalt, 1 out in the haze.
+ *
+ * The ramp itself — the shader applies it unchanged.
+ */
 export function groundHazeMix(normalisedDistance: number): number {
   return smoothstep(GROUND_RAMP.hazeStart, GROUND_RAMP.hazeEnd, Math.max(0, normalisedDistance));
 }
@@ -203,6 +245,7 @@ export function makeGroundMaterial(): THREE.MeshStandardMaterial {
     uGroundCentre: { value: new THREE.Vector2(0, 0) },
     uGroundRadius: { value: 60 },
     uGroundAoDepth: { value: GROUND_AO_DEPTH },
+    uGroundHazeCeiling: { value: 1 },
   };
   material.userData.uniforms = uniforms;
   material.onBeforeCompile = (shader): void => {
@@ -214,7 +257,7 @@ export function makeGroundMaterial(): THREE.MeshStandardMaterial {
         "#include <begin_vertex>\n\tvGroundXZ = ( modelMatrix * vec4( transformed, 1.0 ) ).xz;",
       );
     shader.fragmentShader =
-      "varying vec2 vGroundXZ;\nuniform vec3 uGroundBase;\nuniform vec3 uGroundRise;\nuniform vec2 uGroundCentre;\nuniform float uGroundRadius;\nuniform float uGroundAoDepth;\n" +
+      "varying vec2 vGroundXZ;\nuniform vec3 uGroundBase;\nuniform vec3 uGroundRise;\nuniform vec2 uGroundCentre;\nuniform float uGroundRadius;\nuniform float uGroundAoDepth;\nuniform float uGroundHazeCeiling;\n" +
       GROUND_RAMP_GLSL +
       shader.fragmentShader.replace(
         "#include <color_fragment>",
@@ -222,7 +265,7 @@ export function makeGroundMaterial(): THREE.MeshStandardMaterial {
           "#include <color_fragment>",
           "\tfloat groundD = groundDistanceAt( vGroundXZ, uGroundCentre ) / max( uGroundRadius, 1.0 );",
           "\tfloat groundAo = groundAoAt( groundD );",
-          "\tfloat groundHaze = groundHazeAt( groundD );",
+          "\tfloat groundHaze = groundHazeAt( groundD ) * uGroundHazeCeiling;",
           "\tdiffuseColor.rgb = mix( uGroundBase, uGroundRise, groundHaze );",
           "\tdiffuseColor.rgb *= 1.0 - uGroundAoDepth * groundAo;",
         ].join("\n"),
@@ -239,13 +282,21 @@ export function setGroundFrame(
   material: THREE.MeshStandardMaterial,
   centre: { x: number; z: number },
   radius: number,
+  curvatureStrength = 0,
 ): void {
   const u = material.userData.uniforms as
-    { uGroundCentre: { value: THREE.Vector2 }; uGroundRadius: { value: number } } | undefined;
+    | {
+        uGroundCentre: { value: THREE.Vector2 };
+        uGroundRadius: { value: number };
+        uGroundHazeCeiling: { value: number };
+      }
+    | undefined;
   if (!u) return;
   u.uGroundCentre.value.set(centre.x, centre.z);
   // The radius is `groundFrameRadius()` of the level — the extent of what is
   // drawn on the floor, not `layout.bounds`, which carries a street margin and
   // would move the untouched band with the size of the level.
   u.uGroundRadius.value = Math.max(1, radius);
+  // Flat land dissolves into its horizon. A globe retains a calm visible rim.
+  u.uGroundHazeCeiling.value = 1 - Math.max(0, Math.min(1, curvatureStrength)) * 0.45;
 }
