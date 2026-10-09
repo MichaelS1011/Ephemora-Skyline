@@ -1,0 +1,481 @@
+/*
+ * Share lane styles: the studio panel, the release card, the one nudge.
+ *
+ * Own file, own class names (`.panel-share-studio`, `.share-*`), imported by
+ * the components that use it — the pattern Lane TEXT set with
+ * `profile-picker.css`. Nothing here reaches into another lane's selector, and
+ * the studio deliberately does not use `.panel-info` or `.panel-findings`, so
+ * the app's canvas-reserving `:has()` rules stay untouched while a shot runs.
+ */
+
+.panel-share-studio {
+  position: absolute;
+  z-index: 46;
+  top: 78px;
+  right: 22px;
+  width: min(420px, calc(100vw - 32px));
+  max-height: calc(100dvh - 110px);
+  overflow-y: auto;
+  padding: 14px 14px 16px;
+  border-radius: 12px;
+  background: rgba(28, 28, 26, 0.97);
+  border: 1px solid rgba(242, 239, 232, 0.16);
+  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.42);
+  color: #dedbd3;
+  font-size: 12px;
+  line-height: 1.5;
+  pointer-events: auto;
+  outline: none;
+}
+.panel-share-studio:focus-visible {
+  outline: 2px solid #e8b23c;
+  outline-offset: -3px;
+}
+
+/* Once a file is ready, put the preview and its save action first. Keeping
+   the setup controls above it made a successful recording look unchanged. */
+.panel-share-studio.is-result .share-intro,
+.panel-share-studio.is-result .share-group,
+.panel-share-studio.is-result .share-quality,
+.panel-share-studio.is-result .share-names,
+.panel-share-studio.is-result .share-credit,
+.panel-share-studio.is-result .share-record,
+.panel-share-studio.is-result .share-stop,
+.panel-share-studio.is-result .share-live {
+  display: none;
+}
+
+.panel-share-studio.is-result .share-card {
+  margin-top: 10px;
+}
+
+.share-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.share-head h2 {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: #f2efe8;
+}
+.share-close {
+  min-width: 28px;
+  min-height: 28px;
+  border-radius: 6px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: #bebbb2;
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+}
+.share-close:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: #f2efe8;
+}
+.share-close:focus-visible,
+.share-copy:focus-visible,
+.share-chip input:focus-visible + span {
+  outline: 1px solid #e8b23c;
+  outline-offset: 2px;
+}
+
+.share-intro {
+  margin: 8px 0 12px;
+  color: #b9b6ad;
+}
+.share-blocked {
+  margin: 0 0 10px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: rgba(232, 178, 60, 0.12);
+  border: 1px solid rgba(232, 178, 60, 0.35);
+  color: #f0d79b;
+}
+
+.share-group {
+  margin: 0 0 12px;
+  padding: 0;
+  border: 0;
+  min-width: 0;
+}
+.share-group legend {
+  padding: 0 0 6px;
+  font-size: var(--fs-meta);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #8f8b82;
+}
+.share-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.share-media-button {
+  flex: 1;
+  min-height: 34px;
+  border-radius: 7px;
+  border: 1px solid rgba(242, 239, 232, 0.18);
+  background: rgba(255, 255, 255, 0.04);
+  color: #c9c6bd;
+  font: inherit;
+  cursor: pointer;
+}
+.share-media-button.is-on {
+  border-color: rgba(232, 80, 60, 0.6);
+  background: rgba(232, 80, 60, 0.16);
+  color: #fff2e9;
+}
+.share-media-button:focus-visible {
+  outline: 2px solid #e8b23c;
+  outline-offset: 2px;
+}
+.share-chip {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  border: 1px solid rgba(242, 239, 232, 0.14);
+  background: rgba(255, 255, 255, 0.03);
+  color: #bebbb2;
+  cursor: pointer;
+  font-size: 12px;
+}
+.share-chip:hover {
+  border-color: rgba(242, 239, 232, 0.3);
+}
+.share-chip.is-on {
+  background: rgba(232, 80, 60, 0.16);
+  border-color: rgba(232, 80, 60, 0.45);
+  color: #fff2e9;
+}
+.share-chip.is-blocked {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.share-chip input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+.share-chip-sub {
+  font-family: "JetBrains Mono", ui-monospace, Menlo, monospace;
+  font-size: var(--fs-meta);
+  color: #8f8b82;
+}
+.share-note {
+  margin: 7px 0 0;
+  font-size: 11px;
+  color: #8f8b82;
+}
+
+.share-quality {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 2px 12px;
+  margin: 0 0 12px;
+  padding: 9px 10px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(242, 239, 232, 0.1);
+}
+.share-quality > div {
+  display: contents;
+}
+.share-quality dt {
+  font-size: var(--fs-meta);
+  color: #8f8b82;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+.share-quality dd {
+  margin: 0;
+  font-size: 11px;
+  color: #dedbd3;
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+
+.share-names {
+  display: block;
+  margin: 0 0 12px;
+  padding: 10px;
+  border-radius: 8px;
+  border: 1px solid rgba(242, 239, 232, 0.12);
+  background: rgba(255, 255, 255, 0.02);
+  cursor: pointer;
+}
+.share-credit {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 10px 0;
+  color: #c9c6bd;
+  cursor: pointer;
+}
+.share-names input {
+  margin-right: 8px;
+  accent-color: #e8503c;
+}
+.share-names-title {
+  color: #f2efe8;
+  font-weight: 600;
+}
+.share-names-disclosure {
+  display: block;
+  margin-top: 6px;
+  font-size: 11px;
+  color: #b9b6ad;
+}
+
+.share-record,
+.share-stop,
+.share-save {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 38px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  border: 1px solid rgba(232, 80, 60, 0.45);
+  background: rgba(232, 80, 60, 0.18);
+  color: #fff2e9;
+}
+.share-record:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.share-stop {
+  border-color: rgba(242, 239, 232, 0.28);
+  background: rgba(255, 255, 255, 0.06);
+}
+.share-save {
+  margin-top: 8px;
+}
+.share-record:hover:not(:disabled),
+.share-stop:hover,
+.share-save:hover {
+  filter: brightness(1.12);
+}
+
+.share-live {
+  margin: 8px 0 0;
+  font-family: "JetBrains Mono", ui-monospace, Menlo, monospace;
+  font-size: 11px;
+  color: #e8b23c;
+}
+.share-error {
+  margin: 0 0 10px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: rgba(32, 16, 12, 0.9);
+  border: 1px solid rgba(255, 107, 107, 0.45);
+  color: #ffb4b4;
+}
+
+/* ── The release card ─────────────────────────────────────────────────── */
+.share-card {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(242, 239, 232, 0.14);
+}
+.share-card h3 {
+  margin: 0;
+  font-size: 12px;
+  color: #f2efe8;
+}
+.share-sub {
+  margin: 4px 0 10px;
+  font-size: 11px;
+  color: #8f8b82;
+}
+.share-player {
+  display: block;
+  width: 100%;
+  border-radius: 8px;
+  border: 1px solid rgba(242, 239, 232, 0.16);
+  background: #0b0b09;
+}
+.share-facts {
+  width: 100%;
+  margin-top: 10px;
+  border-collapse: collapse;
+  font-size: 11px;
+}
+.share-facts caption {
+  text-align: left;
+  padding-bottom: 5px;
+  font-size: var(--fs-meta);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #8f8b82;
+}
+.share-facts th {
+  text-align: left;
+  font-weight: 400;
+  color: #b9b6ad;
+  padding: 3px 8px 3px 0;
+  white-space: nowrap;
+}
+.share-facts td {
+  text-align: right;
+  color: #dedbd3;
+  padding: 3px 0;
+  overflow-wrap: anywhere;
+}
+.share-mono {
+  font-family: "JetBrains Mono", ui-monospace, Menlo, monospace;
+}
+.share-names-result {
+  margin: 10px 0 0;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(242, 239, 232, 0.1);
+  font-size: 11px;
+  color: #b9b6ad;
+}
+.share-captions {
+  margin-top: 14px;
+}
+.share-captions h4 {
+  margin: 0 0 8px;
+  font-size: var(--fs-meta);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #8f8b82;
+}
+.share-caption {
+  margin-bottom: 10px;
+}
+.share-caption-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+.share-tone {
+  font-size: 11px;
+  color: #e8b23c;
+}
+.share-copy {
+  min-height: 26px;
+  padding: 3px 10px;
+  border-radius: 6px;
+  border: 1px solid rgba(242, 239, 232, 0.2);
+  background: transparent;
+  color: #dedbd3;
+  font-size: 11px;
+  cursor: pointer;
+}
+.share-copy:hover {
+  background: rgba(255, 255, 255, 0.07);
+}
+.share-caption-text {
+  margin: 0;
+  padding: 9px 10px;
+  border-radius: 8px;
+  background: rgba(12, 12, 10, 0.85);
+  border: 1px solid rgba(242, 239, 232, 0.1);
+  font-size: 11px;
+  color: #dedbd3;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.share-cta {
+  margin: 12px 0 0;
+  font-size: 11px;
+  color: #dedbd3;
+}
+.share-link {
+  color: #e8b23c;
+  overflow-wrap: anywhere;
+}
+.share-subtle {
+  margin: 10px 0 0;
+  font-size: 11px;
+  color: #8f8b82;
+}
+.share-again {
+  margin-top: 12px;
+  width: 100%;
+  min-height: 32px;
+  border-radius: 8px;
+  border: 1px solid rgba(242, 239, 232, 0.2);
+  background: transparent;
+  color: #dedbd3;
+  font-size: 12px;
+  cursor: pointer;
+}
+.share-again:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+/* ── The nudge ────────────────────────────────────────────────────────── */
+.share-hint {
+  position: absolute;
+  z-index: 43;
+  left: 22px;
+  bottom: calc(var(--dock-h, 90px) + 40px);
+  max-width: 286px;
+  padding: 11px 12px;
+  border-radius: 10px;
+  background: rgba(28, 28, 26, 0.97);
+  border: 1px solid rgba(242, 239, 232, 0.16);
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.4);
+  color: #dedbd3;
+  font-size: 12px;
+  pointer-events: auto;
+}
+.share-hint-text {
+  margin: 0 0 9px;
+  color: #f2efe8;
+}
+.share-hint-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.share-hint-yes {
+  min-height: 30px;
+  padding: 4px 12px;
+  border-radius: 7px;
+  border: 1px solid rgba(232, 80, 60, 0.45);
+  background: rgba(232, 80, 60, 0.18);
+  color: #fff2e9;
+  font-size: 12px;
+  cursor: pointer;
+}
+.share-hint-no {
+  min-height: 30px;
+  padding: 4px 8px;
+  border: 0;
+  background: transparent;
+  color: #8f8b82;
+  font-size: 11px;
+  cursor: pointer;
+  text-decoration: underline;
+  text-decoration-color: rgba(143, 139, 130, 0.5);
+}
+.share-hint-no:hover {
+  color: #dedbd3;
+}
+
+@media (max-width: 900px) {
+  .panel-share-studio {
+    width: min(380px, calc(100vw - 24px));
+    top: 70px;
+    right: 12px;
+  }
+}
