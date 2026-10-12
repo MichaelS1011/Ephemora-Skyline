@@ -18,7 +18,7 @@ import {
  * The list against the handlers.
  *
  * The audit's finding was not that the list was short by taste — it named 20
- * rows while the components handled keys nobody listed (`.qoder-scratch/
+ * rows while the components handled keys nobody listed (a local measurement script that is not shipped
  * nerve-audit/bericht.md`, D10). So this test reads the real source files,
  * pulls every key they compare a keyboard event against, and demands that the
  * registry knows each one. A binding added in a component without a row here
@@ -39,6 +39,7 @@ const HANDLER_FILES = [
   "components/AnalyzePanel.tsx",
   "components/FindingsPanel.tsx",
   "components/ProfileConfirmDialog.tsx",
+  "components/ShareStudio.tsx",
   "components/CameraRig.tsx",
   "interaction/KeyEcho.tsx",
 ];

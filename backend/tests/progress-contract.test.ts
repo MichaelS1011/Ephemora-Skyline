@@ -14,6 +14,10 @@ import { AnalysisOrchestrator } from "../src/services/analyzer/orchestrator.js";
 import { SecurityScanner } from "../src/services/security/scanner.js";
 import { getDemoResult } from "../src/server/routes/demo.js";
 import type { AnalysisResult, ProgressEvent } from "../src/models/index.js";
+import { usePrivateStaging } from "./helpers/privateStaging.js";
+// A staging root of this file's own — the TTL prune below fast-forwards the clock,
+// and in the shared suite root that reaches into a sibling file's staged folders.
+const STAGING = await usePrivateStaging("progress-contract");
 
 const REPO = {
   owner: "local",
@@ -75,6 +79,7 @@ describe("progress contract over HTTP — fed by real orchestrator events", () =
   afterAll(async () => {
     if (workDir) await fs.rm(workDir, { recursive: true, force: true }).catch(() => {});
     await pruneStaleUploadDirs(Date.now() + 25 * 60 * 60 * 1000);
+    await STAGING.release();
   });
 
   it("the pipeline's own stages reach GET /api/status/:id", async () => {

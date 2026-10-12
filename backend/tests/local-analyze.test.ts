@@ -1,7 +1,11 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { promises as fs } from "fs";
 import path from "path";
-import { safeRelativePath, handleLocalAnalyze } from "../src/server/routes/local-analyze.js";
+import {
+  MAX_FILES,
+  safeRelativePath,
+  handleLocalAnalyze,
+} from "../src/server/routes/local-analyze.js";
 import {
   AnalysisOrchestrator,
   SUPPORTED_EXTENSIONS,
@@ -9,6 +13,12 @@ import {
 import { SecurityScanner } from "../src/services/security/scanner.js";
 import pino from "pino";
 import type { AnalysisResult } from "../src/models/index.js";
+import { usePrivateStaging } from "./helpers/privateStaging.js";
+// A staging root of this file's own — the TTL prune below fast-forwards the clock,
+// and in the shared suite root that reaches into a sibling file's staged folders.
+const STAGING = await usePrivateStaging("local-analyze");
+
+afterAll(() => STAGING.release());
 
 describe("safeRelativePath", () => {
   it("accepts normal relative paths and normalizes them", () => {
@@ -133,7 +143,7 @@ describe("handleLocalAnalyze", () => {
   it("rejects folders exceeding the file cap", async () => {
     const { orchestrator } = stubOrchestrator();
     const res = makeRes();
-    const files = Array.from({ length: 3001 }, (_, i) => ({
+    const files = Array.from({ length: MAX_FILES + 1 }, (_, i) => ({
       path: `f${i}.ts`,
       content: "const x = 1;",
     }));

@@ -1,11 +1,12 @@
 import { useEffect } from "react";
 import { useStore } from "../stores/useStore";
 import { tourStops } from "../city/layout";
-import { SEVERITY_COLOR } from "../city/palette";
+import { severityColor } from "../city/palette";
 import { t } from "../i18n";
 
 export function SecurityTour() {
   const lang = useStore((s) => s.prefs.lang);
+  const colorblind = useStore((s) => s.prefs.colorblind);
   const tourActive = useStore((s) => s.tourActive);
   const tourIndex = useStore((s) => s.tourIndex);
   const nextTour = useStore((s) => s.nextTour);
@@ -63,7 +64,7 @@ export function SecurityTour() {
   const idx = Math.min(tourIndex, stops.length - 1);
   const stop = stops[idx]!;
   const worst = stop.file.findings[0];
-  const color = worst ? SEVERITY_COLOR[worst.severity] : "#ff2e4d";
+  const color = severityColor(worst ? worst.severity : "P0", colorblind);
   const pct = Math.round(((idx + 1) / stops.length) * 100);
 
   return (

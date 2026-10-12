@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useStore } from "../stores/useStore";
-import { SEVERITY_COLOR } from "../city/palette";
+import { severityColor } from "../city/palette";
 import { describeGitignoreSkips, scanVerdict } from "../city/provenance";
 import { t, type Lang } from "../i18n";
+import { GIT_MAX_TOTAL_BYTES } from "../hooks/useLocalAnalysis";
 import { ts, tsCount } from "./startCopy";
 import type { DroppedFiles } from "../city/types";
 import "../design/start.css";
@@ -35,7 +36,11 @@ function ConfettiBurst() {
  * Every row is a count the pipeline kept where the path actually left; a row
  * with no count in it is not rendered, so "complete" never grows a decoration.
  */
-function dropRows(lang: Lang, dropped: DroppedFiles | undefined): { key: string; text: string }[] {
+function dropRows(
+  lang: Lang,
+  dropped: DroppedFiles | undefined,
+  churnRan: boolean,
+): { key: string; text: string }[] {
   if (!dropped) return [];
   const nf = (n: number) => n.toLocaleString(lang === "de" ? "de-DE" : "en-US");
   const rows: { key: string; text: string }[] = [];
@@ -60,6 +65,19 @@ function dropRows(lang: Lang, dropped: DroppedFiles | undefined): { key: string;
         n: nf(dropped.tooLarge),
       }),
     });
+  if (dropped.gitBudget > 0)
+    rows.push({
+      key: "gitBudget",
+      // Not "too large": these are ordinary loose git objects and the limit is
+      // this tool's own. Naming the budget is what lets the reader judge the
+      // churn score next to it — and the score is only worth qualifying when it
+      // was computed at all.
+      text:
+        tsCount(lang, "drop.gitBudget", "drop.gitBudgetOne", dropped.gitBudget, {
+          n: nf(dropped.gitBudget),
+          mb: Math.round(GIT_MAX_TOTAL_BYTES / 1024 / 1024),
+        }) + (churnRan ? ts(lang, "drop.gitBudgetChurn") : ""),
+    });
   if (dropped.unreadable > 0)
     rows.push({
       key: "unreadable",
@@ -74,14 +92,32 @@ function dropRows(lang: Lang, dropped: DroppedFiles | undefined): { key: string;
         n: nf(dropped.excluded),
       }),
     });
+  if (dropped.gitIgnored > 0)
+    rows.push({
+      key: "gitIgnored",
+      // Named at the first ignored ancestor, so one ignored folder reads as one
+      // path set aside rather than as its 14,000 files — which is also what the
+      // browser actually refused to list.
+      text: tsCount(lang, "drop.gitIgnored", "drop.gitIgnoredOne", dropped.gitIgnored, {
+        n: nf(dropped.gitIgnored),
+      }),
+    });
+  if (dropped.unsupportedFormat > 0)
+    rows.push({
+      key: "unsupportedFormat",
+      text: tsCount(lang, "drop.unsupported", "drop.unsupportedOne", dropped.unsupportedFormat, {
+        n: nf(dropped.unsupportedFormat),
+      }),
+    });
   return rows;
 }
 
 /** The card closes on its own, but only while nobody is reading it. */
 const DWELL_MS = 9000;
 
-export function ScanSummary() {
+export function ScanSummary({ demo = false }: { demo?: boolean }) {
   const lang = useStore((s) => s.prefs.lang);
+  const colorblind = useStore((s) => s.prefs.colorblind);
   const analysisId = useStore((s) => s.analysisId);
   const cityData = useStore((s) => s.cityData);
   const buildPhase = useStore((s) => s.buildPhase);
@@ -95,8 +131,14 @@ export function ScanSummary() {
   // is open, unpinned and outside the pointer — and it remembers how much was
   // left when the pointer came in, so holding it never buys a full timeout.
   const remaining = useRef(DWELL_MS);
+  const announced = useRef<string | null>(null);
   useEffect(() => {
     if (!analysisId || !cityData || buildPhase !== "built") return;
+    // Once per scan. `cityData` arrives as a fresh reference whenever anything
+    // re-derives it — the language switch does — and re-running this on that
+    // put a dismissed notice back over the panel the person was reading.
+    if (announced.current === analysisId) return;
+    announced.current = analysisId;
     remaining.current = DWELL_MS;
     setOpen(true);
     setCollapsed(false);
@@ -123,17 +165,16 @@ export function ScanSummary() {
 
   const f = cityData.findingsBySeverity;
   const total = f.P0 + f.P1 + f.P2;
+  const findingsInTests = cityData.findingsInTests ?? 0;
   // The scan is only complete for what the project itself called source.
   // Say what the .gitignore kept out while the user is still reading this.
   const skipped = describeGitignoreSkips(cityData.skippedByGitignore, lang);
-  const drops = dropRows(lang, cityData.dropped);
-  // one number for the strip: how many files in the folder were never read
+  const drops = dropRows(lang, cityData.dropped, cityData.scanProvenance?.churn === true);
+  // one number for the strip: how many files in the folder were never read.
+  // Summed over the record's own fields, so an eighth reason cannot join the
+  // counts and stay out of the strip the way the first five hand-list did.
   const unread = cityData.dropped
-    ? cityData.dropped.pathTooLong +
-      cityData.dropped.unsafePath +
-      cityData.dropped.tooLarge +
-      cityData.dropped.unreadable +
-      cityData.dropped.excluded
+    ? Object.values(cityData.dropped).reduce((sum, n) => sum + (Number.isFinite(n) ? n : 0), 0)
     : 0;
   const verdict = scanVerdict(cityData.scanProvenance, total, cityData.languages);
   const clean = verdict.kind === "clear";
@@ -142,28 +183,36 @@ export function ScanSummary() {
   const unverified = verdict.kind === "shallow" || verdict.kind === "unknown";
   // Spec §15 color hierarchy: red MEANS critical — a toast with only
   // medium findings must not scream in P0 red. Grade the accent by the
-  // worst severity actually present.
+  // worst severity actually present, and let the colour-blind switch reach
+  // this surface like it reaches the beacons.
   const accent = clean
     ? "#29d398"
     : unverified
-      ? SEVERITY_COLOR.P2
+      ? severityColor("P2", colorblind)
       : f.P0 > 0
-        ? SEVERITY_COLOR.P0
+        ? severityColor("P0", colorblind)
         : f.P1 > 0
-          ? SEVERITY_COLOR.P1
-          : SEVERITY_COLOR.P2;
+          ? severityColor("P1", colorblind)
+          : severityColor("P2", colorblind);
 
-  const status =
-    verdict.kind === "clear"
+  const status = demo
+    ? t(lang, "summary.demo")
+    : verdict.kind === "clear"
       ? ts(lang, "summary.noneFound")
       : verdict.kind === "shallow"
-        ? ts(lang, "summary.noScanner")
+        ? t(
+            lang,
+            verdict.missing.length === 1
+              ? "summary.noFindingsMissing"
+              : "summary.noFindingsMissingMany",
+            { missing: verdict.missing.join(", ") },
+          )
         : verdict.kind === "unknown"
-          ? ts(lang, "summary.noScanner")
+          ? t(lang, "summary.depthUnknown")
           : t(lang, "summary.complete");
   // Three honest states, three shapes: a clean sweep is solid, an unverified
   // one is dashed (the border says what the fill cannot), a finding is red.
-  const shape = clean ? "clear" : unverified ? "unverified" : "findings";
+  const shape = demo || unverified ? "unverified" : clean ? "clear" : "findings";
   const nf = (n: number) => n.toLocaleString(lang === "de" ? "de-DE" : "en-US");
 
   if (collapsed) {
@@ -179,9 +228,13 @@ export function ScanSummary() {
           <span className="start-summary-dot" style={{ background: accent }} aria-hidden="true" />
           <span className="start-summary-strip-text">{status}</span>
           <span className="start-summary-strip-meta">
-            {t(lang, "summary.filesAnalyzed", { count: nf(cityData.totalFiles) })}
+            {t(lang, demo ? "summary.demoFiles" : "summary.filesAnalyzed", {
+              count: nf(cityData.totalFiles),
+            })}
             {total > 0 &&
               ` · ${tsCount(lang, "ctx.findingsMany", "ctx.findingsOne", total, { count: nf(total) })}`}
+            {findingsInTests > 0 &&
+              ` · ${t(lang, "summary.testsShort", { count: nf(findingsInTests) })}`}
             {unread > 0 && ` · ${ts(lang, "summary.unread", { n: nf(unread) })}`}
           </span>
           <button
@@ -219,7 +272,9 @@ export function ScanSummary() {
             {status}
           </span>
           <span className="start-summary-files">
-            {t(lang, "summary.filesAnalyzed", { count: nf(cityData.totalFiles) })}
+            {t(lang, demo ? "summary.demoFiles" : "summary.filesAnalyzed", {
+              count: nf(cityData.totalFiles),
+            })}
           </span>
           {total > 0 && (
             <span className="start-summary-severities">
@@ -233,7 +288,9 @@ export function ScanSummary() {
                 f[sev] > 0 ? (
                   <span
                     key={sev}
-                    title={t(lang, "summary.sevRisk", { label: t(lang, key) })}
+                    title={t(lang, demo ? "summary.sevSample" : "summary.sevRisk", {
+                      label: t(lang, key),
+                    })}
                     className={`chip-${sev.toLowerCase()} start-summary-chip`}
                   >
                     {t(lang, key)}: {f[sev]}
@@ -242,9 +299,12 @@ export function ScanSummary() {
               )}
             </span>
           )}
-          {unverified && verdict.kind === "shallow" && (
-            <span className="start-summary-missing">
-              {t(lang, "summary.noFindingsMissing", { missing: verdict.missing.join(", ") })}
+          {findingsInTests > 0 && total > 0 && (
+            <span className="start-summary-test-context">
+              {t(lang, "summary.testContext", {
+                inTests: nf(findingsInTests),
+                total: nf(total),
+              })}
             </span>
           )}
         </div>
@@ -282,9 +342,14 @@ export function ScanSummary() {
             {pinned ? "◉" : "○"} {pinned ? ts(lang, "summary.unpin") : ts(lang, "summary.pin")}
           </button>
           <button
-            onClick={() => setOpen(false)}
+            onClick={() => {
+              // `collapsed` is what decides panel or strip; `open` only feeds the
+              // countdown. Setting it alone made this button do nothing at all.
+              setOpen(false);
+              setCollapsed(true);
+            }}
             className="start-summary-close"
-            aria-label={t(lang, "summary.dismissAria")}
+            aria-label={t(lang, demo ? "summary.dismissAriaDemo" : "summary.dismissAria")}
           >
             ✕
           </button>

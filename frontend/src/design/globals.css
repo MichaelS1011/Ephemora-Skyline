@@ -38,6 +38,24 @@
   --glass-blur: blur(16px);
   --glass-highlight: inset 0 1px 0 rgba(242, 239, 232, 0.09);
   --glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+  /* Chrome glass — the frosted layer where the shell behind it is always dark.
+     Its alpha is not a taste: `tests/glas-chrome.test.ts` composites this tint
+     over the brightest ground that can ever sit under a dock or a header (the
+     plaza at #e6e1d4) and refuses the value unless the labels on it keep WCAG
+     AA. The accessibility pass of 2 October took the blur off the action dock
+     for exactly that reason; this keeps the same floor as a measured rule
+     instead of a blanket paint, and it leaves every label anchored inside the
+     world (.cf-*) untouched — that is where the frost genuinely failed (1,83:1). */
+  --glass-chrome-bg: rgba(14, 16, 21, 0.92);
+  --glass-chrome-sheen: linear-gradient(
+    158deg,
+    rgba(242, 239, 232, 0.05),
+    rgba(242, 239, 232, 0.01) 40%,
+    rgba(242, 239, 232, 0) 68%
+  );
+  --glass-chrome-blur: blur(14px) saturate(1.2);
+  --glass-chrome-border: rgba(242, 239, 232, 0.16);
+  --glass-chrome-edge: inset 0 1px 0 rgba(242, 239, 232, 0.22);
   /* Typography */
   --font-ui: "Avenir Next", "Segoe UI", ui-sans-serif, system-ui, sans-serif;
   --font-sans: var(--font-ui);
@@ -951,8 +969,10 @@ button:disabled {
   padding: 0 22px;
   z-index: 45;
   pointer-events: auto;
-  background: rgba(25, 26, 23, 0.96);
-  border-bottom: 1px solid #ffffff16;
+  background: var(--glass-chrome-sheen), var(--glass-chrome-bg);
+  backdrop-filter: var(--glass-chrome-blur);
+  border-bottom: 1px solid var(--glass-chrome-border);
+  box-shadow: var(--glass-chrome-edge);
 }
 .workspace-identity,
 .workspace-status {
@@ -1112,7 +1132,6 @@ button:disabled {
   width: 330px !important;
   max-height: calc(100dvh - 225px) !important;
   border-radius: 8px !important;
-  background: rgba(27, 28, 25, 0.98) !important;
   z-index: 32 !important;
 }
 .panel-info:has(~ .panel-findings) {
@@ -1398,9 +1417,19 @@ div[role="status"].animate-toast-rise {
   }
 }
 
+/* The dock is the surface the accessibility pass of 2 October de-frosted, and
+   the pass was right about the reason: a translucent bar over the plaza loses
+   its own labels. It is glass again now because the tint below is the value
+   that keeps AA over that same plaza with the brightest picture behind it, and
+   `tests/glas-chrome.test.ts` fails if anyone lightens it. The !important stays
+   — the dock is restyled from three places and lost the argument before. */
 .action-dock-row {
-  backdrop-filter: none !important;
-  background: #20201e !important;
+  backdrop-filter: var(--glass-chrome-blur) !important;
+  background: var(--glass-chrome-sheen), var(--glass-chrome-bg) !important;
+  border: 1px solid var(--glass-chrome-border) !important;
+  box-shadow:
+    var(--glass-chrome-edge),
+    0 10px 28px rgba(0, 0, 0, 0.34) !important;
 }
 .panel-info p,
 .panel-info button,
@@ -1516,9 +1545,21 @@ div[role="status"].animate-toast-rise {
   transform: translateX(-50%);
   pointer-events: auto;
 }
-.workspace-modes .glass {
-  background: #243747;
-  border-color: #819aa8;
+/* Both segmented bars are glassed from this one block. It lives here rather
+   than beside their box model in stadt-ui.css because this sheet is the last
+   one the browser loads (measured: the order of style[data-vite-dev-id]), so
+   a tint declared anywhere else loses the tie at equal specificity — which is
+   exactly how the mode bar came to sit at rgb(36, 55, 71) over the city while
+   a guard that only asked "does some rule carry the token" signed it off.
+   `tests/glas-chrome.test.ts` now counts the rules that actually rule. */
+.workspace-modes .glass,
+.workspace-heatmap .glass {
+  background: var(--glass-chrome-sheen), var(--glass-chrome-bg);
+  border: 1px solid var(--glass-chrome-border);
+  backdrop-filter: var(--glass-chrome-blur);
+  box-shadow:
+    0 8px 24px rgba(0, 0, 0, 0.35),
+    var(--glass-chrome-edge);
 }
 /* ── The way back, once the wheel has thrown the city out of frame ─────── */
 .camera-rescue {
@@ -1593,11 +1634,13 @@ div[role="status"].animate-toast-rise {
      specificity. 400px flat put the dialog 55px off a 375px viewport. The clamp
      keeps the wide-screen width and stays inside the screen everywhere else. */
   width: min(400px, calc(100vw - 28px)) !important;
-  background: #20313e !important;
 }
-.panel-findings {
-  background: #20313e !important;
-}
+/* Both panels wear `.panel-card`, and `.panel-card` is the one place their
+   surface is set (stadt-ui.css, the chrome token like the rest of the shell).
+   The `#20313e !important` that stood here and on `.panel-findings` was the
+   second and third source of the same area: measured in the running app it
+   computed to rgb(32, 49, 62) — an opaque plate, so the blur under it had
+   nothing to frost. */
 .panel-info:has(~ .panel-findings) {
   right: 390px !important;
 }
@@ -1623,8 +1666,13 @@ div[role="status"].animate-toast-rise {
   /* The left context card is opaque (α0.96) and takes pointer events, so the
      strip of city behind it was neither seen nor clickable — measured at
      1024×680 with the canvas still 1024 wide under a 272px card at left:22.
-     It reserves its space the way the right-hand panels do. */
-  .app-shell:has(.panel-context-card) .city-canvas {
+     It reserves its space the way the right-hand panels do.
+     The guard is the second rule of this pair: `:has()` asks the DOM, not the
+     render tree, so once the card below is `display: none` the canvas kept its
+     316 px for a panel that is not there. Measured on the shipped findings-list
+     frame — the city picture started at x=316 with nothing painted in front of
+     it. The reservation only holds while the card can actually show. */
+  .app-shell:has(.panel-context-card):not(:has(.panel-info, .panel-findings)) .city-canvas {
     margin-left: 316px !important;
     width: calc(100% - 316px) !important;
   }
@@ -1636,7 +1684,7 @@ div[role="status"].animate-toast-rise {
   .app-shell:has(.panel-info, .panel-findings) .city-canvas {
     width: calc(100% - 426px) !important;
   }
-  .app-shell:has(.panel-context-card) .city-canvas {
+  .app-shell:has(.panel-context-card):not(:has(.panel-info, .panel-findings)) .city-canvas {
     margin-left: 316px !important;
     width: calc(100% - 316px) !important;
   }

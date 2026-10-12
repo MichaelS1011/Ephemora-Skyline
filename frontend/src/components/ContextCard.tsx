@@ -2,10 +2,12 @@ import { useEffect, useState } from "react";
 import { useStore } from "../stores/useStore";
 import { t } from "../i18n";
 import { explainDistrictDraw, resolveDir, tourStops } from "../city/layout";
-import { describeGitignoreSkips } from "../city/provenance";
+import { describeGitignoreSkips, scanVerdict } from "../city/provenance";
 import { blindCategories, categoryMeta, summarizeCategories } from "../config/findingCategories";
 import { topLanguages, languageColor, severityColor, authorColor } from "../city/palette";
 import { MarkerLegend } from "./CoachMarks";
+import { CityLearningGuide } from "./CityLearningGuide";
+import { learningCopy } from "./learningCopy";
 import "../design/stadt-ui.css";
 
 const startCollapsed = () =>
@@ -73,6 +75,9 @@ export function ContextCard() {
   // The demo city declares every engine off — then the honest sentence is not
   // "semgrep was switched off" but "nobody looked at any of this".
   const nothingScanned = cityData.scanProvenance?.regex === false;
+  const verdict = scanVerdict(cityData.scanProvenance, totalFindings, dir.languages);
+  const checked =
+    dir.fileCount > 0 && !nothingScanned && unverified === 0 && verdict.kind === "clear";
   const uncheckedLine =
     unverified > 0
       ? nothingScanned
@@ -119,6 +124,7 @@ export function ContextCard() {
         backdropFilter: "blur(20px)",
       }}
       role="region"
+      tabIndex={-1}
       aria-label={t(lang, isRoot ? "ctx.project" : "ctx.district")}
     >
       <div className="flex items-start justify-between gap-2 mb-4">
@@ -159,6 +165,8 @@ export function ContextCard() {
           </svg>
         </button>
       </div>
+
+      <CityLearningGuide />
 
       <dl
         className="grid grid-cols-2 gap-4 pb-4"
@@ -303,8 +311,13 @@ export function ContextCard() {
             )}
           </>
         ) : (
-          <div className="text-[13px] flex items-center gap-2" style={{ color: "#a2d4b4" }}>
-            <span aria-hidden>✓</span> {t(lang, "ctx.noFindings")}
+          <div
+            className="text-[13px] flex items-center gap-2"
+            style={{ color: checked ? "#a2d4b4" : "#b8beb9" }}
+            data-context-verdict={checked ? "checked" : "unchecked"}
+          >
+            <span aria-hidden>{checked ? "✓" : "⊘"}</span>
+            {learningCopy(lang, nothingScanned ? "noScan" : checked ? "checked" : "unchecked")}
           </div>
         )}
       </div>

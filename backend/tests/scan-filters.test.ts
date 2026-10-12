@@ -241,6 +241,12 @@ describe("allowlist matching", () => {
     expect(allows(quality, "SQL_INJECTION")).toBe(false);
   });
 
+  it("security-only drops the complete Python hygiene family", () => {
+    expect(allows({ profile: "security-only" }, "QUALITY_F401")).toBe(false);
+    expect(allows({ profile: "security-only" }, "QUALITY_E501")).toBe(false);
+    expect(allows({ profile: "security-only" }, "SQL_INJECTION")).toBe(true);
+  });
+
   it("lets an explicit user list replace the profile's list, not widen it", () => {
     const merged = resolveConfig({
       profile: "quality-only",

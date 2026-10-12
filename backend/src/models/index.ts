@@ -155,10 +155,11 @@ export interface DirectorySummary {
 }
 
 /**
- * The five ways a file that exists in the picked folder can end up unread.
+ * The six ways a file that exists in the picked folder can end up unread.
  * Every field is a count of real paths, and every one of them is produced where
  * the path actually left: `pathTooLong`/`unsafePath`/`tooLarge`/`excluded` at the
- * upload boundary, `unreadable`/`tooLarge` while the pipeline reads.
+ * upload boundary, `unreadable`/`tooLarge` while the pipeline reads, and
+ * `unsupportedFormat` where the scan decides which extensions it reads at all.
  */
 export interface DroppedFiles {
   /** Path longer than the upload's character bound */
@@ -171,6 +172,20 @@ export interface DroppedFiles {
   unreadable: number;
   /** Left out by the user's own exclude folders */
   excluded: number;
+  /**
+   * Paths the project's own .gitignore set aside. Counted at the first ignored
+   * ancestor, so one ignored folder is one number rather than its file count —
+   * which is what both pickers can state without walking into it.
+   */
+  gitIgnored: number;
+  /**
+   * `.git` files that did not fit the history budget. Not oversized — the budget
+   * filled — which is why they are counted apart: churn then rests on the part
+   * of the history that arrived.
+   */
+  gitBudget: number;
+  /** Shape the scan does not read: pictures, text without a known extension */
+  unsupportedFormat: number;
 }
 
 export interface ProjectSummary {

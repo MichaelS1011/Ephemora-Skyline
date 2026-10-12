@@ -37,12 +37,20 @@ export function ModeBar() {
     >
       {MODES.map(({ id, labelKey, tipKey }) => {
         const active = viewMode === id;
+        // The look says which lens is on; nothing here said it out loud. Two
+        // additions, no restyling: `aria-current` for anything that reads the
+        // DOM, and the state as a word in the accessible description — which
+        // is `title`, not the visible label, so voice control still matches
+        // the plain mode name. `data-tip` (the popup the app paints) keeps its
+        // old text: the picture did not move.
+        const described = `${t(lang, tipKey)} · ${t(lang, active ? "mode.stateOn" : "mode.stateOff")}`;
         return (
           <button
             key={id}
             role="radio"
             aria-checked={active}
-            title={t(lang, tipKey)}
+            aria-current={active ? "true" : undefined}
+            title={described}
             data-tip={t(lang, tipKey)}
             onClick={(event) => {
               event.stopPropagation();

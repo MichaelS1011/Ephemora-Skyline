@@ -18,7 +18,13 @@ import {
   type CraneShot,
 } from "../city/layout";
 import { findVoxelForLine } from "../city/voxels";
-import { loadSavedProfile, saveProfile, type ScanProfile } from "../config/scanProfiles";
+import { defaultOverviewPath } from "../city/overview";
+import {
+  loadSavedProfile,
+  saveProfile,
+  categoriesForProfile,
+  type ScanProfile,
+} from "../config/scanProfiles";
 import { loadSavedCategories, saveCategories } from "../config/findingCategories";
 import { loadSavedPacks, savePacks, type RulePackInfo } from "../config/rulePacks";
 import {
@@ -57,6 +63,8 @@ export interface FlyRequest {
    * when omitted the rig keeps its ground-level default (y = 1.5).
    */
   targetY?: number;
+  /** Frame the level's data geometry in the live camera frustum. */
+  overview?: boolean;
   nonce: number;
 }
 
@@ -103,8 +111,9 @@ export interface TestFailureInfo {
 }
 export interface TestFileResultInfo {
   path: string;
-  status: "passed" | "failed";
+  status: "passed" | "failed" | "skipped";
   tests: number;
+  skippedTests?: number;
   failures: TestFailureInfo[];
 }
 export interface TestRunState {
@@ -144,6 +153,7 @@ interface AppState {
   /** Same teardown for a handler that is reacting to the history itself. */
   resetToLandingFromHistory: () => void;
   setBuildPhase: (phase: "empty" | "constructing" | "built") => void;
+  replayConstruction: () => void;
   setConstructionProgress: (done: number, total: number) => void;
   requestBuildSkip: () => void;
 
@@ -348,6 +358,7 @@ function flyToDirOverview(
       z: layout.centre.z,
       distance: shot.dist,
       targetY: shot.targetY,
+      overview: true,
       nonce: ++flyNonce,
     },
   });
@@ -546,6 +557,9 @@ export const useStore = create<AppState>((set, get) => {
       const visit = currentVisit();
       const resuming = !!data && !!data.analysisId && visit.cityId === data.analysisId;
       const restored = data && resuming ? resolveVisit(data, visit) : { chain: [], file: null };
+      if (data && restored.chain.length === 0 && !restored.file && !(resuming && visit.pose)) {
+        restored.chain = defaultOverviewPath(data);
+      }
       const pose = resuming ? visit.pose : null;
       // The construction cinematic is for the city a person is seeing for the
       // first time on this machine, not for the tenth reload of a visit they are
@@ -603,6 +617,22 @@ export const useStore = create<AppState>((set, get) => {
     resetToLanding: () => teardownVisit(true),
     resetToLandingFromHistory: () => teardownVisit(false),
     setBuildPhase: (phase) => set({ buildPhase: phase }),
+    replayConstruction: () => {
+      if (!get().cityData || get().buildPhase !== "built") return;
+      const path = defaultOverviewPath(get().cityData!);
+      set({
+        focusPath: path,
+        selectedUnit: null,
+        hoveredId: null,
+        buildPhase: "constructing",
+        buildStartedAt: Date.now(),
+        constructionDone: 0,
+        constructionTotal: 0,
+        tourActive: false,
+        triageActive: false,
+      });
+      writeNavParams(path, null);
+    },
     setConstructionProgress: (done, total) =>
       set({ constructionDone: done, constructionTotal: total }),
     buildSkipAt: null,
@@ -635,8 +665,9 @@ export const useStore = create<AppState>((set, get) => {
 
     resetFocus: () => {
       const { cityData } = get();
-      set({ focusPath: [], selectedUnit: null });
-      if (cityData) flyToDirOverview(set, cityData, []);
+      const path = cityData ? defaultOverviewPath(cityData) : [];
+      set({ focusPath: path, selectedUnit: null });
+      if (cityData) flyToDirOverview(set, cityData, path);
     },
 
     setSelectedUnit: (unit) => set({ selectedUnit: unit }),
@@ -885,7 +916,7 @@ export const useStore = create<AppState>((set, get) => {
     setShowFindings: (v) => set({ showFindings: v }),
 
     scanProfile: loadSavedProfile(),
-    scanCategories: loadSavedCategories(),
+    scanCategories: categoriesForProfile(loadSavedProfile(), loadSavedCategories()),
     toggleScanCategory: (c) => {
       const current = get().scanCategories;
       const next = current.includes(c)
@@ -899,7 +930,9 @@ export const useStore = create<AppState>((set, get) => {
     },
     setScanProfile: (p) => {
       saveProfile(p);
-      set({ scanProfile: p });
+      const categories = categoriesForProfile(p, get().scanCategories);
+      saveCategories(categories);
+      set({ scanProfile: p, scanCategories: categories });
     },
 
     scanPacks: loadSavedPacks(),

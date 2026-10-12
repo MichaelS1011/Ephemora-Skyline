@@ -1,0 +1,102 @@
+.city-learning {
+  margin-top: 14px;
+  margin-bottom: 16px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(150, 142, 128, 0.2);
+  color: #d4ddd9;
+  font: 400 12px/1.55 var(--font-sans, ui-sans-serif, system-ui, sans-serif);
+}
+.city-learning summary {
+  cursor: pointer;
+  font-weight: 600;
+  padding: 4px 0;
+}
+.city-learning-steps {
+  display: flex;
+  gap: 4px;
+  margin: 12px 0;
+}
+.city-learning button,
+.file-learning-return button {
+  font: inherit;
+  color: #d4ddd9;
+  cursor: pointer;
+  border: 1px solid rgba(159, 190, 196, 0.35);
+  background: transparent;
+  border-radius: 5px;
+  padding: 6px 8px;
+  text-align: left;
+}
+.city-learning-steps button {
+  flex: 1;
+  font-size: 11px;
+  padding: 5px;
+}
+.city-learning-steps button span {
+  opacity: 0.65;
+}
+.city-learning-steps button[aria-pressed="true"] {
+  background: rgba(138, 183, 193, 0.14);
+  border-color: #8ab7c1;
+}
+.city-learning button:focus-visible,
+.city-learning summary:focus-visible,
+.file-learning-return button:focus-visible {
+  outline: 2px solid #b7dfdf;
+  outline-offset: 3px;
+}
+.panel-context-card:focus-visible {
+  outline: 2px solid #b7dfdf;
+  outline-offset: -2px;
+}
+.city-learning button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.city-learning-content p {
+  margin: 0 0 10px;
+}
+.city-learning-example {
+  border-left: 2px solid #8ab7c1;
+  padding-left: 10px;
+  display: grid;
+  gap: 5px;
+}
+.city-learning-example > span {
+  color: #a9b8b8;
+}
+.city-learning-example strong {
+  overflow-wrap: anywhere;
+  font-weight: 600;
+}
+.city-learning-example small {
+  font-weight: 400;
+  /* Die Dateizahl steht hier. Ohne diese Zeile greift die User-Agent-Regel
+   * `small { font-size: 0.8em }` — über der 12-px-Fläche oben sind das 9,6 px
+   * im gerenderten Bild, unter der erklärten Untergrenze, und kein deklarierter
+   * Wert im Baum sagt sie. tests/typeFloor.test.ts sieht deklarierte Größen;
+   * tests/klein12-numberFloor.test.ts sieht diesen Weg. */
+  font-size: var(--fs-meta);
+}
+.city-learning-example button {
+  justify-self: start;
+}
+.city-learning-caution {
+  color: #dec89c;
+}
+.city-learning-navigation {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 12px;
+}
+.city-learning-navigation button {
+  font-size: 11px;
+}
+.file-learning-return {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 14px;
+  font: 400 12px/1.5 var(--font-sans, ui-sans-serif, system-ui, sans-serif);
+}

@@ -219,6 +219,10 @@ export function FindingsPanel() {
     <section
       id="findings-panel"
       aria-labelledby="findings-heading"
+      // Stated, not merely implied: a `<section>` with a name is a region
+      // landmark to an AT, but the acceptance pass could only read roles, and
+      // the two side panels that DO declare one looked like the difference.
+      role="region"
       className="panel-findings panel-card pointer-events-auto"
     >
       <div className="panel-head">

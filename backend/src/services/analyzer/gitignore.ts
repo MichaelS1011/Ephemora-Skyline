@@ -9,8 +9,13 @@
  * comments, negation with `!`, directory-only with a trailing `/`, basename
  * rules that match at any depth, anchored rules when the pattern contains a
  * slash, and `*` / `?` / `**`.
+ *
+ * The block between the BEGIN/END markers below is mirrored by the browser in
+ * `frontend/src/config/gitignore.ts`, which has to make the same call before it
+ * counts a folder against the file cap. Two tests keep the copies identical.
  */
 
+// ── BEGIN gitignore mirror ────────────────────────────────────────────────
 interface Rule {
   /** folder of the .gitignore that declared it, "" for the project root */
   dir: string;
@@ -133,3 +138,4 @@ export class IgnoreMatcher {
     return reason;
   }
 }
+// ── END gitignore mirror ──────────────────────────────────────────────────

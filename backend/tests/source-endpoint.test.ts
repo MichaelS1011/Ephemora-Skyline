@@ -5,6 +5,10 @@ import path from "path";
 import { handleSource } from "../src/server/routes/source.js";
 import { registerUploadDir, pruneStaleUploadDirs } from "../src/server/routes/local-analyze.js";
 import type { AnalysisResult, FileAnalysis } from "../src/models/index.js";
+import { usePrivateStaging } from "./helpers/privateStaging.js";
+// A staging root of this file's own — the TTL prune below fast-forwards the clock,
+// and in the shared suite root that reaches into a sibling file's staged folders.
+const STAGING = await usePrivateStaging("source-endpoint");
 
 const TS_CONTENT = "const a = 1;\nconst b = 2;\n";
 const PY_CONTENT = 'print("hi")\r\nprint("bye")\n'; // CRLF must be stripped
@@ -84,6 +88,7 @@ describe("handleSource", () => {
     if (stagedDir) await fs.rm(stagedDir, { recursive: true, force: true }).catch(() => {});
     // Clear the staged-dir registry (TTL sweeper would prune in 24h anyway)
     await pruneStaleUploadDirs(Date.now() + 25 * 60 * 60 * 1000);
+    await STAGING.release();
   });
 
   it("serves staged source lines by cityMapper fileId (f-<index>)", async () => {

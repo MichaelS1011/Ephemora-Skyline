@@ -153,6 +153,8 @@ describe("grün im Panel heißt: ein Engine hätte es finden können", () => {
     await show(createElement(InfoPanel), city([clean]));
     await act(async () => useStore.getState().setSelectedUnit({ kind: "file", id: clean.id }));
     expect(text()).toContain(t("de", "panel.noFindingsChecked"));
+    expect(text()).toContain(t("de", "panel.statusNoFindings"));
+    expect(text()).not.toMatch(/\bsafe\b/i);
     expect(container.querySelector('[data-file-verdict="checked"]')).toBeTruthy();
   });
 
@@ -162,6 +164,8 @@ describe("grün im Panel heißt: ein Engine hätte es finden können", () => {
     await show(createElement(InfoPanel), city([unchecked]));
     await act(async () => useStore.getState().setSelectedUnit({ kind: "file", id: unchecked.id }));
     const shown = text();
+    expect(shown).toContain(t("de", "panel.statusUnchecked"));
+    expect(shown).not.toMatch(/\bsafe\b/i);
     expect(shown).not.toContain(t("de", "panel.noFindingsInFile"));
     expect(shown).toContain(t("de", "panel.noFindingsUnchecked", { n: 2 }));
     // the same naming the hover and the heat tile use for the same file
@@ -271,6 +275,65 @@ describe("der Fundtext bekommt seine deutsche Zeile, ohne ihn zu überschreiben"
   });
 });
 
+describe("ein Urteil, das der Speicher nicht annimmt, sagt es", () => {
+  /**
+   * `verdictsBlocked` was set by the store since the swallowed `catch {}` was
+   * closed (staat-verdictsAndSwitch.test.ts) and read by nothing but its own
+   * test — the warning line this file's own header orders at Lane STADT-UI. A
+   * full day of triage could still die with the tab and look saved.
+   */
+  it("answers the refused verdict where the verdict was clicked", async () => {
+    const hit = file("src/config.js", [finding()]);
+    await show(createElement(InfoPanel), city([hit]));
+    await act(async () => useStore.getState().setSelectedUnit({ kind: "file", id: hit.id }));
+    expect(container.querySelector("[data-verdicts-blocked]")).toBeNull();
+
+    const setItem = vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
+      throw new DOMException("QuotaExceededError");
+    });
+    const mark = [...container.querySelectorAll("button")].find(
+      (b) => b.textContent?.trim() === t("de", "panel.reviewReviewed"),
+    );
+    expect(mark, "no review segment in the panel").toBeTruthy();
+    await act(async () => mark!.click());
+    setItem.mockRestore();
+
+    const note = container.querySelector("[data-verdicts-blocked]");
+    expect(note, "the verdict was refused and the panel says nothing").toBeTruthy();
+    expect(note!.getAttribute("role")).toBe("alert");
+    expect(text()).toContain(t("de", "panel.verdictsBlocked"));
+    // the verdict itself is not lost yet — it still counts in this session
+    expect(useStore.getState().reviews).not.toEqual({});
+  });
+
+  it("walks away when the storage takes the write again", async () => {
+    const hit = file("src/config.js", [finding()]);
+    await show(createElement(InfoPanel), city([hit]));
+    await act(async () => useStore.getState().setSelectedUnit({ kind: "file", id: hit.id }));
+    const setItem = vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
+      throw new DOMException("QuotaExceededError");
+    });
+    await act(async () => useStore.getState().setReview("fp:1", "to-fix"));
+    setItem.mockRestore();
+    expect(container.querySelector("[data-verdicts-blocked]")).toBeTruthy();
+    await act(async () => useStore.getState().setReview("fp:1", "reviewed"));
+    expect(container.querySelector("[data-verdicts-blocked]")).toBeNull();
+  });
+
+  it("says it in the language the panel speaks", async () => {
+    const hit = file("src/config.js", [finding()]);
+    await show(createElement(InfoPanel), city([hit]), "en");
+    await act(async () => useStore.getState().setSelectedUnit({ kind: "file", id: hit.id }));
+    const setItem = vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
+      throw new DOMException("QuotaExceededError");
+    });
+    await act(async () => useStore.getState().setReview("fp:1", "to-fix"));
+    setItem.mockRestore();
+    expect(text()).toContain(t("en", "panel.verdictsBlocked"));
+    expect(text()).not.toContain("Urteile");
+  });
+});
+
 describe("der Editor-Weg nennt sein Ziel und bleibt korrigierbar", () => {
   it("prints the absolute path the deep link will ask for", async () => {
     localStorage.setItem("codecity.workspaceRoot:local/probe", "/Users/dev/probe");
@@ -324,5 +387,27 @@ describe("Schweregrade tragen nicht nur ihre Farbe", () => {
     const chip = container.querySelector(".severity-chip");
     expect(chip!.textContent).toContain(t("de", "hud.sevCritical"));
     expect(chip!.getAttribute("aria-hidden")).toBeNull();
+  });
+
+  /**
+   * The churn band has had a colour-blind variant in the palette since
+   * `churnColor`, and the far heat grid uses it. The chip beside the severity
+   * hardwired the three steps instead, so one surface switched and its
+   * neighbour did not.
+   */
+  it("switches the churn band like the heat tile it belongs to", async () => {
+    const hot = { ...file("src/hot.js", []), churnScore: 0.8, commitCount: 40 };
+    await show(createElement(InfoPanel), city([hot]));
+    await act(async () => useStore.getState().setSelectedUnit({ kind: "file", id: hot.id }));
+    const read = (): string => {
+      const chip = [...container.querySelectorAll("span")].find((s) =>
+        (s.textContent ?? "").startsWith("CHURN"),
+      );
+      return chip ? window.getComputedStyle(chip as HTMLElement).color : "";
+    };
+    const plain = read();
+    expect(plain, "no churn chip on the panel").not.toBe("");
+    await act(async () => useStore.getState().setPref("colorblind", true));
+    expect(read(), "the churn chip ignores the colour-blind switch").not.toBe(plain);
   });
 });

@@ -20,7 +20,7 @@ import type { CityData, CityDir, CityFile, DroppedFiles } from "../src/city/type
 /**
  * The first path — landing, wait, walls, completion line, first look.
  *
- * Measured in `.qoder-scratch/nerve-audit/bericht.md` (Befunde 2, 3, 5, 6, 7, 9)
+ * Measured in a local measurement script that is not shipped (Befunde 2, 3, 5, 6, 7, 9)
  * and re-measured by Lane START: a German run that caught an English error
  * sentence, a wait whose bar stood at 88 % for 28 s without saying it was
  * alive, a 3000-file folder that gave no number and no way out, and a
@@ -189,16 +189,16 @@ describe("no invented dictionary key reaches the screen", () => {
 });
 
 describe("the boundary states speak the screen's language", () => {
-  /** Befund 5 / D5: 3300 files, 31 s of work, then an English sentence. */
+  /** Befund 5 / D5: 10,300 files, 31 s of work, then an English sentence. */
   const cases: [string, string, number, StartErrorKind][] = [
     [
-      t("de", "cap.filesFound", { found: "3.300", max: "3.000" }),
-      "folder exceeds 3000 files",
-      3300,
+      t("de", "cap.filesFound", { found: "10.300", max: "10.000" }),
+      "folder exceeds 10000 files",
+      10300,
       "cap",
     ],
-    [t("en", "cap.filesFound", { found: "3,300", max: "3,000" }), "exceeds", 3300, "cap"],
-    [t("de", "cap.filesFound", { found: "0", max: "3.000" }), "", 0, "no-source"],
+    [t("en", "cap.filesFound", { found: "10,300", max: "10,000" }), "exceeds", 10300, "cap"],
+    [t("de", "cap.filesFound", { found: "0", max: "10.000" }), "", 0, "no-source"],
     ["Der lokale Server bittet um eine Pause — weiter in 192 s", "HTTP 429", 12, "rate-limit"],
     ["Die Demo konnte nicht geladen werden.", "Failed to fetch", 4, "server-down"],
     ["Der lokale Server antwortet nicht auf Port 4000.", "no answer within 20 min", 4, "timeout"],
@@ -214,14 +214,14 @@ describe("the boundary states speak the screen's language", () => {
       <StartNotice
         lang="de"
         kind="cap"
-        measured={t("de", "cap.filesFound", { found: "3.300", max: "3.000" })}
+        measured={t("de", "cap.filesFound", { found: "10.300", max: "10.000" })}
         next={`${t("de", "cap.hint")} · Ordner ausschließen`}
-        raw="Analysis aborted — folder exceeds 3000 files / 40 MB"
+        raw="Analysis aborted — folder exceeds 10000 files / 150 MB"
       />,
     );
     expect(text()).toContain("Was gemessen wurde");
     expect(text()).toContain("Wie es weitergeht");
-    expect(text()).toContain("3.300");
+    expect(text()).toContain("10.300");
     // the server's own words stay reachable, but never as the headline
     expect(html()).toContain("start-state-raw");
     expect(host.querySelector(".start-state--cap")).toBeTruthy();
@@ -249,13 +249,53 @@ describe("the completion line", () => {
       tooLarge: 2,
       unreadable: 1,
       excluded: 0,
+      gitIgnored: 0,
+      gitBudget: 0,
+      unsupportedFormat: 4,
     };
     useCity(city({ dropped }));
     render(<ScanSummary />);
     expect(text()).toContain("30 Dateien lagen über der Pfadgrenze");
     expect(text()).toContain("2 Dateien waren zu groß oder unlesbar");
     expect(text()).toContain("1 Datei konnte nicht gelesen werden");
+    expect(text()).toContain("4 Dateien in einem Format, das die Scanner nicht lesen");
     expect(host.querySelector(".start-summary-drops")).toBeTruthy();
+  });
+
+  /**
+   * The case the counter existed for, measured over docs/ on this machine: 17
+   * files on disk, 0 of them a format the scan reads, and the result said
+   * nothing went unread. A folder of documents must not render as an empty one.
+   */
+  it("owns the files it never read, even when it read none", () => {
+    useCity(
+      city({
+        totalFiles: 0,
+        dropped: {
+          pathTooLong: 0,
+          unsafePath: 0,
+          tooLarge: 0,
+          unreadable: 0,
+          excluded: 0,
+          gitIgnored: 0,
+          gitBudget: 0,
+          unsupportedFormat: 17,
+        },
+      }),
+    );
+    withFakeClock(() => {
+      render(<ScanSummary />);
+      act(() => {
+        vi.advanceTimersByTime(10000);
+      });
+    });
+    // 17 unread of 17 on disk, and the one number the strip carries says so.
+    expect(host.querySelector(".start-summary-strip")?.textContent ?? "").toContain(
+      "17 Dateien wurden nicht gelesen",
+    );
+    expect(host.querySelector(".start-summary-strip")?.textContent ?? "").toContain(
+      "0 Dateien analysiert",
+    );
   });
 
   it("says nothing about drops it does not know", () => {
@@ -283,7 +323,8 @@ describe("the completion line", () => {
     );
     render(<ScanSummary />);
     expect(host.querySelector(".start-summary.is-unverified")).toBeTruthy();
-    expect(text()).toContain("Kein Scanner lief");
+    expect(text()).toContain("Keine Funde —");
+    expect(text()).toContain("liefen nicht");
 
     useCity(
       city({
@@ -325,7 +366,16 @@ describe("the completion line", () => {
     useCity(
       city({
         findingsBySeverity: { P0: 1, P1: 0, P2: 0 },
-        dropped: { pathTooLong: 28, unsafePath: 0, tooLarge: 0, unreadable: 0, excluded: 0 },
+        dropped: {
+          pathTooLong: 28,
+          unsafePath: 0,
+          tooLarge: 0,
+          unreadable: 0,
+          excluded: 0,
+          gitIgnored: 0,
+          gitBudget: 0,
+          unsupportedFormat: 4,
+        },
       }),
     );
     withFakeClock(() => {
@@ -336,7 +386,8 @@ describe("the completion line", () => {
     });
     const strip = host.querySelector(".start-summary-strip")?.textContent ?? "";
     expect(strip).toContain("1 Fund zur Prüfung");
-    expect(strip).toContain("28 Dateien wurden nicht gelesen");
+    // every reason adds to the one number, the new one included
+    expect(strip).toContain("32 Dateien wurden nicht gelesen");
   });
 
   it("stops closing while it is being read", () => {
@@ -408,6 +459,42 @@ describe("the wait while a scan runs", () => {
     expect(text()).toContain("33 von 62");
     expect(text()).toContain("11 KB");
   });
+
+  /**
+   * Item 15: while the folder is still being read, no server stage has been
+   * named, and the ladder ticks nothing — but the meta line below it read
+   * "Stufe 1 von 10" anyway, which is a step nobody had run.
+   */
+  it("names no stage while the folder is still being read", () => {
+    useCity(city());
+    const reading = [
+      { key: "stage.enumerating", label: "Dateien aufzählen", state: "todo" },
+      { key: "stage.parsing", label: "Dateien parsen", state: "todo" },
+      { key: "stage.deepscan", label: "Tiefenscan (semgrep + gitleaks)", state: "todo" },
+    ] as const;
+    render(
+      <ScanProgress
+        lang="de"
+        collecting
+        stageLine=""
+        progress={0}
+        collected={{ files: 12, bytes: 4000, total: 62 }}
+        elapsedSec={4}
+        budgetWaitSec={0}
+        stages={[...reading]}
+        onCancel={() => {}}
+      />,
+    );
+    const meta = host.querySelector(".start-progress-meta");
+    expect(meta?.textContent).toContain("noch keine Scan-Stufe gelaufen");
+    expect(text()).not.toMatch(/Stufe [0-9]+ von/);
+  });
+
+  it("counts the stage that is actually running", () => {
+    useCity(city());
+    render(panel(2));
+    expect(host.querySelector(".start-progress-meta")?.textContent).toContain("Stufe 3 von 4");
+  });
 });
 
 describe("the boot screen", () => {
@@ -436,5 +523,53 @@ describe("the first look at the city", () => {
     expect(host.querySelector("details.start-coach[open]")).toBeTruthy();
     expect(host.querySelector(".start-coach-hints")).toBeTruthy();
     expect(host.querySelectorAll(".start-coach-hint")).toHaveLength(4);
+  });
+});
+
+describe("the summary line gets out of the way when it is told to", () => {
+  /**
+   * The ✕ wrote a state the render never read: `open` only feeds the countdown,
+   * `collapsed` decides panel or strip. Measured in the browser before the fix —
+   * after the click the panel was still there, and still there 14 s later. A
+   * dismiss control that dismisses nothing is worse than no control, because it
+   * teaches people that this interface does not answer to them.
+   */
+  it("collapses to its strip on dismiss and comes back on show again", () => {
+    useCity(city());
+    render(<ScanSummary />);
+    expect(host.querySelector(".start-summary"), "the panel did not arrive").toBeTruthy();
+    const close = host.querySelector(".start-summary-close") as HTMLElement;
+    expect(close, "no dismiss button on the panel").toBeTruthy();
+    act(() => close.click());
+    expect(host.querySelector(".start-summary"), "the panel survived its own dismiss").toBeNull();
+    expect(host.querySelector(".start-summary-strip"), "no strip took its place").toBeTruthy();
+    const again = host.querySelector(".start-summary-strip-open") as HTMLElement;
+    act(() => again.click());
+    expect(
+      host.querySelector(".start-summary"),
+      "show again did not bring the panel back",
+    ).toBeTruthy();
+  });
+
+  /**
+   * The arrival effect keyed on `cityData`, and a language switch hands it a
+   * fresh reference for the same scan. Measured in the browser: the node that
+   * carried the dismissal came back as the full panel, covering the card the
+   * person had been reading. One line per scan, not one per re-render.
+   */
+  it("stays dismissed when the same city is handed over again", () => {
+    useCity(city());
+    render(<ScanSummary />);
+    const close = host.querySelector(".start-summary-close") as HTMLElement;
+    act(() => close.click());
+    expect(host.querySelector(".start-summary")).toBeNull();
+    act(() => {
+      useStore.setState({ cityData: { ...useStore.getState().cityData! } });
+    });
+    expect(
+      host.querySelector(".start-summary"),
+      "a re-render re-opened a dismissed notice",
+    ).toBeNull();
+    expect(host.querySelector(".start-summary-strip"), "the strip went away with it").toBeTruthy();
   });
 });

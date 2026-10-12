@@ -4,6 +4,28 @@
  * mast (`RoadSystem.tsx`). Everything on these plates is a payload number:
  * file counts, folded ("underground") files, and heights on the mapping
  * rail from city/mapping.ts.
+ *
+ * Wo die 11-px-Grenze hier gilt, und wo nicht (KLEIN-12, Punkt 34, gemessen
+ * 2026-10-11 von einer lokalen Sonde im eigenen Headless-Browser, nicht
+ * ausgeliefert; Demo-Stadt über das sichtbare Control, 1600 × 1000,
+ * reduced motion):
+ *
+ * `--fs-meta` (globals.css) ist eine Untergrenze für **schirmfeste** Fläche:
+ * Kopfzeile, Chips, Panels. Diese Platten sind keine Schirmfläche, sie hängen
+ * an `Html distanceFactor` (`District.tsx:276`, `RoadSystem.tsx:547`,
+ * `CityTree.tsx:293`), und der Wrapper steht unter einer Transform-Skala. Die
+ * deklarierten 11 px sind hier eine Weltgröße, nicht die gerenderte: gemessen
+ * 0,204–0,313 Skala in der eingeflogenen Übersicht, also **2,15–3,44 px** auf
+ * dem Bildschirm; näher rangeskaliert auf 1,0 und damit auf volle 11 px.
+ *
+ * Die Zahlen bleiben deshalb bei 11 px deklariert. Sie hier anzuheben, wäre
+ * keine Korrektur, sondern eine Verschiebung: bei 43 px deklariert läse die
+ * Platte in der Übersicht mit, wäre im Nahbereich aber ein 43-px-Schild über
+ * jedem Bezirk. Was in der Übersicht wirklich fehlt, ist eine Stufe, die den
+ * Aufdruck ab einer erreichbaren Bildschirmgröße zeigt (LOD) — das sitzt in
+ * den drei genannten Dateien und ist dort gemeldet, nicht hier gebaut.
+ * `tests/klein12-numberFloor.test.ts` hält beide Enden fest: die Schirmfläche
+ * bei ≥ 11 px gerendert, die Plattendeklaration unverändert klein.
  */
 
 .cf-plate {

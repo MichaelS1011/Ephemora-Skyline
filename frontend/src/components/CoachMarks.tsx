@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import type { CSSProperties, ReactNode } from "react";
 import { useStore } from "../stores/useStore";
+import { alarmWindowColors, CYCLE_RING_COLOR, heatLegendGradient } from "../city/palette";
 import { t, type DictKey } from "../i18n";
 import { ts } from "./startCopy";
 import "../design/start.css";
@@ -36,81 +37,106 @@ const sw = (background: string, extra?: CSSProperties): CSSProperties => ({
   ...extra,
 });
 
-export const MARKER_LEGEND: LegendMarker[] = [
-  {
-    label: "legend.height",
-    meaning: "legend.heightMeaning",
-    swatch: sw("rgba(232,178,60,0.1)", { border: "1px solid rgba(232,178,60,0.3)" }),
-    glyph: "⬍",
-  },
-  {
-    label: "legend.footprint",
-    meaning: "legend.footprintMeaning",
-    swatch: sw("rgba(167,139,250,0.1)", { border: "1px solid rgba(167,139,250,0.35)" }),
-    glyph: "▭",
-  },
-  {
-    label: "legend.monolith",
-    meaning: "legend.monolithMeaning",
-    swatch: sw("#17171a", { border: "1px solid #3a3a40" }),
-  },
-  {
-    label: "legend.glass",
-    meaning: "legend.glassMeaning",
-    swatch: sw("rgba(216,205,180,0.22)", { border: "1px solid rgba(216,205,180,0.55)" }),
-  },
-  {
-    label: "legend.redWindows",
-    meaning: "legend.redWindowsMeaning",
-    swatch: sw("#ff2e4d", { boxShadow: "0 0 5px rgba(255,46,77,0.7)" }),
-  },
-  {
-    label: "legend.scaffolding",
-    meaning: "legend.scaffoldingMeaning",
-    swatch: sw("#ff9a3d"),
-  },
-  {
-    label: "legend.shield",
-    meaning: "legend.shieldMeaning",
-    swatch: sw("rgba(216,201,163,0.08)", {
-      border: "1px dashed rgba(216,201,163,0.6)",
-      borderRadius: 4,
-    }),
-  },
-  {
-    label: "legend.ring",
-    meaning: "legend.ringMeaning",
-    swatch: sw("transparent", { border: "2px solid #ff2e4d", borderRadius: "50%" }),
-  },
-  {
-    label: "legend.laser",
-    meaning: "legend.laserMeaning",
-    swatch: sw("#ffe14d", { height: 4, marginTop: 4 }),
-  },
-  {
-    label: "legend.streams",
-    meaning: "legend.streamsMeaning",
-    swatch: sw("#37e6ff"),
-    secondSwatch: sw("#b06bff"),
-  },
-  {
-    label: "legend.heat",
-    meaning: "legend.heatMeaning",
-    swatch: sw("linear-gradient(90deg, #3dd6c4, #ffd23f, #ff2ea6)"),
-  },
-  {
-    label: "legend.authors",
-    meaning: "legend.authorsMeaning",
-    swatch: sw("#ff6b9d", { borderRadius: "50%" }),
-    secondSwatch: sw("#4de3ff", { borderRadius: "50%" }),
-  },
-  {
-    label: "legend.citizens",
-    meaning: "legend.citizensMeaning",
-    swatch: sw("rgba(150,142,128,0.15)", { border: "1px solid rgba(150,142,128,0.35)" }),
-    glyph: "···",
-  },
-];
+/** The alarm chip's glow, spelled from the tone that is actually painted. */
+function alarmGlow(hex: string): string {
+  const [r, g, b] = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16));
+  return `0 0 5px rgba(${r},${g},${b},0.7)`;
+}
+
+/**
+ * The city's own key, drawn from the palette the city is painted with.
+ *
+ * It takes the switch as an argument because a legend built from a constant
+ * describes one branch while the other is on screen: the alarm windows move to
+ * the colour-saver tone, and a key still showing their red would be a caption
+ * over the wrong picture.
+ */
+export function markerLegend(colorblind: boolean): LegendMarker[] {
+  const windowTone = alarmWindowColors(colorblind).lit;
+  return [
+    {
+      label: "legend.height",
+      meaning: "legend.heightMeaning",
+      swatch: sw("rgba(232,178,60,0.1)", { border: "1px solid rgba(232,178,60,0.3)" }),
+      glyph: "⬍",
+    },
+    {
+      label: "legend.footprint",
+      meaning: "legend.footprintMeaning",
+      swatch: sw("rgba(167,139,250,0.1)", { border: "1px solid rgba(167,139,250,0.35)" }),
+      glyph: "▭",
+    },
+    {
+      label: "legend.monolith",
+      meaning: "legend.monolithMeaning",
+      swatch: sw("#17171a", { border: "1px solid #3a3a40" }),
+    },
+    {
+      label: "legend.glass",
+      meaning: "legend.glassMeaning",
+      swatch: sw("rgba(216,205,180,0.22)", { border: "1px solid rgba(216,205,180,0.55)" }),
+    },
+    {
+      // Key and map move together: the swatch is the tone `Building.tsx` rasterises
+      // into the facade, and the label says which hue that is in this branch.
+      label: colorblind ? "legend.alarmWindows" : "legend.redWindows",
+      meaning: "legend.redWindowsMeaning",
+      swatch: sw(windowTone, { boxShadow: alarmGlow(windowTone) }),
+    },
+    {
+      label: "legend.scaffolding",
+      meaning: "legend.scaffoldingMeaning",
+      swatch: sw("#ff9a3d"),
+    },
+    {
+      label: "legend.shield",
+      meaning: "legend.shieldMeaning",
+      swatch: sw("rgba(216,201,163,0.08)", {
+        border: "1px dashed rgba(216,201,163,0.6)",
+        borderRadius: 4,
+      }),
+    },
+    {
+      label: "legend.ring",
+      meaning: "legend.ringMeaning",
+      swatch: sw("transparent", {
+        border: `2px solid ${CYCLE_RING_COLOR}`,
+        borderRadius: "50%",
+      }),
+    },
+    {
+      label: "legend.laser",
+      meaning: "legend.laserMeaning",
+      swatch: sw("#ffe14d", { height: 4, marginTop: 4 }),
+    },
+    {
+      label: "legend.streams",
+      meaning: "legend.streamsMeaning",
+      swatch: sw("#37e6ff"),
+      secondSwatch: sw("#b06bff"),
+    },
+    {
+      label: "legend.heat",
+      meaning: "legend.heatMeaning",
+      // The row is drawn from the table `complexityColor` interpolates, so it
+      // cannot outlive a switch of the ramp and start describing a picture that
+      // is no longer on screen.
+      swatch: sw(heatLegendGradient(colorblind)),
+    },
+    {
+      label: "legend.authors",
+      meaning: "legend.authorsMeaning",
+      swatch: sw("#ff6b9d", { borderRadius: "50%" }),
+      secondSwatch: sw("#4de3ff", { borderRadius: "50%" }),
+    },
+    {
+      label: "legend.citizens",
+      meaning: "legend.citizensMeaning",
+      swatch: sw("rgba(150,142,128,0.15)", { border: "1px solid rgba(150,142,128,0.35)" }),
+      glyph: "···",
+    },
+  ];
+}
 
 export function LegendRow({ marker }: { marker: LegendMarker }) {
   const lang = useStore((s) => s.prefs.lang);
@@ -156,13 +182,14 @@ export function LegendRow({ marker }: { marker: LegendMarker }) {
 }
 
 export function MarkerLegend({ columns = 2 }: { columns?: 1 | 2 }) {
+  const colorblind = useStore((s) => s.prefs.colorblind);
   return (
     <div
       className={
         columns === 2 ? "grid grid-cols-1 sm:grid-cols-2 gap-x-5 gap-y-3" : "flex flex-col gap-3"
       }
     >
-      {MARKER_LEGEND.map((m) => (
+      {markerLegend(colorblind).map((m) => (
         <LegendRow key={m.label} marker={m} />
       ))}
     </div>

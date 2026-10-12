@@ -313,14 +313,14 @@ describe("reading a folder counts", () => {
       return fakeResponse(202, { id: "never" });
     };
 
-    await pick(many(3001), 120);
+    await pick(many(10_001), 120);
 
     expect(latest.state).toBe("error");
-    expect(latest.errorMessage).toContain("3.001 Quelldateien gefunden, Grenze ist 3.000");
+    expect(latest.errorMessage).toContain("10.001 Quelldateien gefunden, Grenze ist 10.000");
     expect(latest.errorMessage).toContain("Ordner ausschließen statt aufgeben");
     expect(reads.length, `${reads.length} files were read before the wall answered`).toBe(0);
     expect(uploaded, "an upload was started for a folder over the cap").toBe(false);
-    expect(latest.foundFiles).toBe(3001);
+    expect(latest.foundFiles).toBe(10_001);
   });
 
   it("counts the paths the scan cannot take, and sends the number along", async () => {

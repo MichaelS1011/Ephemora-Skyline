@@ -4,6 +4,7 @@ import {
   useRef,
   useState,
   type ButtonHTMLAttributes,
+  type CSSProperties,
   type KeyboardEvent,
 } from "react";
 import {
@@ -15,24 +16,40 @@ import {
 } from "../stores/useStore";
 import { useTestRunner } from "../hooks/useTestRunner";
 import { t } from "../i18n";
+import { cityLinkNotice } from "../cityLifetime";
+import { openStudio } from "../share/studioBus";
+import { tx } from "../share/fallbackCopy";
 
 interface ActionButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   label: string;
   icon: string;
   active?: boolean;
+  /** Why the button is blocked. "Already running" is said by the label itself,
+   *  so it needs no mark; "nothing to do right now" is struck through. */
+  running?: boolean;
 }
 
-function ActionButton({ label, icon, active, ...props }: ActionButtonProps) {
+/** The mark a blocked control carries instead of a dimmed tone. Dimming these
+ *  labels to 0,4 put them at 2,90—3,37:1 on the dock's own field, under the
+ *  floor `tests/glas-chrome.test.ts` holds the fixed shell to; the strike is
+ *  drawn in the label's own ink and `aria-disabled` / `disabled` still says the
+ *  state to a reading system. */
+const struck = (unavailable: boolean): CSSProperties | undefined =>
+  unavailable ? { textDecoration: "line-through" } : undefined;
+
+function ActionButton({ label, icon, active, running, disabled, ...props }: ActionButtonProps) {
   return (
     <button
       {...props}
       type="button"
-      className="action-button flex min-h-10 items-center justify-center gap-2 rounded-lg px-3 text-[13px] font-medium transition-colors hover:bg-white/5 disabled:cursor-not-allowed disabled:opacity-40"
+      disabled={disabled}
+      className="action-button flex min-h-10 items-center justify-center gap-2 rounded-lg px-3 text-[13px] font-medium transition-colors hover:bg-white/5 disabled:cursor-not-allowed"
       style={{
         color: active ? "#fff2e9" : "#dedbd3",
         background: active ? "rgba(232,80,60,0.18)" : undefined,
         border: `1px solid ${active ? "rgba(232,80,60,0.4)" : "transparent"}`,
         whiteSpace: "nowrap",
+        ...struck(disabled === true && !running),
       }}
     >
       <span aria-hidden="true" className="text-base leading-none">
@@ -58,6 +75,8 @@ export function ActionBar() {
   const testRun = useStore((s) => s.testRun);
   const lang = useStore((s) => s.prefs.lang);
   const gfxLite = useStore((s) => s.prefs.gfxLite);
+  const updateCheck = useStore((s) => s.prefs.updateCheck);
+  const toggleUpdateCheck = useStore((s) => s.toggleUpdateCheck);
   const colorblind = useStore((s) => s.prefs.colorblind);
   const setPref = useStore((s) => s.setPref);
   const triageActive = useStore((s) => s.triageActive);
@@ -134,6 +153,10 @@ export function ActionBar() {
   const constructing = buildPhase === "constructing";
   const pct = constructionTotal > 0 ? Math.round((constructionDone / constructionTotal) * 100) : 0;
   const testing = testRun.status === "installing" || testRun.status === "running";
+  /** The two kinds of "cannot run tests now" split by what they mean: while a
+   *  run is on its way the label says so in words, anything else (no scan, no
+   *  folder behind the demo) is a step that leads nowhere and is struck. */
+  const testsBlocked = !testing && (!analysisId || !cityOnDisk(cityData));
 
   const closeMenu = (): void => {
     setMenuOpen(false);
@@ -183,30 +206,10 @@ export function ActionBar() {
     closeMenu();
     try {
       await navigator.clipboard.writeText(window.location.href);
-      setFeedback({ message: t(lang, "actions.linkCopied") });
+      // The lifetime is the server's, so the number is asked for, not recited.
+      setFeedback({ message: await cityLinkNotice(lang) });
     } catch {
       setFeedback({ message: t(lang, "actions.linkCopyFailed"), error: true });
-    }
-  };
-
-  const handleScreenshot = (): void => {
-    closeMenu();
-    const canvas = document.querySelector("canvas");
-    if (!canvas) {
-      setFeedback({ message: t(lang, "actions.exportNoCanvas"), error: true });
-      return;
-    }
-    try {
-      const url = canvas.toDataURL("image/png");
-      if (url === "data:,") throw new Error("Empty canvas");
-      const stamp = new Date().toISOString().slice(0, 19).replace("T", "-").replaceAll(":", "");
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `ephemora-${cityData.repo.name}-${stamp}.png`;
-      a.click();
-      setFeedback({ message: t(lang, "actions.exportStarted") });
-    } catch {
-      setFeedback({ message: t(lang, "actions.exportFailed"), error: true });
     }
   };
 
@@ -323,7 +326,10 @@ export function ActionBar() {
                   : t(lang, "actions.triageNoneBehind")
               }
               className="flex h-8 items-center gap-1 rounded-md px-2 text-[13px] font-medium transition-colors hover:bg-white/10"
-              style={{ color: "#fff2e9", whiteSpace: "nowrap", opacity: queue?.behind ? 1 : 0.4 }}
+              // The same condition that sets aria-disabled strikes the label:
+              // one state, one carrier per sense, and no tone that falls under
+              // the shell's contrast floor.
+              style={{ color: "#fff2e9", whiteSpace: "nowrap", ...struck(!queue?.behind) }}
             >
               <span aria-hidden="true">‹</span>
               {t(lang, "actions.prev")}
@@ -331,7 +337,11 @@ export function ActionBar() {
             <span
               className="shrink-0 px-1 font-mono text-xs tabular-nums"
               style={{ color: "#dedbd3" }}
-              title={t(lang, "actions.triageOpenTitle", { open: queue?.open ?? 0 })}
+              title={t(
+                lang,
+                (queue?.open ?? 0) === 1 ? "actions.triageOpenTitleOne" : "actions.triageOpenTitle",
+                { open: queue?.open ?? 0 },
+              )}
             >
               {triageCursor + 1} / {triageTotal}
               {queue && queue.total > 0 && (
@@ -350,7 +360,7 @@ export function ActionBar() {
                   : t(lang, "actions.triageNoneAhead")
               }
               className="flex h-8 items-center gap-1 rounded-md px-2 text-[13px] font-medium transition-colors hover:bg-white/10"
-              style={{ color: "#fff2e9", whiteSpace: "nowrap", opacity: queue?.ahead ? 1 : 0.4 }}
+              style={{ color: "#fff2e9", whiteSpace: "nowrap", ...struck(!queue?.ahead) }}
             >
               {t(lang, "actions.next")}
               <span aria-hidden="true">›</span>
@@ -374,12 +384,13 @@ export function ActionBar() {
                 ? t(lang, "actions.triageAllJudgedTitle")
                 : t(lang, "actions.triageStartAria")
             }
-            className="flex min-h-10 items-center justify-center gap-2 rounded-lg px-3 text-[13px] font-medium transition-colors hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-40"
+            className="flex min-h-10 items-center justify-center gap-2 rounded-lg px-3 text-[13px] font-medium transition-colors hover:bg-white/10 disabled:cursor-not-allowed"
             style={{
               color: "#fff2e9",
               background: "rgba(232,80,60,0.14)",
               border: "1px solid rgba(232,80,60,0.4)",
               whiteSpace: "nowrap",
+              ...struck(totalFindings === 0),
             }}
           >
             {t(lang, "actions.triage")}
@@ -401,6 +412,7 @@ export function ActionBar() {
         <ActionButton
           onClick={startTour}
           disabled={tourActive || totalFindings === 0}
+          running={tourActive}
           label={tourActive ? t(lang, "actions.tourActive") : t(lang, "actions.tour")}
           icon="⚑"
           title={
@@ -410,7 +422,9 @@ export function ActionBar() {
         />
         <ActionButton
           onClick={handleFindings}
-          label={t(lang, "actions.findings", { count: totalFindings })}
+          label={t(lang, totalFindings === 1 ? "actions.findingsOne" : "actions.findings", {
+            count: totalFindings,
+          })}
           icon="≡"
           title={t(lang, "actions.findingsTitle")}
           aria-pressed={showFindings}
@@ -471,7 +485,8 @@ export function ActionBar() {
                   setFeedback(null);
                   void runTests();
                 }}
-                className="flex min-h-10 w-full items-center gap-3 rounded-lg px-3 text-left hover:bg-white/5 disabled:opacity-40"
+                className="flex min-h-10 w-full items-center gap-3 rounded-lg px-3 text-left hover:bg-white/5"
+                style={struck(testsBlocked)}
                 title={
                   !analysisId
                     ? t(lang, "actions.runTestsNoScanTitle")
@@ -486,11 +501,14 @@ export function ActionBar() {
               <button
                 role="menuitem"
                 type="button"
-                onClick={handleScreenshot}
+                onClick={() => {
+                  closeMenu();
+                  openStudio();
+                }}
                 className="flex min-h-10 w-full items-center gap-3 rounded-lg px-3 text-left hover:bg-white/5"
               >
-                <span aria-hidden="true">↓</span>
-                {t(lang, "actions.exportPng")}
+                <span aria-hidden="true">●</span>
+                {tx(lang, "menu.item")}
               </button>
               {/* The two report exports. They live here, next to the picture,
                   because both describe the whole city — the SARIF link in the
@@ -507,7 +525,7 @@ export function ActionBar() {
                 }
                 onClick={() => downloadReport("sarif", "sarif")}
                 className="flex min-h-10 w-full items-center gap-3 rounded-lg px-3 text-left hover:bg-white/5"
-                style={{ opacity: analysisId ? 1 : 0.4 }}
+                style={struck(!analysisId)}
               >
                 <span aria-hidden="true">↓</span>
                 {t(lang, "actions.exportSarif")}
@@ -523,7 +541,7 @@ export function ActionBar() {
                 }
                 onClick={() => downloadReport("handoff", "ndjson")}
                 className="flex min-h-10 w-full items-center gap-3 rounded-lg px-3 text-left hover:bg-white/5"
-                style={{ opacity: analysisId ? 1 : 0.4 }}
+                style={struck(!analysisId)}
               >
                 <span aria-hidden="true">↓</span>
                 {t(lang, "actions.exportHandoff")}
@@ -596,12 +614,34 @@ export function ActionBar() {
                 <span aria-hidden="true">↻</span>
                 {t(lang, "update.check")}
               </button>
+              {/* The passive note under the city is a standing request, and the
+                  store has carried its switch since Lane STAAT closed the state
+                  side (`toggleUpdateCheck`, read by `Landing.tsx:563`). Until
+                  here the row was missing: the only way to decline it was to
+                  leave the city. */}
+              <button
+                role="menuitemcheckbox"
+                type="button"
+                aria-checked={updateCheck}
+                onClick={() => {
+                  const next = toggleUpdateCheck();
+                  setFeedback({
+                    message: t(lang, next ? "actions.updateCheckOn" : "actions.updateCheckOff"),
+                    error: false,
+                  });
+                }}
+                className="flex min-h-10 w-full items-center gap-3 rounded-lg px-3 text-left hover:bg-white/5"
+              >
+                <span aria-hidden="true">{updateCheck ? "◉" : "○"}</span>
+                {t(lang, "actions.updateCheck")}
+              </button>
               <button
                 role="menuitem"
                 type="button"
                 disabled={!analysisId}
                 onClick={() => void handleShare()}
                 className="flex min-h-10 w-full items-center gap-3 rounded-lg px-3 text-left hover:bg-white/5"
+                style={struck(!analysisId)}
                 title={
                   !analysisId
                     ? t(lang, "actions.copyLinkNoScanTitle")

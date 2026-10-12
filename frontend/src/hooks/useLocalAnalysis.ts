@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { useStore } from "../stores/useStore";
 import type { CityData, DroppedFiles } from "../city/types";
 import { configPayload, isExcludedPath, loadExcludes } from "../config/scanProfiles";
+import { IgnoreMatcher } from "../config/gitignore";
 import { progressLine, stageEntries, type StageEntry } from "../config/scanStages";
 import { formatCount, t, type Lang } from "../i18n";
 
@@ -73,6 +74,22 @@ const MANIFEST_BASENAMES = new Set([
  * file itself is never counted as source, it has no code at all. */
 const IGNORE_FILENAMES = new Set([".gitignore"]);
 
+/** Test runners also read snapshots, documentation and text fixtures. Preserve
+ * these in the local copy without treating them as analyzed source code. */
+const TEST_SUPPORT_EXTENSIONS = new Set([
+  ".md",
+  ".txt",
+  ".snap",
+  ".svg",
+  ".toml",
+  ".xml",
+  ".csv",
+  ".conf",
+  ".ini",
+  ".properties",
+]);
+const TEST_SUPPORT_FILENAMES = new Set(["LICENSE", "NOTICE"]);
+
 const isGitPath = (rel: string): boolean => rel === ".git" || rel.startsWith(".git/");
 
 /** ArrayBuffer → base64 (binary-safe for .git packfiles) */
@@ -100,8 +117,16 @@ async function readPayload(
   return { content: await file.text() };
 }
 
-const MAX_FILES = 3000;
-const MAX_TOTAL_BYTES = 40 * 1024 * 1024;
+/**
+ * The two walls, kept in step with the backend's upload route.
+ *
+ * They used to contradict each other: 3,000 files at this repository's measured
+ * average of 25 KB per file is 75 MB, so a folder reached the 40 MB line at about
+ * 1,600 files and the file cap was never the limit it claimed to be. 10,000 files
+ * and 150 MB is one promise instead of two.
+ */
+const MAX_FILES = 10_000;
+const MAX_TOTAL_BYTES = 150 * 1024 * 1024;
 const MAX_FILE_BYTES = 1.5 * 1024 * 1024;
 /**
  * Mirror of MAX_PATH_LEN in the backend upload route. A path longer than this is
@@ -116,7 +141,7 @@ const MAX_PATH_LEN = 512;
  * purely local scan. Separate budget: git metadata must never crowd out
  * source files.
  */
-const GIT_MAX_TOTAL_BYTES = 15 * 1024 * 1024;
+export const GIT_MAX_TOTAL_BYTES = 15 * 1024 * 1024;
 const GIT_MAX_FILE_BYTES = 8 * 1024 * 1024;
 const POLL_INTERVAL_MS = 2000;
 const POLL_TIMEOUT_MS = 20 * 60 * 1000;
@@ -147,10 +172,25 @@ interface FolderPlan {
   dropped: DroppedFiles;
   /** set as soon as the folder is known to be over the file cap */
   overCap: boolean;
+  /**
+   * The first ignored ancestor of every path set aside by the project's own
+   * .gitignore. Held as a set so one ignored folder is one number, and so both
+   * pickers arrive at the same count on the same rule.
+   */
+  setAside: Set<string>;
 }
 
 function emptyDropped(): DroppedFiles {
-  return { pathTooLong: 0, unsafePath: 0, tooLarge: 0, unreadable: 0, excluded: 0 };
+  return {
+    pathTooLong: 0,
+    unsafePath: 0,
+    tooLarge: 0,
+    unreadable: 0,
+    excluded: 0,
+    gitIgnored: 0,
+    gitBudget: 0,
+    unsupportedFormat: 0,
+  };
 }
 
 function addDropped(dropped: DroppedFiles, key: keyof DroppedFiles, by = 1): DroppedFiles {
@@ -163,6 +203,11 @@ function isSourceShaped(rel: string): boolean {
   const base = rel.split("/").pop() ?? "";
   return (
     SUPPORTED_EXTENSIONS.has(ext) ||
+    TEST_SUPPORT_EXTENSIONS.has(ext) ||
+    TEST_SUPPORT_FILENAMES.has(base) ||
+    base === "Dockerfile" ||
+    base.startsWith("Dockerfile.") ||
+    base === "Makefile" ||
     ENV_FILE.test(rel) ||
     MANIFEST_BASENAMES.has(base) ||
     IGNORE_FILENAMES.has(base)
@@ -170,14 +215,51 @@ function isSourceShaped(rel: string): boolean {
 }
 
 /**
+ * The first ancestor of `rel` the project's own .gitignore sets aside, or null.
+ * Tested segment by segment with git's own kinds, so a folder rule prunes the
+ * folder rather than its 4,000 files, and `tmp` as a file is still a file.
+ */
+function firstIgnoredAncestor(ignores: IgnoreMatcher, rel: string): string | null {
+  const parts = rel.split("/");
+  for (let i = 1; i <= parts.length; i++) {
+    const soFar = parts.slice(0, i).join("/");
+    if (ignores.isIgnored(soFar, i === parts.length ? "file" : "dir")) return soFar;
+  }
+  return null;
+}
+
+/**
  * The one selection decision, shared by both pickers: does this path join the
  * read, and if not, into which counted bucket does it fall? Nothing here opens
  * the file — that is what makes the cap answerable before 31 s of reading.
+ *
+ * The .gitignore answer comes first, because it is the folder's own statement
+ * about what is not its source: measured on this repository, 16,161 of 16,711
+ * candidates sat in local tooling folders the project already sets aside.
  */
-function classifyCandidate(rel: string, file: File, excludes: string[], plan: FolderPlan): void {
+function classifyCandidate(
+  rel: string,
+  file: File,
+  excludes: string[],
+  plan: FolderPlan,
+  ignores: IgnoreMatcher | null,
+): void {
   const git = isGitPath(rel);
   if (rel.split("/").some((segment) => SKIP_DIRS.test(segment))) return;
-  if (!git && !isSourceShaped(rel)) return;
+  if (!git && ignores) {
+    const aside = firstIgnoredAncestor(ignores, rel);
+    if (aside !== null) {
+      if (!plan.setAside.has(aside)) {
+        plan.setAside.add(aside);
+        plan.dropped.gitIgnored += 1;
+      }
+      return;
+    }
+  }
+  if (!git && !isSourceShaped(rel)) {
+    plan.dropped.unsupportedFormat += 1;
+    return;
+  }
   if (isExcludedPath(rel, excludes)) {
     plan.dropped.excluded += 1;
     return;
@@ -201,16 +283,26 @@ function classifyCandidate(rel: string, file: File, excludes: string[], plan: Fo
 }
 
 function emptyPlan(): FolderPlan {
-  return { candidates: [], found: 0, bytes: 0, dropped: emptyDropped(), overCap: false };
+  return {
+    candidates: [],
+    found: 0,
+    bytes: 0,
+    dropped: emptyDropped(),
+    overCap: false,
+    setAside: new Set<string>(),
+  };
 }
+
+/** One entry a directory handle hands back: a file to read, or a folder to walk into. */
+type DirEntry = {
+  name: string;
+  kind: "file" | "directory";
+  getFile?: () => Promise<File>;
+};
 
 type DirHandle = {
   name: string;
-  values: () => AsyncIterable<{
-    name: string;
-    kind: "file" | "directory";
-    getFile?: () => Promise<File>;
-  }>;
+  values: () => AsyncIterable<DirEntry>;
 };
 
 function isDirHandlePickerAvailable(): boolean {
@@ -604,8 +696,19 @@ export function useLocalAnalysis() {
       for (const { rel, file, git } of plan.candidates) {
         if (cancelledRef.current || runRef.current !== run) return;
         if (git) {
-          if (file.size > GIT_MAX_FILE_BYTES || gitBytes + file.size > GIT_MAX_TOTAL_BYTES) {
+          /**
+           * Two different reasons, two different numbers. A 9 MB pack file is
+           * genuinely too large; the 1,470th loose object is not — the history
+           * budget of 15 MB merely filled up. Reporting the second case as
+           * "too large or unreadable" tells the user their repository is
+           * unusual when it is the tool that stopped reading.
+           */
+          if (file.size > GIT_MAX_FILE_BYTES) {
             accounting = addDropped(accounting, "tooLarge");
+            continue;
+          }
+          if (gitBytes + file.size > GIT_MAX_TOTAL_BYTES) {
+            accounting = addDropped(accounting, "gitBudget");
             continue;
           }
         } else if (totalBytes + file.size > MAX_TOTAL_BYTES) {
@@ -681,12 +784,33 @@ export function useLocalAnalysis() {
     async (fileList: File[], rootName: string, run: number) => {
       const excludes = loadExcludes();
       const plan = emptyPlan();
+      // webkitRelativePath = "<root>/<...path>" — strip the root segment
+      const relOf = (file: File) =>
+        (file.webkitRelativePath || file.name).split("/").slice(1).join("/") || file.name;
+      /**
+       * This picker arrives with the whole folder already enumerated, so the
+       * .gitignore files ride in the same list. Read them first and judge every
+       * path with them: a folder that sets 14,000 files aside must not spend
+       * 14,000 File objects and 14,000 slots against the cap.
+       */
+      const ignores = new IgnoreMatcher();
+      let ruleFiles = 0;
       for (const file of fileList) {
         if (cancelledRef.current || runRef.current !== run) return;
-        // webkitRelativePath = "<root>/<...path>" — strip the root segment
-        const rel =
-          (file.webkitRelativePath || file.name).split("/").slice(1).join("/") || file.name;
-        classifyCandidate(rel, file, excludes, plan);
+        const rel = relOf(file);
+        if (isGitPath(rel) || rel.split("/").some((segment) => SKIP_DIRS.test(segment))) continue;
+        if (rel.split("/").pop() !== ".gitignore") continue;
+        try {
+          ignores.add(rel.split("/").slice(0, -1).join("/"), await file.text());
+          ruleFiles += 1;
+        } catch {
+          /* unreadable rule file — what it would have set aside is read instead */
+        }
+      }
+      const matcher = ruleFiles > 0 ? ignores : null;
+      for (const file of fileList) {
+        if (cancelledRef.current || runRef.current !== run) return;
+        classifyCandidate(relOf(file), file, excludes, plan, matcher);
       }
       setCollected({ files: 0, bytes: plan.bytes, total: plan.candidates.length });
       setFoundFiles(plan.found);
@@ -744,22 +868,50 @@ export function useLocalAnalysis() {
     async (dir: DirHandle, run: number) => {
       const excludes = loadExcludes();
       const plan = emptyPlan();
-      const walk = async (handle: DirHandle, prefix: string): Promise<void> => {
-        for await (const entry of handle.values()) {
+      const ignores = new IgnoreMatcher();
+      const walk = async (dirHandle: DirHandle, prefix: string): Promise<void> => {
+        /**
+         * git reads a folder's .gitignore before it judges that folder's
+         * contents, so this walk does the same: list the entries, register any
+         * rule file, then decide. Entries arrive in no particular order, and a
+         * `.gitignore` seen last would otherwise set aside nothing.
+         */
+        const entries: DirEntry[] = [];
+        for await (const entry of dirHandle.values()) entries.push(entry);
+        const rule = entries.find((e) => e.kind !== "directory" && e.name === ".gitignore");
+        if (rule?.getFile) {
+          try {
+            ignores.add(prefix.replace(/\/$/, ""), await (await rule.getFile()).text());
+          } catch {
+            /* unreadable rule file — its folder is read as it stands */
+          }
+        }
+        for (const entry of entries) {
           if (cancelledRef.current || runRef.current !== run) return;
+          const rel = `${prefix}${entry.name}`;
           if (entry.kind === "directory") {
             if (SKIP_DIRS.test(entry.name)) continue;
-            await walk(entry as unknown as DirHandle, `${prefix}${entry.name}/`);
+            // Pruned as a folder, so nothing inside it is listed, read, or
+            // counted against the cap — this is what 14,037 tooling files used
+            // to cost.
+            if (ignores.isIgnored(rel, "dir")) {
+              if (!plan.setAside.has(rel)) {
+                plan.setAside.add(rel);
+                plan.dropped.gitIgnored += 1;
+              }
+              continue;
+            }
+            await walk(entry as unknown as DirHandle, `${rel}/`);
             if (plan.overCap || cancelledRef.current || runRef.current !== run) return;
             continue;
           }
-          const handle = entry.getFile?.();
-          const file = handle ? await handle.catch(() => null) : null;
+          const filePromise = entry.getFile?.();
+          const file = filePromise ? await filePromise.catch(() => null) : null;
           if (!file) {
             plan.dropped.unreadable += 1;
             continue;
           }
-          classifyCandidate(`${prefix}${entry.name}`, file, excludes, plan);
+          classifyCandidate(rel, file, excludes, plan, ignores);
           if (plan.overCap) return;
           const seen = plan.candidates.length;
           if (seen % COUNTER_EVERY === 0 && seen > 0) {

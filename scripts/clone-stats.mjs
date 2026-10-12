@@ -5,17 +5,37 @@
  * views natively for public repos; no user-facing tracking exists or is
  * needed for this.
  *
+ * Which repository to ask about is read from this checkout's `origin` remote,
+ * so a fork or a renamed account measures itself instead of someone else. Set
+ * GH_REPO=owner/name to aim it somewhere else.
+ *
  * Usage: GH_TOKEN=ghp_xxx node scripts/clone-stats.mjs
  * Docs: https://docs.github.com/en/rest/metrics/traffic
  */
 
-const REPO = "MichaelS1011/Ephemora-Skyline";
+import { execFileSync } from "child_process";
+
+/** `owner/name` from the origin remote, for both the https and the ssh form. */
+function repositoryFromOrigin() {
+  let url = "";
+  try {
+    url = execFileSync("git", ["remote", "get-url", "origin"], { encoding: "utf8" }).trim();
+  } catch {
+    throw new Error("No `origin` remote here. Set GH_REPO=owner/name.");
+  }
+  const slug = url.match(/github\.com[/:]([^/]+\/[^/.]+?)(?:\.git)?\/?$/i)?.[1];
+  if (!slug) throw new Error(`Origin is not a GitHub repository (${url}). Set GH_REPO=owner/name.`);
+  return slug;
+}
+
 const token = process.env.GH_TOKEN;
 
 if (!token) {
   console.error("Set GH_TOKEN (needs repo push access for traffic data).");
   process.exit(1);
 }
+
+const REPO = process.env.GH_REPO?.trim() || repositoryFromOrigin();
 
 const headers = {
   "User-Agent": "Ephemora-Skyline-stats",

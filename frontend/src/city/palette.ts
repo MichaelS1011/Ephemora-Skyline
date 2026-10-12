@@ -28,7 +28,7 @@ import type { Severity, ThreatLevel } from "./types";
 //    a hard floor. This is what stopped an earlier run from solving the
 //    separation with pale washes that vanished on `ENV.ground`.
 // 3. Inside those two constraints, L\* and C\*ab were searched (simulated
-//    annealing, `.qoder-scratch/devteam/WELT-BILD/palette-opt.mjs`) to maximise
+//    annealing, in a local optimiser script that is not shipped) to maximise
 //    the SMALLEST distance over all 276 pairs, and the smallest distance was
 //    required under simulated protanopia and deuteranopia too — the same
 //    message has to survive the colorblind branch, so the palette is safe by
@@ -111,6 +111,86 @@ export function severityColor(sev: Severity, colorblind: boolean): string {
 /** Calm beacon colour for fully reviewed files ("nothing left to do here"). */
 export const REVIEWED_BEACON_COLOR = "#29d398";
 
+/**
+ * Three signals that are NOT severities and must never be read as such: the
+ * wireframe a failing test suite draws around a building, the glow a passing
+ * one lays at its base, and the ring a circular import puts at its foot. The
+ * two reds carried the same value as `P0` while they lived as literals in
+ * `Building.tsx`, which made an alarm-colour guard unable to tell a finding
+ * from a red test. They keep their values; they no longer share a name with the
+ * severity table. That the fail/pass pair is a red/green pair is a separate
+ * open point — it is carried by shape (a wireframe cage against a base slab),
+ * not by hue.
+ */
+export const TEST_FAIL_COLOR = "#ff2e4d";
+export const TEST_PASS_COLOR = "#29d398";
+export const CYCLE_RING_COLOR = "#ff2e4d";
+
+/**
+ * The alarm band of the 3D city, as a function of the switch.
+ *
+ * Until now the switch reached every flat surface and stopped at the city
+ * itself: the beacon followed it, the windows, the curb, the landmark beam and
+ * the threat table did not. The measured reason they could not simply take the
+ * CVD severity tone is a collision, not a taste: the pale of the loudest
+ * colour-saver alarm (vermilion `#d55e00` mixed to `#e59a5f`) sits 6.35 ΔE00
+ * from the git-erosion band `#ff9a3d`, which is the same defect class the switch
+ * exists to remove. The window pair therefore takes `P1`'s blue — worst-case
+ * 24.58 ΔE00 against every surface it shares a frame with — while the curb,
+ * whose neighbour is a dark blue-grey kerb stone (blue would be 14.60 there),
+ * takes the vermilion.
+ *
+ * The pale is derived, never picked: the shipped pair `#ff4d5e → #ff8f9a`
+ * implies a white mix of 0.372, and reusing that factor is what keeps the
+ * unswitched branch byte-identical.
+ */
+const ALARM_PALE_MIX = 0.372;
+
+function mixTowardWhite(hex: string, t: number): string {
+  const chan = (i: number): string => {
+    const v = parseInt(hex.slice(i, i + 2), 16);
+    return Math.round(v + t * (255 - v))
+      .toString(16)
+      .padStart(2, "0");
+  };
+  return `#${chan(1)}${chan(3)}${chan(5)}`;
+}
+
+export interface AlarmWindowTones {
+  lit: string;
+  pale: string;
+}
+
+export function alarmWindowColors(colorblind: boolean): AlarmWindowTones {
+  const lit = colorblind ? SEVERITY_CVD_COLOR.P1 : ENV.windowAlarm;
+  return { lit, pale: mixTowardWhite(lit, ALARM_PALE_MIX) };
+}
+
+/** The kerb stones of a plot that holds a critical finding. */
+export function curbAlarmColor(colorblind: boolean): string {
+  return colorblind ? SEVERITY_CVD_COLOR.P0 : ENV.windowAlarm;
+}
+
+/** The lighthouse column over the city's loudest file. */
+export function landmarkBeamColor(colorblind: boolean): string {
+  return colorblind ? SEVERITY_CVD_COLOR.P0 : ENV.windowAlarm;
+}
+
+export function threatColor(level: ThreatLevel, colorblind: boolean): string {
+  switch (level) {
+    case "critical":
+      return severityColor("P0", colorblind);
+    case "high":
+      return severityColor("P1", colorblind);
+    case "medium":
+      return severityColor("P2", colorblind);
+    default:
+      // `low` is the reviewed calm green and `safe` a legibility-pinned floor
+      // tone; neither is a severity, so neither moves with the switch.
+      return THREAT_COLOR[level];
+  }
+}
+
 export const THREAT_COLOR: Record<ThreatLevel, string> = {
   critical: SEVERITY_COLOR.P0,
   high: SEVERITY_COLOR.P1,
@@ -145,6 +225,19 @@ const OKABE_AMBER = "#e69f00";
 const OKABE_VERMILION = "#d55e00";
 /** Darkened vermilion — the "hot" end of the CVD complexity ramp. */
 const OKABE_VERMILION_DARK = "#753300";
+
+/**
+ * The complexity ramp as a CSS gradient, for the one legend row that shows it.
+ * It lives here because the row has to move with `complexityColor`: the shipped
+ * key painted the normal-vision ramp in both branches, which is a caption
+ * describing a picture the switch had already replaced.
+ */
+export function heatLegendGradient(colorblind: boolean): string {
+  if (colorblind) {
+    return `linear-gradient(90deg, ${OKABE_BLUE}, ${OKABE_AMBER}, ${OKABE_VERMILION_DARK})`;
+  }
+  return `linear-gradient(90deg, #3dd6c4, ${SEVERITY_COLOR.P2}, #ff2ea6)`;
+}
 
 /** Two-stop gradient evaluation in sRGB hex space (good enough for heat). */
 function gradient(t: number, from: string, to: string): string {
@@ -190,78 +283,16 @@ export function churnColor(score: number, colorblind = false): string {
 // ── Far-view heat-cell legibility (#30) ────────────────────────────────────
 
 /**
- * The far-zoom heat grid is unlit and sits directly on ENV.ground, so it is
- * coupled to the environment band: raise the ground and the calm tiles sink
- * into it. Measured before any lift, the whole grid sat at a relative luminance
- * of ~0.035 (p50) and the `safe` cell cleared the ground by only 1.76:1 — the
- * city read as one dark mass.
- *
- * The number below is therefore not a style choice. hudLegibility.test.ts
- * asserts ≥2.5:1 for the lifted `safe` tile against whatever ENV.ground currently
- * is, and it failed at 2.37:1 when the band was lifted to dusk, which is why
- * DUSK_LIFT moved 0.16 → 0.22. Change the ground and this constant has to be
- * re-measured with it.
- *
- * `liftHexForDusk` raises every tile's HSL lightness by a CONSTANT offset.
- * Constant (not a floor) is deliberate: a flat floor would collapse `safe`
- * onto `unchecked`, destroying the semantic pair the product depends on. An
- * additive shift preserves the lightness gap between neighbouring heat levels
- * exactly, and because it is monotonic it can never reorder the ramp — P0 stays
- * hotter than P1, `unchecked` stays lighter than `safe`.
+ * This section used to carry `DUSK_LIFT` + `liftHexForDusk`, an additive HSL
+ * lift that kept the calm heat tiles off a dusk ground. Nothing in the render
+ * path ever called it: HeatCells paints `threatColor(...)` and
+ * `UNCHECKED_COLOR` directly, so the lift was a number the guard test read and
+ * the picture never saw. Measured on the daylight band the world carries now,
+ * the unlifted tiles clear the floor on their own — `safe` 6.44:1 and
+ * `unchecked` 3.91:1 against `ENV.ground`, floor 2.5:1 — so the lift was
+ * deleted together with the ground it was tuned for. Re-tune the band toward
+ * dusk and the guard in `tests/hudLegibility.test.ts` is what tells you.
  */
-export const DUSK_LIFT = 0.22;
-
-function hexToHsl(hex: string): { h: number; s: number; l: number } {
-  const r = parseInt(hex.slice(1, 3), 16) / 255;
-  const g = parseInt(hex.slice(3, 5), 16) / 255;
-  const b = parseInt(hex.slice(5, 7), 16) / 255;
-  const max = Math.max(r, g, b);
-  const min = Math.min(r, g, b);
-  const l = (max + min) / 2;
-  if (max === min) return { h: 0, s: 0, l };
-  const d = max - min;
-  const s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
-  let h: number;
-  if (max === r) h = ((g - b) / d + (g < b ? 6 : 0)) / 6;
-  else if (max === g) h = ((b - r) / d + 2) / 6;
-  else h = ((r - g) / d + 4) / 6;
-  return { h, s, l };
-}
-
-function hslToHex(h: number, s: number, l: number): string {
-  const hue = (p: number, q: number, tIn: number): number => {
-    let t = tIn;
-    if (t < 0) t += 1;
-    if (t > 1) t -= 1;
-    if (t < 1 / 6) return p + (q - p) * 6 * t;
-    if (t < 1 / 2) return q;
-    if (t < 2 / 3) return p + (q - p) * (2 / 3 - t) * 6;
-    return p;
-  };
-  let r: number;
-  let g: number;
-  let b: number;
-  if (s === 0) {
-    r = g = b = l;
-  } else {
-    const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
-    const p = 2 * l - q;
-    r = hue(p, q, h + 1 / 3);
-    g = hue(p, q, h);
-    b = hue(p, q, h - 1 / 3);
-  }
-  const to = (v: number): string =>
-    Math.round(Math.max(0, Math.min(1, v)) * 255)
-      .toString(16)
-      .padStart(2, "0");
-  return `#${to(r)}${to(g)}${to(b)}`;
-}
-
-/** Pure sRGB-space lightness lift — see the DUSK_LIFT block comment. */
-export function liftHexForDusk(hex: string, offset = DUSK_LIFT): string {
-  const { h, s, l } = hexToHsl(hex);
-  return hslToHex(h, s, Math.min(0.82, l + offset));
-}
 
 // ── Author territory colors (git blame districts) ─────────────────────────
 
@@ -289,11 +320,17 @@ export function authorColor(name: string): string {
  *  Mineral jackets and matte ceramic faces stay calm beside data colours. */
 export const EPHE_PALETTE = {
   jackets: ["#426976", "#51786d", "#626e8b", "#82775f", "#527980", "#716e86", "#3f6971", "#796d60"],
+  /** Trousers sit between the boots and the darkest jacket in relative
+   *  luminance (0.089…0.098 against 0.059 and 0.124), so the leg reads as its own
+   *  mass: darker than the coat above it, lighter than the boot under it. */
+  trousers: ["#4d5966", "#5a534a", "#4d5c51"],
   shells: ["#e9e4d9", "#dce6dd", "#e3e8ed", "#e8dfd5"],
   visor: "#253c47",
   eyes: "#eff8f6",
   boots: "#344850",
   helmet: "#c7b888",
+  /** The contact patch a figure puts on the ground. Neutral, no hue to key. */
+  contact: "#1c2126",
 } as const;
 
 // One coherent day, and the one place it is not allowed to go.

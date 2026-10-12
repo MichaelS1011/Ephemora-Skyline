@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { afterAll, describe, expect, it } from "vitest";
 import { promises as fs } from "fs";
 import os from "os";
 import path from "path";
@@ -6,6 +6,10 @@ import { handleLocalAnalyze, pruneStaleUploadDirs } from "../src/server/routes/l
 import { makeSkeleton, failJob } from "../src/server/routes/job-progress.js";
 import { AnalysisOrchestrator } from "../src/services/analyzer/orchestrator.js";
 import type { AnalysisResult } from "../src/models/index.js";
+import { usePrivateStaging } from "./helpers/privateStaging.js";
+// A staging root of this file's own — the TTL prune below fast-forwards the clock,
+// and in the shared suite root that reaches into a sibling file's staged folders.
+const STAGING = await usePrivateStaging("failed-analysis");
 
 function makeRes() {
   const res = {
@@ -28,6 +32,8 @@ function makeReq(body: unknown) {
 }
 
 type Store = Map<string, AnalysisResult>;
+
+afterAll(() => STAGING.release());
 
 describe("failed analysis contract (H1)", () => {
   it("marks the skeleton failed so /api/status surfaces the real error", async () => {

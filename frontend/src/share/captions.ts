@@ -17,6 +17,7 @@ import type { Lang } from "../i18n";
 export type CaptionTone = "dry" | "warm" | "curious";
 
 export interface MeasuredFacts {
+  demo?: boolean;
   /** `totalFiles` as the scan reported it. */
   files: number;
   /**
@@ -59,6 +60,7 @@ export function measuredFacts(city: CityData | null): MeasuredFacts {
   }
   const langs = Object.entries(city.languages).sort((a, b) => b[1] - a[1]);
   return {
+    demo: city.analysisId === "demo-001",
     files: city.totalFiles,
     codeLines: city.codeLines ?? city.totalLines,
     codeLinesOnly: city.codeLines !== undefined,
@@ -80,13 +82,14 @@ function factLine(lang: Lang, f: MeasuredFacts): string {
       ? {
           files: (v: string) => `${v} Dateien`,
           lines: (v: string, code: boolean) => `${v} Zeilen ${code ? "Code" : "gelesener Text"}`,
-          findings: (v: string) => `${v} Scanner-Funde zur Prüfung`,
+          findings: (v: string) => `${v} ${f.demo ? "Beispielfunde" : "Scanner-Funde zur Prüfung"}`,
           languages: (v: string) => (v === "1" ? "1 Sprache" : `${v} Sprachen`),
         }
       : {
           files: (v: string) => `${v} files`,
           lines: (v: string, code: boolean) => `${v} lines of ${code ? "code" : "read text"}`,
-          findings: (v: string) => `${v} scanner findings to review`,
+          findings: (v: string) =>
+            `${v} ${f.demo ? "sample findings" : "scanner findings to review"}`,
           languages: (v: string) => (v === "1" ? "1 language" : `${v} languages`),
         };
   return [
@@ -100,6 +103,11 @@ function factLine(lang: Lang, f: MeasuredFacts): string {
 /** What the picture is made of, said once, in the caption's own voice. */
 function shapeLine(lang: Lang, f: MeasuredFacts): string {
   const n = (value: number): string => formatCount(lang, value);
+  if (f.demo) {
+    return lang === "de"
+      ? "Synthetische Demo: Kein Scanner wurde ausgeführt. Ordner sind Bezirke, Dateien sind Gebäude, die Höhe zeigt zyklomatische Komplexität. Die Baken zeigen Beispielfunde."
+      : "Synthetic demo: No scanner ran. Folders are districts, files are buildings, height shows cyclomatic complexity. Beacons show sample findings.";
+  }
   if (lang === "de") {
     const grey =
       f.unverified > 0
@@ -134,8 +142,8 @@ export function imageCaptionFor(f: MeasuredFacts, lang: Lang, link: string): str
   const facts = factLine(lang, f);
   const shape = shapeLine(lang, f);
   return lang === "de"
-    ? `Mein Projekt als Stadt: ${facts}.\n${shape}\nLokal erstellt mit Ephemora Skyline.${callToAction(lang, link)}`
-    : `My project as a city: ${facts}.\n${shape}\nMade locally with Ephemora Skyline.${callToAction(lang, link)}`;
+    ? `${f.demo ? "Die Demo-Stadt" : "Mein Projekt als Stadt"}: ${facts}.\n${shape}\nLokal erstellt mit Ephemora Skyline.${callToAction(lang, link)}`
+    : `${f.demo ? "The demo city" : "My project as a city"}: ${facts}.\n${shape}\nMade locally with Ephemora Skyline.${callToAction(lang, link)}`;
 }
 
 export function captionsFor(f: MeasuredFacts, lang: Lang, link: string): Caption[] {
@@ -144,6 +152,15 @@ export function captionsFor(f: MeasuredFacts, lang: Lang, link: string): Caption
   const names = nameLead(lang, f);
   const cta = callToAction(lang, link);
   const n = (value: number): string => formatCount(lang, value);
+
+  if (f.demo) {
+    const lead =
+      lang === "de" ? "Die Demo-Stadt von Ephemora Skyline" : "Ephemora Skyline's demo city";
+    return (["dry", "warm", "curious"] as const).map((tone) => ({
+      tone,
+      text: `${lead}: ${facts}.${names}\n${shape}${cta}`,
+    }));
+  }
 
   if (lang === "de") {
     const none =

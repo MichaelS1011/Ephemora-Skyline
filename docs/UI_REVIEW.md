@@ -33,4 +33,196 @@ The browser already reports a Three.js Clock deprecation warning; the rendering 
 
 - [Project entry](assets/ui-landing.png)
 - [Desktop workspace](assets/ui-workspace.png)
-- [Narrow-window findings](assets/ui-mobile.png)
+- [Narrow-window findings](assets/ui-narrow.png)
+
+## Second pass — 9/10 October 2026
+
+The same questions, asked of the tree as it stands now, with the frames re-shot
+from it. The numbers below are from runs on this machine; the counts in the
+section above are from 4 October and are kept as the record of that pass.
+
+- `npm run lint`, `npm run type-check`: passed, both packages, zero warnings.
+- `npm run test`: **1,542 passed in 169 files** (933 frontend in 96 files, 609
+  backend in 73 files), **no test skipped**, three consecutive runs ending 0.
+- Gates were additionally run on a fresh copy of the tree without `.git` and
+  without `node_modules`: `npm ci` succeeded and the same three gates passed
+  there.
+- Browser checks on the running build: desktop 1600 × 1000 (1600 × 1250 where a
+  page is taller than the screen) and a narrow window at 390 × 844, driven
+  through the visible controls — entry screen, scan settings, demo city, security
+  mode, findings list, finding card, share studio, More menu, language switch.
+  No phone claim: this is a desktop web application.
+- What the new frames show that the October set did not: the _Excluded folders_
+  field beside the profile choice, the map's own alarm count in words, the
+  platform rows with what each of them can take (and LinkedIn stating it stays
+  off), the version-note switch inside the city, the quoted line on the finding
+  card, the finding card in German with its remediation steps translated, and
+  the “recently opened” row filled.
+
+### Every caption was checked against its own pixels
+
+The set came out of the first pass with three captions the frames did not
+support, found by measuring the pictures rather than by looking at them:
+
+- “Security mode: the city darkens” — the buildings drop, and one control moves
+  with them. Between the two shipped frames 1.70 % of the 1,600,000 pixels differ
+  with no tolerance and no region mask: 17,293 of them are city pixels going
+  darker (median colour sum 384 → 235) and 4,842 sit inside the mode bar's
+  284 × 28 px chip field, where the highlight moves from Structure to Security
+  (2,484 of those brighter, 2,358 darker). The median over all differing pixels
+  goes 372 → 271. Streets, kerbs, trees, sky and nameplates are pixel-identical.
+  Two notes on re-measuring this pair: the field was named 166 × 28 px before,
+  which cannot hold the 4,794 differing pixels that paragraph counted, so the
+  box is now the one the three chips actually occupy; and “the same screen shot
+  again 600 ms later differs in 0 pixels” is only true where nothing moves —
+  measured with the browser asking for reduced motion it is 0 of 1,600,000, as
+  shipped it is 7,263 (0,454 %), because the street fleet drives and the alarm
+  windows pulse. The caption names both channels; this names both states.
+- The poster beside the clip link is its own frame, not a frame of the clip:
+  1280 × 800 and 355 KB, shot after the visit had returned to the overview,
+  while the clip ends on a close-up. The README therefore gives the poster no
+  clip numbers and the clip no poster numbers.
+- “The finding card: … the code frame” — the demo city had none. 0 of its 7
+  findings carried a snippet; the card was scrolled past its own head as well.
+  Both fixed, and the frame was re-shot from the head.
+- Two frames showed the same screen (the entry page with its settings open twice)
+  and one of them was a byte-identical duplicate of the other, 727 KB of it. The
+  hero was re-shot with the settings folded, and the 1 October frame that the
+  duplicate had overwritten was restored out of the commit it belonged to, so
+  the pass above still shows its own evidence.
+
+The capture scripts were themselves the source of two of the failures: a loose
+label match clicked _Security tour_ where _SECURITY_ was meant, and a text
+selector looked for a string that only ever exists as an `aria-label`. The
+frames now come from one sitting, on the build that ships them, with a
+visibility check before each one.
+
+### The first drive, on a machine that had never seen the app
+
+A copy of exactly the files the pending commit carries (375 files, 11 MB),
+`npm install` from empty, then the app's own **Choose project folder** against a
+project it had never read: 11 paths on disk → **9 files analysed, 3 findings
+(2 critical, 1 high), 2 files “in a format the scanners do not read”** — the
+arithmetic closes on a stranger's folder, not only on fixtures. **0 requests**
+left the machine for the whole visit. A real external engine contributed one of
+the three findings (`gitleaks`, rule `stripe-access-token`), and its secret value
+reached the screen masked while the two lines beside it stayed readable.
+
+Two of its findings were about setup rather than screens, and both are fixed in
+this tree: a refused write from a page the process was not told to serve said
+_“came from another website”_ when the real cause was a moved port, and a second
+backend on a busy port died as a Node stack trace. A third — the dev proxy
+hardcoding the backend's port, so a second frontend silently drove the _first_
+checkout's backend — is fixed too, with the working two-command recipe in
+`CONTRIBUTING.md`.
+
+The limit stands where it did on 1 October: the native directory dialog cannot
+be answered from an automation. This drive went through the app's own fallback
+input, which is the path a browser without the File System Access API takes.
+
+### Screens
+
+- [Entry screen](assets/hero.png) · [scan settings open](assets/ui-entry-settings.png)
+- [City, structure mode](assets/ui-workspace.png) · [security mode](assets/ui-security.png)
+- [Findings list](assets/ui-findings-list.png) · [one finding](assets/ui-finding.png)
+- [Share studio with the platform rows](assets/ui-share-platforms.png) · [More menu](assets/ui-more-menu.png)
+- [The same card in German](assets/ui-german-card.png) · [narrow window](assets/ui-narrow.png)
+- [28-second clip of one visit](assets/demo-city.mp4) — 800 × 500, 15 fps, one video stream, no audio track
+
+### The alarm band inside the city — 11 October 2026
+
+The colour-blind switch had stopped at the flat surfaces. Two reasons, and both
+were structural rather than a missed file: `THREAT_COLOR` is assembled inside
+`palette.ts` from the unswitched severity table, and `palette.ts` is the one file
+the guard that walks the tree excludes; and the guard's pattern matched _reads_
+of that table, so a JSX attribute like `emissive="#ff2e4d"` could not be seen by
+construction. Measured before the change: eleven alarm values sat as literals in
+the components that paint the city.
+
+What the switch now does, read off the pixels it moves rather than off the
+source:
+
+| surface                                        | worst case over the three vision types, against its calm neighbour |
+| ---------------------------------------------- | ------------------------------------------------------------------ |
+| pulsing alarm window                           | 10,50 → **30,74** ΔE00                                             |
+| second alarm tower's window                    | 10,50 → **32,50** ΔE00                                             |
+| plot kerb of a critical district               | 10,50 → **28,52** ΔE00                                             |
+| dim window row of the same facade              | 33,08 → **46,35** ΔE00                                             |
+| rooftop beacon (control — it already switched) | 39,37 → 39,37                                                      |
+
+With the switch **off**, the city is the picture it was: 0 pixels differ over the
+whole frame area at Δ>30, and the drilled-in close-up hashes identically
+(`6ccacddfa160`). The one difference found in the mid-distance frame was 1.812
+pixels inside a district label, all of them on glyph edges — the fractional CSS
+transform of a DOM label over the canvas, not a colour. Kerb, plaza and city
+centre measured ΔE76 0,00 there.
+
+Two findings the guard produced on the way, neither of which was in the brief:
+the legend's heat-ramp row hardcoded the normal-vision gradient, so under the
+switch it named a ramp that was no longer painted; and the facade texture cache
+key did not carry the window tones, so switching repainted panels and beacon
+while every tower kept the texture it already had.
+
+Left open, by decision and with its number: the default branch still paints a
+pale alarm window 6,12 ΔE00 from a calm one, and the beacon's shape code — the
+only carrier in the picture that does not need colour at all — exists only in the
+switched branch. Closing either redraws every published frame in this file.
+
+## Third pass — 12 October 2026: the world changed, so the frames had to
+
+The inhabitants and the street fleet were redrawn (legs that bend, a contact patch
+under each figure, a car shape with its own proportions, five coats, wheels that
+roll), so every frame of the city in this file and in README.md was re-shot from
+the build that ships it: the ten frames of "The look", the poster, and the clip.
+Each one was opened through the app's own controls — no injected state — and each
+capture is preceded by a check that the page is visible and its canvas has a box.
+`ui-landing.png` is deliberately **not** among them: it is the 1 October frame the
+first pass above cites, restored out of the commit it belonged to, and replacing
+it would trade a record for a picture of today.
+
+The five gates were run on the tree that carries them: lint and the type check
+over both packages with zero warnings, **192 test files and 1,713 cases** (656
+backend, 1,057 frontend) in three consecutive full runs, each ending with exit 0
+and no test skipped, the production build for both packages, and the audit gate
+with its one accepted advisory named in the gate itself.
+
+### The clip ran faster than the visit it filmed
+
+The capture is a stream of frames Chrome pushes when it paints. The old recipe
+kept every fourth of them and then declared 15 fps, which is only the truth while
+the page paints at 60. Read off the manifest of the take that shipped: **383
+frames kept over 26,83 s of visit**, played back at 15 fps — **25,53 s of film
+for 26,83 s of visit, 4,8 % fast.** "No sped-up frames" was a claim about intent
+rather than about the file.
+
+The new take selects each output frame by timestamp (the nearest captured frame
+to _i_/15 s), so the film takes the time the visit took:
+
+|           | captured                                      | film                            | offset to the target clock      |
+| --------- | --------------------------------------------- | ------------------------------- | ------------------------------- |
+| this take | 1.691 frames over 28,565 s (59,2 fps painted) | 428 frames = 28,533 s at 15 fps | mean 0,0035 s, largest 0,1193 s |
+
+The largest offset is the one honest cost of the method: where the page painted
+slower than the target rate — the moment the city assembles — a frame is held for
+up to 0,1193 s. Nothing is re-timed, and nothing is dropped forward. The file is
+800 × 500, 442 KB, one video track, no audio track; README.md:17 states those
+numbers and `backend/tests/beleg-04-demo-clip.test.ts` now reads them out of that
+sentence instead of repeating them, so the document and the bytes cannot drift.
+The poster beside it is 1280 × 800 and 355 KB.
+
+### What measuring the frames found in the layout
+
+The findings-list frame came out with a dead band: the city picture started at
+**x = 316** with nothing painted in front of it. The rule is sound in itself —
+the canvas reserves the project card's width, because the card is opaque and
+takes pointer events — but `:has()` asks the DOM, not the render tree, and the
+same stylesheet hides that card (`display: none`) whenever an info or findings
+panel is open. So the reservation stayed behind a panel that was gone.
+
+Fixed by guarding the reservation with `:not(:has(.panel-info, .panel-findings))`
+in both wide-viewport blocks, and pinned by
+`frontend/tests/canvasReserve.test.ts`, which reads every rule that reserves the
+card's width out of `globals.css` and fails if its guard does not name every panel
+that hides the card. Verified by the same measurement that found it: the picture
+now reaches the left edge of the frame in both panel shots, and the two frames
+that showed the band were re-shot after the change.

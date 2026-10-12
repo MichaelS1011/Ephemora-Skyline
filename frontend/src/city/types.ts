@@ -242,7 +242,7 @@ export interface CityData {
   dropped?: DroppedFiles;
 }
 
-/** The five ways a path in the picked folder can end up unread. */
+/** The six ways a path in the picked folder can end up unread. */
 export interface DroppedFiles {
   /** Path longer than the upload's character bound */
   pathTooLong: number;
@@ -254,6 +254,19 @@ export interface DroppedFiles {
   unreadable: number;
   /** Left out by the user's own exclude folders */
   excluded: number;
+  /**
+   * Paths the project's own .gitignore set aside, counted at the first ignored
+   * ancestor: one ignored folder is one number, not its file count.
+   */
+  gitIgnored: number;
+  /**
+   * `.git` files that did not fit the history budget. They are not too large —
+   * the budget simply filled — and the difference matters, because churn scores
+   * are then built on the part of the history that arrived.
+   */
+  gitBudget: number;
+  /** Shape the scan does not read: pictures, text without a known extension */
+  unsupportedFormat: number;
 }
 
 /** Which unit is currently selected (a rendered file building or a block). */

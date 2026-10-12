@@ -14,7 +14,7 @@ import { buildOpenWorld, standOnLane } from "../src/city/openWorldStreets";
  * Canvas mounts, at the same 1600x1000 the measurement is taken at.
  *
  * It is geometry, not a screenshot — the pixel measurement in
- * .qoder-scratch/opencity-shots is what proves the projection matches the plate.
+ * a local measurement script that is not shipped is what proves the projection matches the plate.
  */
 
 const VIEW = { w: 1600, h: 1000 };

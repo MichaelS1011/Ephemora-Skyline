@@ -1,4 +1,6 @@
 import type { AnalysisResult, FileAnalysis } from "../../models/index.js";
+import { categoryOf } from "../../services/security/categories.js";
+import { knowledgeFor } from "../../services/security/finding-knowledge.js";
 
 /**
  * Synthetic demo repository — a plausible multi-district codebase that flows
@@ -251,11 +253,32 @@ export function getDemoResult(): AnalysisResult {
         line: 1 + idx * 3,
       })),
       exports: [{ type: "named" as const, name: base, line: 1 }],
-      vulnerabilities: (spec.findings ?? []).map((f) => ({
-        ...f,
-        score: f.severity === "P0" ? 10 : f.severity === "P1" ? 7 : 3,
-        provenance: "demo",
-      })),
+      // The same knowledge table a real scan reads its CWE from
+      // (`finding-knowledge.ts`), so the demo city answers in the user's
+      // language on the same terms as a scanned one. Measured before: 0 of the
+      // demo's 7 findings carried a category, and the panel's German line under
+      // the scanner's English sentence appeared for 1 of 1 in a real scan and
+      // for none here — the first thing most people open the program with.
+      vulnerabilities: (spec.findings ?? []).map((f) => {
+        const knowledge = knowledgeFor(f.type);
+        const cwe = knowledge.cwe;
+        return {
+          ...f,
+          score: f.severity === "P0" ? 10 : f.severity === "P1" ? 7 : 3,
+          provenance: "demo",
+          explanation: knowledge.explain,
+          // The line the rule names, and nothing around it. A real scan reads
+          // two lines either side out of the file (`buildSnippet`); no file was
+          // read here, so the frame stays one line deep rather than inventing
+          // its neighbours. Before this it was absent altogether, and the code
+          // frame the README promises was invisible on the one screen every
+          // visitor opens before they have scanned anything: 0 of 7.
+          snippet: { before: [], line: f.code, after: [], number: f.line },
+          ...(cwe ? { cwe } : {}),
+          ...(knowledge.refUrl ? { refUrl: knowledge.refUrl } : {}),
+          category: categoryOf(f.type, cwe),
+        };
+      }),
     };
   });
 

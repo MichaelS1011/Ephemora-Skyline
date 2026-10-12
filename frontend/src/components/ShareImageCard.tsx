@@ -2,6 +2,7 @@ import { useState } from "react";
 import type { Lang } from "../i18n";
 import type { CityImage } from "../share/image";
 import { imageCaptionFor, type MeasuredFacts } from "../share/captions";
+import { SharePlatforms } from "../share/Platforms";
 import { SHARE_LINK } from "../share/config";
 import { tx } from "../share/fallbackCopy";
 
@@ -106,6 +107,7 @@ export function ShareImageCard({
         )}
       </div>
       <p className="share-subtle">{tx(lang, "card.privacy")}</p>
+      <SharePlatforms lang={lang} caption={caption} />
       <button type="button" className="share-again" onClick={onAgain}>
         {tx(lang, "image.again")}
       </button>

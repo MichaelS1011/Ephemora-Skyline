@@ -1,0 +1,166 @@
+// @vitest-environment jsdom
+// The colour-blind switch is only a promise if every surface that paints a
+// severity paints it through the one function that knows about the switch.
+// Measured 2026-10-09 (launch-bar T4, item 8): 7 of 15 alarm surfaces switched,
+// 8 did not — SecurityTour, the district plate and its strip bar, the scan
+// summary accent, four InfoPanel surfaces, the minimap's alarm paint. They read
+// the base palette directly, so a pilot who turned the switch on still got
+// red/green where the city itself had gone vermilion/blue.
+import { describe, it, expect, afterEach, beforeEach, vi } from "vitest";
+import { readFileSync, readdirSync } from "fs";
+import path from "path";
+import { act, createElement } from "react";
+import { createRoot, type Root } from "react-dom/client";
+import { ScanSummary } from "../src/components/ScanSummary";
+import { useStore } from "../src/stores/useStore";
+import { SEVERITY_COLOR, SEVERITY_CVD_COLOR } from "../src/city/palette";
+import type { CityData, CityDir, CityFile } from "../src/city/types";
+
+const SRC = path.resolve(import.meta.dirname, "../src");
+
+function tsFiles(dir: string, into: string[] = []): string[] {
+  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    const full = path.join(dir, entry.name);
+    if (entry.isDirectory()) tsFiles(full, into);
+    else if (/\.(ts|tsx)$/.test(entry.name)) into.push(full);
+  }
+  return into;
+}
+
+/**
+ * `SEVERITY_COLOR` is the unswitched half of the palette. Reading it anywhere
+ * outside `palette.ts` means a surface that cannot follow the switch. The guard
+ * walks the whole tree because the eight misses were eight different files.
+ */
+describe("jede Schweregrad-Farbe im Programm geht durch den Schalter", () => {
+  it("lässt keine Fläche die Alarm-Palette direkt lesen", () => {
+    const offenders = tsFiles(SRC)
+      .filter((f) => !f.endsWith(path.join("city", "palette.ts")))
+      .map((f) => [f, readFileSync(f, "utf-8")] as const)
+      .filter(([, text]) => /SEVERITY_COLOR\s*[.[]/.test(text))
+      .map(([f]) => path.relative(SRC, f));
+    expect(offenders).toEqual([]);
+  });
+
+  it("berät den Schalter in jeder der gemeldeten Dateien", () => {
+    for (const rel of [
+      "components/SecurityTour.tsx",
+      "components/District.tsx",
+      "components/ScanSummary.tsx",
+      "components/InfoPanel.tsx",
+      "components/Minimap.tsx",
+      "components/ContextCard.tsx",
+      "components/HeatCells.tsx",
+      "components/HudOverlay.tsx",
+      "components/FindingsPanel.tsx",
+      "components/SearchBar.tsx",
+      "components/Tooltip.tsx",
+    ]) {
+      const text = readFileSync(path.join(SRC, rel), "utf-8");
+      expect(text, `${rel} consults no switched colour`).toContain("severityColor(");
+      expect(text, `${rel} never reads prefs.colorblind`).toContain("prefs.colorblind");
+    }
+  });
+});
+
+/* ── one of the eight, painted and measured in the DOM ────────────────────── */
+
+const hit = (): CityFile =>
+  ({
+    id: "f-1",
+    name: "a.ts",
+    path: "src/a.ts",
+    language: "TypeScript",
+    linesOfCode: 40,
+    cyclomaticComplexity: 2,
+    threatLevel: "critical",
+    findings: [{ severity: "P0", line: 1, message: "crit", type: "X" }],
+  }) as unknown as CityFile;
+
+const city = (): CityData => {
+  const f = hit();
+  const tree = {
+    name: "probe",
+    path: "",
+    fileCount: 1,
+    linesOfCode: 40,
+    languages: { TypeScript: 40 },
+    findingsBySeverity: { P0: 1, P1: 0, P2: 0 },
+    threatScore: 10,
+    topFindings: [],
+    children: [],
+    detailFiles: [f],
+    remainingFiles: 0,
+    districtFiles: [],
+  } as unknown as CityDir;
+  return {
+    repo: { owner: "local", name: "probe", branch: "main" },
+    analysisId: "scan-1",
+    languages: { TypeScript: 40 },
+    totalFiles: 1,
+    renderedFiles: 1,
+    findingsBySeverity: { P0: 1, P1: 0, P2: 0 },
+    fileConnections: [],
+    dirConnections: [],
+    meta: {},
+    scanProvenance: {
+      regex: true,
+      gitleaks: true,
+      semgrep: true,
+      dependencies: true,
+      osv: true,
+      ruff: true,
+    },
+    tree,
+  } as unknown as CityData;
+};
+
+let container: HTMLDivElement;
+let root: Root;
+
+async function summary(colorblind: boolean): Promise<string> {
+  if (root) await act(async () => root.unmount());
+  container = document.createElement("div");
+  document.body.append(container);
+  useStore.setState(
+    {
+      ...useStore.getInitialState(),
+      prefs: { ...useStore.getInitialState().prefs, lang: "de", colorblind },
+      cityData: city(),
+      buildPhase: "built",
+    },
+    true,
+  );
+  root = createRoot(container);
+  await act(async () => root.render(createElement(ScanSummary)));
+  // Fresh off the scan the verdict is the open card; its status line carries the
+  // accent of the worst severity actually present.
+  const status = container.querySelector<HTMLElement>(".start-summary-status");
+  expect(status, "the summary shows no status line at all").toBeTruthy();
+  return window.getComputedStyle(status!).color;
+}
+
+beforeEach(() => {
+  vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
+});
+
+afterEach(async () => {
+  if (root) await act(async () => root.unmount());
+  container?.remove();
+  useStore.setState(useStore.getInitialState(), true);
+  vi.unstubAllGlobals();
+});
+
+describe("der Scan-Bescheid schaltet mit", () => {
+  it("paints the alarm of the switch the user set", async () => {
+    const plain = await summary(false);
+    const cvd = await summary(true);
+    const asRgb = (hex: string): string => {
+      const n = parseInt(hex.slice(1), 16);
+      return `rgb(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255})`;
+    };
+    expect(plain, "the default accent is the shipped red").toContain(asRgb(SEVERITY_COLOR.P0));
+    expect(cvd).not.toBe(plain);
+    expect(cvd).toContain(asRgb(SEVERITY_CVD_COLOR.P0));
+  });
+});

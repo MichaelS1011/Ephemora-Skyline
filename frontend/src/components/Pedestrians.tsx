@@ -106,6 +106,42 @@ interface Ephe {
 const WALKER_COLORS = EPHE_PALETTE.jackets;
 
 export type EpheGesture = "idle" | "chat" | "carry" | "lift";
+
+/**
+ * The body plan of one resident, in units of the 1.35-tall person.
+ *
+ * It used to be a capsule from 0.10 to 0.82 with a head sitting on top of it:
+ * no legs at all, a torso that reached within 0.10 of the ground, and a
+ * silhouette that read as one pale blob at every distance the city is actually
+ * looked at. The plan below is what a person's outline is made of — crown 1.35,
+ * head 0.95…1.35, torso 0.41…0.95, hip 0.45, knee 0.26, ankle 0.08 — so the legs
+ * are the lower half of the figure the way they are on a body, and the gait has
+ * something to bend. `openCityLifeFraming.test.ts` budgets exactly 1.35 of
+ * height for the ≥3 px rule, so the crown is a contract, not a taste choice.
+ */
+export const FIGURE = {
+  crown: 1.35,
+  /**
+   * Measured against a human body: the leg is the lower half (hip 0.70 of 1.35),
+   * the head is a seventh of the height, and the coat runs from the shoulder to
+   * the hip without reaching for the floor. The shipped figure had a torso that
+   * ended 0.10 above the ground, a head of a quarter of the body, and no leg at
+   * all — which is why it read as a ball with boots.
+   */
+  headY: 1.24,
+  headR: 0.11,
+  bodyY: 0.89,
+  bodyHalf: 0.21,
+  bodyR: 0.175,
+  hipY: 0.7,
+  kneeY: 0.4,
+  ankleY: 0.1,
+  /** above the torso centre */
+  shoulderY: 0.16,
+  hipWidth: 0.085,
+  shoulderWidth: 0.19,
+} as const;
+
 export interface EpheLimbPose {
   footX: number;
   footY: number;
@@ -113,10 +149,13 @@ export interface EpheLimbPose {
   handX: number;
   handY: number;
   handZ: number;
+  /** How far the knee leads the hip→ankle line, in figure widths forward. The
+   *  leg is two segments, so a stride has to bend somewhere. */
+  kneeForward: number;
 }
 
-/** Local-space gait and task pose. Reuses the caller's scratch object: six
- *  limb instances add no per-frame allocations or extra crowd draw calls. */
+/** Local-space gait and task pose. Reuses the caller's scratch object: ten limb
+ *  instances add no per-frame allocations or extra crowd draw calls. */
 export function writeEpheLimbPose(
   out: EpheLimbPose,
   stride: number,
@@ -128,19 +167,24 @@ export function writeEpheLimbPose(
   out.footX = side * 0.12;
   out.footY = 0.078 + Math.max(0, step) * 0.045;
   out.footZ = step * 0.13;
+  // A knee never bends backwards: it leads as the leg comes forward and pushes
+  // off behind, and stays slightly bent while standing so the leg is not a pole.
+  out.kneeForward = 0.022 + Math.max(0, step) * 0.05;
   out.handX = side * 0.28;
-  out.handY = 0.32;
+  // A hanging arm ends below the hip, not at it: 0.45 put the hands beside the
+  // waistband, where they read as two extra lumps on a snowman.
+  out.handY = 0.5;
   out.handZ = -step * 0.1;
   if (gesture === "carry") {
     out.handX = side * 0.25;
-    out.handY = 0.58;
+    out.handY = 0.74;
     out.handZ = 0.43;
   } else if (gesture === "lift") {
     out.handX = side * 0.28;
     out.handY = 1.22;
     out.handZ = 0.12;
   } else if (gesture === "chat" && side === 1) {
-    out.handY = 0.65 + Math.sin(gesturePhase) * 0.025;
+    out.handY = 0.86 + Math.sin(gesturePhase) * 0.025;
     out.handZ = 0.19;
   }
 }
@@ -350,6 +394,7 @@ export function Pedestrians({
   const faceRef = useRef<THREE.InstancedMesh>(null);
   const eyeRef = useRef<THREE.InstancedMesh>(null);
   const limbRef = useRef<THREE.InstancedMesh>(null);
+  const shadowRef = useRef<THREE.InstancedMesh>(null);
   const hatRef = useRef<THREE.InstancedMesh>(null);
   const cargoRef = useRef<THREE.InstancedMesh>(null);
   const plateRef = useRef<THREE.InstancedMesh>(null);
@@ -481,12 +526,31 @@ export function Pedestrians({
 
   const dummy = useMemo(() => new THREE.Object3D(), []);
   const scratchColor = useMemo(() => new THREE.Color(), []);
-  const bodyGeo = useMemo(() => new THREE.CapsuleGeometry(0.2, 0.32, 4, 10), []);
-  const headGeo = useMemo(() => new THREE.SphereGeometry(0.245, 12, 8), []);
+  /**
+   * The figure's body plan, in units of the 1.35-tall person. See the exported
+   * `FIGURE` above for what each number is and why the plan changed.
+   */
+  const bodyGeo = useMemo(
+    () => new THREE.CapsuleGeometry(FIGURE.bodyR, FIGURE.bodyHalf * 2 - FIGURE.bodyR * 2, 4, 10),
+    [],
+  );
+  const headGeo = useMemo(() => new THREE.SphereGeometry(FIGURE.headR, 12, 8), []);
   const faceGeo = useMemo(() => new THREE.SphereGeometry(1, 10, 6), []);
   const eyeGeo = useMemo(() => new THREE.SphereGeometry(0.032, 6, 4), []);
-  // Boots, sleeves and hands share one unit sphere, coloured per instance.
+  // Boots, thighs, shins, sleeves and hands share one unit sphere, coloured per
+  // instance — the legs are stretched spheres for the same reason the arms are:
+  // a figure costs one draw call for all ten of its limbs, not ten.
   const limbGeo = useMemo(() => new THREE.SphereGeometry(1, 8, 6), []);
+  // The disc under a figure. Without it a body stands on the ground plane with a
+  // hard contact edge and reads as floating; measured as `contactLumaDelta`, the
+  // crowd sat at −2.8 to −3.6, i.e. the ground under a figure was BRIGHTER than
+  // the ground behind it. Rotated flat here once, so the per-frame write is a
+  // position and a scale.
+  const shadowGeo = useMemo(() => {
+    const g = new THREE.CircleGeometry(0.3, 14);
+    g.rotateX(-Math.PI / 2);
+    return g;
+  }, []);
   const hatGeo = useMemo(
     () =>
       new THREE.LatheGeometry(
@@ -512,6 +576,7 @@ export function Pedestrians({
       handX: 0,
       handY: 0,
       handZ: 0,
+      kneeForward: 0,
     }),
     [],
   );
@@ -556,22 +621,27 @@ export function Pedestrians({
     if (!mesh) return;
     // Capacity is `count`; the population is `crowd`. Everything after the
     // crowd's last figure is simply not drawn.
-    for (const m of [bodyRef, headRef, faceRef, hatRef, cargoRef]) {
+    for (const m of [bodyRef, headRef, faceRef, hatRef, cargoRef, shadowRef]) {
       if (m.current) m.current.count = crowd;
     }
     if (eyeRef.current) eyeRef.current.count = crowd * 2;
-    if (limbRef.current) limbRef.current.count = crowd * 6;
+    if (limbRef.current) limbRef.current.count = crowd * 10;
     walkers.forEach((e, i) => {
       mesh.setColorAt(i, e.color);
-      const shell = scratchColor.set(EPHE_PALETTE.shells[i % EPHE_PALETTE.shells.length]!);
-      headRef.current?.setColorAt(i, shell);
+      const shellHex = EPHE_PALETTE.shells[i % EPHE_PALETTE.shells.length]!;
+      const trouserHex = EPHE_PALETTE.trousers[i % EPHE_PALETTE.trousers.length]!;
+      headRef.current?.setColorAt(i, scratchColor.set(shellHex));
       for (let side = 0; side < 2; side++) {
-        limbRef.current?.setColorAt(i * 6 + side, scratchColor.set(EPHE_PALETTE.boots));
-        limbRef.current?.setColorAt(i * 6 + 2 + side, e.color);
-        limbRef.current?.setColorAt(
-          i * 6 + 4 + side,
-          scratchColor.set(EPHE_PALETTE.shells[i % EPHE_PALETTE.shells.length]!),
-        );
+        // 0-1 boots · 2-3 sleeves · 4-5 hands · 6-7 thighs · 8-9 shins.
+        // Each write sets the scratch colour itself: `scratchColor` is one shared
+        // object, so holding it in a variable across the loop hands whatever was
+        // set last to everything after it — which is how the legs came out the
+        // colour of the hands.
+        limbRef.current?.setColorAt(i * 10 + side, scratchColor.set(EPHE_PALETTE.boots));
+        limbRef.current?.setColorAt(i * 10 + 2 + side, e.color);
+        limbRef.current?.setColorAt(i * 10 + 4 + side, scratchColor.set(shellHex));
+        limbRef.current?.setColorAt(i * 10 + 6 + side, scratchColor.set(trouserHex));
+        limbRef.current?.setColorAt(i * 10 + 8 + side, scratchColor.set(trouserHex));
       }
     });
     for (const ref of [bodyRef, headRef, limbRef]) {
@@ -976,6 +1046,7 @@ export function Pedestrians({
     const epochNow = hasSites ? Date.now() : 0;
     const hats = hatRef.current;
     const cargos = cargoRef.current;
+    const shadows = shadowRef.current;
 
     // Construction site: keep the vehicles off the stage. `placeTraffic`
     // collapses their instances, so an in-city re-scan (same mounted component)
@@ -1461,7 +1532,7 @@ export function Pedestrians({
         : e.mode === "work"
           ? Math.sin(now * 9) * 0.04
           : 0;
-      const y = (0.46 + bob) * e.tall * grow;
+      const y = (FIGURE.bodyY + bob) * e.tall * grow;
       const vScale = e.tall * grow * visibleScale;
 
       dummy.position.set(e.x, y, e.z);
@@ -1482,24 +1553,28 @@ export function Pedestrians({
       dummy.updateMatrix();
       bodies.setMatrixAt(i, surfaceMatrix(surface, dummy.matrix));
 
-      dummy.position.set(e.x, y + 0.44 * e.tall * grow, e.z);
-      dummy.scale.set(
-        e.fat * grow * visibleScale,
-        e.tall * grow * visibleScale,
-        e.fat * grow * visibleScale,
-      );
+      // A head does not get wider just because the body is: the old figure wore
+      // `fat` on all three axes, so the broadest residents had a melon on their
+      // shoulders. One damped width factor, used by head, face and eyes alike.
+      const headW = (1 + (e.fat - 1) * 0.25) * grow * visibleScale;
+      const headY = y + (FIGURE.headY - FIGURE.bodyY) * e.tall * grow;
+      dummy.position.set(e.x, headY, e.z);
+      dummy.scale.set(headW, e.tall * grow * visibleScale, headW);
       dummy.updateMatrix();
       heads.setMatrixAt(i, surfaceMatrix(surface, dummy.matrix));
 
       // Ceramic heads, an ink visor and two pearl eyes carry the facing direction.
-      // Limbs reuse a single instanced sphere mesh for boots, sleeves and hands.
+      // Limbs reuse a single instanced sphere mesh for boots, thighs, shins,
+      // sleeves and hands.
       const forwardX = Math.sin(e.angle);
       const forwardZ = Math.cos(e.angle);
       const width = e.fat * grow * visibleScale;
-      const headY = y + 0.44 * e.tall * grow;
       dummy.rotation.set(0, e.angle, 0);
-      dummy.position.set(e.x + forwardX * 0.2 * width, headY, e.z + forwardZ * 0.2 * width);
-      dummy.scale.set(0.185 * width, 0.12 * vScale, 0.065 * width);
+      // The visor sits ON the head: the head is 0.15 across, so the face band
+      // goes at 0.11 in front of the centre, not at 0.2 where it floated off the
+      // skull as soon as the head stopped being a melon.
+      dummy.position.set(e.x + forwardX * 0.082 * headW, headY, e.z + forwardZ * 0.082 * headW);
+      dummy.scale.set(0.085 * headW, 0.055 * vScale, 0.03 * headW);
       dummy.updateMatrix();
       faceRef.current?.setMatrixAt(i, surfaceMatrix(surface, dummy.matrix));
       const gesture: EpheGesture =
@@ -1510,55 +1585,99 @@ export function Pedestrians({
             : e.mode === "toSite"
               ? "carry"
               : "idle";
+      /** A limb is a stretched sphere between two joints, so the leg and the arm
+       *  share one helper: mid-point, direction, half-length. */
+      const writeBone = (
+        slot: number,
+        ax: number,
+        ay: number,
+        az: number,
+        bx: number,
+        by: number,
+        bz: number,
+        radius: number,
+      ) => {
+        dummy.position.set((ax + bx) / 2, (ay + by) / 2, (az + bz) / 2);
+        armDirection.set(bx - ax, by - ay, bz - az);
+        const length = armDirection.length();
+        dummy.quaternion.setFromUnitVectors(armUp, armDirection.normalize());
+        dummy.scale.set(radius, length / 2, radius);
+        dummy.updateMatrix();
+        limbRef.current?.setMatrixAt(slot, surfaceMatrix(surface, dummy.matrix));
+      };
       for (let side = 0; side < 2; side++) {
         const lateral = side === 0 ? -1 : 1;
         dummy.position.set(
-          e.x + (forwardX * 0.267 + forwardZ * lateral * 0.068) * width,
-          headY + 0.016 * vScale,
-          e.z + (forwardZ * 0.267 - forwardX * lateral * 0.068) * width,
+          e.x + (forwardX * 0.098 + forwardZ * lateral * 0.038) * headW,
+          headY + 0.02 * vScale,
+          e.z + (forwardZ * 0.098 - forwardX * lateral * 0.038) * headW,
         );
-        dummy.scale.setScalar(vScale);
+        // Pearl eyes at 0.7 of their old size: on a 0.15 head two full-size
+        // spheres read as googly eyes rather than a face.
+        dummy.scale.setScalar(vScale * 0.5);
         dummy.updateMatrix();
         eyeRef.current?.setMatrixAt(i * 2 + side, surfaceMatrix(surface, dummy.matrix));
         writeEpheLimbPose(limbPose, stride, lateral, gesture, now * 2.8 + e.phase);
-        dummy.position.set(
-          e.x + (forwardZ * limbPose.footX + forwardX * limbPose.footZ) * width,
-          limbPose.footY * vScale,
-          e.z + (-forwardX * limbPose.footX + forwardZ * limbPose.footZ) * width,
-        );
+        const footX = e.x + (forwardZ * limbPose.footX + forwardX * limbPose.footZ) * width;
+        const footYw = limbPose.footY * vScale;
+        const footZ = e.z + (-forwardX * limbPose.footX + forwardZ * limbPose.footZ) * width;
         dummy.rotation.set(0, e.angle, 0);
         dummy.scale.set(0.1 * width, 0.075 * vScale, 0.17 * width);
+        dummy.position.set(footX, footYw, footZ);
         dummy.updateMatrix();
-        limbRef.current?.setMatrixAt(i * 6 + side, surfaceMatrix(surface, dummy.matrix));
+        limbRef.current?.setMatrixAt(i * 10 + side, surfaceMatrix(surface, dummy.matrix));
+
+        // The leg: hip → knee → ankle. The knee holds its own height and leads
+        // the hip→ankle line to the side that is striding, which is what turns
+        // two spheres into a bending leg instead of a hanging one.
+        const hipX = e.x + forwardZ * lateral * FIGURE.hipWidth * width;
+        const hipZ = e.z - forwardX * lateral * FIGURE.hipWidth * width;
+        const hipYw = FIGURE.hipY * vScale;
+        const kneeLead = limbPose.kneeForward * width;
+        const kneeX = (hipX + footX) / 2 + forwardX * kneeLead;
+        const kneeY = FIGURE.kneeY * vScale;
+        const kneeZ = (hipZ + footZ) / 2 + forwardZ * kneeLead;
+        const ankleYw = footYw + 0.055 * vScale;
+        writeBone(i * 10 + 6 + side, hipX, hipYw, hipZ, kneeX, kneeY, kneeZ, 0.085 * width);
+        writeBone(i * 10 + 8 + side, kneeX, kneeY, kneeZ, footX, ankleYw, footZ, 0.07 * width);
 
         const handX = e.x + (forwardZ * limbPose.handX + forwardX * limbPose.handZ) * width;
         const handY = (limbPose.handY + bob) * vScale;
         const handZ = e.z + (-forwardX * limbPose.handX + forwardZ * limbPose.handZ) * width;
-        const shoulderX = e.x + forwardZ * lateral * 0.205 * width;
-        const shoulderY = y + 0.14 * vScale;
-        const shoulderZ = e.z - forwardX * lateral * 0.205 * width;
-        armDirection.set(handX - shoulderX, handY - shoulderY, handZ - shoulderZ);
-        const armLength = armDirection.length();
-        dummy.position.set(
-          (handX + shoulderX) / 2,
-          (handY + shoulderY) / 2,
-          (handZ + shoulderZ) / 2,
+        const shoulderX = e.x + forwardZ * lateral * FIGURE.shoulderWidth * width;
+        const shoulderY = y + FIGURE.shoulderY * vScale;
+        const shoulderZ = e.z - forwardX * lateral * FIGURE.shoulderWidth * width;
+        writeBone(
+          i * 10 + 2 + side,
+          shoulderX,
+          shoulderY,
+          shoulderZ,
+          handX,
+          handY,
+          handZ,
+          0.075 * width,
         );
-        dummy.quaternion.setFromUnitVectors(armUp, armDirection.normalize());
-        dummy.scale.set(0.075 * width, armLength / 2, 0.075 * width);
-        dummy.updateMatrix();
-        limbRef.current?.setMatrixAt(i * 6 + 2 + side, surfaceMatrix(surface, dummy.matrix));
-        dummy.position.set(handX, handY, handZ);
         dummy.rotation.set(0, e.angle, 0);
+        dummy.position.set(handX, handY, handZ);
         dummy.scale.set(0.075 * width, 0.075 * vScale, 0.075 * width);
         dummy.updateMatrix();
-        limbRef.current?.setMatrixAt(i * 6 + 4 + side, surfaceMatrix(surface, dummy.matrix));
+        limbRef.current?.setMatrixAt(i * 10 + 4 + side, surfaceMatrix(surface, dummy.matrix));
+      }
+
+      if (shadows) {
+        // The contact patch, flat on the ground under the figure's own feet.
+        const reach = visibleScale > 0 ? 0.95 * width : 0;
+        dummy.rotation.set(0, 0, 0);
+        dummy.position.set(e.x, 0.016, e.z);
+        dummy.scale.set(reach, reach, 1);
+        dummy.updateMatrix();
+        shadows.setMatrixAt(i, surfaceMatrix(surface, dummy.matrix));
       }
 
       if (hats) {
         // only builders wear the hat; everyone else collapses to scale 0
         const builder = (e.mode === "work" || e.mode === "toSite") && visibleScale > 0;
-        dummy.position.set(e.x, headY + 0.185 * vScale, e.z);
+        dummy.position.set(e.x, headY + 0.1 * vScale, e.z);
         dummy.rotation.set(0, 0, 0);
         dummy.scale.set(builder ? width : 0, builder ? vScale : 0, builder ? width : 0);
         dummy.updateMatrix();
@@ -1611,6 +1730,7 @@ export function Pedestrians({
     }
     if (hats) hats.instanceMatrix.needsUpdate = true;
     if (cargos) cargos.instanceMatrix.needsUpdate = true;
+    if (shadows) shadows.instanceMatrix.needsUpdate = true;
     // the sign and the two vehicles, written from their poses every frame so a
     // still frame (dt = 0) is still a complete frame
     placeTraffic();
@@ -1631,8 +1751,23 @@ export function Pedestrians({
       <instancedMesh ref={eyeRef} args={[eyeGeo, undefined, count * 2]} frustumCulled={false}>
         <meshBasicMaterial color={EPHE_PALETTE.eyes} />
       </instancedMesh>
-      <instancedMesh ref={limbRef} args={[limbGeo, undefined, count * 6]} frustumCulled={false}>
+      <instancedMesh ref={limbRef} args={[limbGeo, undefined, count * 10]} frustumCulled={false}>
         <meshStandardMaterial roughness={0.9} />
+      </instancedMesh>
+      {/* The contact patch under every figure: one flat disc, no light of its
+          own, so a body meets the ground instead of hovering over it. */}
+      <instancedMesh
+        ref={shadowRef}
+        args={[shadowGeo, undefined, count]}
+        frustumCulled={false}
+        renderOrder={-1}
+      >
+        <meshBasicMaterial
+          color={EPHE_PALETTE.contact}
+          transparent
+          opacity={0.26}
+          depthWrite={false}
+        />
       </instancedMesh>
 
       {/* Builder hats — only in the scene while build sites are scheduled */}

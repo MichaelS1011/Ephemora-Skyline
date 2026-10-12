@@ -7,7 +7,7 @@ import { useLodFar } from "./useLodFar";
 /**
  * Stepped semantic zoom on top of the existing far-LOD logic. Three tiers:
  *   0 = Skyline  — the city as one heat grid (the old lodFar threshold:
- *                  dist > max(170, bounds × 2.3), with hysteresis)
+ *                  dist > max(170, bounds × 4.8), with hysteresis)
  *   1 = District — far enough to read whole blocks (dist ≥ bounds × 0.8)
  *   2 = Near     — street level (dist < bounds × 0.8)
  *

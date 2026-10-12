@@ -7,6 +7,8 @@ import { OUTBOUND_CALLS } from "../config/networkSurface";
 import { t, type Lang } from "../i18n";
 import { ts, tsCount } from "./startCopy";
 import type { CityData } from "../city/types";
+import { recentCities, type RecentCity } from "../recentCities";
+import { ScanExcludes } from "./ScanExcludes";
 import "../design/start.css";
 
 export const BRAND = { ink: "#F2EFE8", red: "#E8503C", bg: "#161614", panel: "#1C1C1A" };
@@ -211,7 +213,6 @@ export function ScanProgress({
   // The head of the composed line is the stage; the rest is the clock and the
   // budget, which this block shows in their own places.
   const head = stageLine.split(" · ")[0]?.trim() ?? "";
-  const doneCount = stages.filter((s) => s.state === "done").length;
   const nf = (n: number) => n.toLocaleString(lang === "de" ? "de-DE" : "en-US");
   const bytes = collected.bytes;
   const size =
@@ -289,7 +290,9 @@ export function ScanProgress({
       </ol>
       {stages.length > 0 && (
         <p className="start-progress-meta">
-          {ts(lang, "scan.stageOf", { i: Math.max(doneCount + 1, 1), n: stages.length })}
+          {activeIndex >= 0
+            ? ts(lang, "scan.stageOf", { i: activeIndex + 1, n: stages.length })
+            : ts(lang, "scan.stageNone")}
         </p>
       )}
 
@@ -301,11 +304,10 @@ export function ScanProgress({
 }
 
 /* ── Boundary states ────────────────────────────────────────────────────────
- * Lane LOKAL hands the UI two strings: `errorMessage`, built from the
- * dictionary in the display language, and `errorDetail`, the server's own
+ * The local analysis hook hands the UI two strings: `errorMessage`, built from
+ * the dictionary in the display language, and `errorDetail`, the server's own
  * words. The kind is read from the detail (machine-written, one language) and
- * from `foundFiles`; the headline is never re-invented here. The request for a
- * structured `errorKind` is §1 in `.qoder-scratch/devteam/requests/start.md`. */
+ * from `foundFiles`; the headline is never re-invented here. */
 export type StartErrorKind =
   | "cap"
   | "no-source"
@@ -498,40 +500,13 @@ function ScanErrorCard({
 }
 
 /* ── Second entry: the cities this machine still knows ─────────────────────
- * The store owns this list (§6 of `requests/start.md`); START reads the agreed
- * localStorage key and renders nothing while no one writes it. */
-interface RecentCity {
-  id: string;
-  name: string;
-  files: number;
-  openedAt: number;
-}
-
-const RECENT_KEY = "codecity-recent-cities";
-
-function readRecent(): RecentCity[] {
-  try {
-    const raw = localStorage.getItem(RECENT_KEY);
-    if (!raw) return [];
-    const parsed: unknown = JSON.parse(raw);
-    if (!Array.isArray(parsed)) return [];
-    return parsed
-      .filter(
-        (e): e is RecentCity =>
-          !!e &&
-          typeof (e as RecentCity).id === "string" &&
-          typeof (e as RecentCity).name === "string" &&
-          typeof (e as RecentCity).openedAt === "number",
-      )
-      .sort((a, b) => b.openedAt - a.openedAt)
-      .slice(0, 6);
-  } catch {
-    return [];
-  }
-}
-
+ * `recentCities` owns the list and its key; this is its reader. It used to
+ * parse a second key of its own, with a `name` field nothing ever wrote, under
+ * a comment that called the section waiting — the writer side had meanwhile
+ * landed under the index's own key with `folder`, so the row stayed empty while
+ * the index underneath it filled up. */
 function RecentCities({ lang }: { lang: Lang }) {
-  const [cities] = useState<RecentCity[]>(readRecent);
+  const [cities] = useState<RecentCity[]>(() => recentCities().slice(0, 6));
   if (cities.length === 0) return null;
   const now = Date.now();
   const nf = (n: number) => n.toLocaleString(lang === "de" ? "de-DE" : "en-US");
@@ -550,7 +525,7 @@ function RecentCities({ lang }: { lang: Lang }) {
           return (
             <li key={c.id}>
               <a href={`?city=${encodeURIComponent(c.id)}`}>
-                <span className="start-recent-name">{c.name}</span>
+                <span className="start-recent-name">{c.folder}</span>
                 <span className="start-recent-meta">
                   {tsCount(lang, "landing.recentFiles", "landing.recentFilesOne", c.files, {
                     n: nf(c.files),
@@ -938,6 +913,7 @@ export function Landing() {
               <div className="scan-settings-content">
                 <p>{t(lang, "landing.scanDepth")}</p>
                 <ProfileChips variant="landing" />
+                <ScanExcludes lang={lang} />
               </div>
             </details>
           )}

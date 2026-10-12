@@ -1,7 +1,14 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { cityOnDisk, useStore } from "../stores/useStore";
 import { findFileById } from "../city/layout";
-import { languageColor, severityColor, UNCHECKED_COLOR, authorColor } from "../city/palette";
+import {
+  churnColor,
+  languageColor,
+  SEVERITY_CVD_COLOR,
+  severityColor,
+  UNCHECKED_COLOR,
+  authorColor,
+} from "../city/palette";
 import { isUncheckedClean } from "../city/provenance";
 import { CATEGORY_IDS, categoryMeta } from "../config/findingCategories";
 import type { VoxelSectionSpec } from "../city/voxels";
@@ -12,7 +19,9 @@ import { findingKey, reviewKeyFor } from "../reviews";
 import { findingContext } from "../findings/context";
 import { t, type DictKey, type Lang } from "../i18n";
 import type { CityFile, CityFinding, FindingCategory, ReviewStatus } from "../city/types";
+import { learningCopy } from "./learningCopy";
 import "../design/stadt-ui.css";
+import "../design/learning.css";
 
 /** Amber accent of the triage focus ring. */
 const FOCUS_COLOR = "#e8b23c";
@@ -308,6 +317,7 @@ function ProvenanceTag({ prov }: { prov?: string }) {
 /* ── Single finding row ────────────────────────────────────────────────── */
 function CodeFrame({ snippet }: { snippet: NonNullable<CityFinding["snippet"]> }) {
   const lang = useStore((s) => s.prefs.lang);
+  const colorblind = useStore((s) => s.prefs.colorblind);
   const lineNoWidth = String(snippet.number + snippet.after.length).length;
   const gutter = (n: number): string => String(n).padStart(lineNoWidth, " ");
   return (
@@ -324,8 +334,17 @@ function CodeFrame({ snippet }: { snippet: NonNullable<CityFinding["snippet"]> }
           <span style={{ color: "#5d7494" }}>{l}</span>
         </div>
       ))}
-      <div className="flex whitespace-pre" style={{ background: "rgba(255,46,77,0.12)" }}>
-        <span style={{ color: "#ff6b7a", userSelect: "none", padding: "0 6px" }}>
+      <div
+        className="flex whitespace-pre"
+        style={{ background: colorblind ? `${SEVERITY_CVD_COLOR.P0}1f` : "rgba(255,46,77,0.12)" }}
+      >
+        <span
+          style={{
+            color: colorblind ? SEVERITY_CVD_COLOR.P0 : "#ff6b7a",
+            userSelect: "none",
+            padding: "0 6px",
+          }}
+        >
           {gutter(snippet.number)}
         </span>
         <span style={{ color: "#ffd0d5" }}>{snippet.line}</span>
@@ -450,7 +469,7 @@ function FindingRow({
   const color = severityColor(finding.severity, colorblind);
   // The triage focus wins over the review status, which wins over severity
   const leftColor = focused ? FOCUS_COLOR : review ? REVIEW_COLOR[review] : color;
-  const suggestion = fixFor(finding);
+  const suggestion = fixFor(finding, lang);
   const detailsId = `finding-details-${filePath.replace(/[^a-z0-9]/gi, "-")}-${index}`;
 
   // When the triage queue jumps to this finding, bring it into view —
@@ -672,16 +691,26 @@ export function InfoPanel() {
   const setSelectedUnit = useStore((s) => s.setSelectedUnit);
   const focusPath = useStore((s) => s.focusPath);
   const setFocusPath = useStore((s) => s.setFocusPath);
+  const resetFocus = useStore((s) => s.resetFocus);
   const analysisId = useStore((s) => s.analysisId);
   const reviews = useStore((s) => s.reviews);
+  const verdictsBlocked = useStore((s) => s.verdictsBlocked);
   const focusedFindingKey = useStore((s) => s.focusedFindingKey);
   const closeRef = useRef<HTMLButtonElement>(null);
   const [linkCopied, setLinkCopied] = useState(false);
   const selectedId = selectedUnit?.kind === "file" ? selectedUnit.id : null;
 
   useEffect(() => {
-    if (!selectedId || !window.matchMedia("(max-width: 760px)").matches) return;
+    if (!selectedId) return;
     const previousFocus = document.activeElement as HTMLElement | null;
+    // A learning action hides the context rail behind this file panel. Move
+    // its keyboard focus to the panel's close action; pointer selections of
+    // buildings on a desktop keep their existing focus.
+    if (
+      !window.matchMedia("(max-width: 760px)").matches &&
+      !previousFocus?.closest(".panel-context-card")
+    )
+      return;
     closeRef.current?.focus({ preventScroll: true });
     return () => {
       if (previousFocus?.isConnected) previousFocus.focus({ preventScroll: true });
@@ -724,6 +753,18 @@ export function InfoPanel() {
     } catch {
       /* clipboard unavailable — the button stays, the city link stays in the URL bar */
     }
+  };
+
+  const returnToCity = (project: boolean): void => {
+    if (project) resetFocus();
+    else setFocusPath(hit.chain);
+    // The clicked control unmounts with the file panel. Focus the now-visible
+    // overview instead of leaving a keyboard user on the document body.
+    requestAnimationFrame(() => {
+      document
+        .querySelector<HTMLElement>(".panel-context-card, .context-reopen")
+        ?.focus({ preventScroll: true });
+    });
   };
 
   // Layout lives in design/stadt-ui.css; only what the data decides — the
@@ -794,6 +835,17 @@ export function InfoPanel() {
         </button>
       </div>
 
+      <nav className="file-learning-return" aria-label={learningCopy(lang, "overview")}>
+        <button type="button" onClick={() => returnToCity(true)}>
+          {learningCopy(lang, "overview")}
+        </button>
+        {hit.chain.length > 0 && (
+          <button type="button" onClick={() => returnToCity(false)}>
+            {learningCopy(lang, "district")}
+          </button>
+        )}
+      </nav>
+
       {/* Navigate to district — keep the file selection so the panel the
           user is reading doesn't vanish underneath them */}
       {inOtherDistrict && (
@@ -821,26 +873,29 @@ export function InfoPanel() {
           }}
           title={t(lang, "panel.threatTitle")}
         >
-          {file.threatLevel}
+          {worstSeverity
+            ? t(lang, SEVERITY_WORD[worstSeverity])
+            : t(lang, unchecked ? "panel.statusUnchecked" : "panel.statusNoFindings")}
         </span>
-        {file.churnScore !== undefined && (
-          <span
-            className="font-jetbrains text-[11px] px-1.5 py-px rounded-sm"
-            style={{
-              color:
-                file.churnScore >= 0.55
-                  ? "#ff7a1a"
-                  : file.churnScore >= 0.35
-                    ? "#ffd23f"
-                    : "#29d398",
-              border: "1px solid rgba(255,122,26,0.3)",
-              background: "rgba(255,122,26,0.08)",
-            }}
-            title={t(lang, "panel.churnTitle", { commits: file.commitCount ?? 0 })}
-          >
-            CHURN {file.churnScore.toFixed(2)}
-          </span>
-        )}
+        {file.churnScore !== undefined &&
+          (() => {
+            // The same band the far heat grid paints: `churnColor` carries the
+            // colour-blind variant, this chip used to hardwire the three steps.
+            const churn = churnColor(file.churnScore ?? 0, colorblind);
+            return (
+              <span
+                className="font-jetbrains text-[11px] px-1.5 py-px rounded-sm"
+                style={{
+                  color: churn,
+                  border: `1px solid ${churn}4d`,
+                  background: `${churn}14`,
+                }}
+                title={t(lang, "panel.churnTitle", { commits: file.commitCount ?? 0 })}
+              >
+                CHURN {file.churnScore.toFixed(2)}
+              </span>
+            );
+          })()}
         {file.exportedSymbols !== undefined && (
           <span
             className="font-jetbrains text-[11px] px-1.5 py-px rounded-sm"
@@ -884,9 +939,9 @@ export function InfoPanel() {
           <span
             className="font-jetbrains text-[11px] px-1.5 py-px rounded-sm"
             style={{
-              color: "#ff2e4d",
-              border: "1px solid rgba(255,46,77,0.35)",
-              background: "rgba(255,46,77,0.08)",
+              color: severityColor("P0", colorblind),
+              border: `1px solid ${severityColor("P0", colorblind)}59`,
+              background: `${severityColor("P0", colorblind)}14`,
             }}
             title={t(lang, "panel.cycleTitle")}
           >
@@ -1046,6 +1101,15 @@ export function InfoPanel() {
               );
             })}
           </div>
+          {/* The write failed, so every verdict on this screen is a verdict that
+              dies with the tab. The store has carried that flag since the catch
+              was closed; nothing on screen said it — a day of triage looked
+              saved. */}
+          {verdictsBlocked && (
+            <p className="panel-note" role="alert" data-verdicts-blocked="true">
+              ⚠ {t(lang, "panel.verdictsBlocked")}
+            </p>
+          )}
         </>
       ) : unchecked ? (
         /* The same file hovers grey in the city and its heat tile is grey:
@@ -1479,6 +1543,7 @@ function SourceView({
   onToggleFull: (v: boolean) => void;
 }) {
   const lang = useStore((s) => s.prefs.lang);
+  const colorblind = useStore((s) => s.prefs.colorblind);
   const view = highlightSourceLines(lines, file.findings);
   const lineNoWidth = String(lines.length).length;
 
@@ -1500,8 +1565,8 @@ function SourceView({
       style={
         line.kind === "finding"
           ? {
-              background: "rgba(255,46,77,0.12)",
-              borderLeft: "2px solid #ff2e4d",
+              background: colorblind ? `${SEVERITY_CVD_COLOR.P0}1f` : "rgba(255,46,77,0.12)",
+              borderLeft: `2px solid ${severityColor("P0", colorblind)}`,
               paddingLeft: 2,
             }
           : { borderLeft: "2px solid transparent", paddingLeft: 2 }
@@ -1567,7 +1632,7 @@ function SourceView({
 }
 
 /* ── Run tests — for the file's own test suite ─────────────────────────── */
-const TEST_FILE = /\.(test|spec)\.[jt]sx?$|(^|\/)(tests?|__tests__)\//i;
+const TEST_FILE = /\.(test|spec)\.[cm]?[jt]sx?$|(^|\/)(tests?|__tests__)\//i;
 
 function RunTestsButton({
   filePath,
@@ -1581,52 +1646,80 @@ function RunTestsButton({
   const analysisId = useStore((s) => s.analysisId);
   const { runTests } = useTestRunner();
 
-  const isTestFile = TEST_FILE.test(filePath);
+  const isTestFile = /\.[cm]?[jt]sx?$/i.test(filePath) && TEST_FILE.test(filePath);
   const busy = testRun.status === "installing" || testRun.status === "running";
   if (!isTestFile) return null;
 
   return (
-    <button
-      onClick={() => void runTests([filePath])}
-      disabled={busy || !analysisId || !analysisOnDisk}
-      className="w-full mb-3 py-1.5 font-jetbrains text-[11px] tracking-widest rounded-sm
+    <>
+      <button
+        onClick={() => void runTests([filePath])}
+        disabled={busy || !analysisId || !analysisOnDisk}
+        className="w-full mb-3 py-1.5 font-jetbrains text-[11px] tracking-widest rounded-sm
                  transition-all duration-150 hover:brightness-110 focus:outline-none focus:ring-1 focus:ring-[#29d398]
                  disabled:opacity-40 cursor-pointer"
-      style={{
-        border: "1px solid rgba(41,211,152,0.45)",
-        color: "#29d398",
-        background: "rgba(41,211,152,0.07)",
-      }}
-      title={t(lang, "panel.runTestFileTitle")}
-    >
-      {busy ? `⟳ ${testRun.stage || t(lang, "panel.running")}` : t(lang, "panel.runTestFile")}
-    </button>
+        style={{
+          border: "1px solid rgba(41,211,152,0.45)",
+          color: "#29d398",
+          background: "rgba(41,211,152,0.07)",
+        }}
+        title={t(lang, "test.snapshot")}
+      >
+        {busy ? `⟳ ${testRun.stage || t(lang, "panel.running")}` : t(lang, "panel.runTestFile")}
+      </button>
+      <p className="mb-3 text-[11px] leading-relaxed" style={{ color: "var(--meta)" }}>
+        {t(lang, "test.snapshot")}
+      </p>
+      {testRun.status === "failed" && (
+        <p role="alert" className="mb-3 text-[11px]" style={{ color: "#ff6b7a" }}>
+          {testRun.stage}
+        </p>
+      )}
+    </>
   );
 }
 
 function TestResultsBlock({ filePath }: { filePath: string }) {
   const lang = useStore((s) => s.prefs.lang);
+  const colorblind = useStore((s) => s.prefs.colorblind);
   const result = useStore((s) => s.testResults[filePath]);
-  const testRun = useStore((s) => s.testRun);
   if (!result) return null;
   return (
     <div
       className="mb-3 rounded-sm overflow-hidden"
       style={{
-        border: `1px solid ${result.status === "failed" ? "rgba(255,46,77,0.4)" : "rgba(41,211,152,0.35)"}`,
-        background: result.status === "failed" ? "rgba(255,46,77,0.06)" : "rgba(41,211,152,0.05)",
+        border: `1px solid ${result.status === "failed" ? `${severityColor("P0", colorblind)}66` : result.status === "skipped" ? "var(--meta)" : "rgba(41,211,152,0.35)"}`,
+        background:
+          result.status === "failed"
+            ? `${severityColor("P0", colorblind)}0f`
+            : result.status === "skipped"
+              ? "transparent"
+              : "rgba(41,211,152,0.05)",
       }}
     >
       <div
         className="px-2 py-1.5 font-jetbrains text-[11px] font-semibold"
-        style={{ color: result.status === "failed" ? "#ff6b7a" : "#29d398" }}
+        style={{
+          color:
+            result.status === "failed"
+              ? "#ff6b7a"
+              : result.status === "skipped"
+                ? "var(--meta)"
+                : "#29d398",
+        }}
       >
-        {result.status === "failed" ? t(lang, "panel.testsFailing") : t(lang, "panel.testsPassing")}{" "}
+        {result.status === "failed"
+          ? t(lang, "panel.testsFailing")
+          : result.status === "skipped"
+            ? t(lang, "test.skipped")
+            : t(lang, "panel.testsPassing")}{" "}
         ·{" "}
         {t(lang, result.tests === 1 ? "panel.testCountOne" : "panel.testCountMany", {
           count: result.tests,
         })}
-        {testRun.status === "complete" ? ` · ${testRun.stage}` : ""}
+        {result.skippedTests
+          ? ` · ${t(lang, "test.fileSkipped", { count: result.skippedTests })}`
+          : ""}
       </div>
       {result.failures.slice(0, 3).map((f, i) => (
         <div key={i} className="px-2 pb-1.5">

@@ -189,7 +189,7 @@ describe("the saved file is named after the project, never the disk", () => {
   });
 
   it("is one name even when the project name is a path", () => {
-    const name = downloadFileName("/Users/mimiai/Documents/geheim/projekt", taken, true);
+    const name = downloadFileName("/home/dev/Dokumente/vertraulich/projekt", taken, true);
     expect(name).not.toContain("/");
     expect(name).not.toContain("\\");
     expect(name.split("/")).toHaveLength(1);

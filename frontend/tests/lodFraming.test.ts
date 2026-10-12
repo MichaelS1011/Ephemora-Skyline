@@ -119,7 +119,9 @@ describe("overview framing stays inside the drawn band", () => {
     }
     // The mirror is only valid while the hook keeps these constants; the
     // assertion above fails the moment it does not.
-    expect(LOD_THRESHOLDS.RELATIVE_EXIT).toBe(1.8);
+    // The fitted higher overview now keeps the whole city in frame; its
+    // distance band is larger than the old low-angle cropped reveal.
+    expect(LOD_THRESHOLDS.RELATIVE_EXIT).toBe(3.8);
     expect(LOD_THRESHOLDS.ABSOLUTE_FLOOR).toBe(170);
   });
 

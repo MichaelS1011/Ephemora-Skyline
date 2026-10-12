@@ -2,8 +2,8 @@ import { DICT, t, type DictKey, type Lang } from "../i18n";
 
 /**
  * START-COPY-BRUECKE — the strings the start path needs that `DICT` does not
- * own yet. Every row is listed with the same EN/DE text in
- * `.qoder-scratch/devteam/i18n-requests.md`; when Lane TEXT takes a key, the
+ * own yet. Every row is mirrored in a local hand-off list that is not shipped
+ * with the program; when the text lane takes a key, the
  * dictionary wins on the next render and the row here can be deleted. Nothing
  * in this file invents a key that already exists.
  */
@@ -41,6 +41,12 @@ const BRIDGE: Record<string, { en: string; de: string }> = {
   "err.failed": { en: "The scan stopped.", de: "Der Scan ist gestoppt." },
   "scan.stages": { en: "Stages", de: "Stufen" },
   "scan.stageOf": { en: "stage {i} of {n}", de: "Stufe {i} von {n}" },
+  // Until the server names a stage, none is running — and the folder is being
+  // read, which is the truth the line above already counts.
+  "scan.stageNone": {
+    en: "no scan stage has begun yet",
+    de: "noch keine Scan-Stufe gelaufen",
+  },
   "scan.stillRunning": {
     en: "still working — {s} s on this stage",
     de: "läuft noch — {s} s auf dieser Stufe",
@@ -86,6 +92,42 @@ const BRIDGE: Record<string, { en: string; de: string }> = {
   },
   "drop.excluded": { en: "{n} files you excluded", de: "{n} von dir ausgeschlossene Dateien" },
   "drop.excludedOne": { en: "{n} file you excluded", de: "{n} von dir ausgeschlossene Datei" },
+  "drop.gitIgnored": {
+    en: "{n} paths your own .gitignore sets aside",
+    de: "{n} Pfade, die deine eigene .gitignore ausnimmt",
+  },
+  "drop.gitIgnoredOne": {
+    en: "{n} path your own .gitignore sets aside",
+    de: "{n} Pfad, den deine eigene .gitignore ausnimmt",
+  },
+  /**
+   * Named apart from "too large": these files are ordinary loose git objects,
+   * and what stopped them is the tool's own 15 MB history budget — measured on
+   * this repository, 1,470 of its 3,266 .git files. The churn tail is only added
+   * when churn actually ran: on that same scan `scanProvenance.churn` was false,
+   * so the plain row was the whole truth and a clause about churn would have
+   * described a score nobody computed.
+   */
+  "drop.gitBudget": {
+    en: "{n} .git files went past the {mb} MB history budget",
+    de: "{n} .git-Dateien passten nicht in das Geschichte-Budget von {mb} MB",
+  },
+  "drop.gitBudgetOne": {
+    en: "{n} .git file went past the {mb} MB history budget",
+    de: "{n} .git-Datei passte nicht in das Geschichte-Budget von {mb} MB",
+  },
+  "drop.gitBudgetChurn": {
+    en: " — churn rests on the history that arrived",
+    de: " — Churn beruht auf dem Teil der Geschichte, der angekommen ist",
+  },
+  "drop.unsupported": {
+    en: "{n} files in a format the scanners do not read",
+    de: "{n} Dateien in einem Format, das die Scanner nicht lesen",
+  },
+  "drop.unsupportedOne": {
+    en: "{n} file in a format the scanners do not read",
+    de: "{n} Datei in einem Format, das die Scanner nicht lesen",
+  },
   "landing.recentTitle": { en: "Recently opened", de: "Zuletzt geöffnet" },
   "landing.recentAria": { en: "Recently opened cities", de: "Zuletzt geöffnete Städte" },
   "landing.recentOpen": { en: "Open again", de: "Erneut öffnen" },

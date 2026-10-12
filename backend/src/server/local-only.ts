@@ -67,21 +67,53 @@ export function corsOptionsFor(env: NodeJS.ProcessEnv = process.env) {
   };
 }
 
+/** A loopback name on any port: only a browser on this machine can say it. */
+function isLoopbackOrigin(origin: string): boolean {
+  try {
+    const host = new URL(origin).hostname;
+    return host === "localhost" || host === "127.0.0.1" || host === "[::1]" || host === "::1";
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * What a refused write says back.
+ *
+ * For a page from elsewhere the sentence stays exactly what it was. For a
+ * loopback origin that is simply not on the served list — the app opened on
+ * another port, which is what Vite does on its own the moment 3010 is busy —
+ * the old wording sent a person hunting for a security problem they did not
+ * have. Measured on a second checkout: every upload answered
+ * `403 This request came from another website`, and the answer was the
+ * `FRONTEND_ORIGIN` the same file already reads.
+ */
+export function refusalFor(origin: string | undefined, served: string[]): string {
+  const foreign =
+    "This request came from another website — Ephemora Skyline only accepts its own page.";
+  if (!origin || !isLoopbackOrigin(origin)) return foreign;
+  const page = origin.length > 200 ? `${origin.slice(0, 200)}…` : origin;
+  return (
+    `Ephemora Skyline only accepts its own page, and this process was not told to serve the one you opened. ` +
+    `The request came from ${page}; this process serves ${served.join(", ")}. ` +
+    `Open the app at one of those, or start the backend with FRONTEND_ORIGIN=${page}.`
+  );
+}
+
 /** Middleware for a route that must not be drivable from another website */
 export function localOnlyRoute(req: Request, res: Response, next: NextFunction): void {
+  const origin = req.headers.origin;
   if (
     isForeignBrowserRequest(
       {
-        origin: req.headers.origin,
+        origin,
         secFetchSite: req.headers["sec-fetch-site"] as string | undefined,
         host: req.headers.host,
       },
       expectedOrigins(),
     )
   ) {
-    res.status(403).json({
-      error: "This request came from another website — Ephemora Skyline only accepts its own page.",
-    });
+    res.status(403).json({ error: refusalFor(origin, expectedOrigins()) });
     return;
   }
   next();

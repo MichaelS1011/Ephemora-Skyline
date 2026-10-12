@@ -12,8 +12,10 @@ import { useStore } from "../stores/useStore";
  * hovering around the threshold.
  */
 
-const RELATIVE_ENTER = 2.3; // far when dist > bounds × 2.3
-const RELATIVE_EXIT = 1.8;
+// A fitted 38° overview needs more eye distance than the old low-angle crop.
+// The city stays geometric through that complete view; further zoom uses cells.
+const RELATIVE_ENTER = 4.8;
+const RELATIVE_EXIT = 3.8;
 const ABSOLUTE_FLOOR = 170; // small levels never collapse before this
 
 export function useLodFar(bounds: number): boolean {

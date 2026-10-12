@@ -13,7 +13,9 @@ import { promises as fs } from "fs";
 import path from "path";
 import type { Request, Response } from "express";
 import {
+  MAX_FILES,
   MAX_PATH_LEN,
+  MAX_TOTAL_BYTES,
   getStagedDir,
   handleCancelLocalAnalyze,
   handleLocalAnalyze,
@@ -126,6 +128,30 @@ describe("the path cap is one number on both sides", () => {
   it("refuses a longer path only on length, not on shape", () => {
     expect(longPath(MAX_PATH_LEN + 80).length).toBeGreaterThan(MAX_PATH_LEN);
   });
+
+  /**
+   * The browser counts the folder before the server ever sees it. Two different
+   * walls would mean a folder refused at a number no screen can name: measured
+   * before this test existed, 3,000 files and 40 MB contradicted each other at
+   * this repository's 25 KB average, so the file cap was never reachable.
+   */
+  it("keeps the file and byte walls one number on both sides", async () => {
+    const hook = await fs.readFile(
+      path.join(REPO_DIR, "frontend/src/hooks/useLocalAnalysis.ts"),
+      "utf-8",
+    );
+    const files = /const MAX_FILES = ([\d_]+);/.exec(hook);
+    const bytes = /const MAX_TOTAL_BYTES = ([\d_*\s]+);/.exec(hook);
+    expect(files, "the reader must declare a file cap").not.toBeNull();
+    expect(Number((files?.[1] ?? "").replace(/_/g, ""))).toBe(MAX_FILES);
+    expect(bytes, "the reader must declare a byte budget").not.toBeNull();
+    // the literal is a product (`150 * 1024 * 1024`), so it is multiplied out
+    // rather than compared as text
+    const product = (bytes?.[1] ?? "")
+      .split("*")
+      .reduce((acc, factor) => acc * Number(factor.trim().replace(/_/g, "")), 1);
+    expect(product).toBe(MAX_TOTAL_BYTES);
+  });
 });
 
 describe("drop accounting", () => {
@@ -227,6 +253,9 @@ describe("drop accounting", () => {
       tooLarge: 1_000_000,
       unreadable: 0,
       excluded: 0,
+      gitIgnored: 0,
+      gitBudget: 0,
+      unsupportedFormat: 0,
     });
     expect(sanitizeDropped("nope").pathTooLong).toBe(0);
     expect(sanitizeDropped(undefined).unreadable).toBe(0);
@@ -235,7 +264,7 @@ describe("drop accounting", () => {
   it("names the found count and the limit when the folder is over the cap", async () => {
     const { orchestrator } = stubOrchestrator();
     const res = makeRes();
-    const files = Array.from({ length: 3001 }, (_, i) => ({
+    const files = Array.from({ length: MAX_FILES + 1 }, (_, i) => ({
       path: `f${i}.ts`,
       content: "const x = 1;",
     }));
@@ -248,8 +277,8 @@ describe("drop accounting", () => {
     expect(res.statusCode).toBe(400);
     const body = res.body as { code?: string; found?: number; max?: number };
     expect(body.code).toBe("too_many_files");
-    expect(body.found).toBe(3001);
-    expect(body.max).toBe(3000);
+    expect(body.found).toBe(MAX_FILES + 1);
+    expect(body.max).toBe(MAX_FILES);
   });
 });
 

@@ -10,7 +10,7 @@ import {
 import { SecurityScanner } from "../src/services/security/scanner.js";
 
 /**
- * Measured with .qoder-scratch/artefakt-erfassung.mts over a fixture of the
+ * Measured with a local measurement script that is not shipped over a fixture of the
  * traces a tool run leaves in a user repo: ALL eight artifact files (Playwright
  * report, test-results, blob-report, storybook-static, .nyc_output) joined the
  * scan, while five real sources silently did not — the old candidate check

@@ -246,6 +246,51 @@ export function isUncheckedClean(file: { findings: unknown[]; unverifiedBy?: str
   return file.findings.length === 0 && (file.unverifiedBy?.length ?? 0) > 0;
 }
 
+/**
+ * The same question one level up: a district that shows zero findings is only
+ * clean if the engines that cover its languages actually ran.
+ *
+ * Decided from the languages of the files the payload itself marks
+ * `unverifiedBy` — the narrower answer, and the one that separates a TypeScript
+ * plot (semgrep and gitleaks both apply) from a documents plot (only gitleaks
+ * would have looked). Where a level ships no files at all, only an aggregate
+ * count, the payload holds no per-file truth and the district's language map
+ * answers — the looser of the two, the same order `missingEnginesForProject`
+ * documents. A level that ships files and marks none of them unverified is
+ * believed: the scan said what it looked at.
+ */
+export function missingEnginesForDistrict(
+  dir: {
+    detailFiles?: readonly { language?: string; unverifiedBy?: string[] }[];
+    languages: Record<string, number>;
+  },
+  provenance: ScanProvenance | undefined,
+): string[] {
+  const shipped = dir.detailFiles ?? [];
+  const unread = shipped.filter((f) => (f.unverifiedBy?.length ?? 0) > 0);
+  if (shipped.length > 0 && unread.length === 0) return [];
+  const languages =
+    unread.length > 0
+      ? [...new Set(unread.map((f) => f.language ?? ""))]
+      : Object.keys(dir.languages ?? {});
+  const missing = new Set<string>();
+  for (const language of languages) {
+    for (const label of missingEnginesForFile({ language }, provenance)) missing.add(label);
+  }
+  return [...missing];
+}
+
+/** How many files in a district the missing engines did not look at. */
+export function uncheckedFileCount(dir: {
+  unverifiedFiles?: number;
+  fileCount: number;
+  detailFiles?: readonly unknown[];
+}): number {
+  if ((dir.unverifiedFiles ?? 0) > 0) return dir.unverifiedFiles ?? 0;
+  // An aggregate level's per-file truth is not in the payload; its own count is.
+  return (dir.detailFiles ?? []).length > 0 ? 0 : dir.fileCount;
+}
+
 export type ScanVerdict =
   | { kind: "findings" }
   | { kind: "clear" }

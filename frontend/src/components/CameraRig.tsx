@@ -8,6 +8,15 @@ import type { CameraInfo } from "../stores/useStore";
 import { getDirLayout } from "../city/layout";
 import type { CraneShot } from "../city/layout";
 import { getKeyboardMark } from "../interaction/keyboardMark";
+import { fitWorldOverview } from "../city/worldFraming";
+import {
+  FLAT_SURFACE,
+  surfaceForLayout,
+  surfaceHeight,
+  surfacePoint,
+  surfaceQuaternion,
+  type WorldSurface,
+} from "../city/worldSurface";
 
 /** Shortest signed distance between two headings, so ±π does not look like a jump. */
 function angleDelta(a: number, b: number): number {
@@ -201,7 +210,12 @@ const ORIGIN: LevelCentre = { x: 0, z: 0 };
  * layout's plaza sits up to 92 m off the origin, and a bound centred on the
  * origin would let the pilot walk out of the fog while still inside it.
  */
-export function clampToCity(pos: XYZ, bounds: number | null, centre: LevelCentre = ORIGIN): XYZ {
+export function clampToCity(
+  pos: XYZ,
+  bounds: number | null,
+  centre: LevelCentre = ORIGIN,
+  surface: WorldSurface = FLAT_SURFACE,
+): XYZ {
   let { x, y, z } = pos;
   if (bounds !== null) {
     const maxR = bounds * 4 + 220;
@@ -216,7 +230,8 @@ export function clampToCity(pos: XYZ, bounds: number | null, centre: LevelCentre
       z = centre.z + dz * s;
     }
   }
-  if (y < GROUND_Y) y = GROUND_Y;
+  const floor = surfaceHeight(surface, x, z) + GROUND_Y;
+  if (y < floor) y = floor;
   return { x, y, z };
 }
 
@@ -281,16 +296,17 @@ function cityPointsInFrustum(
   top: number,
   centre: LevelCentre,
   test: (p: THREE.Vector3) => boolean,
+  surface: WorldSurface,
 ): number {
   let seen = 0;
   for (const sx of [-1, 0, 1])
     for (const sz of [-1, 0, 1]) {
-      _corner.set(centre.x + sx * bounds, GROUND_Y, centre.z + sz * bounds);
+      surfacePoint(surface, centre.x + sx * bounds, GROUND_Y, centre.z + sz * bounds, _corner);
       if (test(_corner)) seen++;
     }
   for (const sx of [-1, 1])
     for (const sz of [-1, 1]) {
-      _corner.set(centre.x + sx * bounds, top, centre.z + sz * bounds);
+      surfacePoint(surface, centre.x + sx * bounds, top, centre.z + sz * bounds, _corner);
       if (test(_corner)) seen++;
     }
   return seen;
@@ -313,12 +329,13 @@ export function cityFrameState(
   wasLost: boolean,
   centre: LevelCentre = ORIGIN,
   top = CITY_TOP,
+  surface: WorldSurface = FLAT_SURFACE,
 ): "lost" | "found" {
   if (bounds === null) return "found";
   _frustum.setFromProjectionMatrix(
     _projView.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse),
   );
-  const seen = cityPointsInFrustum(bounds, top, centre, (p) => _frustum.containsPoint(p));
+  const seen = cityPointsInFrustum(bounds, top, centre, (p) => _frustum.containsPoint(p), surface);
   if (wasLost) return seen >= 3 ? "found" : "lost";
   return seen >= 1 ? "found" : "lost";
 }
@@ -332,6 +349,8 @@ interface CityFrame {
   top: number;
   /** The plots on this level, for the keyboard's district mark. */
   blocks: ReturnType<typeof getDirLayout>["blocks"];
+  surface: WorldSurface;
+  layout: ReturnType<typeof getDirLayout>;
 }
 function useCityFrame(): CityFrame | null {
   const cityData = useStore((s) => s.cityData);
@@ -351,6 +370,8 @@ function useCityFrame(): CityFrame | null {
       centre: layout.centre,
       top: Math.max(2, tallest),
       blocks: layout.blocks,
+      surface: surfaceForLayout(layout, focusPath.length > 0),
+      layout,
     };
   }, [cityData, focusPath]);
 }
@@ -500,7 +521,7 @@ export function CameraRig() {
       const step = -e.deltaY * 0.012 * Math.max(2, camera.position.y * 0.15 + 4);
       camera.position.addScaledVector(_dir, step);
       const f = boundsRef.current;
-      const kept = clampToCity(camera.position, f?.bounds ?? null, f?.centre ?? ORIGIN);
+      const kept = clampToCity(camera.position, f?.bounds ?? null, f?.centre ?? ORIGIN, f?.surface);
       camera.position.set(kept.x, kept.y, kept.z);
     };
     el.addEventListener("pointerdown", onPointerDown);
@@ -555,7 +576,12 @@ export function CameraRig() {
     const { x, z, distance } = flyRequest;
     // Voxel-focus flights set an explicit target height (the voxel's world
     // y); every other caller keeps the ground-level default.
-    const toTarget = new THREE.Vector3(x, flyRequest.targetY ?? 1.5, z);
+    let toTarget = surfacePoint(
+      boundsRef.current?.surface ?? FLAT_SURFACE,
+      x,
+      flyRequest.targetY ?? 1.5,
+      z,
+    );
 
     const controls = controlsRef.current;
     const fromPos = camera.position.clone();
@@ -592,7 +618,22 @@ export function CameraRig() {
       { x: toTarget.x, y: toTarget.y, z: toTarget.z },
       distance,
     );
-    const toPos = new THREE.Vector3(pos.x, pos.y, pos.z);
+    let toPos = new THREE.Vector3(pos.x, pos.y, pos.z);
+    const frame = boundsRef.current;
+    if (flyRequest.overview && frame) {
+      const azimuth = preserve
+        ? Math.atan2(fromPos.z - anchor.z, fromPos.x - anchor.x)
+        : Math.atan2(0.75, 0.4);
+      const fitted = fitWorldOverview(
+        frame.layout,
+        frame.surface,
+        gl.domElement.clientWidth / Math.max(1, gl.domElement.clientHeight),
+        azimuth,
+        (camera as THREE.PerspectiveCamera).fov ?? 52,
+      );
+      toTarget = fitted.target;
+      toPos = fitted.position;
+    }
     firstFlightRef.current = false;
 
     const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -616,7 +657,7 @@ export function CameraRig() {
       t: 0,
       dur: flyRequest.duration ?? flightDuration(distance),
     };
-  }, [flyRequest, camera, cameraMode]);
+  }, [flyRequest, camera, cameraMode, gl]);
 
   // ── Per-frame tween + walk + camera reporting ────────────────────────────
   useFrame((_, delta) => {
@@ -677,6 +718,7 @@ export function CameraRig() {
             },
             frame?.bounds ?? null,
             frame?.centre ?? ORIGIN,
+            frame?.surface,
           );
           _move.set(
             kept.x - camera.position.x,
@@ -734,7 +776,12 @@ export function CameraRig() {
       !tween && keys.size === 0 && !dragging.current ? useStore.getState().craneFraming : null;
     if (crane) {
       const step = craneAdvance(camera.position, controls.target, crane, delta);
-      const kept = clampToCity(step.pos, frame?.bounds ?? null, frame?.centre ?? ORIGIN);
+      const kept = clampToCity(
+        step.pos,
+        frame?.bounds ?? null,
+        frame?.centre ?? ORIGIN,
+        frame?.surface,
+      );
       camera.position.set(kept.x, kept.y, kept.z);
       _look.set(step.target.x, step.target.y, step.target.z);
       if (free) {
@@ -773,7 +820,9 @@ export function CameraRig() {
       const block = mark && frame ? frame.blocks.find((b) => b.dir.path === mark.path) : null;
       markMesh.visible = !!block;
       if (block) {
-        markMesh.position.set(block.x, 1.4, block.z);
+        surfacePoint(frame?.surface ?? FLAT_SURFACE, block.x, 1.4, block.z, markMesh.position);
+        surfaceQuaternion(frame?.surface ?? FLAT_SURFACE, block.x, block.z, markMesh.quaternion);
+        markMesh.rotateX(-Math.PI / 2);
         markMesh.scale.set(block.w / 2 + 5, block.d / 2 + 5, 1);
       }
     }
@@ -794,6 +843,7 @@ export function CameraRig() {
           lostRef.current,
           frame?.centre ?? ORIGIN,
           frame?.top ?? CITY_TOP,
+          frame?.surface,
         ) === "lost";
       if (lost !== lostRef.current) {
         lostRef.current = lost;
@@ -811,7 +861,7 @@ export function CameraRig() {
               x: camera.position.x,
               z: camera.position.z,
               angle: Math.atan2(_dir.x, _dir.z),
-              dist: camera.position.length(),
+              dist: camera.position.distanceTo(_pivot.set(centre.x, PIVOT_Y, centre.z)),
             };
           })()
         : {
@@ -849,7 +899,7 @@ export function CameraRig() {
         enabled={cameraMode === "orbit"}
         maxPolarAngle={Math.PI / 2.05}
         minDistance={3}
-        maxDistance={520}
+        maxDistance={Math.max(520, (cityFrame?.bounds ?? 0) * 4 + 220)}
         enableDamping
         dampingFactor={0.11}
         rotateSpeed={0.85}

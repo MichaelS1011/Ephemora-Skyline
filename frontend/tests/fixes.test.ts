@@ -83,4 +83,42 @@ describe("fixFor", () => {
     expect(JSON.stringify(fixFor(input))).toBe(JSON.stringify(fixFor(input)));
     expect(JSON.stringify(fixFor(input))).toBe(JSON.stringify(fixFor({ type: "PATH_TRAVERSAL" })));
   });
+
+  /**
+   * Item 11: the recipe block is the longest text a finding produces, and it
+   * was the only part of the finding area that stayed English in a German panel
+   * (measured: 21 of 41 German-mode lines in the area, and the recipes were the
+   * whole remainder). Both languages now carry the same number of steps and the
+   * same code frame — a translation that drops a step would be a smaller answer.
+   */
+  it("answers in German with the same steps and the same code", () => {
+    for (const rule of KNOWN_RULES) {
+      const en = fixFor({ type: rule }, "en")!;
+      const de = fixFor({ type: rule }, "de")!;
+      expect(de, `no German suggestion for ${rule}`).not.toBeNull();
+      expect(de.steps).toHaveLength(en.steps.length);
+      expect(de.code).toBe(en.code);
+      expect(de.title).not.toBe(en.title);
+      expect(de.title.trim().length).toBeGreaterThan(0);
+      for (const step of de.steps) expect(step.trim().length).toBeGreaterThan(0);
+      // no step is the English sentence wearing a German title
+      for (let i = 0; i < de.steps.length; i++) {
+        expect(de.steps[i], `${rule} step ${i} still English`).not.toBe(en.steps[i]);
+      }
+    }
+  });
+
+  it("keeps code identifiers out of the translation", () => {
+    const de = fixFor({ type: "SQL_INJECTION" }, "de")!;
+    expect(de.steps.join(" ")).toContain("Positivliste");
+    expect(de.code).toContain("$1");
+    const cmd = fixFor({ type: "CMD_INJECTION" }, "de")!;
+    expect(cmd.steps.join(" ")).toContain("execFile/spawn");
+    expect(cmd.code).toBe(fixFor({ type: "COMMAND_INJECTION" }, "de")!.code);
+  });
+
+  it("stays unknown in German exactly where it is unknown in English", () => {
+    expect(fixFor({ type: "TODO_COMMENT" }, "de")).toBeNull();
+    expect(fixFor({ type: "" }, "de")).toBeNull();
+  });
 });

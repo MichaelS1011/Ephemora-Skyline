@@ -338,7 +338,10 @@ describe("the empty world is wired to its streets", () => {
     expect(crowd).not.toContain("taxiRef");
     expect(crowd).not.toContain("busRef");
     expect(crowd).not.toContain("stopRef");
-    expect((crowd.match(/<instancedMesh/g) ?? []).length).toBe(9);
+    // 9 before the figures got a contact patch; the tenth is that disc, and it is
+    // instanced for the same reason as everything else here — the crowd is one
+    // draw call per body part, never one mesh per figure.
+    expect((crowd.match(/<instancedMesh/g) ?? []).length).toBe(10);
   });
 
   it("honours reduced motion for the traffic too", () => {

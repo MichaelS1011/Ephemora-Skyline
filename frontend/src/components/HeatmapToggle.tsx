@@ -70,7 +70,11 @@ export function HeatmapToggle() {
                        focus:outline-none focus:ring-1 focus:ring-[#e8503c] cursor-pointer
                        hover:brightness-125 active:scale-[0.96]"
             style={{
-              color: unavailable ? "var(--meta-faint)" : active ? "#e8503c" : "var(--meta-strong)",
+              // No dimming: the switch sits on frosted chrome, and text there
+              // has to hold its contrast. `--meta` is one step under the
+              // enabled `--meta-strong` and the strike-through in stadt-ui.css
+              // says "unavailable"; glas-chrome.test.ts measures this ink.
+              color: unavailable ? "var(--meta)" : active ? "#e8503c" : "var(--meta-strong)",
               background: active ? "rgba(232, 80, 60, 0.12)" : "transparent",
               border: `1px solid ${
                 active
@@ -80,7 +84,6 @@ export function HeatmapToggle() {
                     : "rgba(150, 142, 128, 0.25)"
               }`,
               boxShadow: active ? "inset 0 0 0 1px rgba(232, 80, 60, 0.25)" : undefined,
-              opacity: unavailable ? 0.45 : 1,
               cursor: unavailable ? "not-allowed" : undefined,
             }}
           >

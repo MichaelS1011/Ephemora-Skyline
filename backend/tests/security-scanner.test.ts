@@ -46,11 +46,15 @@ el.innerHTML = data;
   });
 
   it("finds hardcoded secrets (high-entropy via gitleaks)", async () => {
+    // Joined at runtime: this file must not carry a provider-shaped literal,
+    // while the scanned fixture still receives a shape the engine can match.
+    const ghp = "ghp_" + "16C7e42F292c6912E7710c838347Ae178B4a";
+    const akia = "AKIA" + "IOSFODNN7EXAMPLE";
     const file = makeFile(`
 const config = {
   // high-entropy AWS + GitHub token patterns (gitleaks)
-  token: "ghp_16C7e42F292c6912E7710c838347Ae178B4a",
-  aws_key: "AKIAIOSFODNN7EXAMPLE",
+  token: "${ghp}",
+  aws_key: "${akia}",
   secret: "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY",
 };
     `);
@@ -179,11 +183,12 @@ child_process.exec(userInput);
   // ── countBySeverity() ───────────────────────────────────────────────────
 
   it("countBySeverity() correctly buckets issues", async () => {
+    const awsPair = "AKIA" + "IOSFODNN7EXAMPLE" + "-" + "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY";
     const issues = await scanner.scanFile(
       "test.ts",
       `
 eval(x);
-password = "AKIAIOSFODNN7EXAMPLE-wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY";
+password = "${awsPair}";
 console.log("debug");
       `,
     );

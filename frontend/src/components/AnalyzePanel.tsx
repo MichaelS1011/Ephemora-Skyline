@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useLocalAnalysis } from "../hooks/useLocalAnalysis";
 import { ProfileChips } from "./ProfileChips";
+import { ScanExcludes } from "./ScanExcludes";
 import { useStore } from "../stores/useStore";
 import { progressLine } from "../config/scanStages";
 import { t } from "../i18n";
@@ -153,6 +154,8 @@ export function AnalyzePanel({ className = "" }: { className?: string }) {
           </div>
 
           <ProfileChips variant="analyze-panel" />
+
+          <ScanExcludes lang={lang} />
 
           <button
             onClick={pickFolder}

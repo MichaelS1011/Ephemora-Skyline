@@ -5,7 +5,13 @@
  */
 
 import { describe, expect, it } from "vitest";
-import { detectRunner, parseJestStyleJson } from "../src/server/routes/tests.js";
+import {
+  detectRunner,
+  parseJestStyleJson,
+  filtersForTarget,
+  resultPath,
+  sanitizeFileFilters,
+} from "../src/server/routes/tests.js";
 
 describe("detectRunner", () => {
   it("detects vitest from devDependencies", () => {
@@ -88,5 +94,64 @@ describe("parseJestStyleJson", () => {
   it("returns null for garbage", () => {
     expect(parseJestStyleJson("no json here")).toBeNull();
     expect(parseJestStyleJson("{}")).toBeNull(); // no testResults
+  });
+});
+
+describe("test outcomes and workspace selection", () => {
+  it("never counts pending, todo or empty suites as passed", () => {
+    const result = parseJestStyleJson(
+      JSON.stringify({
+        testResults: [
+          {
+            name: "skipped.test.ts",
+            status: "passed",
+            assertionResults: [{ status: "pending" }, { status: "todo" }],
+          },
+          { name: "empty.test.ts", status: "passed", assertionResults: [] },
+          {
+            name: "mixed.test.ts",
+            assertionResults: [{ status: "passed" }, { status: "skipped" }],
+          },
+        ],
+      }),
+    )!;
+    expect(result.passedTests).toBe(1);
+    expect(result.skippedTests).toBe(3);
+    expect(result.files.map((f) => f.status)).toEqual(["skipped", "skipped", "passed"]);
+  });
+  it("retains suite errors before assertions exist", () => {
+    const result = parseJestStyleJson(
+      JSON.stringify({
+        testResults: [
+          {
+            name: "broken.test.ts",
+            status: "failed",
+            message: "Cannot import fixture",
+            assertionResults: [],
+          },
+        ],
+      }),
+    )!;
+    expect(result.failedSuites).toBe(1);
+    expect(result.files[0]!.failures[0]!.message).toContain("Cannot import fixture");
+    expect(result.passedTests).toBe(0);
+  });
+  it("selects only the owning workspace and removes the repository prefix", () => {
+    const files = ["frontend/tests/a.test.ts"];
+    expect(filtersForTarget("/repo", "/repo/backend", files)).toEqual([]);
+    expect(filtersForTarget("/repo", "/repo/frontend", files)).toEqual(["tests/a.test.ts"]);
+    expect(resultPath("/repo", "/repo/frontend", "/repo/frontend/tests/a.test.ts")).toBe(files[0]);
+    expect(resultPath("/repo", "/repo/frontend", "tests/a.test.ts")).toBe(files[0]);
+  });
+  it("rejects absolute, parent and option filters", () => {
+    expect(
+      sanitizeFileFilters([
+        "/tmp/a.test.ts",
+        "C:\\tests\\a.test.ts",
+        "../a",
+        "--config=evil",
+        "tests/a.test.ts",
+      ]),
+    ).toEqual(["tests/a.test.ts"]);
   });
 });

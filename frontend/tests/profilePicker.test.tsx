@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import { readFileSync } from "node:fs";
 import { act, createElement } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -6,25 +7,26 @@ import { ProfileChips } from "../src/components/ProfileChips";
 import { t as tDict } from "../src/i18n";
 const tEn = (key: string, vars?: Record<string, string | number>) =>
   tDict("en", key as never, vars);
-import { PROFILE_DURATION, SCAN_PROFILES } from "../src/config/scanProfiles";
+import { SCAN_PROFILES, configPayload } from "../src/config/scanProfiles";
+import type { RulePackInfo } from "../src/config/rulePacks";
 import { useStore } from "../src/stores/useStore";
-import type { ScanProfile } from "../src/config/scanProfiles";
 
 /**
  * #50 — profile selection. Three measured complaints, three pinned answers:
  * (a) reading two profiles in a row (the modal blocked it), (b) no overlay in
- * the DOM at all, (c) exactly one source of time promises: PROFILE_DURATION,
- * measured by .qoder-scratch/profile-diff.mjs against the real backend.
+ * the DOM at all, (c) one duration sentence, from one place — and since the
+ * 2026-10-09 pass it names no seconds, because the measurement behind them
+ * lived outside the repository (a local measurement script that is not shipped, git-ignored).
  */
 
 let container: HTMLDivElement;
 let root: Root;
 
-async function render(): Promise<string> {
+async function render(variant: "landing" | "analyze-panel" = "landing"): Promise<string> {
   container = document.createElement("div");
   document.body.append(container);
   root = createRoot(container);
-  await act(async () => root.render(createElement(ProfileChips, { variant: "landing" })));
+  await act(async () => root.render(createElement(ProfileChips, { variant })));
   return container.textContent ?? "";
 }
 
@@ -55,25 +57,74 @@ afterEach(async () => {
   vi.unstubAllGlobals();
 });
 
+/**
+ * The entry screen, measured as the first thing a stranger sees (operator
+ * decision, taken at the live screen on 2026-10-11): the nine category chips
+ * and the rule-pack row are too much for someone standing here for the first
+ * time. Both blocks are gone from this variant — and so is the network call
+ * that existed only to fill the row that is no longer shown. The city keeps
+ * both; the four cases above moved there and stayed green.
+ */
+describe("the entry screen carries neither block", () => {
+  const pack: RulePackInfo = {
+    id: "ephemora-core",
+    name: "Ephemora core rules",
+    version: "1.0.0",
+    origin: "shipped",
+    source: "in-repo",
+    license: "Apache-2.0",
+    categories: ["injection"],
+    languages: ["typescript"],
+    ruleCount: 12,
+    default: true,
+  };
+
+  it("shows no category chips, no pack row, and asks the backend for neither", async () => {
+    const urls: string[] = [];
+    vi.stubGlobal(
+      "fetch",
+      async (input: string): Promise<{ ok: boolean; json: () => Promise<unknown> }> => {
+        urls.push(String(input));
+        return { ok: true, json: async () => ({ packs: [pack] }) };
+      },
+    );
+    await render("landing");
+    const body = await text();
+    expect(body).toContain(tEn("profile.durationNote"));
+    expect(container.querySelectorAll(".category-options")).toHaveLength(0);
+    expect(container.querySelectorAll(".pack-options")).toHaveLength(0);
+    expect(body).not.toContain(tEn("profile.lookFor"));
+    expect(body).not.toContain(tEn("profile.packsCaption"));
+    expect(urls.filter((u) => u.includes("/api/rule-packs"))).toEqual([]);
+    // what stays: the profile row itself, so the screen is still usable
+    expect(container.querySelectorAll(".profile-options button").length).toBeGreaterThan(0);
+  });
+});
+
 describe("scan profile picker (#50)", () => {
-  it("promises exactly one duration per profile, from PROFILE_DURATION only", () => {
-    const measured: Record<ScanProfile, string> = {
-      // from .qoder-scratch/profile-diff.mjs, real HTTP route, this repo:
-      // quick 1.7s, standard 4.7s, security-only 4.7s, quality-only 1.7s, deep 4.7s
-      quick: "~2s",
-      standard: "~5s",
-      deep: "~5s",
-      "security-only": "~5s",
-      "quality-only": "~2s",
-      custom: "~5s",
-    };
-    expect(PROFILE_DURATION).toEqual(measured);
+  /**
+   * The reference seconds ("~2s", "~5s") are gone: the script that produced
+   * them is git-ignored, so the shipped claim had no artifact anyone else can
+   * run, and the tree it measured is days older. A test that copied the same
+   * four literals in proved nothing either. What is pinned now is the rule the
+   * launch bar asks for: a duration claim carries a number only where the
+   * program has one it can show.
+   */
+  it("promises no seconds it cannot show the measurement for", () => {
+    for (const lang of ["en", "de"] as const) {
+      const note = tDict(lang, "profile.durationNote" as never);
+      expect(note).not.toMatch(/\d+\s*(s\b|sec\b|min\b|Sekunde|Minute)/i);
+    }
     // summaries must not carry a competing number any more ("~10s" was #50c)
     for (const p of SCAN_PROFILES) {
       expect(p.summary, `summary of "${p.id}" still contains a time`).not.toMatch(
         /\d+\s*(s|sec|min)\b/i,
       );
     }
+    // and the one export that used to hold them is gone, not lying beside it
+    const config = readFileSync("src/config/scanProfiles.ts", "utf-8");
+    expect(config).not.toContain("PROFILE_DURATION");
+    expect(config).not.toMatch(/:\s*"~\d+s"/);
   });
 
   it("opens the detail as an inline card, never as a modal overlay", async () => {
@@ -85,7 +136,7 @@ describe("scan profile picker (#50)", () => {
     expect(container.querySelector(".profile-detail")).not.toBeNull();
     const t = await text();
     expect(t).toContain("Standard scan");
-    expect(t).toContain(`TIME: ${PROFILE_DURATION.standard}`);
+    expect(t).toContain(tEn("profile.durationNote"));
   });
 
   it("lets you read Standard and then Deep without losing either", async () => {
@@ -112,17 +163,15 @@ describe("scan profile picker (#50)", () => {
     expect(useStore.getState().scanProfile).toBe("deep");
   });
 
-  it("shows the time once per surface and both copies come from one constant", async () => {
+  it("says the duration once per surface, from one key", async () => {
     const html = await render();
-    // description line for the active profile…
-    // the sentence is localized; the number always comes from PROFILE_DURATION
-    const line = tEn("profile.estimated", { time: PROFILE_DURATION.standard });
-    expect(html.split(line).length - 1).toBe(1);
+    const line = tEn("profile.durationNote");
     expect(html).toContain(line);
+    expect(html.split(line).length - 1, "the duration sentence competes with itself").toBe(1);
   });
 
-  it("keeps the category chips visible below the profile chips", async () => {
-    await render();
+  it("keeps the category chips visible below the profile chips in the city panel", async () => {
+    await render("analyze-panel");
     const t = await text();
     expect(t).toContain(tEn("profile.lookFor"));
     const groups = container.querySelectorAll(".profile-options");
@@ -157,13 +206,57 @@ describe("the picker answers in the chosen language", () => {
     const before = useStore.getState().prefs;
     await act(async () => useStore.setState({ prefs: { ...before, lang: "de" } }));
     try {
-      await render();
+      // the category caption is a scope line, and scope is asked in the city
+      await render("analyze-panel");
       const body = await text();
-      expect(body).toContain("Scanzeit, nachdem der Ordner gelesen ist:");
+      expect(body).toContain(tDict("de", "profile.durationNote" as never));
       expect(body).toContain("Worauf achten");
-      expect(body).toContain(PROFILE_DURATION.standard);
     } finally {
       await act(async () => useStore.setState({ prefs: before }));
     }
+  });
+});
+
+describe("honest, reversible choices", () => {
+  it("does not offer a custom profile that actually runs standard", async () => {
+    await render();
+    expect(SCAN_PROFILES.some((p) => p.id === "custom")).toBe(false);
+  });
+  it("keeps the last category enabled while allowing other categories back on", async () => {
+    useStore.setState({ scanCategories: ["injection"] });
+    await render("analyze-panel");
+    const buttons = [...container.querySelectorAll<HTMLButtonElement>(".category-options button")];
+    expect(buttons.find((b) => b.getAttribute("aria-pressed") === "true")?.disabled).toBe(true);
+    const off = buttons.find((b) => b.getAttribute("aria-pressed") === "false")!;
+    expect(off.disabled).toBe(false);
+    await act(async () => off.click());
+    expect(useStore.getState().scanCategories).toHaveLength(2);
+  });
+});
+
+describe("profile and category scope agree", () => {
+  it("a previous secrets-only choice cannot silence a quality scan", () => {
+    expect(configPayload("quality-only", ["secrets"]).enabledCategories).toEqual(["hygiene"]);
+  });
+  it("offers only hygiene for Quality and keeps that scope visible", async () => {
+    useStore.getState().setScanProfile("quality-only");
+    await render("analyze-panel");
+    const buttons = [...container.querySelectorAll<HTMLButtonElement>(".category-options button")];
+    expect(buttons).toHaveLength(1);
+    expect(buttons[0]!.getAttribute("aria-pressed")).toBe("true");
+    expect(buttons[0]!.disabled).toBe(true);
+    expect(useStore.getState().scanCategories).toEqual(["hygiene"]);
+  });
+  it("offers security categories when moving from Quality to Security", async () => {
+    useStore.getState().setScanProfile("quality-only");
+    useStore.getState().setScanProfile("security-only");
+    await render("analyze-panel");
+    const labels = [
+      ...container.querySelectorAll<HTMLButtonElement>(".category-options button"),
+    ].map((b) => b.textContent);
+    expect(labels.some((s) => s?.includes("hygiene"))).toBe(false);
+    expect(useStore.getState().scanCategories).not.toContain("hygiene");
+    expect(useStore.getState().scanCategories).toContain("secrets");
+    expect(configPayload("security-only", ["hygiene"]).enabledCategories).not.toContain("hygiene");
   });
 });

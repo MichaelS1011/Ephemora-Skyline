@@ -17,6 +17,7 @@ import type { Lang } from "../i18n";
 import { formatCount } from "../i18n";
 import type { CaptureResult } from "../hooks/useCityCapture";
 import { captionsFor, type CaptionTone } from "../share/captions";
+import { SharePlatforms } from "../share/Platforms";
 import { SHARE_LINK } from "../share/config";
 import { tx } from "../share/fallbackCopy";
 
@@ -32,6 +33,10 @@ export function ShareCard({
   onAgain: () => void;
 }) {
   const [copied, setCopied] = useState<CaptionTone | null>(null);
+  // The platform row needs to know which text the user chose. Without a choice
+  // it carries the dry caption, and it says so by using the same string the
+  // card shows above it.
+  const [chosen, setChosen] = useState<string | null>(null);
   const [copyFailed, setCopyFailed] = useState(false);
   const [shareFailed, setShareFailed] = useState(false);
   const captions = captionsFor(result.facts, lang, SHARE_LINK);
@@ -58,6 +63,7 @@ export function ShareCard({
     try {
       await navigator.clipboard.writeText(text);
       setCopied(tone);
+      setChosen(text);
       setCopyFailed(false);
     } catch {
       setCopyFailed(true);
@@ -152,6 +158,8 @@ export function ShareCard({
           </p>
         )}
       </div>
+
+      <SharePlatforms lang={lang} caption={chosen ?? captions[0]!.text} />
 
       {SHARE_LINK ? (
         <p className="share-cta">

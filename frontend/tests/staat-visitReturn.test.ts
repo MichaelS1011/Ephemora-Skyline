@@ -29,7 +29,7 @@ import type { CityData, CityFile } from "../src/city/types";
 /**
  * S8: the second visit continues the first one.
  *
- * Measured before this existed (`.qoder-scratch/nerve-audit/bericht.md` D9,
+ * Measured before this existed (a local measurement script that is not shipped D9,
  * `m10.log AFTER-RELOAD`): a reload of a city already on screen threw away the
  * district, the selection and the camera, and re-raised every building of the
  * construction cinematic. The three are the visit, so they live in the address,

@@ -19,13 +19,20 @@ import { leakPath } from "../src/services/security/adapters/gitleaks-adapter.js"
  */
 
 // Same resolution order the adapter uses: PATH, then the usual prefixes.
+/**
+ * Same rule the adapter applies (`semgrep-adapter.ts:84-91`): only "no such
+ * file" means the binary is not here. The probe runs the binary, and a loaded
+ * machine answered `version` slower than this timeout — which used to retire
+ * real assertions as skips while the suite still went out green.
+ */
 function findBinary(): string | null {
   for (const candidate of ["gitleaks", "/opt/homebrew/bin/gitleaks", "/usr/local/bin/gitleaks"]) {
     try {
       execFileSync(candidate, ["version"], { stdio: "ignore", timeout: 5000 });
       return candidate;
-    } catch {
-      // next
+    } catch (e) {
+      if ((e as NodeJS.ErrnoException).code === "ENOENT") continue;
+      return candidate; // present, just slow
     }
   }
   return null;
@@ -47,6 +54,9 @@ describe("relativeToClone", () => {
   });
 });
 
+/** Joined at runtime, so this file holds no provider-shaped literal. */
+const ghpToken = "ghp_" + "aB3dE5fG7hI9jK1lM3nO5pQ7rS9tU1vW3xY5";
+
 describe("GitleaksAdapter.scanRepository keys", () => {
   const bin = findBinary();
 
@@ -58,7 +68,7 @@ describe("GitleaksAdapter.scanRepository keys", () => {
         await fs.mkdir(path.join(dir, "app"), { recursive: true });
         await fs.writeFile(
           path.join(dir, "app", "config.ts"),
-          'const pat = "ghp_aB3dE5fG7hI9jK1lM3nO5pQ7rS9tU1vW3xY5";\n',
+          `const pat = "${ghpToken}";\n`,
           "utf-8",
         );
 
@@ -73,7 +83,7 @@ describe("GitleaksAdapter.scanRepository keys", () => {
         // of gitleaks' JSON and dropped, which is how a token behind a name
         // like `pat` left the machine unmasked in the panel, the city JSON and
         // the SARIF. Masking itself happens at the scanner boundary.
-        expect(findings[0]!.secretValue).toBe("ghp_aB3dE5fG7hI9jK1lM3nO5pQ7rS9tU1vW3xY5");
+        expect(findings[0]!.secretValue).toBe("ghp_" + "aB3dE5fG7hI9jK1lM3nO5pQ7rS9tU1vW3xY5");
         // the absolute key is what made the finding unreachable in the merge
         expect([...byFile!.keys()]).not.toContain(path.join(dir, "app", "config.ts"));
       } finally {

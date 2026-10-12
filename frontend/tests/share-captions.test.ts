@@ -2,7 +2,7 @@
 // quotes only numbers the scan produced, and while the operator's link
 // constant is empty it names no destination and asks for no star.
 import { describe, it, expect } from "vitest";
-import { captionsFor, measuredFacts } from "../src/share/captions";
+import { captionsFor, imageCaptionFor, measuredFacts } from "../src/share/captions";
 import { SHARE_LINK } from "../src/share/config";
 import type { CityData } from "../src/city/types";
 
@@ -36,6 +36,22 @@ const facts = measuredFacts(city);
 const digits = (text: string): string[] => text.match(/\d[\d.,]*/g) ?? [];
 
 describe("measured facts", () => {
+  it("keeps demo exports explicitly synthetic in both languages and every tone", () => {
+    const demo = measuredFacts({ ...city, analysisId: "demo-001" });
+    for (const lang of ["de", "en"] as const) {
+      const texts = [
+        imageCaptionFor(demo, lang, ""),
+        ...captionsFor(demo, lang, "").map((caption) => caption.text),
+      ];
+      for (const text of texts) {
+        expect(text).toContain(lang === "de" ? "Kein Scanner wurde ausgeführt" : "No scanner ran");
+        expect(text).toContain(lang === "de" ? "Beispielfunde" : "sample findings");
+        expect(text).not.toMatch(
+          /Mein Projekt|My project|Scanner-Funde|scanner findings|own machine|eigenen Rechner/,
+        );
+      }
+    }
+  });
   it("come out of the payload and nothing else", () => {
     expect(facts).toMatchObject({
       files: 214,

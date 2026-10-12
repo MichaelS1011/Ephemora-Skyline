@@ -3,7 +3,7 @@ import type { AnalysisResult, FileAnalysis, SecurityIssue } from "../src/models/
 import { mapResultToCityData } from "../src/utils/cityMapper.js";
 
 /**
- * The case book of `.qoder-scratch/fixture-repo` as a unit test: 249 lines of
+ * The case book of a local measurement script that is not shipped as a unit test: 249 lines of
  * code and 300 lines of data catalogue add up to 549, and until now the city
  * published 549 as "lines of code" with JSON as its largest language.
  * Building height is already right (data gets complexity 1), so this is about

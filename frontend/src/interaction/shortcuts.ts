@@ -27,7 +27,7 @@
  * exists), because §6 forbids inventing keys and forbids silence harder.
  */
 
-import { DICT, t, type Lang } from "../i18n";
+import { DICT, plural, t, type Lang } from "../i18n";
 import { getDirLayout } from "../city/layout";
 import type { CityData } from "../city/types";
 
@@ -507,6 +507,31 @@ export const ROWS: Row[] = [
     text: T("hints.findingsEsc", "Close the findings list", "Fundliste schließen"),
     owner: "components/FindingsPanel.tsx",
   },
+  // Two dialogs the first pass of the list missed whole: both close on one
+  // Escape, both were proven in the browser (Menü → „Stadtbild oder -video" →
+  // ein Esc-Druck schließt das Studio), and neither had a row naming its file.
+  {
+    id: "shareStudioEsc",
+    keys: ["Esc"],
+    codes: ["Escape"],
+    group: "panels",
+    rank: 69,
+    text: T("hints.shareStudioEsc", "Close the share studio", "Share-Studio schließen"),
+    owner: "components/ShareStudio.tsx",
+  },
+  {
+    id: "profileConfirmEsc",
+    keys: ["Esc"],
+    codes: ["Escape"],
+    group: "panels",
+    rank: 70,
+    text: T(
+      "hints.profileConfirmEsc",
+      "Discard the project card being confirmed",
+      "Zu bestätigende Profil-Karte verwerfen",
+    ),
+    owner: "components/ProfileConfirmDialog.tsx",
+  },
   {
     id: "hintsEsc",
     keys: ["Esc"],
@@ -643,6 +668,20 @@ export interface World {
  */
 const CITY_KEYS = new Set(["[", "]", "/", "n", "p"]);
 
+/**
+ * The keyboard half of the camera group, read off the registry itself rather
+ * than typed in again: `camOrbitExit` is Escape, which answers for itself, and
+ * the mouse rows carry no code. A camera key added to ROWS joins this set on its
+ * own — which is the point, because the defect this closes was five of these
+ * keys moving the landing's picture without saying a word (measured: 26, 20,
+ * 137, 134 and 40 of 1000 screen cells against an idle spread of at most 4).
+ */
+const CAMERA_KEYS = new Set(
+  ROWS.filter((r) => r.group === "camera" && r.id !== "camOrbitExit")
+    .flatMap((r) => r.codes)
+    .map((c) => c.toLowerCase()),
+);
+
 const isPalette = (press: Press): boolean =>
   (press.key.toLowerCase() === "k" || press.code === "KeyK") && (press.meta || press.ctrl);
 
@@ -668,6 +707,17 @@ export function explain(press: Press, world: World): Text | null {
       "keys.noCity",
       "No city yet — pick a folder first; [ ] and / work inside a city",
       "Noch keine Stadt — erst einen Ordner öffnen; [ ] und / arbeiten in der Stadt",
+    );
+  }
+
+  // The landing's picture is the same canvas as the city, so the camera keys
+  // really do move it here. Silence made that look like a broken city; the
+  // sentence says what moved and what is still missing.
+  if (!world.hasCity && CAMERA_KEYS.has(key.toLowerCase())) {
+    return T(
+      "keys.cameraNoCity",
+      "These keys steer the camera — over the land in front of the first city, until a folder has been read",
+      "Diese Tasten steuern die Kamera — über das Land vor der ersten Stadt, bis ein Ordner gelesen ist",
     );
   }
 
@@ -760,24 +810,34 @@ export function explain(press: Press, world: World): Text | null {
  * What a newly marked district is worth: the number the marker stands for, and
  * the key that acts on it. The sentence carries the measurement, because a
  * marker that says only "selected" teaches nothing about the plot it sits on.
+ *
+ * Each number carries its own noun, agreed with the count: the sentence used to
+ * put the noun in the template and the number in the gap, which read "1 Funde"
+ * and "1 Unterbezirke" in German and hid behind "finding(s)" in English.
  */
 export function districtMarked(
   lang: Lang,
   mark: { name: string; files: number; findings: number; children: number },
 ): string {
+  const de = lang === "de";
   const vars = {
     name: mark.name,
-    files: String(mark.files),
-    findings: String(mark.findings),
-    children: String(mark.children),
+    files: plural(lang, mark.files, de ? "Datei" : "file", de ? "Dateien" : "files"),
+    findings: plural(lang, mark.findings, de ? "Fund" : "finding", de ? "Funde" : "findings"),
+    children: plural(
+      lang,
+      mark.children,
+      de ? "Unterbezirk" : "sub-district",
+      de ? "Unterbezirke" : "sub-districts",
+    ),
   };
   if (mark.findings > 0) {
     return resolve(
       lang,
       T(
         "keys.districtMarkedAlarm",
-        "District {name} — {findings} finding(s) here, {files} file(s), Enter walks in",
-        "Bezirk {name} — {findings} Funde hier, {files} Dateien, Enter geht hinein",
+        "District {name} — {findings} here, {files}, Enter walks in",
+        "Bezirk {name} — {findings} hier, {files}, Enter geht hinein",
       ),
       vars,
     );
@@ -786,8 +846,8 @@ export function districtMarked(
     lang,
     T(
       "keys.districtMarked",
-      "District {name} — {files} file(s), {children} sub-district(s), Enter walks in",
-      "Bezirk {name} — {files} Dateien, {children} Unterbezirke, Enter geht hinein",
+      "District {name} — {files}, {children}, Enter walks in",
+      "Bezirk {name} — {files}, {children}, Enter geht hinein",
     ),
     vars,
   );

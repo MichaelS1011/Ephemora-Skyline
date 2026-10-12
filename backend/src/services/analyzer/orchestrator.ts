@@ -113,9 +113,18 @@ export function isExcludedPath(relativePath: string, needles: string[]): boolean
   return needles.some((needle) => needle.length > 0 && relativePath.includes(needle));
 }
 
-/** The five counters, all at zero. */
+/** The eight counters, all at zero. */
 export function emptyDroppedFiles(): DroppedFiles {
-  return { pathTooLong: 0, unsafePath: 0, tooLarge: 0, unreadable: 0, excluded: 0 };
+  return {
+    pathTooLong: 0,
+    unsafePath: 0,
+    tooLarge: 0,
+    unreadable: 0,
+    excluded: 0,
+    gitIgnored: 0,
+    gitBudget: 0,
+    unsupportedFormat: 0,
+  };
 }
 
 /** Sum of two accounting records — the upload side and the read side. */
@@ -230,8 +239,14 @@ export class AnalysisOrchestrator {
     const candidateFiles: Array<{ fullPath: string; relativePath: string }> = [];
     for (const filePath of allFiles) {
       const relativePath = filePath.replace(dirPath + "/", "");
-      // The scan's one file-selection decision: extension shape + artifact dirs
-      if (!isScanCandidate(relativePath)) continue;
+      // The scan's one file-selection decision: extension shape + artifact dirs.
+      // A path that leaves here left because of the scan's own breadth, and that
+      // is a number the city owes the user: a folder of 17 documents rendering 0
+      // buildings reads as an empty folder, not as a format the scan does not read.
+      if (!isScanCandidate(relativePath)) {
+        dropped.unsupportedFormat += 1;
+        continue;
+      }
       // Scan-config scope: language allowlist + user exclude paths
       if (config?.languageScope?.length) {
         const lang = languageOfPath(relativePath);

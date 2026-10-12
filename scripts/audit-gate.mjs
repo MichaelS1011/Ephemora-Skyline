@@ -45,8 +45,25 @@ function audit() {
   }
 }
 
-const report = audit();
-const vulns = report.vulnerabilities ?? {};
+let report;
+try {
+  report = audit();
+  // npm also prints JSON for transport errors. That is not an empty audit.
+  if (
+    !report ||
+    report.error ||
+    !report.metadata?.vulnerabilities ||
+    !report.vulnerabilities ||
+    typeof report.vulnerabilities !== "object" ||
+    Array.isArray(report.vulnerabilities)
+  ) {
+    throw new Error("npm did not return a complete vulnerability report");
+  }
+} catch (error) {
+  console.error(`FAIL — dependency audit could not be completed: ${error.message}`);
+  process.exit(1);
+}
+const vulns = report.vulnerabilities;
 
 /** Advisory ids a package carries directly (its own `via` entries that are advisories). */
 function directIds(v) {
@@ -84,16 +101,18 @@ while (grew) {
     const deps = (v.via ?? []).filter((x) => typeof x === "string");
     const ownAllowed = own.length > 0 && own.every((id) => ALLOWED.has(id));
     const depsExplained = deps.length > 0 && deps.every((d) => explained.has(d));
-    if (ownAllowed || (deps.length > 0 && depsExplained && own.length === 0)) {
+    if (
+      (own.length === 0 || ownAllowed) &&
+      (deps.length === 0 || depsExplained) &&
+      own.length + deps.length > 0
+    ) {
       explained.add(name);
       grew = true;
     }
   }
 }
 
-const failing = Object.entries(vulns).filter(
-  ([name, v]) => severityOf(v) && !explained.has(name),
-);
+const failing = Object.entries(vulns).filter(([name, v]) => severityOf(v) && !explained.has(name));
 const accepted = Object.entries(vulns).filter(([name, v]) => severityOf(v) && explained.has(name));
 
 console.log(`npm audit: ${JSON.stringify(report.metadata?.vulnerabilities ?? {})}`);

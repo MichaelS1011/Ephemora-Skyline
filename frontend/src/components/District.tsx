@@ -5,8 +5,8 @@ import { Html } from "@react-three/drei";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import type { BlockPlacement, StripBar } from "../city/layout";
-import { districtUnderground, undergroundPlateLine } from "../city/layout";
-import { ENV, SEVERITY_COLOR, languageColor } from "../city/palette";
+import { districtUnderground, stripRowZ, undergroundPlateLine } from "../city/layout";
+import { ENV, curbAlarmColor, languageColor, severityColor } from "../city/palette";
 import { complexityForHeight } from "../city/mapping";
 import { reducedSettle } from "../city/motion";
 import { t } from "../i18n";
@@ -50,6 +50,7 @@ export function District({ placement, appearAt, skylineAt, constructing }: Distr
   const { dir, x, z, w, d, skyline, strip } = placement;
   const hasP0 = dir.findingsBySeverity.P0 > 0;
   const lang = useStore((s) => s.prefs.lang);
+  const colorblind = useStore((s) => s.prefs.colorblind);
   const sev = dir.findingsBySeverity;
   const totalFindings = sev.P0 + sev.P1 + sev.P2;
   const worstSev: Severity | null =
@@ -64,7 +65,12 @@ export function District({ placement, appearAt, skylineAt, constructing }: Distr
     return m;
   }, [skyline, strip]);
 
-  const curbColor = hasP0 ? ENV.windowAlarm : "#3a4a68";
+  // The plot's alarm stone. It takes the loudest colour-saver tone rather than
+  // the window tone, because its neighbour is the calm kerb: the blue the
+  // windows switched to would sit 14,60 ΔE00 from `#3a4a68`, the vermilion
+  // 42,77. Same switch, different neighbour, different answer — both measured in
+  // `tests/farbband-palette.test.ts`.
+  const curbColor = hasP0 ? curbAlarmColor(colorblind) : "#3a4a68";
   /** Emissive level of the curb at rest and under the pointer. */
   const curbBase = useMemo(() => (hasP0 ? 1.1 : 0.3), [hasP0]);
   const blockId = `block:${dir.path}`;
@@ -238,9 +244,12 @@ export function District({ placement, appearAt, skylineAt, constructing }: Distr
       ))}
 
       {/* Podium marker — files not individually rendered. The count itself
-          rides on the bundled nameplate below, not on a second Html node. */}
+          rides on the bundled nameplate below, not on a second Html node.
+          The far corner: the group strip row took the kerb side this stone
+          used to share with the nameplate, and its last bar would stand
+          inside the stone (any plot under ~46 units wide). */}
       {dir.remainingFiles > 0 && (
-        <group position={[w / 2 - 1.4, 0, d / 2 - 1.4]}>
+        <group position={[w / 2 - 1.4, 0, -d / 2 + 1.4]}>
           <mesh
             position={[0, 0.5, 0]}
             onClick={handleClick}
@@ -273,7 +282,10 @@ export function District({ placement, appearAt, skylineAt, constructing }: Distr
           <div className="cf-plate-name">
             {dir.name}
             {worstSev && (
-              <span className="cf-plate-risk" style={{ color: SEVERITY_COLOR[worstSev] }}>
+              <span
+                className="cf-plate-risk"
+                style={{ color: severityColor(worstSev, colorblind) }}
+              >
                 ●{totalFindings}
               </span>
             )}
@@ -304,9 +316,11 @@ function StripBarMesh({
   onOut: () => void;
   onClick: (e: { stopPropagation: () => void }) => void;
 }) {
-  const color = bar.worst ? SEVERITY_COLOR[bar.worst] : languageColor(bar.language);
-  // Row sits against the far kerb, behind the towers.
-  const z = -plotD / 2 + bar.d / 2 + 0.6;
+  const colorblind = useStore((s) => s.prefs.colorblind);
+  const color = bar.worst ? severityColor(bar.worst, colorblind) : languageColor(bar.language);
+  // The kerb the presentation camera stands at. `city/layout.stripRowZ` carries
+  // the measurement that moved the row off the far kerb.
+  const z = stripRowZ(plotD, bar.d);
   return (
     <mesh
       position={[bar.x, bar.h / 2 + 0.18, z]}

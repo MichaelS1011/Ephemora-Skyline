@@ -1,7 +1,7 @@
 import { useRef, useState, useEffect, useCallback, useId } from "react";
 import { useStore } from "../stores/useStore";
 import { searchFiles, searchFindings } from "../city/layout";
-import { languageColor, severityColor, THREAT_COLOR } from "../city/palette";
+import { languageColor, severityColor, threatColor } from "../city/palette";
 import type { CityFile, CityFinding, Severity } from "../city/types";
 import { findingKey } from "../reviews";
 import { t, type DictKey } from "../i18n";
@@ -282,9 +282,9 @@ export function SearchBar() {
                     : file.threatLevel === "medium"
                       ? "P2"
                       : null;
-              const threatColor = threatSeverity
+              const dotColor = threatSeverity
                 ? severityColor(threatSeverity, colorblind)
-                : THREAT_COLOR[file.threatLevel];
+                : threatColor(file.threatLevel, colorblind);
               return (
                 <button
                   key={file.id}
@@ -333,9 +333,9 @@ export function SearchBar() {
                     <span
                       className="font-jetbrains text-[11px] px-2 py-1 rounded shrink-0"
                       style={{
-                        color: threatColor,
-                        border: `1px solid ${threatColor}55`,
-                        background: `${threatColor}12`,
+                        color: dotColor,
+                        border: `1px solid ${dotColor}55`,
+                        background: `${dotColor}12`,
                       }}
                     >
                       {t(

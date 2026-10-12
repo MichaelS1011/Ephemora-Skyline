@@ -5,7 +5,6 @@ import { useStore } from "../stores/useStore";
 import { t } from "../i18n";
 import {
   ENGINES,
-  PROFILE_DURATION,
   PROFILE_ENGINES,
   PROFILE_SCOPE,
   SCAN_PROFILES,
@@ -95,9 +94,6 @@ export function ProfileConfirmDialog({ profile, onConfirm, onCancel }: ProfileCo
       <div className="profile-detail-meta">
         <div>
           <b>{t(lang, "detail.report")}</b> <span>{t(lang, PROFILE_SCOPE[profile])}</span>
-        </div>
-        <div>
-          <b>{t(lang, "detail.time")}</b> <span>{PROFILE_DURATION[profile]}</span>
         </div>
       </div>
 

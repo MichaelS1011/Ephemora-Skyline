@@ -3,7 +3,7 @@
  * Mirrors the backend scan-config presets (resolveConfig applies them).
  */
 
-import { enabledCategoriesPayload } from "./findingCategories";
+import { enabledCategoriesPayload, CATEGORY_IDS } from "./findingCategories";
 import type { FindingCategory } from "../city/types";
 import type { DictKey } from "../i18n";
 
@@ -45,12 +45,6 @@ export const SCAN_PROFILES: ScanProfileMeta[] = [
     icon: "🧹",
     label: "profile.quality",
     summary: "profile.qualitySummary",
-  },
-  {
-    id: "custom",
-    icon: "✏",
-    label: "profile.custom",
-    summary: "profile.customSummary",
   },
 ];
 
@@ -214,25 +208,18 @@ export const PROFILE_SCOPE: Record<ScanProfile, DictKey> = {
 };
 
 /**
- * THE single source of time promises — chip description line and the detail
- * card both read this, no other copy is written anywhere. Values are measured,
- * not guessed: .qoder-scratch/profile-diff.mjs drove every profile through the
- * real HTTP route (POST /api/analyze-local → poll /api/status → /api/result)
- * against this repo (1290 collected files, backend :4000, 2026-10-04):
- * quick 1.7s, standard 4.7s, security-only 4.7s, quality-only 1.7s, deep 4.7s
- * (deep adds the git-history walk but finished in the same poll interval).
- * Poll granularity is 1.5s, so each value is rounded up to the next second.
+ * THE single source of the duration sentence — chip line and detail card read
+ * it here, no other copy is written anywhere.
+ *
+ * It no longer carries seconds. The four values that used to sit here
+ * ("~2s", "~5s", "~5s", "~2s") were measured on 2026-10-04 by a local probe
+ * script that is not in this repository: the shipped claim pointed at an
+ * artifact nobody outside this machine can see, and the
+ * tree it measured is five days and several scans older. A re-measure needs one
+ * scan per profile, which the shared scan budget does not grant. What is still
+ * true without a stopwatch is said here: duration is a property of the folder
+ * and the engines that ran, and the progress line counts the seconds live.
  */
-export const PROFILE_DURATION: Record<ScanProfile, string> = {
-  quick: "~2s",
-  standard: "~5s",
-  deep: "~5s",
-  "security-only": "~5s",
-  "quality-only": "~2s",
-  // custom falls back to the standard preset today (see configPayload)
-  custom: "~5s",
-};
-
 const STORAGE_KEY = "codecity-scan-profile";
 
 /** Persisted profile — survives reloads; "custom" has no editor yet, falls back */
@@ -254,6 +241,19 @@ export function saveProfile(profile: ScanProfile): void {
   }
 }
 
+/** Profiles and category chips must describe the same reporting scope. */
+export function categoriesForProfile(
+  profile: ScanProfile,
+  categories: FindingCategory[],
+): FindingCategory[] {
+  if (profile === "quality-only") return ["hygiene"];
+  if (profile === "security-only") {
+    const security = categories.filter((category) => category !== "hygiene");
+    return security.length ? security : CATEGORY_IDS.filter((category) => category !== "hygiene");
+  }
+  return categories;
+}
+
 /**
  * Payload for POST /api/analyze-local (body.config). The backend
  * resolveConfig() applies the profile preset; "custom" is reserved for the
@@ -270,7 +270,7 @@ export function configPayload(
   rulePacks?: string[];
   excludePaths?: string[];
 } {
-  const enabledCategories = enabledCategoriesPayload(categories);
+  const enabledCategories = enabledCategoriesPayload(categoriesForProfile(profile, categories));
   const excludes = normalizeExcludes(excludePaths);
   return {
     profile: profile === "custom" ? "standard" : profile,

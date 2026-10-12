@@ -19,6 +19,8 @@ import { Breadcrumbs } from "./components/Breadcrumbs";
 import { SecurityTour } from "./components/SecurityTour";
 import { CoachMarks } from "./components/CoachMarks";
 import { ActionBar } from "./components/ActionBar";
+import { ShareStudio } from "./components/ShareStudio";
+import { ShareHint } from "./share/ShareHint";
 import { ContextCard } from "./components/ContextCard";
 import { FindingsPanel } from "./components/FindingsPanel";
 import { HeatmapToggle } from "./components/HeatmapToggle";
@@ -100,9 +102,12 @@ function VisitCamera() {
 
   // A shared link opened on a city this machine has never seen plays the
   // construction cinematic AND carries a pose. The crane owns the camera for
-  // the length of the build and the reveal glide starts only when the city
-  // stands, so the returning pilot is put back a second time once that lands —
-  // otherwise the address asks for one view and the screen shows another.
+  // the length of the build, so the returning pilot is put back a second time
+  // once the city stands — otherwise the address asks for one view and the
+  // screen shows the crane's. The reveal glide to the overview is not armed for
+  // such a visit at all (CityScene.tsx:137); what is left to overwrite is the
+  // build, and under reduced motion that glide was an instant write no skip
+  // could reach: 3 of 4 reloads lost the pose, 8,577–185,254 units away.
   useEffect(() => {
     const want = requested.current;
     if (buildPhase !== "built" || !want || samePose(poseOf(camera), want)) return;
@@ -318,7 +323,7 @@ export default function App() {
       // back. The tour owns the keyboard while it runs, and open modal
       // dialogs (keyboard hints, confirm dialogs) swallow shortcuts — no
       // triage behind them. toLowerCase() so Shift/CapsLock still work.
-      const modalOpen = !!document.querySelector('[aria-modal="true"]');
+      const modalOpen = !!document.querySelector('[aria-modal="true"], .panel-share-studio');
       if (
         e.key.toLowerCase() === "n" &&
         !isInput &&
@@ -515,7 +520,7 @@ export default function App() {
 
               <InfoPanel />
               <FindingsPanel />
-              <ScanSummary />
+              <ScanSummary demo={apiStatus === "demo"} />
               <SecurityTour />
               <ActionBar />
               <ContextCard />
@@ -560,6 +565,10 @@ export default function App() {
           </div>
 
           <Breadcrumbs />
+          <ShareStudio />
+          {/* The one place the share feature reaches out by itself: once per city, a
+              refusal that holds forever, and it walks away on its own. */}
+          <ShareHint />
         </>
       )}
 

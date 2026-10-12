@@ -63,7 +63,9 @@ const SECRET_SHAPES: RegExp[] = [
   /\bAIza[0-9A-Za-z_-]{30,}\b/g, // Google API key
   /\b[ps]k_(?:live|test)_[0-9A-Za-z]{16,}\b/g, // Stripe
   /\bsk-[A-Za-z0-9]{20,}\b/g, // OpenAI-style
-  /\b_npmp_[0-9a-f]{32,}\b/g, // npm
+  /\bnpm_[A-Za-z0-9]{30,}\b/g, // npm access token, the form `npm_…`
+  /\bgithub_pat_[0-9A-Za-z_]{20,}\b/g, // GitHub fine-grained PAT
+  /\b_npmp_[0-9a-f]{32,}\b/g, // npm legacy auth key in .npmrc, not the token above
   /\beyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\b/g, // JWT
   /-----BEGIN [A-Z0-9 ]*PRIVATE KEY-----/g, // PEM key header
 ];

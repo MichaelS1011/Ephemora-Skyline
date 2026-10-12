@@ -229,11 +229,11 @@ export class SecurityScanner {
     )
       return false;
     const categories = this.config.enabledCategories;
-    if (
-      categories.length > 0 &&
-      !categories.includes(issue.category ?? categoryOf(issue.type, issue.cwe))
-    )
-      return false;
+    // Python linter findings are a whole family, not just the three handwritten
+    // style rules. The Security profile promises to leave hygiene out.
+    const category = issue.category ?? categoryOf(issue.type, issue.cwe);
+    if (this.config.profile === "security-only" && category === "hygiene") return false;
+    if (categories.length > 0 && !categories.includes(category)) return false;
     return true;
   }
 

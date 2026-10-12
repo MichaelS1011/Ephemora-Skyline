@@ -41,7 +41,7 @@ describe("the name a reader is given", () => {
       "utf-8",
     );
     expect(analyze).toContain("Ephemora Skyline reads:");
-    expect(analyze).toContain("Ephemora Skyline ignores them anyway");
+    expect(analyze).toContain("Ephemora Skyline ignores build output");
   });
 
   it("does not describe a route that is gone", () => {

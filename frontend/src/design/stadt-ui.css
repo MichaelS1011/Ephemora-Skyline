@@ -117,13 +117,13 @@
 /* ── Card depth system ─────────────────────────────────────────────────── */
 .panel-card {
   position: absolute;
-  background: rgba(24, 24, 22, 0.97);
-  border: 1px solid rgba(242, 239, 232, 0.14);
+  background: var(--glass-chrome-sheen), var(--glass-chrome-bg);
+  border: 1px solid var(--glass-chrome-border);
   border-radius: 10px;
   box-shadow:
     0 18px 44px rgba(0, 0, 0, 0.5),
-    inset 0 1px 0 rgba(242, 239, 232, 0.06);
-  backdrop-filter: blur(14px);
+    var(--glass-chrome-edge);
+  backdrop-filter: var(--glass-chrome-blur);
   color: var(--color-text);
   font-family: var(--font-ui);
   font-size: var(--fs-body);
@@ -541,15 +541,15 @@
 /* Both are radiogroups over the same kind of choice ("which layer am I
    looking at"), so they get one box model, one type size and one selected
    state — the selected one also carries a dot, so the active lens is not
-   only a colour difference. */
+   only a colour difference.
+   The tint is NOT here: globals.css declares it for both bars, in the one
+   place that can win the cascade. A second background rule here would be a
+   second source for one surface, and the guard counts those. */
 .workspace-modes .glass,
 .workspace-heatmap .glass {
   gap: 4px;
   padding: 4px 6px;
   border-radius: 8px;
-  border: 1px solid rgba(242, 239, 232, 0.12);
-  background: rgba(24, 24, 22, 0.92);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
 }
 .workspace-modes [role="radio"],
 .workspace-heatmap [role="radio"] {
@@ -568,8 +568,10 @@
   line-height: 1;
 }
 .workspace-heatmap [role="radio"][aria-disabled="true"] {
+  /* The only visual "unavailable" left after the dimming went — a 60 %-alpha
+     rule measured 2,5:1 on the frosted field, too faint to carry a state.
+     Without `text-decoration-color` the strike is the label's own ink. */
   text-decoration: line-through;
-  text-decoration-color: rgba(150, 142, 128, 0.6);
 }
 
 /* ── Keyboard focus, one ring for the whole HUD ────────────────────────── */

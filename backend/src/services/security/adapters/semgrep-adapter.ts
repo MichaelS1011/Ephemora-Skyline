@@ -202,6 +202,19 @@ export class SemgrepAdapter implements ScannerAdapter {
     contentByPath?: Map<string, string>,
   ): Promise<SecurityIssue[] | null> {
     if (this.dockerAvailable === false) return null;
+    /**
+     * The fallback is a convenience for a person who has Docker but never
+     * installed semgrep. It is not a convenience for a build runner: the first
+     * thing it does there is reach registry-1.docker.io, and a status badge that
+     * depends on an image pull is a badge that fails when the registry is slow.
+     * `SEMGREP_DOCKER=0` says "this machine's Docker is not an engine source",
+     * and the scan then reports semgrep as not run — the same honest answer an
+     * absent binary already gives.
+     */
+    if (/^(0|false|off)$/i.test(process.env.SEMGREP_DOCKER ?? "")) {
+      this.dockerAvailable = false;
+      return null;
+    }
     let outDir: string | null = null;
     try {
       if (this.dockerAvailable === null) {

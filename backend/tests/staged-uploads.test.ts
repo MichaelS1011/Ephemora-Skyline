@@ -1,4 +1,5 @@
-import { describe, it, expect, beforeAll } from "vitest";
+import { afterAll, describe, expect, it, beforeAll } from "vitest";
+import { usePrivateStaging } from "./helpers/privateStaging.js";
 import { promises as fs } from "fs";
 import path from "path";
 import { handleLocalAnalyze, pruneStaleUploadDirs } from "../src/server/routes/local-analyze.js";
@@ -18,7 +19,10 @@ import type { AnalysisOrchestrator } from "../src/services/analyzer/orchestrator
  * Two: the copies were world-readable in a shared /tmp. A tool that uploads a
  * repository to nobody but itself must not hand it to the rest of the machine.
  */
-const ROOT = process.env.CODECITY_UPLOAD_DIR!;
+// A root of this file's own: the sweep below fast-forwards the clock, and in the
+// shared suite root that reaches into whatever a sibling file is staging.
+const STAGING = await usePrivateStaging("staged-uploads");
+const ROOT = STAGING.root;
 const UUID = "0f1e2d3c-4b5a-6978-8796-a5b4c3d2e1f0";
 
 function makeRes() {
@@ -70,6 +74,8 @@ async function exists(p: string): Promise<boolean> {
     .catch(() => false);
 }
 
+afterAll(() => STAGING.release());
+
 describe("the staging root is swept, not only remembered", () => {
   beforeAll(async () => {
     await fs.mkdir(ROOT, { recursive: true });
@@ -89,9 +95,14 @@ describe("the staging root is swept, not only remembered", () => {
       await fs.symlink(path.join(ROOT, "keep-me-link-target"), symlinked, "dir");
     }
 
-    // the stale folder is a day and an hour old, the rest is from right now
+    // the stale folder is a day and an hour old, the rest is from right now —
+    // written as mtimes, not assumed from what the filesystem happened to leave
     const past = Date.now() - 25 * 60 * 60 * 1000;
+    const now = new Date();
     await fs.utimes(stale, new Date(past), new Date(past));
+    for (const keep of [fresh, stranger, path.join(ROOT, "keep-me-link-target")]) {
+      await fs.utimes(keep, now, now);
+    }
     await pruneStaleUploadDirs(Date.now() + 60 * 60 * 1000);
 
     expect(await exists(stale), "the orphaned copy must be gone").toBe(false);

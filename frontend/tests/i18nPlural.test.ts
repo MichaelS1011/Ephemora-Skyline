@@ -1,7 +1,22 @@
 import { describe, it, expect } from "vitest";
+import { readFileSync, readdirSync } from "fs";
+import path from "path";
 import { DICT, t, plural, formatCount, type DictKey, type Lang } from "../src/i18n";
 
 const keys = Object.keys(DICT) as DictKey[];
+
+/** Every line of shipped source, for the "is this key ever called" check. */
+function sourceFiles(dir: string, into: string[] = []): string[] {
+  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    const full = path.join(dir, entry.name);
+    if (entry.isDirectory()) sourceFiles(full, into);
+    else if (/\.(ts|tsx)$/.test(entry.name)) into.push(full);
+  }
+  return into;
+}
+const ALL_SRC = sourceFiles(path.resolve(import.meta.dirname, "../src"))
+  .map((f) => readFileSync(f, "utf-8"))
+  .join("\n");
 
 /**
  * The text pass (plan §5): every key carries both languages, and a count that
@@ -61,6 +76,18 @@ describe("i18n coverage after the text pass", () => {
       const base = key.slice(0, -"One".length);
       expect(dict[base] ?? dict[`${base}Many`], `"${key}" has no plural sibling`).toBeDefined();
     }
+  });
+
+  /**
+   * A branch in the dictionary is not a branch in the program. Measured before:
+   * `actions.triageOpenTitleOne` and `actions.findingsOne` sat there complete,
+   * in both languages, while the dock called the plural form unconditionally —
+   * the sentence the user read was "1 findings in this queue still need a
+   * verdict". This is the check that would have caught it.
+   */
+  it("calls every singular branch it ships", () => {
+    const orphans = keys.filter((k) => k.endsWith("One") && !ALL_SRC.includes(`"${k}"`));
+    expect(orphans, `singular branches nobody calls: ${orphans.join(", ")}`).toEqual([]);
   });
 });
 

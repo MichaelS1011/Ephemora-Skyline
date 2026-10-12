@@ -28,8 +28,10 @@ export default defineConfig({
     proxy: {
       // 127.0.0.1, not localhost: the backend binds loopback explicitly, and a
       // name would let the resolver answer ::1 first — which nothing listens on.
+      // The port follows BACKEND_PORT so a second checkout can point its proxy
+      // at its own backend instead of silently sharing the first one's.
       "/api": {
-        target: "http://127.0.0.1:4000",
+        target: `http://127.0.0.1:${process.env.BACKEND_PORT ?? "4000"}`,
         changeOrigin: true,
       },
     },

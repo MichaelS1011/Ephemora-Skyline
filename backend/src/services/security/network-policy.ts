@@ -19,8 +19,8 @@ export function isOffline(env: NodeJS.ProcessEnv = process.env): boolean {
 
 /**
  * Was ein Scan versucht, wenn Offline-Schalter NICHT gesetzt ist. Gemessen, nicht
- * vermutet: .qoder-scratch/net-probe.mts stellt einen Lausch-Proxy vor die
- * Scanner und notiert jedes CONNECT. Quelle des Ausdrucks ist der Code selbst.
+ * vermutet: ein lokaler Lausch-Proxy (nicht ausgeliefert) stand vor den
+ * Scannern und notierte jedes CONNECT. Quelle des Ausdrucks ist der Code selbst.
  */
 export interface OutboundCall {
   readonly host: string;

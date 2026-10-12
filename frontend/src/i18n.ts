@@ -51,9 +51,13 @@ export const DICT = {
    * → poll → result), so the label says what it covers: reading the folder is
    * the user's own disk work and is not in the number.
    */
-  "profile.estimated": {
-    en: "Scan time once the folder is read: {time}.",
-    de: "Scanzeit, nachdem der Ordner gelesen ist: {time}.",
+  // No seconds here. The reference values this line used to print were measured
+  // by a script that lives outside the repository, on a tree five days older than
+  // this one; a claim the product cannot show the proof for is struck, not
+  // relabelled. What remains is what is true without a stopwatch.
+  "profile.durationNote": {
+    en: "Duration depends on the folder's size and which engines ran — the progress line counts the seconds as they pass.",
+    de: "Die Dauer hängt von der Größe des Ordners und den laufenden Prüfprogrammen ab — die Fortschrittszeile zählt die Sekunden mit.",
   },
   "profile.lookFor": {
     en: "What to look for",
@@ -573,6 +577,22 @@ export const DICT = {
     en: "Buildings recede, dependency routes glow",
     de: "Gebäude treten zurück, Abhängigkeitsadern leuchten",
   },
+  /**
+   * Which lens is on was paint only: an accent colour, a tint, a border and a
+   * CSS dot grown from `aria-checked`. The product's rule is that colour is
+   * never the only carrier, so the state gets two more channels — the
+   * `aria-current` attribute on the control and the word below, read out as
+   * its accessible description. The visible label keeps its plain name, so
+   * voice control still hits "SECURITY".
+   */
+  "mode.stateOn": {
+    en: "active",
+    de: "aktiv",
+  },
+  "mode.stateOff": {
+    en: "not active",
+    de: "nicht aktiv",
+  },
   "search.findingsGroup": {
     en: "Findings",
     de: "Fundstellen",
@@ -580,6 +600,21 @@ export const DICT = {
   "search.filesGroup": {
     en: "Files",
     de: "Dateien",
+  },
+  "actions.updateCheck": {
+    en: "Ask about new versions",
+    de: "Nach neuen Versionen fragen",
+  },
+  // What the switch actually reaches: the landing's own version note. The
+  // scanners' rule-pack and advisory lookups are a different surface and are
+  // not switched here, so the sentence names only what changes.
+  "actions.updateCheckOn": {
+    en: "Version note on — the landing asks the release feed again",
+    de: "Versionshinweis an — die Landung fragt wieder beim Release-Feed nach",
+  },
+  "actions.updateCheckOff": {
+    en: "Version note off — the landing asks for nothing",
+    de: "Versionshinweis aus — die Landung fragt nach nichts",
   },
   "actions.colorblindPalette": {
     en: "Colorblind-safe palette",
@@ -597,6 +632,43 @@ export const DICT = {
     en: "Run tests",
     de: "Tests ausführen",
   },
+  "test.preparing": { en: "Preparing the scanned copy…", de: "Gescannte Kopie wird vorbereitet…" },
+  "test.installing": {
+    en: "Installing locked npm dependencies…",
+    de: "Fixierte npm-Abhängigkeiten werden installiert…",
+  },
+  "test.running": { en: "Running project tests…", de: "Projekttests laufen…" },
+  "test.failed": {
+    en: "Test run could not finish",
+    de: "Testlauf konnte nicht abgeschlossen werden",
+  },
+  "test.timeout": {
+    en: "Test run timed out. Check the local server before retrying.",
+    de: "Zeitlimit erreicht. Prüfe den lokalen Server vor einem erneuten Versuch.",
+  },
+  "test.expired": {
+    en: "The server no longer holds this run. Scan the folder again.",
+    de: "Der Server hält diesen Lauf nicht mehr. Scanne den Ordner erneut.",
+  },
+  "test.backend": {
+    en: "Could not reach the local test runner",
+    de: "Lokaler Test-Runner nicht erreichbar",
+  },
+  "test.noResults": {
+    en: "The runner returned no usable results",
+    de: "Der Runner lieferte keine verwertbaren Ergebnisse",
+  },
+  "test.summary": {
+    en: "{passed} passed · {failed} failed · {skipped} skipped",
+    de: "{passed} bestanden · {failed} fehlgeschlagen · {skipped} übersprungen",
+  },
+  "test.snapshot": {
+    en: "Runs this test file in the scanned copy. Scan again after edits. First run may download locked npm dependencies. Vitest and Jest are supported.",
+    de: "Führt diese Testdatei in der gescannten Kopie aus. Scanne nach Änderungen erneut. Beim ersten Lauf können fixierte npm-Abhängigkeiten heruntergeladen werden. Unterstützt werden Vitest und Jest.",
+  },
+  "test.skipped": { en: "Tests skipped", de: "Tests übersprungen" },
+  "test.fileSkipped": { en: "{count} skipped", de: "{count} übersprungen" },
+  "test.failedSuites": { en: "{count} failed suites", de: "{count} fehlgeschlagene Testsuiten" },
   "actions.testsRunning": {
     en: "Tests running…",
     de: "Tests laufen…",
@@ -675,8 +747,12 @@ export const DICT = {
    * "while the server runs" promised more lifetime than the store has.
    */
   "actions.linkCopied": {
-    en: "City link copied. It opens on this machine only, while the server runs — and for about a day or the next 20 scans, whichever comes first.",
-    de: "Stadt-Link kopiert. Er öffnet nur auf diesem Rechner, solange der Server läuft — etwa einen Tag lang oder bis zu den nächsten 20 Scans, je nachdem was zuerst eintritt.",
+    en: "City link copied. It opens on this machine only, while the server runs — about {lifetime} or the next {max} scans, whichever comes first.",
+    de: "Stadt-Link kopiert. Er öffnet nur auf diesem Rechner, solange der Server läuft — etwa {lifetime} oder bis zu den nächsten {max} Scans, je nachdem was zuerst eintritt.",
+  },
+  "actions.linkCopiedUnknown": {
+    en: "City link copied. It opens on this machine only, while the server runs — the server did not answer, so how long it holds this city is unknown.",
+    de: "Stadt-Link kopiert. Er öffnet nur auf diesem Rechner, solange der Server läuft — der Server antwortete nicht, also ist unbekannt, wie lange er diese Stadt hält.",
   },
   "actions.linkCopyFailed": {
     en: "The link could not be copied. Copy the address from your browser instead.",
@@ -902,6 +978,10 @@ export const DICT = {
     en: "Review status of this finding",
     de: "Review-Status dieses Funds",
   },
+  "panel.verdictsBlocked": {
+    en: "Verdicts are not being saved — each one lives only as long as this tab stays open",
+    de: "Urteile werden nicht gespeichert — jedes lebt nur, solange dieser Tab offen bleibt",
+  },
   "panel.codeAroundAria": {
     en: "Code around line {line}",
     de: "Code um Zeile {line}",
@@ -997,8 +1077,16 @@ export const DICT = {
     de: "→ BEZIRK ÖFFNEN /{path}",
   },
   "panel.threatTitle": {
-    en: "Threat level — the worst finding severity in this file (critical → high → medium → low). Drawn as red pulsing windows in the city.",
-    de: "Bedrohungsstufe — der schwerste Fund in dieser Datei (kritisch → hoch → mittel → gering). In der Stadt als rot pulsierende Fenster dargestellt.",
+    en: "Scanner status: the worst finding severity, missing scan coverage, or no findings from the checks that ran. This is not proof that a file is safe.",
+    de: "Scanner-Status: der schwerste Fund, fehlende Prüfabdeckung oder keine Funde der gelaufenen Prüfungen. Das ist kein Nachweis, dass eine Datei sicher ist.",
+  },
+  "panel.statusUnchecked": {
+    en: "Unverified",
+    de: "Ungeprüft",
+  },
+  "panel.statusNoFindings": {
+    en: "No findings",
+    de: "Keine Funde",
   },
   "panel.churnTitle": {
     en: "Git churn — how often this file changes ({commits} commits, weighted by change size and recency). High churn on complex code is a refactor hotspot — add tests before touching it.",
@@ -1589,6 +1677,22 @@ export const DICT = {
     en: "e.g. generated, fixtures",
     de: "z. B. generated, fixtures",
   },
+  "cap.excludeNone": {
+    en: "Nothing excluded — every source folder in the picked folder is read",
+    de: "Nichts ausgeschlossen — jeder Quellordner im gewählten Ordner wird gelesen",
+  },
+  "cap.excludeCount": {
+    en: "{n} folders excluded (at most {max})",
+    de: "{n} Ordner ausgeschlossen (höchstens {max})",
+  },
+  "cap.excludeCountOne": {
+    en: "{n} folder excluded (at most {max})",
+    de: "{n} Ordner ausgeschlossen (höchstens {max})",
+  },
+  "cap.excludeRule": {
+    en: "Names separated by commas, matched anywhere in the path — “src” also leaves out “frontend/src”",
+    de: "Namen, durch Kommas getrennt, getroffen an jeder Stelle im Pfad — „src“ schließt auch „frontend/src“ aus",
+  },
   "drop.rejected": {
     en: "{n} files exceeded the {max}-character path limit and were not read",
     de: "{n} Dateien lagen über der Pfadgrenze von {max} Zeichen und wurden nicht gelesen",
@@ -1690,6 +1794,24 @@ export const DICT = {
   "tooltip.badgeNone": {
     en: "no findings",
     de: "keine Funde",
+  },
+  // A district with nothing found is only clean if an engine could have found
+  // something there.
+  "tooltip.dirBadgeUnchecked": {
+    en: "{n} files {engines} did not check",
+    de: "{n} Dateien, von {engines} nicht geprüft",
+  },
+  "tooltip.dirBadgeUncheckedOne": {
+    en: "{n} file {engines} did not check",
+    de: "{n} Datei, von {engines} nicht geprüft",
+  },
+  "tooltip.badgeMediumOne": {
+    en: "{count} medium finding",
+    de: "{count} mittlerer Fund",
+  },
+  "tooltip.badgeMediumMany": {
+    en: "{count} medium findings",
+    de: "{count} mittlere Funde",
   },
   "tooltip.zoomHint": {
     en: "click to zoom into this district",
@@ -1853,6 +1975,12 @@ export const DICT = {
   "legend.redWindows": {
     en: "Red pulsing windows",
     de: "Pulsende rote Fenster",
+  },
+  /** The same row under the colour-saver palette, where the windows take the
+   *  blue alarm tone — naming the hue that is actually on screen. */
+  "legend.alarmWindows": {
+    en: "Blue pulsing windows",
+    de: "Pulsende blaue Fenster",
   },
   "legend.redWindowsMeaning": {
     en: "Critical or high security findings",
@@ -2164,6 +2292,14 @@ export const DICT = {
     en: "◈ Scan complete",
     de: "◈ Scan abgeschlossen",
   },
+  "summary.demo": {
+    en: "◈ Demo · sample findings, no scan",
+    de: "◈ Demo · Beispielfunde, kein Scan",
+  },
+  "summary.demoFiles": {
+    en: "{count} sample files",
+    de: "{count} Beispieldateien",
+  },
   "summary.filesAnalyzed": {
     en: "{count} files analyzed",
     de: "{count} Dateien analysiert",
@@ -2176,9 +2312,31 @@ export const DICT = {
     en: "{label} security risk",
     de: "Sicherheitsrisiko: {label}",
   },
+  "summary.sevSample": {
+    en: "{label} sample finding",
+    de: "Beispielfund: {label}",
+  },
+  "summary.testContext": {
+    en: "{inTests} of {total} findings are in test files. Check fixtures before treating them as real risks.",
+    de: "{inTests} von {total} Funden liegen in Testdateien. Prüfe Testdaten, bevor du sie als echte Risiken wertest.",
+  },
+  "summary.testsShort": {
+    en: "{count} in tests",
+    de: "{count} in Tests",
+  },
   "summary.dismissAria": {
     en: "Dismiss scan summary",
     de: "Scan-Zusammenfassung schließen",
+  },
+  /**
+   * The same row carries the demo too, and there it says in words that nothing
+   * was scanned. A control that offers to dismiss "the scan summary" over that
+   * line names a thing the card denies, so the demo gets its own name for what
+   * the ✕ removes.
+   */
+  "summary.dismissAriaDemo": {
+    en: "Dismiss the demo notice",
+    de: "Demo-Hinweis schließen",
   },
 
   // ── Scan profile chips ────────────────────────────────────────────────────
@@ -2555,16 +2713,12 @@ export const DICT = {
     de: "{icon} {label}-Scan",
   },
   "detail.lede": {
-    en: "Here is exactly what will be checked. Nothing is uploaded anywhere else — files stay on your machine.",
-    de: "Hier steht genau, was geprüft wird. Nichts wird woanders hochgeladen — die Dateien bleiben auf deinem Rechner.",
+    en: "Requested checks. Actual execution depends on project files, installed tools and network availability; see coverage in the results. Nothing is uploaded anywhere else — files stay on your machine.",
+    de: "Angeforderte Prüfungen. Die Ausführung hängt von Projektdateien, installierten Tools und Netzwerkverfügbarkeit ab; die Ergebnisse zeigen die Abdeckung. Dateien bleiben auf deinem Rechner.",
   },
   "detail.report": {
     en: "REPORT:",
     de: "BERICHT:",
-  },
-  "detail.time": {
-    en: "TIME:",
-    de: "DAUER:",
   },
   "detail.customNote": {
     en: "⚠ The custom pattern editor is coming soon — choosing it for now runs the standard profile.",
@@ -2586,19 +2740,22 @@ export const DICT = {
    * German wording of their own: a byte-identical pair reads as untranslated and the
    * guard in tests/panelI18n.test.tsx allows copies only for tool and format names.
    */
-  "menu.item": { en: "Record city video", de: "Stadtvideo aufnehmen" },
-  "studio.title": { en: "City video", de: "Stadtvideo" },
+  "menu.item": { en: "City image or video", de: "Stadtbild oder -video" },
+  "studio.title": { en: "Share your city", de: "Deine Stadt teilen" },
   "studio.intro": {
-    en: "Film the city while it rises, or as it stands. The file goes to your download folder and stays on this machine until you upload it yourself.",
-    de: "Film die Stadt beim Bauen oder im fertigen Zustand. Die Datei landet im Download-Ordner und bleibt auf diesem Rechner, bis du sie selbst hochlädst.",
+    en: "Create a picture or film the city as it rises. Preview first; nothing leaves this machine unless you share it.",
+    de: "Erstelle ein Bild oder filme den Bau der Stadt. Prüfe erst die Vorschau; nichts verlässt diesen Rechner, bis du es teilst.",
   },
+  "studio.media": { en: "What to make", de: "Was möchtest du erstellen?" },
+  "studio.image": { en: "Image", de: "Bild" },
+  "studio.video": { en: "Video", de: "Video" },
   "studio.close": { en: "Close", de: "Schließen" },
   "studio.format": { en: "Format", de: "Ausgabeformat" },
   "studio.length": { en: "Length", de: "Länge" },
   "length.build": { en: "The build, start to finish", de: "Die Bau-Animation, einmal durch" },
   "length.buildWaiting": {
-    en: "Runs while a city is still under construction.",
-    de: "Läuft nur, während eine Stadt noch gebaut wird.",
+    en: "Replays the construction and stops when the city is complete.",
+    de: "Spielt den Stadtbau erneut ab und stoppt, sobald die Stadt fertig ist.",
   },
   "length.15": { en: "15-second take", de: "15 Sekunden" },
   "length.30": { en: "30-second take", de: "30 Sekunden" },
@@ -2611,12 +2768,16 @@ export const DICT = {
   "quality.codecPending": { en: "asked for", de: "angefragt" },
   "studio.names": { en: "Show names", de: "Namen zeigen" },
   "studio.namesDisclosure": {
-    en: "This puts your project name and the district names of the current level into the picture itself. Leave it off and the video shows geometry only.",
-    de: "Das schreibt deinen Projektnamen und die Bezirksnamen der aktuellen Ebene ins Bild selbst. Ausgelassen zeigt das Video nur Geometrie.",
+    en: "This puts your project name and district names into the file itself. Leave it off to show the city without those names.",
+    de: "Das schreibt den Projektnamen und Bezirksnamen direkt in die Datei. Ohne Häkchen zeigt sie die Stadt ohne diese Namen.",
   },
   "studio.namesFileNote": {
-    en: "The saved file is always named after the project and the date. Never after the folder path.",
-    de: "Die gespeicherte Datei heißt immer nach Projekt und Datum. Nie nach dem Ordnerpfad.",
+    en: "The saved file has a generic name unless you enable names. No folder path is included.",
+    de: "Die Datei bekommt einen neutralen Namen, solange du Namen nicht aktivierst. Ordnerpfade bleiben draußen.",
+  },
+  "studio.credit": {
+    en: "Include a small Ephemora credit (optional)",
+    de: "Kleinen Ephemora-Hinweis einblenden (optional)",
   },
   "studio.record": { en: "Record", de: "Aufnehmen" },
   "studio.stop": { en: "Stop", de: "Stopp" },
@@ -2656,6 +2817,11 @@ export const DICT = {
   "card.fileName": { en: "File name", de: "Dateiname" },
   "card.frames": { en: "Frames composited", de: "Gerahmte Bilder" },
   "card.download": { en: "Save the video", de: "Video speichern" },
+  "card.share": { en: "Share the video", de: "Video teilen" },
+  "card.shareFailed": {
+    en: "Sharing did not open. You can save the file instead.",
+    de: "Teilen ließ sich nicht öffnen. Du kannst die Datei stattdessen speichern.",
+  },
   "card.captions": { en: "Text to go with it", de: "Text dazu" },
   "card.copy": { en: "Copy", de: "Kopieren" },
   "card.copied": { en: "Copied", de: "Kopiert" },
@@ -2668,20 +2834,20 @@ export const DICT = {
     de: "Nichts hat diese Maschine auf dem Weg hier verlassen. Es geht erst raus, wenn du es selbst anhängst.",
   },
   "card.namesOff": {
-    en: "No name in the picture. Project, folder and file titles stayed on your screen.",
-    de: "Kein Name im Bild. Projekt-, Ordner- und Dateititel blieben auf deinem Bildschirm.",
+    en: "No project, folder or file names in the picture.",
+    de: "Keine Projekt-, Ordner- oder Dateinamen im Bild.",
   },
   "card.namesOn": {
     en: "Names are burned into the picture: {names}.",
     de: "Namen stehen im Bild eingebrannt: {names}.",
   },
   "card.noLink": {
-    en: "No destination is configured yet, so the texts name no target and hint at no star.",
-    de: "Es ist noch kein Ziel eingetragen, darum nennen die Texte kein Ziel und deuten auf keinen Stern.",
+    en: "Made locally. Save it or share it only where you choose.",
+    de: "Lokal erstellt. Speichere oder teile es nur dort, wo du möchtest.",
   },
   "card.cta": {
-    en: "Sharing your video helps a small project grow. Thank you, and a star on GitHub is welcome too.",
-    de: "Mit dem Teilen deines Videos hilfst du einem kleinen Projekt zu wachsen. Vielen Dank, und ein Stern auf GitHub wäre auch schön.",
+    en: "We are two self-funded builders making this a little better each day. If the city helped you see your code differently, sharing it or starring the repo helps others find us. Thank you.",
+    de: "Wir sind zwei Entwickler und bauen Ephemora aus eigener Kraft jeden Tag ein Stück weiter. Wenn dir die Stadt einen neuen Blick auf deinen Code gegeben hat, helfen dein Teilen oder ein GitHub-Stern anderen, uns zu finden. Danke.",
   },
   "card.again": { en: "Record another take", de: "Noch einmal aufnehmen" },
   "hint.text": {
@@ -2691,6 +2857,66 @@ export const DICT = {
   "hint.action": { en: "Record it", de: "Jetzt aufnehmen" },
   "hint.dismiss": { en: "Not now, and not again", de: "Nicht jetzt, und nie wieder" },
   "hint.aria": { en: "City video suggestion", de: "Vorschlag für ein Stadtvideo" },
+  "image.create": { en: "Create image", de: "Bild erstellen" },
+  "image.preparing": { en: "Framing image…", de: "Bild wird gerahmt…" },
+  "image.ready": { en: "Your city image is ready", de: "Dein Stadtbild ist fertig" },
+  "image.preview": {
+    en: "This is the file you can save or share.",
+    de: "Dieses Bild kannst du speichern oder teilen.",
+  },
+  "image.alt": { en: "Preview of the city image", de: "Vorschau des Stadtbilds" },
+  "image.crop": {
+    en: "About {n}% of the view was cropped for this format. Try another format if the city feels cut off.",
+    de: "Für dieses Format wurden etwa {n}% der Ansicht abgeschnitten. Probiere ein anderes Format, falls die Stadt am Rand fehlt.",
+  },
+  "image.download": { en: "Save image", de: "Bild speichern" },
+  "image.share": { en: "Share image", de: "Bild teilen" },
+  "image.again": { en: "Choose another view", de: "Andere Ansicht wählen" },
+  "share.platforms": { en: "Post it yourself", de: "Selbst posten" },
+  "share.platformNote": {
+    en: "The file stays on this machine until you attach it. None of these pages can build a preview from a local file, so the text travels by clipboard and the file by download.",
+    de: "Die Datei bleibt auf diesem Rechner, bis du sie selbst anhängst. Keine dieser Seiten kann eine Vorschau von einer lokalen Datei bauen. Der Text geht deshalb über die Zwischenablage, die Datei über den Download.",
+  },
+  "share.platform.instagram": {
+    en: "No web draft for posts exists. The site opens, you add text and file there.",
+    de: "Einen Web-Entwurf für Beiträge gibt es nicht. Die Seite öffnet sich, Text und Datei fügst du dort ein.",
+  },
+  "share.platform.reddit": {
+    en: "Your first line arrives as the post title. Attach the file in the form.",
+    de: "Dein erster Satz kommt als Titel in den Post. Die Datei hängst du im Formular an.",
+  },
+  "share.platform.x": {
+    en: "A draft carries text only, and only up to 280 characters. A longer caption stays in the clipboard.",
+    de: "Ein Entwurf trägt nur Text, und nur bis 280 Zeichen. Ein längerer Text bleibt in der Zwischenablage.",
+  },
+  "share.platform.linkedin": {
+    en: "The preview is read from a public web address. No address is set for this project, so this row stays off.",
+    de: "Die Vorschau wird von einer öffentlichen Web-Adresse gelesen. Für dieses Projekt ist keine gesetzt, deshalb bleibt diese Zeile aus.",
+  },
+  "share.platform.open": {
+    en: "Open {name}",
+    de: "{name} öffnen",
+  },
+  "share.platform.opened": {
+    en: "{name} opened, text in the clipboard",
+    de: "{name} geöffnet, Text in der Zwischenablage",
+  },
+  "share.platform.copyFailed": {
+    en: "The text could not be copied. Use the copy button above the caption instead.",
+    de: "Der Text ließ sich nicht kopieren. Benutze den Kopierknopf über dem Text.",
+  },
+  "share.platform.popupBlocked": {
+    en: "The browser blocked the new tab for {name}. Allow pop-ups for this page.",
+    de: "Der Browser hat den neuen Tab für {name} blockiert. Erlaube Pop-ups für diese Seite.",
+  },
+  "share.platform.off": {
+    en: "Needs a public address",
+    de: "Braucht eine öffentliche Adresse",
+  },
+  "image.error": {
+    en: "The image could not be created. Move the camera and try again.",
+    de: "Das Bild konnte nicht erstellt werden. Bewege die Kamera und versuche es erneut.",
+  },
 
   // ── Keyboard-only hints (taken over from the resolve() bridges, Lane WELT-GRIFF) ─
   "hints.echoNote": {
@@ -2703,6 +2929,20 @@ export const DICT = {
     de: "Übersichtskarte. Pfeiltasten bewegen die Markierung, Enter fliegt dorthin — wie ein Klick.",
   },
   "minimap.keys": { en: "← → ↑ ↓ marker · Enter flies", de: "← → ↑ ↓ Markierung · Enter fliegt" },
+  // The map marks a critical plot with a wedge in its corner; this is the same
+  // statement in words, for a plate whose two colours are 1,54:1 apart.
+  "minimap.alarm": {
+    en: "▲ {n} of {total} plots carry a critical finding",
+    de: "▲ {n} von {total} Plätzen mit einem kritischen Fund",
+  },
+  "minimap.alarmOne": {
+    en: "▲ {n} of {total} plots carries a critical finding",
+    de: "▲ {n} von {total} Plätzen trägt einen kritischen Fund",
+  },
+  "minimap.alarmNone": {
+    en: "▲ no plot carries a critical finding",
+    de: "▲ kein Platz mit einem kritischen Fund",
+  },
   "tooltip.zoomHintKeyboard": { en: "Enter — walk in", de: "Enter — hineingehen" },
   "tooltip.orbitHintKeyboard": {
     en: "Enter — circle it, Esc frees the camera",

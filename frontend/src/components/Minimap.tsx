@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useStore } from "../stores/useStore";
 import { getDirLayout, type DirLayout } from "../city/layout";
-import { languageColor, ENV, SEVERITY_COLOR } from "../city/palette";
+import { languageColor, ENV, severityColor } from "../city/palette";
 import { t } from "../i18n";
 import { resolve } from "../interaction/shortcuts";
 import { getKeyboardMark } from "../interaction/keyboardMark";
@@ -45,6 +45,7 @@ function geometry(layout: DirLayout): {
 
 export function Minimap({ show = true }: { show?: boolean }) {
   const lang = useStore((s) => s.prefs.lang);
+  const colorblind = useStore((s) => s.prefs.colorblind);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const cityData = useStore((s) => s.cityData);
   const focusPath = useStore((s) => s.focusPath);
@@ -85,10 +86,23 @@ export function Minimap({ show = true }: { show?: boolean }) {
       const w = Math.max(3, (b.w / (extent * 2)) * (MAP_SIZE - PADDING * 2));
       const h = Math.max(3, (b.d / (extent * 2)) * (MAP_SIZE - PADDING * 2));
       const alarm = b.dir.findingsBySeverity.P0 > 0;
-      ctx.fillStyle = alarm ? "rgba(255,46,77,0.14)" : "rgba(160,150,132,0.16)";
+      const alarmColor = severityColor("P0", colorblind);
+      ctx.fillStyle = alarm ? `${alarmColor}24` : "rgba(160,150,132,0.16)";
       ctx.fillRect(x, y, w, h);
-      ctx.strokeStyle = alarm ? SEVERITY_COLOR.P0 : "rgba(165,158,144,0.55)";
+      ctx.strokeStyle = alarm ? alarmColor : "rgba(165,158,144,0.55)";
       ctx.strokeRect(x, y, w, h);
+      // Shape, not only hue: the wash and its outline are 1,54:1 apart on this
+      // canvas, so colour alone carried "critical lives here". The wedge is the
+      // same ▲ the severity chip uses, and the line under the map says it in words.
+      if (alarm) {
+        ctx.fillStyle = alarmColor;
+        ctx.beginPath();
+        ctx.moveTo(x, y);
+        ctx.lineTo(x + Math.min(5, w), y);
+        ctx.lineTo(x, y + Math.min(5, h));
+        ctx.closePath();
+        ctx.fill();
+      }
       // representative skyline towers
       for (const t of b.skyline) {
         const tx = toX(b.x + t.x);
@@ -96,7 +110,7 @@ export function Minimap({ show = true }: { show?: boolean }) {
         ctx.fillStyle = languageColor(t.file.language);
         ctx.fillRect(tx - 1.2, ty - 1.2, 2.4, 2.4);
         if (t.file.threatLevel === "critical") {
-          ctx.strokeStyle = SEVERITY_COLOR.P0;
+          ctx.strokeStyle = severityColor("P0", colorblind);
           ctx.strokeRect(tx - 2.6, ty - 2.6, 5.2, 5.2);
         }
       }
@@ -109,7 +123,7 @@ export function Minimap({ show = true }: { show?: boolean }) {
       ctx.fillStyle = languageColor(b.file.language);
       ctx.fillRect(x - 1.5, y - 1.5, 3, 3);
       if (b.file.threatLevel === "critical") {
-        ctx.strokeStyle = SEVERITY_COLOR.P0;
+        ctx.strokeStyle = severityColor("P0", colorblind);
         ctx.strokeRect(x - 3, y - 3, 6, 6);
       }
     }
@@ -159,7 +173,7 @@ export function Minimap({ show = true }: { show?: boolean }) {
     ctx.closePath();
     ctx.fill();
     ctx.restore();
-  }, [show, cityData, focusPath, cameraInfo, marker]);
+  }, [show, cityData, focusPath, cameraInfo, marker, colorblind]);
 
   /** Where a fresh aim should start: the thing the reader is already looking at. */
   const defaultMarker = useCallback((): { x: number; z: number } | null => {
@@ -235,7 +249,13 @@ export function Minimap({ show = true }: { show?: boolean }) {
     [cityData, focusPath, marker, defaultMarker, flyTo],
   );
 
-  if (!show) return null;
+  if (!show || !cityData) return null;
+
+  // The same layout the plate draws, counted here so the line under the map and
+  // the map itself cannot disagree.
+  const laidOut = getDirLayout(cityData, focusPath);
+  const plots = laidOut.blocks.length;
+  const alarmPlots = laidOut.blocks.filter((b) => b.dir.findingsBySeverity.P0 > 0).length;
 
   return (
     <div
@@ -254,6 +274,18 @@ export function Minimap({ show = true }: { show?: boolean }) {
         {t(lang, "minimap.title")}{" "}
         {focusPath.length > 0 ? `· /${focusPath.join("/")}` : t(lang, "minimap.overview")}
       </div>
+      {/* The wedge in the corner of an alarm plot is the shape carrier; this
+          line is the word carrier — the two states differ by 1,54:1 on a 190 px
+          canvas, which is not an answer a reader can see. Counted from the same
+          layout the plate draws, so the number cannot disagree with the map. */}
+      <p className="minimap-alarm" data-minimap-alarm={String(alarmPlots)} role="status">
+        {alarmPlots === 0
+          ? t(lang, "minimap.alarmNone")
+          : t(lang, alarmPlots === 1 ? "minimap.alarmOne" : "minimap.alarm", {
+              n: alarmPlots,
+              total: plots,
+            })}
+      </p>
       <canvas
         ref={canvasRef}
         width={MAP_SIZE}

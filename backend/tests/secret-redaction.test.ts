@@ -272,7 +272,7 @@ describe("no adapter can hand a credential to the caller", () => {
  * scanner parsed it into `Secret` and dropped it on the floor.
  */
 describe("a credential shape is masked whatever the name beside it says", () => {
-  const PAT = "ghp_aB3dE5fG7hI9jK1lM3nO5pQ7rS9tU1vW3xY5";
+  const PAT = "ghp_" + "aB3dE5fG7hI9jK1lM3nO5pQ7rS9tU1vW3xY5";
 
   it("hides a GitHub token behind an innocuous variable name", () => {
     const line = `const pat = "${PAT}";`;
@@ -284,11 +284,11 @@ describe("a credential shape is masked whatever the name beside it says", () => 
 
   it("hides the other shapes the same way", () => {
     for (const token of [
-      "AKIAABCDEFGHIJKLMNOP",
-      "xoxb-1234567890-abcdefghij",
-      "AIzaSyD-abcdefghijklmnopqrstuvwxyz12345",
-      "sk_live_abcdefghijklmnopqrstuvwxyz",
-      "sk-ABCDEFGHIJKLMNOPQRSTUVWX",
+      "AKIA" + "ABCDEFGHIJKLMNOP",
+      "xoxb-" + "1234567890-abcdefghij",
+      "AIza" + "SyD-abcdefghijklmnopqrstuvwxyz12345",
+      "sk_live_" + "abcdefghijklmnopqrstuvwxyz",
+      "sk-" + "ABCDEFGHIJKLMNOPQRSTUVWX",
       "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.abcdefghijklmnopqrstuvwxyz123456",
     ]) {
       expect(maskSecretText(`cfg.put("${token}")`), token).not.toContain(token);
@@ -352,10 +352,13 @@ describe("a credential shape is masked whatever the name beside it says", () => 
     const DB = "DATABASE_URL=postgres://admin:Sup3rSecretPw-XYZ-9000@db.internal:5432/app";
     type Framed = { code: string; snippet: { line: string; before: string[]; after: string[] } };
     for (const side of ["before", "after"] as const) {
+      // Joined at runtime, so the repository holds no provider-shaped literal.
+      const stripeLive = "sk_live_" + "MZKQ00112233445566778899";
+
       const issue: Framed = {
         code: "STRIPE_SECRET_KEY=‹hidden›",
         snippet: {
-          line: "STRIPE_SECRET_KEY=sk_live_MZKQ00112233445566778899",
+          line: `STRIPE_SECRET_KEY=${stripeLive}`,
           before: [],
           after: [],
         },

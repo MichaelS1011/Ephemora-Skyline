@@ -4,8 +4,8 @@ import { useEffect, useState } from "react";
 import { useStore } from "../stores/useStore";
 import {
   SCAN_PROFILES,
-  PROFILE_DURATION,
   loadSavedProfile,
+  categoriesForProfile,
   type ScanProfile,
 } from "../config/scanProfiles";
 import { FINDING_CATEGORIES, categoryMeta } from "../config/findingCategories";
@@ -27,12 +27,19 @@ export function ProfileChips({ variant }: { variant: "landing" | "analyze-panel"
   const [detailFor, setDetailFor] = useState<ScanProfile | null>(null);
   const active = scanProfile ?? loadSavedProfile();
   const meta = SCAN_PROFILES.find((p) => p.id === active) ?? SCAN_PROFILES[1]!;
-  const onlyOneLeft = scanCategories.length === 1;
+  const effectiveCategories = categoriesForProfile(active, scanCategories);
+  const onlyOneLeft = effectiveCategories.length === 1;
+  // The entry screen asks one question — which profile. Narrowing it by category
+  // or rule pack is a second decision, and the operator took it off the first
+  // screen on 2026-10-11; the city, where the reader already has context, keeps it.
+  const showsScope = variant === "analyze-panel";
 
   // Which packs exist is a question about the disk, so it is asked of the
-  // backend once per mount. A backend that answers nothing shows no chips —
-  // an empty choice is honest, a fake one is not.
+  // backend once per mount — and only where the answer is on screen. Asking
+  // anyway would leave a network call for decoration nobody can see.
+  // An empty answer shows no chips: an empty choice is honest, a fake one is not.
   useEffect(() => {
+    if (!showsScope) return;
     let cancelled = false;
     void fetchRulePacks().then((packs) => {
       if (!cancelled) setAvailablePacks(packs);
@@ -40,7 +47,7 @@ export function ProfileChips({ variant }: { variant: "landing" | "analyze-panel"
     return () => {
       cancelled = true;
     };
-  }, [setAvailablePacks]);
+  }, [showsScope, setAvailablePacks]);
   return (
     <div className={`profile-picker profile-picker-${variant}`}>
       <div className="profile-options" aria-label={t(lang, "profile.chipsAria")}>
@@ -57,8 +64,7 @@ export function ProfileChips({ variant }: { variant: "landing" | "analyze-panel"
         ))}
       </div>
       <p className="profile-description">
-        {t(lang, meta.summary)}{" "}
-        <span>{t(lang, "profile.estimated", { time: PROFILE_DURATION[active] })}</span>
+        {t(lang, meta.summary)} <span>{t(lang, "profile.durationNote")}</span>
       </p>
       {/* The detail card sits in the normal flow, directly under the chips it
           describe — no portal, no overlay (#50). Clicking another chip swaps
@@ -73,28 +79,34 @@ export function ProfileChips({ variant }: { variant: "landing" | "analyze-panel"
           onCancel={() => setDetailFor(null)}
         />
       )}
-      <p className="category-caption">{t(lang, "profile.lookFor")}</p>
-      <div className="profile-options category-options" aria-label={t(lang, "profile.lookFor")}>
-        {FINDING_CATEGORIES.map((category) => {
-          const on = scanCategories.includes(category.id);
-          return (
-            <button
-              key={category.id}
-              onClick={() => toggleScanCategory(category.id)}
-              aria-pressed={on}
-              disabled={!on && onlyOneLeft}
-              title={
-                t(lang, category.meaning) +
-                (on && onlyOneLeft ? t(lang, "profile.lastKindSuffix") : "")
-              }
-            >
-              {on && <span aria-hidden="true">✓ </span>}
-              {t(lang, category.label)}
-            </button>
-          );
-        })}
-      </div>
-      {availablePacks.length > 0 && (
+      {showsScope && (
+        <>
+          <p className="category-caption">{t(lang, "profile.lookFor")}</p>
+          <div className="profile-options category-options" aria-label={t(lang, "profile.lookFor")}>
+            {FINDING_CATEGORIES.map((category) => {
+              if (active === "quality-only" && category.id !== "hygiene") return null;
+              if (active === "security-only" && category.id === "hygiene") return null;
+              const on = effectiveCategories.includes(category.id);
+              return (
+                <button
+                  key={category.id}
+                  onClick={() => toggleScanCategory(category.id)}
+                  aria-pressed={on}
+                  disabled={on && onlyOneLeft}
+                  title={
+                    t(lang, category.meaning) +
+                    (on && onlyOneLeft ? t(lang, "profile.lastKindSuffix") : "")
+                  }
+                >
+                  {on && <span aria-hidden="true">✓ </span>}
+                  {t(lang, category.label)}
+                </button>
+              );
+            })}
+          </div>
+        </>
+      )}
+      {showsScope && availablePacks.length > 0 && (
         <>
           <p className="category-caption">{t(lang, "profile.packsCaption")}</p>
           <div className="profile-options pack-options" aria-label={t(lang, "profile.packsAria")}>

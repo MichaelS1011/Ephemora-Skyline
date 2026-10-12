@@ -2,7 +2,9 @@
  * tests — "Run MY tests from the city."
  *
  * Executes the project's OWN test suite inside the staged upload copy —
- * on the user's own machine, exactly what they would run in the terminal.
+ * on the user's own machine, using its configured Vitest/Jest runner. The
+ * staged copy contains source and supported text fixtures; binary assets,
+ * private environment variables and lifecycle scripts are not copied/run.
  * We never bundle a runner: the project brings vitest/jest, we detect it,
  * invoke it with a JSON reporter and map per-file results back onto the
  * city (green shields / cracks).
@@ -35,8 +37,9 @@ export interface TestFailure {
 
 export interface TestFileResult {
   path: string;
-  status: "passed" | "failed";
+  status: "passed" | "failed" | "skipped";
   tests: number;
+  skippedTests?: number;
   failures: TestFailure[];
 }
 
@@ -45,6 +48,9 @@ export interface TestRunResult {
   durationMs: number;
   totalTests: number;
   failedTests: number;
+  passedTests: number;
+  skippedTests: number;
+  failedSuites: number;
   files: TestFileResult[];
 }
 
@@ -92,6 +98,7 @@ interface JestStyleSuite {
   name?: string;
   status?: string;
   assertionResults?: JestStyleAssertion[];
+  message?: string;
 }
 
 function normalizePath(p: string): string {
@@ -118,11 +125,15 @@ export function parseJestStyleJson(raw: string): TestRunResult | null {
   const files: TestFileResult[] = [];
   let totalTests = 0;
   let failedTests = 0;
+  let passedTests = 0;
+  let skippedTests = 0;
   for (const suite of suites) {
     const filePath = normalizePath(suite.name ?? "");
     const assertions = suite.assertionResults ?? [];
     const failures: TestFailure[] = [];
     let failed = 0;
+    let passed = 0;
+    let skipped = 0;
     for (const a of assertions) {
       totalTests++;
       const name = [...(a.ancestorTitles ?? []), a.title ?? a.fullName ?? ""]
@@ -135,12 +146,28 @@ export function parseJestStyleJson(raw: string): TestRunResult | null {
           name,
           message: (a.failureMessages?.[0] ?? "Test failed").split("\n").slice(0, 6).join("\n"),
         });
+      } else if (a.status === "passed") {
+        passed++;
+        passedTests++;
+      } else {
+        skipped++;
+        skippedTests++;
       }
+    }
+    if (suite.status === "failed" && failures.length === 0) {
+      failures.push({
+        name: "Suite could not complete",
+        message: (
+          suite.message || "The test suite failed before producing assertion results."
+        ).slice(0, 1500),
+      });
     }
     files.push({
       path: filePath,
-      status: failed > 0 || suite.status === "failed" ? "failed" : "passed",
+      status:
+        failed > 0 || suite.status === "failed" ? "failed" : passed > 0 ? "passed" : "skipped",
       tests: assertions.length,
+      skippedTests: skipped,
       failures,
     });
   }
@@ -150,6 +177,9 @@ export function parseJestStyleJson(raw: string): TestRunResult | null {
     durationMs: 0,
     totalTests,
     failedTests,
+    passedTests,
+    skippedTests,
+    failedSuites: files.filter((f) => f.status === "failed").length,
     files,
   };
 }
@@ -210,6 +240,7 @@ export function sanitizeFileFilters(files: string[], max = 100): string[] {
     .filter((f) => typeof f === "string" && f.trim() !== "" && !f.trim().startsWith("-"))
     .map((f) => normalizePath(f.trim()))
     .filter((f) => !f.split("/").includes(".."))
+    .filter((f) => !f.startsWith("/") && !/^[A-Za-z]:/.test(f))
     .slice(0, max);
 }
 
@@ -259,25 +290,32 @@ export function installDecision(state: {
 
 export const OFFLINE_REFUSAL =
   "This machine is switched off from the network and the staged copy has no node_modules — installing the pinned dependencies would fetch them from registry.npmjs.org. " +
-  "Scan a copy that already has node_modules in it, or clear SKYLINE_OFFLINE.";
+  "Run the tests from your original project folder in a terminal, or allow dependency downloads by clearing SKYLINE_OFFLINE and scanning again.";
 
 export const REFUSAL =
   "No lockfile in this project — Ephemora Skyline will not resolve a fresh dependency graph just to run its tests. " +
-  "Run npm ci (or npm install) once yourself, or scan a copy that has package-lock.json / pnpm-lock.yaml / yarn.lock in it.";
+  "Include package-lock.json or npm-shrinkwrap.json for npm ci, then scan again. Projects using pnpm, Yarn or Bun must run their tests in a terminal for now.";
+
+/** Browser selections are project-relative; each workspace needs its own relative filter. */
+export function filtersForTarget(root: string, target: string, files: string[]): string[] {
+  const prefix = normalizePath(path.relative(root, target));
+  return prefix
+    ? files.filter((f) => f.startsWith(`${prefix}/`)).map((f) => f.slice(prefix.length + 1))
+    : files;
+}
+
+export function resultPath(root: string, target: string, file: string): string {
+  return normalizePath(
+    path.relative(root, path.isAbsolute(file) ? file : path.resolve(target, file)),
+  );
+}
 
 /** The project's own runner, not a version npx may still fetch from the registry */
 export function runnerBinaryPath(runner: Runner): string[] {
   return ["node_modules", ".bin", runner];
 }
 
-const LOCKFILES = [
-  "package-lock.json",
-  "npm-shrinkwrap.json",
-  "pnpm-lock.yaml",
-  "yarn.lock",
-  "bun.lockb",
-  "bun.lock",
-];
+const LOCKFILES = ["package-lock.json", "npm-shrinkwrap.json"];
 
 async function exists(p: string): Promise<boolean> {
   return fs
@@ -309,7 +347,7 @@ async function ensureDependencies(
   );
   if (res.code !== 0) {
     throw new Error(
-      "npm ci failed — the lockfile and package.json disagree, so the pinned versions could not be installed.",
+      `npm ci failed in the scanned copy (exit ${res.code}). Fix the reported installation problem in your project, then scan again.\n${res.stderr.slice(0, 1800) || res.stdout.slice(0, 1800)}`,
     );
   }
 }
@@ -373,16 +411,27 @@ export async function executeTestRun(
     }
 
     const started = Date.now();
+    // macOS reports /private/var/... while the upload registry holds /var/...
+    // (a symlink). Compare canonical paths so results still map to city files.
+    const canonicalRoot = await fs.realpath(uploadDir);
     const filter = sanitizeFileFilters(files ?? []);
     const merged: TestFileResult[] = [];
     let runner: Runner = "vitest";
     let totalTests = 0;
     let failedTests = 0;
+    let passedTests = 0;
+    let skippedTests = 0;
+    let failedSuites = 0;
+    const rootPinned = (
+      await Promise.all(LOCKFILES.map((f) => exists(path.join(uploadDir!, f))))
+    ).some(Boolean);
 
     for (const target of targets) {
+      const targetFilter = filtersForTarget(uploadDir, target.dir, filter);
+      if (filter.length > 0 && targetFilter.length === 0) continue;
       runner = target.runner;
       await ensureDependencies(
-        target.dir,
+        rootPinned ? uploadDir : target.dir,
         () => {
           state.stage = `Installing dependencies (${target.wsName}) — first run only…`;
         },
@@ -406,8 +455,14 @@ export async function executeTestRun(
       }
       const args =
         target.runner === "vitest"
-          ? ["run", "--reporter=json", `--outputFile.json=${reportPath}`, ...filter]
-          : ["--json", `--outputFile=${reportPath}`, ...filter];
+          ? [
+              "run",
+              "--maxWorkers=2",
+              "--reporter=json",
+              `--outputFile.json=${reportPath}`,
+              ...targetFilter,
+            ]
+          : ["--runInBand", "--json", `--outputFile=${reportPath}`, ...targetFilter];
       const res = await runCmd(binary, args, target.dir, TEST_TIMEOUT_MS, env);
 
       // The report FILE is immune to stdout buffer truncation
@@ -419,12 +474,26 @@ export async function executeTestRun(
       }
       await fs.rm(reportPath, { force: true }).catch(() => {});
       const parsed = parseJestStyleJson(reportRaw ?? res.stdout + "\n" + res.stderr);
-      if (!parsed) continue;
-      for (const f of parsed.files) {
-        merged.push(f);
-        totalTests += f.tests;
-        failedTests += f.failures.length;
+      if (!parsed)
+        throw new Error(
+          `No test results from ${target.wsName}. ${res.stderr.slice(-1500) || res.stdout.slice(-1500)}`,
+        );
+      if (res.code !== 0 && parsed.failedSuites === 0) {
+        throw new Error(
+          `${target.wsName} exited with code ${res.code} despite its test report. ${res.stderr.slice(-1500)}`,
+        );
       }
+      for (const f of parsed.files) {
+        merged.push({
+          ...f,
+          path: resultPath(canonicalRoot, await fs.realpath(target.dir), f.path),
+        });
+      }
+      totalTests += parsed.totalTests;
+      failedTests += parsed.failedTests;
+      passedTests += parsed.passedTests;
+      skippedTests += parsed.skippedTests;
+      failedSuites += parsed.failedSuites;
     }
 
     if (merged.length === 0) {
@@ -437,6 +506,9 @@ export async function executeTestRun(
       durationMs: Date.now() - started,
       totalTests,
       failedTests,
+      passedTests,
+      skippedTests,
+      failedSuites,
       files: merged,
     };
     state.status = "complete";
@@ -458,9 +530,23 @@ export async function handleTestRun(req: Request, res: Response): Promise<void> 
     return;
   }
   const body = req.body as { files?: unknown } | undefined;
+  if (
+    body?.files !== undefined &&
+    (!Array.isArray(body.files) || body.files.some((file) => typeof file !== "string"))
+  ) {
+    res.status(400).json({ error: "files must be an array of project-relative test paths." });
+    return;
+  }
   const files = Array.isArray(body?.files)
     ? (body?.files as unknown[]).filter((f): f is string => typeof f === "string")
     : undefined;
+  if (files && (files.length === 0 || sanitizeFileFilters(files).length !== files.length)) {
+    res.status(400).json({
+      error:
+        "Choose valid project-relative test paths; an empty or invalid selection will not run the whole suite.",
+    });
+    return;
+  }
 
   const runId = crypto.randomUUID();
   runs.set(runId, { status: "installing", stage: "Preparing…", startedAt: Date.now() });

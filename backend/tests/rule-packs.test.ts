@@ -13,7 +13,7 @@ import {
 import { resolveConfig } from "../src/services/security/scan-config.js";
 import { SemgrepAdapter } from "../src/services/security/adapters/semgrep-adapter.js";
 import { categoryOf } from "../src/services/security/categories.js";
-import { mkdirSync, writeFileSync } from "fs";
+import { existsSync, mkdirSync, writeFileSync } from "fs";
 
 /**
  * #41 — Regel-Packs.
@@ -27,17 +27,35 @@ import { mkdirSync, writeFileSync } from "fs";
  * unten läuft mit gekapptem Netz, damit "lokal" nicht nur im Text steht.
  */
 
-const SEMGREP_BIN = (() => {
+/**
+ * "Is semgrep installed" is a question about a file, not about how fast a cold
+ * Python CLI prints its version. Measured on this machine: `semgrep --version`
+ * answered in 11–104 s while the frontend built beside it, so the old 8-second
+ * probe said "not installed" three times over and the suite went out green with
+ * its three deep-scan cases skipped. Absence is now read off `which`, and a
+ * present binary always runs the assertions — the per-test timeouts below
+ * (180 s / 300 s) are what a slow engine needs.
+ */
+function locateSemgrep(): string | null {
   for (const candidate of ["semgrep", "/opt/homebrew/bin/semgrep", "/usr/local/bin/semgrep"]) {
+    if (candidate.includes("/")) {
+      if (existsSync(candidate)) return candidate;
+      continue;
+    }
     try {
-      execFileSync(candidate, ["--version"], { stdio: "ignore", timeout: 8000 });
-      return candidate;
+      const found = execFileSync("/usr/bin/which", [candidate], {
+        encoding: "utf-8",
+        timeout: 5000,
+      }).trim();
+      if (found) return found;
     } catch {
-      /* next */
+      /* not on PATH — the next candidate is an absolute path */
     }
   }
   return null;
-})();
+}
+
+const SEMGREP_BIN = locateSemgrep();
 
 const NODE_FIXTURE = `
 import { exec, execSync, spawn } from "child_process";

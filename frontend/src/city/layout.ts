@@ -65,6 +65,28 @@ export interface StripBar {
 export const STRIP_BARS = 12;
 /** Depth of a strip bar in world units. */
 const STRIP_DEPTH = 0.7;
+/** Gap between the strip row and the kerb it stands against. */
+const STRIP_KERB_GAP = 0.6;
+
+/**
+ * Where the row stands inside its plot, from the plot centre along z: the kerb
+ * the presentation camera is placed AT, in front of the plot's own skyline.
+ *
+ * It used to be the far kerb, "behind the towers", and that is what it was —
+ * measured over the demo city's 23 bars from the shipped overview vantage
+ * (azimuth 62°, elevation 39°), only 33.4 % of a bar's camera-facing silhouette
+ * stayed clear of its own district's towers there, so the height the strip
+ * exists to carry could not be read. No vantage on the key light's side fixes
+ * that (the azimuth sweep peaks at 46 %, facing straight down +z), and the
+ * opposite side reaches 97 % only by mirroring the row's left-is-riskiest
+ * reading and leaving both visible facades unlit. On this kerb the silhouette
+ * is 100 % clear with the reading order kept, and the towers give up 3.9 points
+ * of their own (83.8 → 79.9). `frontend/tests/strip-kerb-side.test.ts` holds
+ * the same relation on its own two-folder city: 100 % clear against 43.5 %.
+ */
+export function stripRowZ(plotD: number, barD: number): number {
+  return plotD / 2 - barD / 2 - STRIP_KERB_GAP;
+}
 
 /**
  * The files of a subtree the payload ACTUALLY delivers: the tree's own
@@ -890,7 +912,7 @@ export const OVERVIEW_FACTOR = 1.6;
  * be imported here — it reads the store, the store reads this module).
  * `tests/lodFraming.test.ts` pins the two together.
  */
-const FAR_LOD_EXIT_FACTOR = 1.8;
+const FAR_LOD_EXIT_FACTOR = 3.8;
 const FAR_LOD_EXIT_FLOOR = 170 * 0.7;
 /** How much of that band an overview flight may use and still be a CITY. */
 export const FAR_LOD_SAFE_RATIO = 0.92;

@@ -11,6 +11,7 @@ import {
   type World,
 } from "./shortcuts";
 import { clearKeyboardMark, getKeyboardMark, setKeyboardMark } from "./keyboardMark";
+import { plural } from "../i18n";
 import "../design/griff.css";
 
 /**
@@ -48,14 +49,14 @@ const LIFT_MARK = {
 
 const LEVEL_ENTERED = {
   key: "keys.levelEntered",
-  en: "District {name} — {buildings} building(s) on its plaza, [ ] steps through them",
-  de: "Bezirk {name} — {buildings} Gebäude auf der Plaza, [ ] schaltet sie durch",
+  en: "District {name} — {buildings} on its plaza, [ ] steps through them",
+  de: "Bezirk {name} — {buildings} auf der Plaza, [ ] schaltet sie durch",
 };
 
 const LEVEL_DISTRICTS = {
   key: "keys.levelDistricts",
-  en: "District {name} — no buildings of its own, {children} district(s) below, [ ] steps them",
-  de: "Bezirk {name} — keine eigenen Gebäude, {children} Unterbezirke, [ ] schaltet sie durch",
+  en: "District {name} — no buildings of its own, {children} below, [ ] steps them",
+  de: "Bezirk {name} — keine eigenen Gebäude, {children} darunter, [ ] schaltet sie durch",
 };
 
 const ORBIT_STARTED = {
@@ -259,14 +260,28 @@ export function KeyEcho() {
           if (store.cityData) {
             const next = getDirLayout(store.cityData, [...world.focusPath, name]);
             const children = next.blocks.length;
+            const de = lang === "de";
             say(
               resolve(
                 lang,
                 children > 0 && next.buildings.length === 0 ? LEVEL_DISTRICTS : LEVEL_ENTERED,
                 {
                   name,
-                  buildings: String(next.buildings.length),
-                  children: String(children),
+                  // The count carries its noun, agreed with itself: the template
+                  // used to hold the noun and read "1 Unterbezirke" in German and
+                  // "1 building(s)" in English. German calls one and all "Gebäude".
+                  buildings: plural(
+                    lang,
+                    next.buildings.length,
+                    de ? "Gebäude" : "building",
+                    de ? "Gebäude" : "buildings",
+                  ),
+                  children: plural(
+                    lang,
+                    children,
+                    de ? "Unterbezirk" : "sub-district",
+                    de ? "Unterbezirke" : "sub-districts",
+                  ),
                 },
               ),
             );

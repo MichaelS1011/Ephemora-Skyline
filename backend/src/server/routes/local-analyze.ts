@@ -16,9 +16,18 @@ import { makeSkeleton, makeProgressWriter, failJob } from "./job-progress.js";
 import { resolveConfig, type ResolvedScanConfig } from "../../services/security/scan-config.js";
 import { isOffline } from "../../services/security/network-policy.js";
 
-/** Upload caps — a local dev folder should always fit comfortably */
-export const MAX_FILES = 3000;
-const MAX_TOTAL_BYTES = 40 * 1024 * 1024;
+/**
+ * Upload caps — a local dev folder should always fit comfortably.
+ *
+ * The file count and the byte budget used to contradict each other: at the
+ * measured average of this repository's source files (25 KB), 40 MB arrived long
+ * before 3,000 files did, so the file cap was a limit nothing could reach. Both
+ * numbers now describe one folder: 10,000 files, 150 MB.
+ * `frontend/tests/upload-caps.test.ts` and `backend/tests/beleg-02-api-and-staging.test.ts`
+ * pin these to the browser's copies.
+ */
+export const MAX_FILES = 10_000;
+export const MAX_TOTAL_BYTES = 150 * 1024 * 1024;
 const MAX_FILE_BYTES = 2 * 1024 * 1024; // matches the pipeline's MAX_FILE_SIZE
 const MAX_NAME_LEN = 80;
 /**
@@ -45,10 +54,17 @@ const STAGED_TTL_MS =
   Math.max(1, Number(process.env.CODECITY_UPLOAD_TTL_HOURS ?? 24)) * 60 * 60 * 1000;
 
 /** The one directory this app stages into; nothing outside it is ever removed. */
-function uploadsRoot(): string {
+export function uploadsRoot(): string {
   // An escape hatch for tests and for a machine whose /tmp is too small — the
   // sweeper only ever looks inside this root.
-  return process.env.CODECITY_UPLOAD_DIR ?? path.join(os.tmpdir(), "codecity-uploads");
+  //
+  // Blank means unset, not "here": `CODECITY_UPLOAD_DIR=` is the line the shipped
+  // template carries, and that template says the empty value means the system
+  // temp folder. Read as a path, "" is the directory the server was started from,
+  // so every staged copy of the user's source would land in the project tree and
+  // the sweep would chase whatever the current folder happens to be.
+  const configured = process.env.CODECITY_UPLOAD_DIR?.trim();
+  return configured || path.join(os.tmpdir(), "codecity-uploads");
 }
 
 /** A staged dir is a direct child named by the id the route generated. */
@@ -139,7 +155,11 @@ export async function handleCancelLocalAnalyze(
 }
 
 export function pruneStaleUploadDirs(now: number = Date.now()): Promise<void> {
-  // `now` injectable so tests can fast-forward the clock
+  // `now` injectable so tests can fast-forward the clock — the SAME clock for
+  // both halves below. The registry honoured it and the directory sweep read
+  // `Date.now()` behind it, so a caller that moved the clock saw one move and
+  // the other stay: the sweep is the half that actually finds a restart's
+  // leftovers.
   const jobs: Array<Promise<unknown>> = [];
   for (const [id, entry] of STAGED_DIRS) {
     if (now - entry.lastUsed > STAGED_TTL_MS) {
@@ -162,7 +182,7 @@ export function pruneStaleUploadDirs(now: number = Date.now()): Promise<void> {
             .map(async (e) => {
               const dir = path.join(uploadsRoot(), e.name);
               const stat = await fs.stat(dir).catch(() => null);
-              if (!stat || Date.now() - stat.mtimeMs <= STAGED_TTL_MS) return;
+              if (!stat || now - stat.mtimeMs <= STAGED_TTL_MS) return;
               return fs.rm(dir, { recursive: true, force: true }).catch(() => {});
             }),
         ),
@@ -370,7 +390,7 @@ export async function handleLocalAnalyze(
   }
   if (files.length > MAX_FILES) {
     res.status(400).json({
-      error: `Folder too large: ${files.length} files (maximum ${MAX_FILES}). Skip node_modules/dist — Ephemora Skyline ignores them anyway.`,
+      error: `Folder too large: ${files.length} files (maximum ${MAX_FILES}). Ephemora Skyline ignores build output and whatever your .gitignore sets aside — if the folder is still this big, open a subfolder of it instead.`,
       code: "too_many_files",
       found: files.length,
       max: MAX_FILES,

@@ -3,6 +3,8 @@ import {
   corsOptionsFor,
   expectedOrigins,
   isForeignBrowserRequest,
+  localOnlyRoute,
+  refusalFor,
 } from "../src/server/local-only.js";
 
 /**
@@ -98,5 +100,82 @@ describe("a browser request for a route that runs code", () => {
     expect(ask(env, undefined), "a non-browser client gets no header").toBe(false);
     expect(ask({}, OWN), "unset env still serves the dev page").toBe(OWN);
     expect(ask({ FRONTEND_ORIGIN: "  " }, OWN), "blank env falls back to the dev page").toBe(OWN);
+  });
+});
+
+/**
+ * The refusal is right in both cases; what was wrong is that it said the same
+ * sentence to two different problems. A second checkout on this machine gets
+ * `403 … came from another website` for having opened the app on 3011 — a
+ * security story about a person who changed a port, while the answer
+ * (`FRONTEND_ORIGIN`) sits in the same file that produced the message.
+ */
+describe("what a refused write says back", () => {
+  const served = [OWN, "http://127.0.0.1:3010", "tauri://localhost"];
+
+  it("names the setting when the page is this machine's, on another port", () => {
+    const said = refusalFor("http://localhost:3011", served);
+    expect(said).toContain("FRONTEND_ORIGIN=http://localhost:3011");
+    expect(said, "the page it came from, as it was sent").toContain("http://localhost:3011");
+    expect(said, "what the process does serve, so the two can be compared").toContain(OWN);
+    expect(said).toContain("Ephemora Skyline only accepts its own page");
+    expect(said, "no blame about another website when there is none").not.toContain(
+      "another website",
+    );
+  });
+
+  it("keeps the old sentence for a page that really is elsewhere", () => {
+    const foreign =
+      "This request came from another website — Ephemora Skyline only accepts its own page.";
+    expect(refusalFor("http://evil.example", served)).toBe(foreign);
+    expect(refusalFor("https://localhost.evil.example:3011", served)).toBe(foreign);
+    expect(refusalFor(undefined, served), "a cross-site request without an origin").toBe(foreign);
+  });
+
+  it("does not echo an unbounded origin into the answer", () => {
+    const long = `http://localhost:${"9".repeat(400)}`;
+    expect(refusalFor(long, served).length).toBeLessThan(600);
+  });
+
+  /** The wording changed; the door did not. */
+  it("still answers 403 and never calls next, whichever branch spoke", () => {
+    for (const origin of ["http://localhost:3011", "http://evil.example"]) {
+      let status = 0;
+      let body: unknown = null;
+      let passed = false;
+      localOnlyRoute(
+        { headers: { origin, "sec-fetch-site": "cross-site", host: "127.0.0.1:4000" } } as never,
+        {
+          status(code: number) {
+            status = code;
+            return {
+              json(b: unknown) {
+                body = b;
+              },
+            };
+          },
+        } as never,
+        () => {
+          passed = true;
+        },
+      );
+      expect(status, origin).toBe(403);
+      expect(passed, `${origin} must not reach the route`).toBe(false);
+      expect((body as { error?: string }).error).toContain(
+        "Ephemora Skyline only accepts its own page",
+      );
+    }
+  });
+
+  it("lets the app's own page through with no message at all", () => {
+    let passed = false;
+    localOnlyRoute(
+      { headers: { origin: OWN, host: "127.0.0.1:4000" } } as never,
+      { status: () => ({ json: () => undefined }) } as never,
+      () => {
+        passed = true;
+      },
+    );
+    expect(passed).toBe(true);
   });
 });

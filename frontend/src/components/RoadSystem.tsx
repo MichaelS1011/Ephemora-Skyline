@@ -4,9 +4,12 @@ import { useLayoutEffect, useMemo, useRef } from "react";
 import { Html } from "@react-three/drei";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
+import { surfaceMatrix, surfaceStreetSegments } from "../city/worldSurface";
+import { SurfaceAnchor, useWorldSurface } from "../render/WorldSurface";
 import type { DirLayout } from "../city/layout";
 import { CURB_OFFSET, type SidewalkNetwork } from "../city/sidewalks";
 import { ENV } from "../city/palette";
+import { CAR_SHAPE, FLEET_LIVERY } from "../city/openWorldStreets";
 import { COMPLEXITY_TICKS, heightForComplexity } from "../city/mapping";
 import { reducedSettle } from "../city/motion";
 import { t } from "../i18n";
@@ -24,6 +27,21 @@ import "../design/city-funktion.css";
  */
 
 const dummy = new THREE.Object3D();
+const AXIS_Y = new THREE.Vector3(0, 1, 0);
+const AXIS_Z = new THREE.Vector3(0, 0, 1);
+const rollQ = new THREE.Quaternion();
+
+/**
+ * How far a wheel has turned, in radians: metres driven over the radius, signed
+ * so the tread moves with the car rather than against it.
+ *
+ * A still frame cannot show a spinning wheel, and "the wheels spin" is exactly
+ * the kind of claim that survives review when nobody has to hold it — so the rule
+ * is a function here, and `roadFleet.test.ts` holds its sign and its rate.
+ */
+export function wheelRoll(odometer: number, dir: 1 | -1, radius: number): number {
+  return ((-odometer / Math.max(0.01, radius)) * dir) % (Math.PI * 2);
+}
 
 const LANE_OFFSET = 0.95; // car center offset from the street centerline
 const CROSSWALK_BARS = [-1.65, -1.1, -0.55, 0, 0.55, 1.1, 1.65];
@@ -41,6 +59,39 @@ export function RoadSystem({
   active?: boolean;
 }) {
   const lang = useStore((s) => s.prefs.lang);
+  const surface = useWorldSurface();
+  const roadData = useMemo(
+    () =>
+      layout.streets.flatMap((s) => {
+        const length = Math.hypot(s.x2 - s.x1, s.z2 - s.z1);
+        if (length < 3) return [];
+        const ux = (s.x2 - s.x1) / length,
+          uz = (s.z2 - s.z1) / length;
+        return surfaceStreetSegments(surface, {
+          ...s,
+          x1: s.x1 - ux * 1.7,
+          z1: s.z1 - uz * 1.7,
+          x2: s.x2 + ux * 1.7,
+          z2: s.z2 + uz * 1.7,
+        });
+      }),
+    [layout, surface],
+  );
+  const roadRef = useRef<THREE.InstancedMesh>(null);
+  useLayoutEffect(() => {
+    const mesh = roadRef.current;
+    if (!mesh) return;
+    roadData.forEach((s, i) => {
+      dummy.position.set((s.x1 + s.x2) / 2, 0.02, (s.z1 + s.z2) / 2);
+      dummy.rotation.set(0, -Math.atan2(s.z2 - s.z1, s.x2 - s.x1), 0);
+      dummy.scale.set(Math.hypot(s.x2 - s.x1, s.z2 - s.z1) + 0.04, 1, 1);
+      dummy.updateMatrix();
+      mesh.setMatrixAt(i, surfaceMatrix(surface, dummy.matrix));
+    });
+    mesh.count = roadData.length;
+    mesh.instanceMatrix.needsUpdate = true;
+    dummy.scale.setScalar(1);
+  }, [roadData, surface]);
   // ── Height measuring mast ────────────────────────────────────────────────
   // The skyline's height is a measurement (synthetic complexity on the
   // 2.2..34 rail of city/mapping), so the rail stands in the picture: a pole
@@ -60,6 +111,22 @@ export function RoadSystem({
   // streets still get their full-length kerbs.
   const curbData = useMemo(() => {
     const items: Array<{ x: number; z: number; rotY: number; len: number }> = [];
+    const segments = () =>
+      items.flatMap((c) => {
+        const ux = Math.cos(c.rotY),
+          uz = -Math.sin(c.rotY);
+        return surfaceStreetSegments(surface, {
+          x1: c.x - (ux * c.len) / 2,
+          z1: c.z - (uz * c.len) / 2,
+          x2: c.x + (ux * c.len) / 2,
+          z2: c.z + (uz * c.len) / 2,
+        }).map((s) => ({
+          x: (s.x1 + s.x2) / 2,
+          z: (s.z1 + s.z2) / 2,
+          rotY: c.rotY,
+          len: Math.hypot(s.x2 - s.x1, s.z2 - s.z1),
+        }));
+      });
     if (sidewalks) {
       for (const k of sidewalks.kerbs) {
         const len = Math.hypot(k.x2 - k.x1, k.z2 - k.z1);
@@ -71,7 +138,7 @@ export function RoadSystem({
           len,
         });
       }
-      return items;
+      return segments();
     }
     for (const s of layout.streets) {
       const len = Math.hypot(s.x2 - s.x1, s.z2 - s.z1);
@@ -94,8 +161,8 @@ export function RoadSystem({
         });
       }
     }
-    return items;
-  }, [layout, sidewalks]);
+    return segments();
+  }, [layout, sidewalks, surface]);
 
   const curbRef = useRef<THREE.InstancedMesh>(null);
   useLayoutEffect(() => {
@@ -106,12 +173,12 @@ export function RoadSystem({
       dummy.rotation.set(0, c.rotY, 0);
       dummy.scale.set(c.len, 1, 1);
       dummy.updateMatrix();
-      mesh.setMatrixAt(i, dummy.matrix);
+      mesh.setMatrixAt(i, surfaceMatrix(surface, dummy.matrix));
     });
     mesh.count = curbData.length;
     mesh.instanceMatrix.needsUpdate = true;
     dummy.scale.setScalar(1);
-  }, [curbData]);
+  }, [curbData, surface]);
 
   // ── Zebra stripes at the network's crosswalks ───────────────────────────
   const zebraData = useMemo(() => {
@@ -136,11 +203,11 @@ export function RoadSystem({
       dummy.position.set(z.x, 0.055, z.z);
       dummy.rotation.set(0, z.rotY, 0);
       dummy.updateMatrix();
-      mesh.setMatrixAt(i, dummy.matrix);
+      mesh.setMatrixAt(i, surfaceMatrix(surface, dummy.matrix));
     });
     mesh.count = zebraData.length;
     mesh.instanceMatrix.needsUpdate = true;
-  }, [zebraData]);
+  }, [zebraData, surface]);
 
   // ── Lane dashes along every street line ─────────────────────────────────
   const dashData = useMemo(() => {
@@ -174,11 +241,11 @@ export function RoadSystem({
       dummy.position.set(d.x, 0.06, d.z);
       dummy.rotation.set(0, d.rotY, 0);
       dummy.updateMatrix();
-      mesh.setMatrixAt(i, dummy.matrix);
+      mesh.setMatrixAt(i, surfaceMatrix(surface, dummy.matrix));
     });
     mesh.count = dashData.length;
     mesh.instanceMatrix.needsUpdate = true;
-  }, [dashData]);
+  }, [dashData, surface]);
 
   // ── Streetlights lined along the sidewalks ──────────────────────────────
   const lampData = useMemo(() => {
@@ -217,16 +284,16 @@ export function RoadSystem({
       dummy.rotation.set(0, l.rotY, 0);
       dummy.position.set(l.x, 1.5, l.z);
       dummy.updateMatrix();
-      poles.setMatrixAt(i, dummy.matrix);
+      poles.setMatrixAt(i, surfaceMatrix(surface, dummy.matrix));
       dummy.position.set(l.x, 3.1, l.z);
       dummy.updateMatrix();
-      heads.setMatrixAt(i, dummy.matrix);
+      heads.setMatrixAt(i, surfaceMatrix(surface, dummy.matrix));
     });
     poles.count = lampData.length;
     heads.count = lampData.length;
     poles.instanceMatrix.needsUpdate = true;
     heads.instanceMatrix.needsUpdate = true;
-  }, [lampData]);
+  }, [lampData, surface]);
 
   // ── Blocky street trees along the sidewalks ─────────────────────────────
   const treeData = useMemo(() => {
@@ -267,13 +334,13 @@ export function RoadSystem({
       dummy.rotation.set(0, t.rotY, 0);
       dummy.scale.setScalar(t.s);
       dummy.updateMatrix();
-      trunks.setMatrixAt(i, dummy.matrix);
+      trunks.setMatrixAt(i, surfaceMatrix(surface, dummy.matrix));
       dummy.position.set(t.x, 1.5 * t.s, t.z);
       dummy.updateMatrix();
-      crowns.setMatrixAt(i, dummy.matrix);
+      crowns.setMatrixAt(i, surfaceMatrix(surface, dummy.matrix));
       dummy.position.set(t.x, 2.28 * t.s, t.z);
       dummy.updateMatrix();
-      tops.setMatrixAt(i, dummy.matrix);
+      tops.setMatrixAt(i, surfaceMatrix(surface, dummy.matrix));
     });
     trunks.count = treeData.length;
     crowns.count = treeData.length;
@@ -282,7 +349,7 @@ export function RoadSystem({
     crowns.instanceMatrix.needsUpdate = true;
     tops.instanceMatrix.needsUpdate = true;
     dummy.scale.setScalar(1);
-  }, [treeData]);
+  }, [treeData, surface]);
 
   // ── Ambient traffic keeping to the right lane ───────────────────────────
   const carData = useMemo(() => {
@@ -297,15 +364,20 @@ export function RoadSystem({
       speed: number;
       dir: 1 | -1;
       color: THREE.Color;
+      /** A fleet of identical cars is a stamp. This one is ±8 %. */
+      scale: number;
+      /** metres driven — what turns the wheels, so they spin with the car */
+      odometer: number;
     }> = [];
-    const palette = ["#ffe9c4", "#ff6a4d", "#bfe8ff", "#ffd9a0"];
     for (let i = 0; i < Math.min(24, lanes.length * 2); i++) {
       items.push({
         lane: i % Math.max(1, lanes.length),
         t: (i * 0.37) % 1,
         speed: 3.5 + ((i * 13) % 40) / 10,
         dir: i % 2 === 0 ? 1 : -1,
-        color: new THREE.Color(palette[i % palette.length]!),
+        color: new THREE.Color(FLEET_LIVERY[i % FLEET_LIVERY.length]!),
+        scale: 0.92 + ((i * 7) % 17) / 100,
+        odometer: 0,
       });
     }
     return { lanes, items };
@@ -313,6 +385,19 @@ export function RoadSystem({
 
   const carRef = useRef<THREE.InstancedMesh>(null);
   const cabinRef = useRef<THREE.InstancedMesh>(null);
+  const wheelRef = useRef<THREE.InstancedMesh>(null);
+  /** A cylinder laid on its side once: its axle is the car's local Z, so the
+   *  per-frame roll is a rotation about that axis and nothing else. */
+  const wheelGeo = useMemo(
+    () =>
+      new THREE.CylinderGeometry(
+        CAR_SHAPE.wheel.r,
+        CAR_SHAPE.wheel.r,
+        CAR_SHAPE.wheel.t,
+        12,
+      ).rotateX(Math.PI / 2),
+    [],
+  );
   const carSettledRef = useRef(false);
   useLayoutEffect(() => {
     const mesh = carRef.current;
@@ -326,6 +411,7 @@ export function RoadSystem({
   const stepCars = (dt: number): void => {
     const mesh = carRef.current;
     const cabins = cabinRef.current;
+    const wheels = wheelRef.current;
     if (!mesh || !cabins) return;
     carData.items.forEach((c, i) => {
       const lane = carData.lanes[c.lane];
@@ -346,16 +432,43 @@ export function RoadSystem({
       const lx = lane.x1 + (lane.x2 - lane.x1) * c.t + uz * LANE_OFFSET * c.dir;
       const lz = lane.z1 + (lane.z2 - lane.z1) * c.t - ux * LANE_OFFSET * c.dir;
       const rotY = -Math.atan2(uz * c.dir, ux * c.dir);
-      dummy.position.set(lx, 0.28, lz);
+      const bodyScale = c.scale;
+      dummy.position.set(lx, CAR_SHAPE.body.y * bodyScale, lz);
       dummy.rotation.set(0, rotY, 0);
+      dummy.scale.setScalar(bodyScale);
       dummy.updateMatrix();
-      mesh.setMatrixAt(i, dummy.matrix);
-      dummy.position.set(lx, 0.44, lz);
+      mesh.setMatrixAt(i, surfaceMatrix(surface, dummy.matrix));
+      dummy.position.set(lx, CAR_SHAPE.cabin.y * bodyScale, lz);
       dummy.updateMatrix();
-      cabins.setMatrixAt(i, dummy.matrix);
+      cabins.setMatrixAt(i, surfaceMatrix(surface, dummy.matrix));
+      if (wheels) {
+        // Four wheels per car, each at the car's own corners: the yaw turns the
+        // offsets with it, and the roll spins the wheel about its own axle.
+        c.odometer += Math.abs((dt * c.speed) / Math.max(len, 1)) * len;
+        const roll = wheelRoll(c.odometer, c.dir, CAR_SHAPE.wheel.r * bodyScale);
+        const cos = Math.cos(rotY);
+        const sin = Math.sin(rotY);
+        for (let w = 0; w < 4; w++) {
+          const along = w < 2 ? CAR_SHAPE.wheel.x : -CAR_SHAPE.wheel.x;
+          const across = w % 2 === 0 ? CAR_SHAPE.wheel.z : -CAR_SHAPE.wheel.z;
+          dummy.position.set(
+            lx + (along * cos + across * sin) * bodyScale,
+            CAR_SHAPE.wheel.y * bodyScale,
+            lz + (-along * sin + across * cos) * bodyScale,
+          );
+          dummy.rotation.set(0, 0, 0);
+          dummy.quaternion
+            .setFromAxisAngle(AXIS_Y, rotY)
+            .multiply(rollQ.setFromAxisAngle(AXIS_Z, roll));
+          dummy.scale.setScalar(bodyScale);
+          dummy.updateMatrix();
+          wheels.setMatrixAt(i * 4 + w, surfaceMatrix(surface, dummy.matrix));
+        }
+      }
     });
     mesh.instanceMatrix.needsUpdate = true;
     cabins.instanceMatrix.needsUpdate = true;
+    if (wheels) wheels.instanceMatrix.needsUpdate = true;
   };
 
   useFrame((_, delta) => {
@@ -373,21 +486,14 @@ export function RoadSystem({
   return (
     <group>
       {/* Street asphalt strips between plots */}
-      {layout.streets.map((s, i) => {
-        const len = Math.hypot(s.x2 - s.x1, s.z2 - s.z1);
-        if (len < 3) return null;
-        const angle = -Math.atan2(s.z2 - s.z1, s.x2 - s.x1);
-        return (
-          <mesh
-            key={`street-${i}`}
-            position={[(s.x1 + s.x2) / 2, 0.02, (s.z1 + s.z2) / 2]}
-            rotation={[0, angle, 0]}
-          >
-            <boxGeometry args={[len + 3.4, 0.05, 3.8]} />
-            <meshStandardMaterial color={ENV.road} roughness={0.96} />
-          </mesh>
-        );
-      })}
+      <instancedMesh
+        ref={roadRef}
+        args={[undefined, undefined, Math.max(1, roadData.length)]}
+        frustumCulled={false}
+      >
+        <boxGeometry args={[1, 0.05, 3.8]} />
+        <meshStandardMaterial color={ENV.road} roughness={0.96} />
+      </instancedMesh>
 
       {/* Concrete curbs framing the sidewalks */}
       <instancedMesh
@@ -464,15 +570,17 @@ export function RoadSystem({
         <meshStandardMaterial color="#3a7a5c" roughness={0.9} />
       </instancedMesh>
 
-      {/* Traffic — body + cabin */}
+      {/* Traffic — body, cabin and four wheels per car. The wheels are one
+          instanced mesh whose geometry is laid on its side once, so a per-frame
+          write is a position, a yaw and a roll. */}
       <instancedMesh
         ref={carRef}
         args={[undefined, undefined, Math.max(1, carCount)]}
         frustumCulled={false}
         visible={active}
       >
-        <boxGeometry args={[0.85, 0.22, 0.42]} />
-        <meshBasicMaterial toneMapped={false} />
+        <boxGeometry args={[CAR_SHAPE.body.w, CAR_SHAPE.body.h, CAR_SHAPE.body.d]} />
+        <meshStandardMaterial roughness={0.42} metalness={0.16} />
       </instancedMesh>
       <instancedMesh
         ref={cabinRef}
@@ -480,39 +588,65 @@ export function RoadSystem({
         frustumCulled={false}
         visible={active}
       >
-        <boxGeometry args={[0.5, 0.2, 0.36]} />
+        <boxGeometry args={[CAR_SHAPE.cabin.w, CAR_SHAPE.cabin.h, CAR_SHAPE.cabin.d]} />
         <meshStandardMaterial color={ENV.road} roughness={0.3} metalness={0.4} />
+      </instancedMesh>
+      <instancedMesh
+        ref={wheelRef}
+        args={[wheelGeo, undefined, Math.max(1, carCount) * 4]}
+        frustumCulled={false}
+        visible={active}
+      >
+        <meshStandardMaterial color="#14181b" roughness={0.85} />
       </instancedMesh>
 
       {/* The height rail, standing in the picture — see the mast memo above */}
       {mast && (
-        <group position={[mast.x, 0, mast.z]}>
-          <mesh position={[0, MAST_TOP / 2, 0]} raycast={() => null}>
-            <boxGeometry args={[0.14, MAST_TOP, 0.14]} />
-            <meshStandardMaterial color="#3a4a68" roughness={0.7} />
-          </mesh>
-          {COMPLEXITY_TICKS.map((c) => (
-            <mesh key={c} position={[0, heightForComplexity(c), 0]} raycast={() => null}>
-              <boxGeometry args={[0.95, 0.09, 0.14]} />
-              <meshBasicMaterial color={ENV.plotEdge} toneMapped={false} />
+        <SurfaceAnchor x={mast.x} z={mast.z}>
+          <group position={[mast.x, 0, mast.z]}>
+            <mesh position={[0, MAST_TOP / 2, 0]} raycast={() => null}>
+              <boxGeometry args={[0.14, MAST_TOP, 0.14]} />
+              <meshStandardMaterial color="#3a4a68" roughness={0.7} />
             </mesh>
-          ))}
-          <Html
-            center
-            distanceFactor={60}
-            position={[1.6, MAST_TOP / 2 + 2, 0]}
-            zIndexRange={[8, 0]}
-          >
-            <div className="cf-mast">
-              <div className="cf-mast-title">{t(lang, "hud.heightComplexity")}</div>
-              <div className="cf-mast-ticks">
-                {[...COMPLEXITY_TICKS].reverse().map((c) => (
-                  <div key={c}>{c.toFixed(2)}</div>
-                ))}
+            {COMPLEXITY_TICKS.map((c) => (
+              <mesh key={c} position={[0, heightForComplexity(c), 0]} raycast={() => null}>
+                <boxGeometry args={[0.95, 0.09, 0.14]} />
+                <meshBasicMaterial color={ENV.plotEdge} toneMapped={false} />
+              </mesh>
+            ))}
+            {/* The print is a screen size, not a world size. Measured on this
+                machine in a local headless browser (not shipped): at the
+                overview pose `distanceFactor` put the plate at 0,295 scale, so
+                the declared 11 px arrived as 3,25 px. On a 1× screen the best
+                coverage in the field was 0,64 — no pixel reached its declared
+                colour. The glyph core against the plate measured 3,01:1, and
+                taking every ink-carrying pixel of the field instead measured
+                1,64:1; at that median coverage no ink/plate pair at all clears
+                2,54:1, so colour is not the lever here. The label keeps its
+                solid plate (Beschluss 10.10.: no glaze on world labels) and
+                prints at its declared 11 px at every distance — measured 5,55:1
+                on a 1× screen, 7,31:1 on a 2× screen, where the core median is
+                the declared colour exactly. The plate is a measurement, not a
+                target: `pointer-events: none` is already on `.cf-mast`, and
+                drei's wrapper needs it too, or the chip eats the camera drag it
+                stands in. */}
+            <Html
+              center
+              position={[1.6, MAST_TOP / 2 + 2, 0]}
+              zIndexRange={[8, 0]}
+              style={{ pointerEvents: "none" }}
+            >
+              <div className="cf-mast">
+                <div className="cf-mast-title">{t(lang, "hud.heightComplexity")}</div>
+                <div className="cf-mast-ticks">
+                  {[...COMPLEXITY_TICKS].reverse().map((c) => (
+                    <div key={c}>{c.toFixed(2)}</div>
+                  ))}
+                </div>
               </div>
-            </div>
-          </Html>
-        </group>
+            </Html>
+          </group>
+        </SurfaceAnchor>
       )}
     </group>
   );

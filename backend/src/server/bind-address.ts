@@ -26,3 +26,21 @@ export function isLoopbackHost(host: string): boolean {
     .toLowerCase();
   return LOOPBACK.has(h);
 }
+
+/**
+ * What to say when the port is taken.
+ *
+ * A second checkout on the same machine ends here, and until now it ended in a
+ * raw Node stack trace (`Unhandled 'error' event`, `code: 'EADDRINUSE'`) — the
+ * first thing a contributor sees after `npm run dev`, and it reads as a broken
+ * install rather than as a port that is busy. The three settings that solve it
+ * are named here because the person in front of it cannot know them yet.
+ */
+export function portInUseMessage(port: number, host: string): string {
+  return (
+    `Port ${port} on ${host} is already in use, so this backend did not start. ` +
+    `Either stop the other Ephemora Skyline, or run this one beside it: ` +
+    `PORT=<free port> FRONTEND_ORIGIN=http://localhost:<dev port> npm run dev --workspace backend, ` +
+    `and start the dev server with BACKEND_PORT=<free port> so its proxy follows.`
+  );
+}

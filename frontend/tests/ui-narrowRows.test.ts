@@ -1,6 +1,6 @@
 // @vitest-environment node
 // Measured on the running app (demo city, real clicks; probes:
-// .qoder-scratch/laneB-viewport.mjs and laneB-dock.mjs):
+// a local measurement script that is not shipped and laneB-dock.mjs):
 //   - from 760 px down every one of the three ModeBar buttons had the search
 //     field painted over its centre — no view mode was reachable by mouse;
 //   - the breadcrumb chip's `max-width: calc(50% - 178px)` applied at every

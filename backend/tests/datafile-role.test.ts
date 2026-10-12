@@ -3,7 +3,7 @@ import type { FileAnalysis, SecurityIssue } from "../src/models/index.js";
 import { mapResultToCityData } from "../src/utils/cityMapper.js";
 
 /**
- * Measured on a real datablatt run (.qoder-scratch/artefakt-erfassung.mts):
+ * Measured on a real datablatt run (a local measurement script that is not shipped):
  * a package-lock.json with 7 556 format lines became the tallest tower
  * (mapping height 11.7) and led its city's skyline, five of six skyline
  * slots went to JSON/Env data sheets, and every one of them carried

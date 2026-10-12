@@ -6,7 +6,19 @@ import * as THREE from "three";
 import type { CityFile, Severity } from "../city/types";
 import type { FocusTier } from "../city/focus";
 import type { VoxelLayout } from "../city/voxels";
-import { languageColor, severityColor, REVIEWED_BEACON_COLOR, ENV } from "../city/palette";
+import {
+  languageColor,
+  languageRoofColor,
+  severityColor,
+  alarmWindowColors,
+  landmarkBeamColor,
+  REVIEWED_BEACON_COLOR,
+  TEST_FAIL_COLOR,
+  TEST_PASS_COLOR,
+  CYCLE_RING_COLOR,
+  ENV,
+  type AlarmWindowTones,
+} from "../city/palette";
 import { prefersReducedMotion } from "../city/motion";
 import {
   HOVER,
@@ -45,18 +57,37 @@ function mulberry32(seed: number): () => number {
   };
 }
 
+/**
+ * Cache key for a facade texture. The window tones are rasterised INTO the
+ * texture, so they belong in the key: without them a palette switch keeps
+ * serving the cached facade, and the city holds its red windows underneath a
+ * legend that has just changed its mind.
+ */
+export function facadeCacheKey(
+  color: string,
+  w: number,
+  h: number,
+  alarm: boolean,
+  seed: number,
+  tones: AlarmWindowTones,
+): string {
+  return `v4|${color}|${Math.round(w * 4)}|${Math.round(h * 4)}|${alarm ? 1 : 0}|${seed % 9}|${tones.lit}${tones.pale}`;
+}
+
 function getFacadeTextures(
   color: string,
   w: number,
   h: number,
   alarm: boolean,
   seed: number,
+  tones: AlarmWindowTones,
 ): FacadeTextures {
-  // v3: dark-metal body — the map is a MULTIPLIER texture (near-white with a
-  // 10% language tint, subtle vertical mullion seams, dark smoked-glass
-  // slots, sparse dim lit windows). The graphite material color below does
-  // the actual shading; from afar the body stays closed and calm (spec §16).
-  const key = `v3|${color}|${Math.round(w * 4)}|${Math.round(h * 4)}|${alarm ? 1 : 0}|${seed % 9}`;
+  // v4: the alarm window pair joined the key. The body is still the v3
+  // dark-metal raster — near-white with a 10% language tint, subtle vertical
+  // mullion seams, dark smoked-glass slots, sparse dim lit windows — and the
+  // graphite material below does the actual shading, so from afar the body
+  // stays closed and calm (spec §16).
+  const key = facadeCacheKey(color, w, h, alarm, seed, tones);
   const hit = facadeCache.get(key);
   if (hit) {
     // LRU refresh — eviction must target the least-recently-used entry,
@@ -83,8 +114,8 @@ function getFacadeTextures(
   const seam = `#${tint.clone().multiplyScalar(1.16).getHexString()}`;
   const floorSeam = `#${tint.clone().multiplyScalar(0.88).getHexString()}`;
   const glass = "#839fae"; // dark glazed slot multiplier
-  const litColor = alarm ? ENV.windowAlarm : ENV.windowWarm;
-  const litCool = alarm ? "#ff8f9a" : ENV.windowCool;
+  const litColor = alarm ? tones.lit : ENV.windowWarm;
+  const litCool = alarm ? tones.pale : ENV.windowCool;
 
   const rng = mulberry32(seed * 7919 + Math.round(w * 8) + Math.round(h * 3));
 
@@ -458,14 +489,17 @@ export function Building({
   const slabRef = useRef<THREE.InstancedMesh>(null);
   const slabDummy = useMemo(() => new THREE.Object3D(), []);
 
+  // The alarm window pair the facade raster is painted with. A memo, because it
+  // is part of the texture cache key: one switch, one repaint.
+  const windowTones = useMemo(() => alarmWindowColors(colorblind), [colorblind]);
   // Glass buildings (dead code) need no facade textures at all — and in
   // voxel-body mode no building does
   const facade = useMemo(
     () =>
       voxelBody || matState === "glass"
         ? null
-        : getFacadeTextures(facadeColor, w, bodyH, alarm, seed),
-    [voxelBody, matState, facadeColor, w, bodyH, alarm, seed],
+        : getFacadeTextures(facadeColor, w, bodyH, alarm, seed, windowTones),
+    [voxelBody, matState, facadeColor, w, bodyH, alarm, seed, windowTones],
   );
 
   // ── Honest-building stage ─────────────────────────────────────────────────
@@ -616,17 +650,18 @@ export function Building({
       roof.userData.baseColor = "#1a2530";
       return [side, side, roof, roof, side, side];
     }
-    // Dark-metal body: graphite panels, faint env response, calm raster glow
+    // Light mineral panels keep the architecture legible against living land.
+    // Erosion still changes roughness and metal response in the same order.
     const side = new THREE.MeshStandardMaterial({
-      color: "#a6b9c7",
+      color: "#e1e7df",
       map: facade!.map,
       emissiveMap: facade!.emissive,
       emissive: new THREE.Color(0xffffff),
       emissiveIntensity: voxelStage ? 0.15 : matState === "alarm" ? 1.15 : 0.55,
       // Eroded hotspots read as coarse, corroded panels; healthy code as
       // smooth brushed metal. Language stays as the lit-slot accent.
-      roughness: erosion === "eroded" ? 0.78 : erosion === "weathered" ? 0.6 : 0.45,
-      metalness: erosion === "eroded" ? 0.25 : erosion === "weathered" ? 0.4 : 0.5,
+      roughness: erosion === "eroded" ? 0.78 : erosion === "weathered" ? 0.65 : 0.54,
+      metalness: erosion === "eroded" ? 0.18 : erosion === "weathered" ? 0.25 : 0.3,
       envMapIntensity: 0.9,
       transparent: dimmed || voxelStage,
       opacity: dimmed ? 0.12 : voxelStage ? 0.32 : 1,
@@ -638,7 +673,7 @@ export function Building({
       transparent: dimmed || voxelStage,
       opacity: dimmed ? 0.12 : voxelStage ? 0.26 : 1,
     });
-    side.userData.baseColor = "#a6b9c7";
+    side.userData.baseColor = "#e1e7df";
     side.userData.baseEmissive = voxelStage ? 0.15 : matState === "alarm" ? 1.15 : 0.55;
     roof.userData.baseColor = erosion === "stable" || erosion === "unknown" ? "#748c9e" : "#84796c";
     return [side, side, roof, roof, side, side];
@@ -1141,7 +1176,7 @@ export function Building({
         <mesh position={[0, (h + 0.3) / 2 + 0.4, 0]}>
           <boxGeometry args={[w + 1.3, h + 1.6, d + 1.3]} />
           <meshBasicMaterial
-            color="#ff2e4d"
+            color={TEST_FAIL_COLOR}
             wireframe
             transparent
             opacity={dimmed ? 0.1 : 0.55}
@@ -1153,8 +1188,8 @@ export function Building({
         <mesh position={[0, 0.32, 0]}>
           <boxGeometry args={[w + 0.8, 0.3, d + 0.8]} />
           <meshStandardMaterial
-            color="#29d398"
-            emissive="#29d398"
+            color={TEST_PASS_COLOR}
+            emissive={TEST_PASS_COLOR}
             emissiveIntensity={0.4}
             roughness={0.5}
           />
@@ -1182,8 +1217,8 @@ export function Building({
         <mesh ref={cycleRef} position={[0, 0.12, 0]} rotation={[Math.PI / 2, 0, 0]}>
           <torusGeometry args={[Math.max(w, d) * 0.95, 0.09, 8, 40]} />
           <meshStandardMaterial
-            color="#ff2e4d"
-            emissive="#ff2e4d"
+            color={CYCLE_RING_COLOR}
+            emissive={CYCLE_RING_COLOR}
             emissiveIntensity={0.9}
             toneMapped={false}
           />
@@ -1198,7 +1233,9 @@ export function Building({
             <mesh position={[0, bodyH + 0.3 + 0.85, 0]} rotation={[0, Math.PI / 4, 0]}>
               <coneGeometry args={[Math.max(w, d) * 0.78, 1.7, 4]} />
               <meshStandardMaterial
-                color={new THREE.Color(facadeColor).multiplyScalar(0.5 * overallFactor)}
+                color={new THREE.Color(languageRoofColor(file.language, seed)).multiplyScalar(
+                  overallFactor,
+                )}
                 roughness={0.8}
                 transparent={dimmed || voxelStage}
                 opacity={dimmed ? 0.12 : voxelStage ? 0.3 : 1}
@@ -1304,7 +1341,7 @@ export function Building({
           <mesh ref={beamRef} position={[0, h + 22, 0]}>
             <cylinderGeometry args={[0.32, 0.55, 44, 8, 1, true]} />
             <meshBasicMaterial
-              color={ENV.windowAlarm}
+              color={landmarkBeamColor(colorblind)}
               transparent
               opacity={0.08}
               side={THREE.DoubleSide}

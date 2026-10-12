@@ -1,106 +1,106 @@
-"use client";
-
-import { useCallback, useRef } from "react";
-import { useStore } from "../stores/useStore";
+import { useCallback } from "react";
+import { t } from "../i18n";
+import { useStore, type TestFileResultInfo } from "../stores/useStore";
 
 const POLL_INTERVAL_MS = 1500;
-const POLL_TIMEOUT_MS = 12 * 60 * 1000; // install + run
+const POLL_TIMEOUT_MS = 14 * 60 * 1000;
 
-/**
- * Runs the project's OWN tests from the staged copy on the local backend
- * (vitest/jest — the runner the project already uses). Results land in the
- * store per file, so the city can react: green shield for passing files,
- * cracks for failures.
- */
+/** A run survives closing its file card. Recursive polling prevents overlapping
+ * requests; a project change never receives the previous project's results. */
 export function useTestRunner() {
-  const setTestRun = useStore((s) => s.setTestRun);
-  const setTestResults = useStore((s) => s.setTestResults);
-  const pollTimer = useRef<ReturnType<typeof setInterval> | null>(null);
-
-  const stopPolling = useCallback(() => {
-    if (pollTimer.current) {
-      clearInterval(pollTimer.current);
-      pollTimer.current = null;
-    }
-  }, []);
-
-  const runTests = useCallback(
-    async (files?: string[]): Promise<void> => {
-      const analysisId = useStore.getState().analysisId;
-      if (
-        !analysisId ||
-        useStore.getState().testRun.status === "installing" ||
-        useStore.getState().testRun.status === "running"
-      ) {
+  const runTests = useCallback(async (files?: string[]): Promise<void> => {
+    const state = useStore.getState();
+    const analysisId = state.analysisId;
+    if (!analysisId || ["installing", "running"].includes(state.testRun.status)) return;
+    const lang = state.prefs.lang;
+    const current = () => useStore.getState().analysisId === analysisId;
+    const update = (status: "installing" | "running" | "complete" | "failed", stage: string) => {
+      if (current()) useStore.getState().setTestRun({ status, stage });
+    };
+    useStore.setState({
+      testResults: files
+        ? Object.fromEntries(
+            Object.entries(state.testResults).filter(([path]) => !files.includes(path)),
+          )
+        : {},
+    });
+    update("installing", t(lang, "test.preparing"));
+    try {
+      const res = await fetch(`/api/tests/${encodeURIComponent(analysisId)}/run`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(files ? { files } : {}),
+      });
+      const data = (await res.json()) as { runId?: string; error?: string };
+      if (!current()) return;
+      if (!res.ok || !data.runId) {
+        update("failed", `${t(lang, "test.failed")}${data.error ? `: ${data.error}` : ""}`);
         return;
       }
-      stopPolling();
-      setTestRun({ status: "installing", stage: "Preparing…" });
-
-      try {
-        const res = await fetch(`/api/tests/${encodeURIComponent(analysisId)}/run`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(files ? { files } : {}),
-        });
-        if (!res.ok) {
-          const err = (await res.json().catch(() => ({}))) as { error?: string };
-          setTestRun({ status: "failed", stage: err.error ?? "Could not start the test run" });
+      const runId = data.runId;
+      const started = Date.now();
+      const poll = async (): Promise<void> => {
+        if (!current()) return;
+        if (Date.now() - started > POLL_TIMEOUT_MS) {
+          update("failed", t(lang, "test.timeout"));
           return;
         }
-        const { runId } = (await res.json()) as { runId: string };
-
-        const started = Date.now();
-        pollTimer.current = setInterval(async () => {
-          if (Date.now() - started > POLL_TIMEOUT_MS) {
-            stopPolling();
-            setTestRun({ status: "failed", stage: "Test run timed out" });
+        try {
+          const response = await fetch(`/api/tests/run/${encodeURIComponent(runId)}`);
+          if (!current()) return;
+          if (response.status === 404) {
+            update("failed", t(lang, "test.expired"));
             return;
           }
-          try {
-            const poll = await fetch(`/api/tests/run/${encodeURIComponent(runId)}`);
-            const data = (await poll.json()) as {
-              status: "installing" | "running" | "complete" | "failed";
-              stage?: string;
-              error?: string;
-              result?: {
-                runner: string;
-                totalTests: number;
-                failedTests: number;
-                files: Array<{
-                  path: string;
-                  status: "passed" | "failed";
-                  tests: number;
-                  failures: Array<{ name: string; message: string }>;
-                }>;
-              };
+          if (!response.ok) throw new Error("poll failed");
+          const result = (await response.json()) as {
+            status: string;
+            error?: string;
+            result?: {
+              totalTests: number;
+              failedTests: number;
+              passedTests?: number;
+              skippedTests?: number;
+              failedSuites?: number;
+              files: TestFileResultInfo[];
             };
-            if (data.status === "installing" || data.status === "running") {
-              setTestRun({ status: data.status, stage: data.stage ?? "" });
-              return;
-            }
-            stopPolling();
-            if (data.status === "failed") {
-              setTestRun({ status: "failed", stage: data.error ?? "Test run failed" });
-              return;
-            }
-            if (data.result) {
-              setTestResults(data.result.files);
-              setTestRun({
-                status: "complete",
-                stage: `${data.result.totalTests - data.result.failedTests}/${data.result.totalTests} tests passed`,
-              });
-            }
-          } catch {
-            /* transient poll error — next tick retries */
+          };
+          if (!current()) return;
+          if (result.status === "installing" || result.status === "running") {
+            update(
+              result.status,
+              t(lang, result.status === "installing" ? "test.installing" : "test.running"),
+            );
+          } else if (result.status === "failed") {
+            update("failed", `${t(lang, "test.failed")}${result.error ? `: ${result.error}` : ""}`);
+            return;
+          } else if (result.status === "complete" && result.result) {
+            const summary = result.result;
+            useStore.getState().setTestResults(summary.files);
+            const skipped = summary.skippedTests ?? 0;
+            const passed =
+              summary.passedTests ?? summary.totalTests - summary.failedTests - skipped;
+            update(
+              "complete",
+              t(lang, "test.summary", { passed, failed: summary.failedTests, skipped }) +
+                (summary.failedSuites
+                  ? ` · ${t(lang, "test.failedSuites", { count: summary.failedSuites })}`
+                  : ""),
+            );
+            return;
+          } else {
+            update("failed", t(lang, "test.noResults"));
+            return;
           }
-        }, POLL_INTERVAL_MS);
-      } catch {
-        setTestRun({ status: "failed", stage: "Could not reach the local backend" });
-      }
-    },
-    [setTestRun, setTestResults, stopPolling],
-  );
-
+        } catch {
+          /* Transient connection failures retry within the deadline. */
+        }
+        if (current()) setTimeout(() => void poll(), POLL_INTERVAL_MS);
+      };
+      await poll();
+    } catch {
+      update("failed", t(lang, "test.backend"));
+    }
+  }, []);
   return { runTests };
 }

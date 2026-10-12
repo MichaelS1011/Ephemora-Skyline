@@ -13,18 +13,20 @@ npm run dev
 
 Open **http://localhost:3010** and click **Choose project folder** to pick any folder on your machine. Ephemora Skyline scans it locally (code quality, secrets, CVEs) and builds the city. No account, no token, no upload.
 
+A folder is read up to **10,000 files, 150 MB in total, 2 MB per file**. Whatever does not join the scan is counted on screen by the reason it left — including the paths your own `.gitignore` sets aside, which the browser skips before it counts anything, so a checkout with large local tooling folders still reads as the project inside it.
+
 No folder handy? Click **explore a demo city first** to see the full experience with sample data.
 
 That's the entire primary path. Everything below is configuration, tooling, and deployment.
 
 ## Prerequisites
 
-| Requirement             | Version    | Notes                                                         |
-| ----------------------- | ---------- | ------------------------------------------------------------- |
-| Node.js                 | ≥ 20.0.0   | LTS recommended                                               |
-| npm                     | ≥ 10.0.0   |                                                               |
-| Git                     | any recent |                                                               |
-| Docker + Docker Compose | optional   | only for container deployment (see [Deployment](#deployment)) |
+| Requirement             | Version          | Notes                                                         |
+| ----------------------- | ---------------- | ------------------------------------------------------------- |
+| Node.js                 | 20.19+ or 22.12+ | Node 21 unsupported; LTS recommended                          |
+| npm                     | ≥ 10.0.0         |                                                               |
+| Git                     | any recent       |                                                               |
+| Docker + Docker Compose | optional         | only for container deployment (see [Deployment](#deployment)) |
 
 Check your versions with `node --version` and `npm --version`.
 
@@ -78,7 +80,7 @@ The one place a GitHub token is used at all is the maintainer script that reads 
 SKYLINE_OFFLINE=1 npm run dev
 ```
 
-That answers the update check offline, keeps the OSV and dependency checks from running, and keeps Semgrep off unless you selected a rule pack that is already on disk. The city then reports what it could not check through `scanProvenance` and paints those buildings the colour of ground no scanner looked at. It is an environment variable; there is no switch for it in the interface yet.
+That answers the update check offline, keeps the OSV and dependency checks from running, and keeps Semgrep off unless you selected a rule pack that is already on disk. The update check needs to be asked for in the first place: it runs only while **Ask about new versions** is switched on in the More menu of a city, and that switch is off by default, so a first run reaches neither `api.github.com` nor any other host before you click. The city then reports what it could not check through `scanProvenance` and paints those buildings the colour of ground no scanner looked at. It is an environment variable; there is no switch for it in the interface yet.
 
 |                      | Local folder path (the only path)                                               |
 | -------------------- | ------------------------------------------------------------------------------- |
@@ -205,7 +207,16 @@ docker compose -f docker/docker-compose.yml up --build
 # Frontend: http://localhost:3010
 ```
 
-Same two processes, same machine. `TRUST_PROXY=1` is set there only because nginx sits in front of the API.
+Same two processes, same machine. Both published ports bind to `127.0.0.1`. Inside the private Docker network, the backend uses `HOST=0.0.0.0` so nginx can reach it. `TRUST_PROXY=1` is set there only because nginx sits in front of the API.
+
+`4000` and `3010` are also the ports `npm run dev` uses, so a stack started while a dev run is up fails with Docker's `ports are not available` message. Name your own ports and both the mapping and the origin the backend admits follow them:
+
+```bash
+BACKEND_HOST_PORT=4210 FRONTEND_HOST_PORT=3310 docker compose -f docker/docker-compose.yml up --build
+# Frontend: http://localhost:3310   (nginx forwards /api to the backend)
+```
+
+**What the containers do not carry:** the images install production dependencies only, so `gitleaks`, `semgrep`, `osv-scanner` and `ruff` are not in them. A folder scanned through the container is therefore checked by the built-in rules and the advisory tables, and the city states which engines did not run — measured on the sample folder, 2 of its 4 findings arrive that way, and `scanProvenance` answers `gitleaks: false, semgrep: false, ruff: false`. The scan itself, the proxy and the in-city test runner work: the staged project's own `vitest` suite ran inside the container and reported 2 of 2 passed.
 
 Build single containers:
 
@@ -218,11 +229,11 @@ docker build -f docker/Dockerfile.frontend -t ephemora-skyline-frontend .
 
 The repository carries no platform manifest on purpose. Until 5 October 2026 it held a
 `render.yaml` and a `vercel.json` that pointed `/api/*` at a public URL — an unauthenticated
-endpoint that accepts `POST /api/analyze-local` (up to 80 MB of someone's source) and can run the
+endpoint that accepts `POST /api/analyze-local` (up to 200 MB of someone's source) and can run the
 test suite of whatever folder it is handed. That contradicts the one claim the entry screen leads
 with, so both files are gone and no documentation section replaces them.
 
 Deploying it on a network you do not own is still possible and is now your decision alone: set
 `HOST` to the interface your platform routes to, and read the warning the server logs itself when
-it binds a non-loopback address (`backend/src/server/index.ts:302-307`). The local-only guard
+it binds a non-loopback address (the `listening on a non-loopback address` warning in `backend/src/server/index.ts`). The local-only guard
 refuses another _website's_ write; it does not refuse another machine.

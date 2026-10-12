@@ -5,11 +5,20 @@ services:
       dockerfile: docker/Dockerfile.backend
     container_name: codecity-backend
     ports:
-      - "4000:4000"
+      # Loopback-only, but the host port is a variable: a machine that already
+      # runs `npm run dev` holds 4000, and Docker's own collision message names
+      # no way out.
+      - "127.0.0.1:${BACKEND_HOST_PORT:-4000}:4000"
     environment:
       - NODE_ENV=production
       - PORT=4000
-      - FRONTEND_ORIGIN=${FRONTEND_ORIGIN:-http://localhost:3010}
+      # Reachable by nginx inside the private Docker network.
+      - HOST=0.0.0.0
+      # nginx ends the request at `backend:4000`, so the guard's "this page was
+      # served by this very port" fallback cannot fire here — the admitted
+      # origins are the ones named. Both loopback spellings of the published
+      # port, because a person opens whichever of the two they typed.
+      - FRONTEND_ORIGIN=${FRONTEND_ORIGIN:-http://localhost:${FRONTEND_HOST_PORT:-3010},http://127.0.0.1:${FRONTEND_HOST_PORT:-3010}}
       # nginx sits in front of the API here, so rate limits key on X-Forwarded-For
       - TRUST_PROXY=1
     restart: unless-stopped
@@ -22,7 +31,7 @@ services:
       dockerfile: docker/Dockerfile.frontend
     container_name: codecity-frontend
     ports:
-      - "3010:80"
+      - "127.0.0.1:${FRONTEND_HOST_PORT:-3010}:80"
     depends_on:
       - backend
     restart: unless-stopped

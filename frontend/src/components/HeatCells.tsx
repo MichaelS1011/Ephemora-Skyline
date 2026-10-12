@@ -2,6 +2,8 @@
 
 import { useLayoutEffect, useMemo, useRef } from "react";
 import * as THREE from "three";
+import { surfaceMatrix } from "../city/worldSurface";
+import { useWorldSurface } from "../render/WorldSurface";
 import type { DirLayout } from "../city/layout";
 import type { CityData } from "../city/types";
 import { useStore, type HeatChannel } from "../stores/useStore";
@@ -10,7 +12,7 @@ import {
   complexityColor,
   churnColor,
   severityColor,
-  THREAT_COLOR,
+  threatColor,
   UNCHECKED_COLOR,
 } from "../city/palette";
 import { isUncheckedClean } from "../city/provenance";
@@ -92,7 +94,8 @@ function fileHeatColor(
       (max, f) => Math.max(max, f.severity === "P0" ? 3 : f.severity === "P1" ? 2 : 1),
       0,
     );
-    if (worst === 0) return tile(isUncheckedClean(file) ? UNCHECKED_COLOR : THREAT_COLOR.safe);
+    if (worst === 0)
+      return tile(isUncheckedClean(file) ? UNCHECKED_COLOR : threatColor("safe", colorblind));
     return tile(
       worst === 3
         ? severityColor("P0", colorblind)
@@ -115,6 +118,7 @@ function fileHeatColor(
 }
 
 export function HeatCells({ layout }: { layout: DirLayout }) {
+  const surface = useWorldSurface();
   const lodFar = useLodFar(layout.bounds);
   const heatChannel = useStore((s) => s.heatChannel);
   const threatFilter = useStore((s) => s.threatFilter);
@@ -139,7 +143,7 @@ export function HeatCells({ layout }: { layout: DirLayout }) {
       dummy.scale.set(b.w * CELL_SPREAD.building, rise / CELL_HEIGHT, b.d * CELL_SPREAD.building);
       dummy.rotation.set(0, 0, 0);
       dummy.updateMatrix();
-      mesh.setMatrixAt(i, dummy.matrix);
+      mesh.setMatrixAt(i, surfaceMatrix(surface, dummy.matrix));
       mesh.setColorAt(i, fileHeatColor(heatChannel, b.file, colorblind));
       i++;
     }
@@ -157,7 +161,7 @@ export function HeatCells({ layout }: { layout: DirLayout }) {
                 ? severityColor("P2", colorblind)
                 : state === "unchecked"
                   ? UNCHECKED_COLOR
-                  : THREAT_COLOR.safe
+                  : threatColor("safe", colorblind)
           : heatChannel === "complexity"
             ? complexityColor(subtree.avgComplexity, colorblind)
             : churnColor(subtree.maxChurn ?? 0, colorblind);
@@ -181,13 +185,13 @@ export function HeatCells({ layout }: { layout: DirLayout }) {
         blk.d * CELL_SPREAD.block,
       );
       dummy.updateMatrix();
-      mesh.setMatrixAt(i, dummy.matrix);
+      mesh.setMatrixAt(i, surfaceMatrix(surface, dummy.matrix));
       mesh.setColorAt(i, new THREE.Color(color));
       i++;
     }
     mesh.instanceMatrix.needsUpdate = true;
     if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
-  }, [layout, heatChannel, colorblind, cellCount, dummy]);
+  }, [layout, heatChannel, colorblind, cellCount, dummy, surface]);
 
   // threatFilter dims safe cells by shifting them toward the background tone
   const dimNonMatching = threatFilter !== "all";

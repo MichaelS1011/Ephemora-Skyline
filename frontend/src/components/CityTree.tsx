@@ -14,6 +14,7 @@ import {
 } from "../city/layout";
 import { buildSidewalkNetwork, plazaLanes } from "../city/sidewalks";
 import { ENV } from "../city/palette";
+import { SurfaceAnchor, SurfaceCurves } from "../render/WorldSurface";
 import { reviewKeyFor } from "../reviews";
 import type { CityFile } from "../city/types";
 import { RoadSystem } from "./RoadSystem";
@@ -285,35 +286,37 @@ export function CityTree() {
       {lodFar &&
         layout.blocks.length <= 24 &&
         layout.blocks.map((b) => (
-          <Html
-            key={`district-label-${b.dir.path}`}
-            center
-            distanceFactor={layout.bounds}
-            position={[b.x, 1.2, b.z]}
-            zIndexRange={[8, 0]}
-          >
-            <div
-              style={{
-                fontFamily: "'JetBrains Mono', ui-monospace, Menlo, monospace",
-                fontSize: 10,
-                color: "var(--meta-strong)",
-                background: "#121210",
-                border: "1px solid rgba(242, 239, 232, 0.14)",
-                borderRadius: 3,
-                padding: "2px 6px",
-                whiteSpace: "nowrap",
-                pointerEvents: "none",
-                textAlign: "center",
-              }}
+          <SurfaceAnchor key={`district-label-${b.dir.path}`} x={b.x} z={b.z}>
+            <Html
+              key={`district-label-${b.dir.path}`}
+              center
+              distanceFactor={layout.bounds}
+              position={[b.x, 1.2, b.z]}
+              zIndexRange={[8, 0]}
             >
-              {b.dir.name}
-              {b.dir.remainingFiles > 0 && (
-                <div style={{ fontSize: 10, opacity: 0.85 }}>
-                  {undergroundPlateLine(lang, b.dir.remainingFiles, b.dir.fileCount)}
-                </div>
-              )}
-            </div>
-          </Html>
+              <div
+                style={{
+                  fontFamily: "'JetBrains Mono', ui-monospace, Menlo, monospace",
+                  fontSize: 10,
+                  color: "var(--meta-strong)",
+                  background: "#121210",
+                  border: "1px solid rgba(242, 239, 232, 0.14)",
+                  borderRadius: 3,
+                  padding: "2px 6px",
+                  whiteSpace: "nowrap",
+                  pointerEvents: "none",
+                  textAlign: "center",
+                }}
+              >
+                {b.dir.name}
+                {b.dir.remainingFiles > 0 && (
+                  <div style={{ fontSize: 10, opacity: 0.85 }}>
+                    {undergroundPlateLine(lang, b.dir.remainingFiles, b.dir.fileCount)}
+                  </div>
+                )}
+              </div>
+            </Html>
+          </SurfaceAnchor>
         ))}
 
       {/* The Ephe's live here: walk the sidewalks between the buildings,
@@ -335,81 +338,87 @@ export function CityTree() {
       {/* Districts — built plots with skylines */}
       {!lodFar &&
         layout.blocks.map((b, i) => (
-          <District
-            key={b.dir.path}
-            placement={b}
-            appearAt={blockAppear(i)}
-            skylineAt={skylineAppear(i)}
-            constructing={animating}
-          />
+          <SurfaceAnchor key={b.dir.path} x={b.x} z={b.z}>
+            <District
+              placement={b}
+              appearAt={blockAppear(i)}
+              skylineAt={skylineAppear(i)}
+              constructing={animating}
+            />
+          </SurfaceAnchor>
         ))}
 
       {/* This level's own files on the central plaza */}
       {!lodFar &&
         layout.buildings.map((b, i) => (
-          <Building
-            key={b.file.id}
-            file={b.file}
-            x={b.x}
-            z={b.z}
-            w={b.w}
-            d={b.d}
-            h={b.h}
-            voxels={b.voxels}
-            highlightLine={voxelHighlight?.fileId === b.file.id ? voxelHighlight.line : null}
-            isLandmark={b.file.id === landmarkId}
-            dimmed={fileDimmed(b)}
-            focusTier={tiers.get(b.file.id) ?? null}
-            fullyReviewed={fullyReviewed(b.file)}
-            appearAt={buildingAppear(i)}
-            constructing={animating}
-          />
+          <SurfaceAnchor key={b.file.id} x={b.x} z={b.z}>
+            <Building
+              file={b.file}
+              x={b.x}
+              z={b.z}
+              w={b.w}
+              d={b.d}
+              h={b.h}
+              voxels={b.voxels}
+              highlightLine={voxelHighlight?.fileId === b.file.id ? voxelHighlight.line : null}
+              isLandmark={b.file.id === landmarkId}
+              dimmed={fileDimmed(b)}
+              focusTier={tiers.get(b.file.id) ?? null}
+              fullyReviewed={fullyReviewed(b.file)}
+              appearAt={buildingAppear(i)}
+              constructing={animating}
+            />
+          </SurfaceAnchor>
         ))}
 
       {/* Podium — honest aggregate of files not rendered as buildings */}
       {!lodFar && layout.podium && podiumVisible && (
-        <group position={[layout.podium.x, 0, layout.podium.z]}>
-          <mesh position={[0, 0.5, 0]}>
-            <boxGeometry args={[3.4, 1, 3.4]} />
-            <meshStandardMaterial color={ENV.plot} roughness={0.9} />
-          </mesh>
-          <mesh position={[0, 1.12, 0]}>
-            <boxGeometry args={[3.4, 0.08, 3.4]} />
-            <meshStandardMaterial
-              color={ENV.plotEdge}
-              emissive={ENV.plotEdge}
-              emissiveIntensity={0.4}
-            />
-          </mesh>
-          <Html center distanceFactor={40} position={[0, 1.9, 0]} zIndexRange={[8, 0]}>
-            <div className="cf-plate" style={{ background: "#121210" }}>
-              <div className="cf-plate-under">
-                {undergroundPlateLine(lang, layout.podium.count, layout.dir.fileCount)}
+        <SurfaceAnchor x={layout.podium.x} z={layout.podium.z}>
+          <group position={[layout.podium.x, 0, layout.podium.z]}>
+            <mesh position={[0, 0.5, 0]}>
+              <boxGeometry args={[3.4, 1, 3.4]} />
+              <meshStandardMaterial color={ENV.plot} roughness={0.9} />
+            </mesh>
+            <mesh position={[0, 1.12, 0]}>
+              <boxGeometry args={[3.4, 0.08, 3.4]} />
+              <meshStandardMaterial
+                color={ENV.plotEdge}
+                emissive={ENV.plotEdge}
+                emissiveIntensity={0.4}
+              />
+            </mesh>
+            <Html center distanceFactor={40} position={[0, 1.9, 0]} zIndexRange={[8, 0]}>
+              <div className="cf-plate" style={{ background: "#121210" }}>
+                <div className="cf-plate-under">
+                  {undergroundPlateLine(lang, layout.podium.count, layout.dir.fileCount)}
+                </div>
               </div>
-            </div>
-          </Html>
-        </group>
+            </Html>
+          </group>
+        </SurfaceAnchor>
       )}
 
       {/* Import arcs connect once the district stands; static file arcs
           collapse to the selection's edges — idle cities stay clean.
           DEPENDENCIES mode (spec §14): dir arcs stay on in every district
           (the whole point of the lens) and glow as the active layer. */}
-      <CityConnections
-        layout={layout}
-        fileConnections={cityData.fileConnections}
-        dirConnections={cityData.dirConnections}
-        showDirArcs={(viewMode === "dependencies" || isRoot) && buildPhase === "built"}
-        showFileArcs={buildPhase === "built" && selectedFileId !== null}
-        selectedFileId={selectedFileId}
-        highlight={viewMode === "dependencies"}
-      />
+      <SurfaceCurves>
+        <CityConnections
+          layout={layout}
+          fileConnections={cityData.fileConnections}
+          dirConnections={cityData.dirConnections}
+          showDirArcs={(viewMode === "dependencies" || isRoot) && buildPhase === "built"}
+          showFileArcs={buildPhase === "built" && selectedFileId !== null}
+          selectedFileId={selectedFileId}
+          highlight={viewMode === "dependencies"}
+        />
 
-      {/* Directed particle streams for the selected building */}
-      <DependencyFlows layout={layout} fileConnections={cityData.fileConnections} />
+        {/* Directed particle streams for the selected building */}
+        <DependencyFlows layout={layout} fileConnections={cityData.fileConnections} />
 
-      {/* Copy-paste clones connected by harsh yellow lasers */}
-      {!lodFar && <CloneLasers layout={layout} cityData={cityData} />}
+        {/* Copy-paste clones connected by harsh yellow lasers */}
+        {!lodFar && <CloneLasers layout={layout} cityData={cityData} />}
+      </SurfaceCurves>
     </group>
   );
 }

@@ -284,6 +284,48 @@ describe("project overview", () => {
 });
 
 describe("scan summary", () => {
+  it("names missing checks without claiming that no scanner ran", async () => {
+    const text = await show(
+      <ScanSummary />,
+      cityData({
+        findingsBySeverity: { P0: 0, P1: 0, P2: 0 },
+        scanProvenance: {
+          regex: true,
+          gitleaks: true,
+          semgrep: false,
+          dependencies: false,
+          osv: false,
+          ruff: false,
+        },
+      }),
+    );
+    expect(text).toContain("No findings — semgrep");
+    expect(text).toContain("did not run");
+    expect(text).not.toContain("No scanner ran");
+  });
+
+  it("keeps unknown scan depth distinct from a known partial scan", async () => {
+    const text = await show(
+      <ScanSummary />,
+      cityData({ findingsBySeverity: { P0: 0, P1: 0, P2: 0 } }),
+    );
+    expect(text).toContain("scan depth unknown");
+    expect(text).not.toContain("No scanner ran");
+  });
+
+  it("labels the demo's findings as samples instead of a completed scan", async () => {
+    const text = await show(<ScanSummary demo />, cityData());
+    expect(text).toContain("Demo · sample findings, no scan");
+    expect(text).toContain("92 sample files");
+    expect(text).not.toContain("Scan complete");
+  });
+
+  it("qualifies findings from test files next to the severity counts", async () => {
+    const text = await show(<ScanSummary />, cityData({ findingsInTests: 3 }));
+    expect(text).toContain("3 of 7 findings are in test files");
+    expect(text).toContain("Check fixtures before treating them as real risks");
+  });
+
   it("reports the .gitignore exclusions the moment the city is declared done", async () => {
     const text = await show(<ScanSummary />, cityData());
     expect(text).toContain("92 files analyzed");

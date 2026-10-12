@@ -53,6 +53,13 @@ jobs:
     name: Test
     runs-on: ubuntu-latest
     needs: build
+    # The runner has Docker and no semgrep binary. Without this the adapter's
+    # convenience fallback would pull an image from the registry inside a test
+    # that waits 30 s — the badge would measure the network, not the code. The
+    # scan then reports the engine as not run, which is what an absent engine
+    # means on any other machine.
+    env:
+      SEMGREP_DOCKER: "0"
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4

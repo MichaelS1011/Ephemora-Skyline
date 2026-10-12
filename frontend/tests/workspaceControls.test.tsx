@@ -125,7 +125,7 @@ describe("city action menu", () => {
     expect(more.getAttribute("aria-expanded")).toBe("true");
     expect(document.activeElement).toBe(button("Run tests"));
     await press("ArrowDown");
-    expect(document.activeElement).toBe(button("Export PNG"));
+    expect(document.activeElement).toBe(button("City image or video"));
     await press("End");
     expect(document.activeElement).toBe(button("Copy city link"));
     await press("Escape");
@@ -144,7 +144,7 @@ describe("city action menu", () => {
     await click(button("More"));
     expect(button("Run tests").disabled).toBe(true);
     expect(button("Copy city link").disabled).toBe(true);
-    expect(document.activeElement).toBe(button("Export PNG"));
+    expect(document.activeElement).toBe(button("City image or video"));
   });
 
   it("explains clipboard failures instead of failing silently", async () => {
@@ -159,12 +159,13 @@ describe("city action menu", () => {
     );
   });
 
-  it("explains when the canvas is not available for export", async () => {
+  it("opens the image and video studio from one menu action", async () => {
+    const onOpen = vi.fn();
+    window.addEventListener("ephemora:open-share-studio", onOpen, { once: true });
     await click(button("More"));
-    await click(button("Export PNG"));
-    expect(container.querySelector('[role="alert"]')?.textContent).toContain(
-      "The city view is not ready",
-    );
+    await click(button("City image or video"));
+    expect(onOpen).toHaveBeenCalledOnce();
+    expect(container.querySelector('[role="menu"]')).toBeNull();
   });
 });
 

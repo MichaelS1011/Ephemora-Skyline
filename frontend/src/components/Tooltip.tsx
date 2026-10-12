@@ -1,9 +1,19 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useStore } from "../stores/useStore";
 import { getDirLayout } from "../city/layout";
-import { languageColor, SEVERITY_COLOR, THREAT_COLOR, UNCHECKED_COLOR } from "../city/palette";
-import { isUncheckedClean } from "../city/provenance";
-import type { ThreatLevel } from "../city/types";
+import {
+  languageColor,
+  REVIEWED_BEACON_COLOR,
+  severityColor,
+  threatColor,
+  UNCHECKED_COLOR,
+} from "../city/palette";
+import {
+  isUncheckedClean,
+  missingEnginesForDistrict,
+  uncheckedFileCount,
+} from "../city/provenance";
+import type { Severity } from "../city/types";
 import { t } from "../i18n";
 import { inputIsKeyboard, resolve } from "../interaction/shortcuts";
 import { getKeyboardMark } from "../interaction/keyboardMark";
@@ -21,6 +31,7 @@ const KEYBOARD_TOP = 168;
 
 export function Tooltip() {
   const lang = useStore((s) => s.prefs.lang);
+  const colorblind = useStore((s) => s.prefs.colorblind);
   const cityData = useStore((s) => s.cityData);
   const focusPath = useStore((s) => s.focusPath);
   const hoveredId = useStore((s) => s.hoveredId);
@@ -117,27 +128,52 @@ export function Tooltip() {
       files: block.dir.fileCount,
       loc: block.dir.linesOfCode.toLocaleString(),
     });
-    if (block.dir.findingsBySeverity.P0 > 0) {
-      accent = SEVERITY_COLOR.P0;
+    const counts = block.dir.findingsBySeverity;
+    // The chain used to stop at P1: a district whose only findings were medium
+    // fell into the else and was announced green as "keine Funde". Measured on
+    // the demo city: frontend/src/stores holds 1 medium finding and was the one
+    // district the badge lied about. Every severity the city carries has to
+    // answer before "nothing here" is allowed to speak.
+    const worst: Severity | null =
+      counts.P0 > 0 ? "P0" : counts.P1 > 0 ? "P1" : counts.P2 > 0 ? "P2" : null;
+    if (worst) {
+      accent = severityColor(worst, colorblind);
+      badgeColor = severityColor(worst, colorblind);
+      const n = counts[worst];
       badge = t(
         lang,
-        block.dir.findingsBySeverity.P0 === 1
-          ? "tooltip.badgeCriticalOne"
-          : "tooltip.badgeCriticalMany",
-        { count: block.dir.findingsBySeverity.P0 },
+        worst === "P0"
+          ? n === 1
+            ? "tooltip.badgeCriticalOne"
+            : "tooltip.badgeCriticalMany"
+          : worst === "P1"
+            ? n === 1
+              ? "tooltip.badgeHighOne"
+              : "tooltip.badgeHighMany"
+            : n === 1
+              ? "tooltip.badgeMediumOne"
+              : "tooltip.badgeMediumMany",
+        { count: n },
       );
-      badgeColor = SEVERITY_COLOR.P0;
-    } else if (block.dir.findingsBySeverity.P1 > 0) {
-      accent = SEVERITY_COLOR.P1;
-      badge = t(
-        lang,
-        block.dir.findingsBySeverity.P1 === 1 ? "tooltip.badgeHighOne" : "tooltip.badgeHighMany",
-        { count: block.dir.findingsBySeverity.P1 },
-      );
-      badgeColor = SEVERITY_COLOR.P1;
     } else {
-      badge = t(lang, "tooltip.badgeNone");
-      badgeColor = "#29d398";
+      // Zero findings is only a result where an engine could have made one. The
+      // file line has said this since `isUncheckedClean`; the district line
+      // painted the same fact green — measured on demo-001: 9 of 17 districts,
+      // every one of them with all its files unverified by the two switched-off
+      // engines.
+      const missing = missingEnginesForDistrict(block.dir, cityData.scanProvenance);
+      const unchecked = uncheckedFileCount(block.dir);
+      if (missing.length > 0 && unchecked > 0) {
+        badge = t(
+          lang,
+          unchecked === 1 ? "tooltip.dirBadgeUncheckedOne" : "tooltip.dirBadgeUnchecked",
+          { n: unchecked, engines: missing.join(", ") },
+        );
+        badgeColor = UNCHECKED_COLOR;
+      } else {
+        badge = t(lang, "tooltip.badgeNone");
+        badgeColor = REVIEWED_BEACON_COLOR;
+      }
     }
     hint =
       getKeyboardMark()?.path === blockPath
@@ -155,13 +191,13 @@ export function Tooltip() {
     subtitle = b.file.path;
     accent = languageColor(b.file.language);
     if (b.file.findings.length > 0) {
-      accent = THREAT_COLOR[b.file.threatLevel as ThreatLevel] ?? accent;
+      accent = threatColor(b.file.threatLevel, colorblind);
       badge = t(
         lang,
         b.file.findings.length === 1 ? "tooltip.fileFindingsOne" : "tooltip.fileFindingsMany",
         { loc, count: b.file.findings.length },
       );
-      badgeColor = THREAT_COLOR[b.file.threatLevel as ThreatLevel] ?? SEVERITY_COLOR.P0;
+      badgeColor = threatColor(b.file.threatLevel, colorblind);
       // Selecting happens on click (no camera move); double-click starts the
       // orbit-inspect mode — teach that gesture for EVERY building, findings
       // or not.
@@ -176,7 +212,7 @@ export function Tooltip() {
       badge = isUncheckedClean(b.file)
         ? t(lang, "tooltip.fileBadgeUnchecked", { loc, engines: b.file.unverifiedBy!.join(", ") })
         : t(lang, "tooltip.fileBadgeNone", { loc });
-      badgeColor = isUncheckedClean(b.file) ? UNCHECKED_COLOR : "#29d398";
+      badgeColor = isUncheckedClean(b.file) ? UNCHECKED_COLOR : REVIEWED_BEACON_COLOR;
       hint = byKeyboard
         ? resolve(lang, {
             key: "tooltip.noFindingsOrbitHintKeyboard",

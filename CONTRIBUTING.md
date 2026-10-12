@@ -20,14 +20,23 @@ npm run dev                 # backend :4000 + frontend :3010
 
 Optional, for the deeper scans: put `gitleaks`, `semgrep`, `osv-scanner` and `ruff` on your `PATH`. Without them the corresponding checks report themselves as skipped — they never pretend to have run.
 
+**Two checkouts on one machine.** The backend owns `:4000` and will not share it — it says so and exits rather than dying in a stack trace. The dev server moves itself to `:3011` when `:3010` is taken, so give the second checkout all three numbers and it runs beside the first:
+
+```bash
+PORT=4100 FRONTEND_ORIGIN=http://localhost:3011 npm run dev --workspace backend
+BACKEND_PORT=4100 npm run dev --workspace frontend -- --port 3011
+```
+
+`FRONTEND_ORIGIN` is what the write guard reads: without it, every upload from the moved page is refused, because the guard only admits the origins it was told to serve. `BACKEND_PORT` is what the dev proxy reads: without it, the second frontend keeps talking to the **first** checkout's backend and your server-side edits appear to do nothing.
+
 ## Before you open a PR — the four gates
 
-These are exactly what CI enforces. Run them clean first:
+These are exactly what CI enforces: the steps in `.github/workflows/ci.yml`, which triggers on pushes to `main` and on pull requests against it. Run them clean first:
 
 ```bash
 npm run lint          # ESLint, zero warnings
 npm run type-check    # tsc --noEmit across both packages
-npm run test          # Vitest — 800 tests in 98 files (420 frontend, 380 backend)
+npm run test          # Vitest — 185 test files: 110 frontend, 75 backend (2026-10-11)
 npm run build         # production build, both packages
 ```
 
@@ -43,7 +52,7 @@ A fifth check runs in CI: `node scripts/audit-gate.mjs`. It fails on every high 
 ## What will and will not be merged
 
 - Merged: bug fixes, accessibility, clarity, performance, tests, docs.
-- Discuss first: new dependencies, new top-level components, changes to the scanner adapters, anything touching the analyze pipeline caps (3000 files / 40 MB).
+- Discuss first: new dependencies, new top-level components, changes to the scanner adapters, anything touching the analyze pipeline caps (10,000 files / 150 MB).
 - Not merged: telemetry, cloud analysis of local code, license or branding changes.
 
 ## License

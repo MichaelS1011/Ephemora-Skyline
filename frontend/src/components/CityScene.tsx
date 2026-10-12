@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef } from "react";
 import { useThree } from "@react-three/fiber";
 import type { PerspectiveCamera } from "three";
 import { useStore } from "../stores/useStore";
+import { defaultOverviewPath } from "../city/overview";
 import { getDirLayout, overviewShot } from "../city/layout";
 import { OPEN_WORLD_DIRECT_STEP, buildOpenWorld } from "../city/openWorldStreets";
 import { ENV } from "../city/palette";
@@ -85,6 +86,7 @@ export function CityScene() {
   const cityData = useStore((s) => s.cityData);
   const focusPath = useStore((s) => s.focusPath);
   const requestFly = useStore((s) => s.requestFly);
+  const poseRequest = useStore((s) => s.poseRequest);
   const buildStartedAt = useStore((s) => s.buildStartedAt);
   const buildPhase = useStore((s) => s.buildPhase);
   const { camera, gl } = useThree();
@@ -121,7 +123,7 @@ export function CityScene() {
       // below.
       if (craneBuildRef.current !== buildStartedAt) {
         craneBuildRef.current = buildStartedAt;
-        const { centre } = getDirLayout(cityData, []);
+        const { centre } = getDirLayout(cityData, defaultOverviewPath(cityData));
         camera.position.set(centre.x + 14, 2.2, centre.z + 26);
         camera.lookAt(centre.x, 1.5, centre.z);
       }
@@ -139,7 +141,14 @@ export function CityScene() {
     // only for the build this crane is armed for, and only once
     if (craneBuildRef.current !== buildStartedAt || overviewRef.current === buildStartedAt) return;
     overviewRef.current = buildStartedAt;
-    const layout = getDirLayout(cityData, []);
+    // A returning pilot asked for a view; the reveal would take a different one.
+    // The skip the camera end already asks for only reaches a tween — under
+    // reduced motion a flight is one instant write with nothing to cancel, and it
+    // threw the pilot out of the view they came back to (measured: 3 of 4 reloads,
+    // 8,577–185,254 units off at t ≈ 2,5 s, long after the 320 ms hold expired).
+    // Not asking is the same decision a frame earlier, and it holds in both modes.
+    if (poseRequest) return;
+    const layout = getDirLayout(cityData, defaultOverviewPath(cityData));
     // The shot the store's own "Overview" flight uses — not a distance floor of
     // its own. `bounds × 1.6` sized to the level's half-extent is right for a
     // city that fills its square; for the two-file repo the audit photographed
@@ -162,7 +171,7 @@ export function CityScene() {
       overview: true,
       duration: 2.6,
     });
-  }, [cityData, buildPhase, buildStartedAt, requestFly]);
+  }, [cityData, buildPhase, buildStartedAt, requestFly, poseRequest]);
 
   const frame = useMemo(() => {
     if (!cityData) return { bounds: 60, centre: { x: 0, z: 0 }, radius: 60, surface: FLAT_SURFACE };

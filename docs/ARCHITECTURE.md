@@ -29,7 +29,7 @@ codecity-cyberdefense/          # internal package name (owner-locked)
 **Turborepo tasks** (`turbo.json`):
 
 - `dev`: `cache: false`, `persistent: true` — starts both workspaces
-- `build`: `dependsOn: ["^build"]` (backend first), cached, `inputs: ["src/**","*.json","*.ts","*.js"]`, `outputs: ["dist/**"]`
+- `build`: `dependsOn: ["^build"]` (backend first), cached, `inputs: ["src/**","*.json","*.ts","*.js"]`, `outputs: ["dist/**", ".next/**", "build/**"]` — the workspaces write `dist/`; the other two entries are Turborepo's framework defaults and nothing here produces them
 - `lint`, `type-check`, `test`, `clean`: `cache: false` and **no** `dependsOn` — they read the source tree, so a build first would only slow them down
 
 ## Backend Architecture
@@ -116,13 +116,12 @@ frontend/src/
 │   ├── RoadSystem.tsx      # Connecting roads between buildings
 │   ├── ParticleField.tsx   # Drifting particles over the plaza (atmosphere layer)
 │   └── SearchBar.tsx       # Search files by name, path or language — results fly the camera
-├── renderer/               # 3D renderer components
+├── render/                 # sky, ground and world surface, drawn under the city
 ├── hooks/
 │   └── useLocalAnalysis.ts # folder pick → upload → poll /api/status for progress
 ├── stores/
 │   └── useStore.ts         # Zustand store (global state)
-├── design/                 # Design system: colors, daylight city theme
-└── vite-env.d.ts           # Vite type declarations
+└── design/                 # Design system: colors, daylight city theme
 ```
 
 ### Tech-Stack Decisions
@@ -172,7 +171,7 @@ removed `render.yaml` / `vercel.json` and what replaces them is written out in
 ### Root
 
 - **Turborepo** — monorepo orchestrator
-- **TypeScript 5.8** — typing
+- **TypeScript 5.9** — typing
 - **ESLint 9 + @typescript-eslint v8** — Flat Config
 - **Prettier** — code formatting
 - **Husky + lint-staged** — git hooks (auto-lint on commit)
@@ -203,7 +202,7 @@ removed `render.yaml` / `vercel.json` and what replaces them is written out in
 ### Data Flow
 
 ```
-GitHub Repo ──clone──▶ Orchestrator ──FileAnalysis[]──▶ cityMapper ──CityData──▶ Store ──▶ 3D scene
+Folder picked in the browser ──File[] over loopback──▶ Orchestrator ──FileAnalysis[]──▶ cityMapper ──CityData──▶ Store ──▶ 3D scene
 ```
 
 - **`backend/src/utils/cityMapper.ts`** builds a hierarchical directory tree

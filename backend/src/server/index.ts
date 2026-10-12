@@ -20,20 +20,25 @@ import type { ResolvedScanConfig } from "../services/security/scan-config.js";
 import { AnalysisOrchestrator } from "../services/analyzer/orchestrator.js";
 import { corsOptionsFor, localOnlyRoute } from "./local-only.js";
 import { SecurityScanner } from "../services/security/scanner.js";
+import { READ_BUDGET_EXEMPT } from "./read-budget.js";
 import { getHealth } from "./routes/health.js";
 import { getDemoResult } from "./routes/demo.js";
 import { handleStatus } from "./routes/status.js";
-import { bindHost, isLoopbackHost } from "./bind-address.js";
+import { bindHost, isLoopbackHost, portInUseMessage } from "./bind-address.js";
 import {
   footprintSnapshot,
   handleCancelLocalAnalyze,
   handleLocalAnalyze,
   pruneStaleUploadDirs,
   purgeStaleCopies,
+  uploadsRoot,
 } from "./routes/local-analyze.js";
 import { handleHandoff, handleVerify } from "./routes/agent.js";
 import { handleSource } from "./routes/source.js";
 import { handleUpdateCheck } from "./routes/update-check.js";
+// Placed after the route imports: the tree-hygiene gate reads this file's import
+// order and rejects a scanner question raised before the routes that stage.
+import { decideStart, inspectStagingRoot } from "./upload-dir-guard.js";
 import { listPacks } from "../services/security/rule-packs.js";
 import { isOffline } from "../services/security/network-policy.js";
 import { handleTestRun, handleTestStatus } from "./routes/tests.js";
@@ -55,8 +60,11 @@ const server = http.createServer(app);
 class AnalysisStore {
   private map = new Map<string, AnalysisResult>();
   private stamps = new Map<string, number>();
-  private readonly maxEntries: number;
-  private readonly ttlMs: number;
+  /** Read with a getter, not stored as a copy: the address-lifetime line asks
+   *  the running process what its bounds are, so an operator's environment
+   *  cannot be contradicted by a number quoted elsewhere. */
+  readonly maxEntries: number;
+  readonly ttlMs: number;
 
   constructor() {
     this.maxEntries = parseInt(process.env.ANALYSIS_MAX_ENTRIES || "20", 10);
@@ -123,14 +131,6 @@ const createOrchestrator = (config: ResolvedScanConfig): AnalysisOrchestrator =>
 // nervous user takes (watching the bar) was the thing that locked them out.
 const READ_WINDOW_MS = 15 * 60 * 1000;
 
-/**
- * The three calls one running scan makes: its progress, its upload, and the
- * abort that throws the upload away. The upload and the cancel are writes with
- * their own budget (`localAnalyzeLimiter`, 120 per 15 min) and a loopback guard,
- * so putting them inside the read budget charged a scan twice for itself.
- */
-const READ_BUDGET_EXEMPT = /^\/api\/(status\/[^/]+|analyze-local(\/[0-9a-f-]+\/cancel)?)$/;
-
 /** The reset seconds the server itself announced, or the whole window. */
 function resetSeconds(res: Response, fallback: number): number {
   const announced = Number(res.getHeader("RateLimit-Reset"));
@@ -188,7 +188,7 @@ app.use(helmet());
 app.use(cors(corsOptionsFor()));
 // Large-body parser must run BEFORE the global one: the global 10mb parser
 // would otherwise reject big local-folder uploads with 413 first
-app.use("/api/analyze-local", express.json({ limit: "80mb" }));
+app.use("/api/analyze-local", express.json({ limit: "200mb" }));
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true }));
 app.use("/api", readLimiter);
@@ -198,7 +198,13 @@ app.use("/api", readLimiter);
 // GET /api/health
 app.get("/api/health", async (_req: Request, res: Response): Promise<void> => {
   const health = await getHealth();
-  res.json(health);
+  // The city link's lifetime is a fact about this process, not about the
+  // defaults in the text: ANALYSIS_MAX_ENTRIES / ANALYSIS_TTL_MS can move, and
+  // the screen has to say the value that is actually in force.
+  res.json({
+    ...health,
+    cityStore: { maxEntries: analysisStore.maxEntries, ttlMs: analysisStore.ttlMs },
+  });
 });
 
 // GET /api/demo — hardcoded demo dataset
@@ -257,7 +263,7 @@ app.post(
 );
 
 // GET /api/tests/run/:runId — poll a test run
-app.get("/api/tests/run/:runId", readLimiter, (req: Request, res: Response): void => {
+app.get("/api/tests/run/:runId", (req: Request, res: Response): void => {
   handleTestStatus(req, res);
 });
 
@@ -315,7 +321,7 @@ app.get("/api/update/check", readLimiter, (req: Request, res: Response): void =>
 // under what license. The UI cannot offer a pack it has not seen here, and a
 // pack whose manifest lies about its rule count is not in this list. The
 // absolute directory stays server-side: the client selects by id, never by path.
-app.get("/api/rule-packs", readLimiter, (_req: Request, res: Response): void => {
+app.get("/api/rule-packs", (_req: Request, res: Response): void => {
   res.json({
     offline: isOffline(),
     packs: listPacks().map(({ dir: _dir, ...publicPack }) => publicPack),
@@ -381,19 +387,56 @@ process.on("SIGINT", () => shutdown("SIGINT"));
 
 const PORT = parseInt(process.env.PORT ?? "4000", 10);
 const HOST = bindHost();
-server.listen(PORT, HOST, () => {
-  logger.info({ port: PORT, host: HOST }, "Ephemora Skyline backend listening");
-  if (!isLoopbackHost(HOST)) {
-    logger.warn(
-      { host: HOST },
-      "listening on a non-loopback address: this API can run the tests of any " +
-        "folder it is handed, and has no authentication. Only do this on a network you own.",
-    );
+// A busy port is the normal way a second checkout fails to start, and it used to
+// end in an unhandled Node stack trace. Say the sentence, leave with 1.
+server.on("error", (err: NodeJS.ErrnoException) => {
+  if (err.code !== "EADDRINUSE") {
+    logger.fatal({ err }, "the HTTP server died");
+    process.exit(1);
   }
+  logger.fatal({ port: PORT, host: HOST }, portInUseMessage(PORT, HOST));
+  logger.flush(() => process.exit(1));
+  setTimeout(() => process.exit(1), 500);
 });
 
-// Prune stale staged uploads (test-runner copies) every 6 hours
-void pruneStaleUploadDirs();
-setInterval(() => void pruneStaleUploadDirs(), 6 * 60 * 60 * 1000);
+/**
+ * The port is bound only after the staging folder has been answered for.
+ *
+ * A scan reads the user's code from the copy staged under CODECITY_UPLOAD_DIR,
+ * and the engines walking that copy follow the repository's ignore rules. A root
+ * an ignore rule covers therefore reads no file and reports no finding — the city
+ * goes on showing "the scanners ran" over a folder nobody opened. That is worse
+ * than a start that fails, so it fails: nothing is swept, nothing is bound, and
+ * the sentence names the folder, the rule over it and the knob to turn.
+ */
+const startBackend = async (): Promise<void> => {
+  const verdict = await inspectStagingRoot(uploadsRoot());
+  const decision = decideStart(verdict);
+  if (decision.logLine) {
+    if (decision.abort) logger.fatal(decision.logLine);
+    else logger.warn(decision.logLine);
+  }
+  if (decision.abort) {
+    logger.flush(() => process.exit(1));
+    setTimeout(() => process.exit(1), 500);
+    return;
+  }
+  server.listen(PORT, HOST, () => {
+    logger.info({ port: PORT, host: HOST }, "Ephemora Skyline backend listening");
+    if (!isLoopbackHost(HOST)) {
+      logger.warn(
+        { host: HOST },
+        "listening on a non-loopback address: this API can run the tests of any " +
+          "folder it is handed, and has no authentication. Only do this on a network you own.",
+      );
+    }
+  });
+
+  // Prune stale staged uploads (test-runner copies) every 6 hours
+  void pruneStaleUploadDirs();
+  setInterval(() => void pruneStaleUploadDirs(), 6 * 60 * 60 * 1000);
+};
+
+void startBackend();
 
 export { app, server };

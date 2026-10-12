@@ -3,7 +3,7 @@ import { act, createElement } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { DICT, t, type DictKey, type Lang } from "../src/i18n";
-import { ENGINES, PROFILE_DURATION, SCAN_PROFILES } from "../src/config/scanProfiles";
+import { ENGINES, SCAN_PROFILES } from "../src/config/scanProfiles";
 import { FINDING_CATEGORIES } from "../src/config/findingCategories";
 import { describeGitignoreSkips } from "../src/city/provenance";
 import { explainDistrictDraw } from "../src/city/layout";
@@ -26,8 +26,8 @@ import type { CityData, CityDir, CityFile } from "../src/city/types";
  *     en-Werte sind wörtlich die alten Sätze, auch die der Tabellen
  *     (Profile, Engines, Kategorien), die jetzt Wörterbuch-Schlüssel tragen.
  *
- * Der Detektor ist dieselbe Messregel wie .qoder-scratch/panels/en-count.mjs
- * (Browser-Lauf vorher/nachher). .qoder-scratch ist gitignore-Arbeit, deshalb
+ * Der Detektor ist dieselbe Messregel wie a local measurement script that is not shipped
+ * (Browser-Lauf vorher/nachher). local scratch work ist gitignore-Arbeit, deshalb
  * steht die Regel hier und wird gegen dieses Wörterbuch kalibriert.
  */
 
@@ -360,6 +360,7 @@ describe("Englisch bleibt, was vor der Übersetzung im DOM stand", () => {
         "hints.catNavigation",
         "hints.catTriage",
         "profile.standard",
+        "studio.video",
         "engine.secrets",
         "cat.secrets",
       ]),
@@ -468,12 +469,13 @@ describe("die Panels antworten in der gewählten Sprache", () => {
   });
 
   it("Profil-Chips und Detailkarte: Deutsch ohne englisches Label", async () => {
-    const host = await show(createElement(ProfileChips, { variant: "landing" }), "de");
+    // Der Flächen-Block (Kategorien, Regel-Packs) sitzt nur noch in der Stadt.
+    const host = await show(createElement(ProfileChips, { variant: "analyze-panel" }), "de");
     const chips = host.querySelector(".profile-options:not(.category-options)");
     const labels = [...(chips?.querySelectorAll("button") ?? [])].map((b) =>
       (b.textContent ?? "").replace("✓ ", "").trim(),
     );
-    expect(labels).toEqual(["Schnell", "Standard", "Tief", "Sicherheit", "Qualität", "Eigene"]);
+    expect(labels).toEqual(["Schnell", "Standard", "Tief", "Sicherheit", "Qualität"]);
     const categoryLabels = [
       ...(host.querySelectorAll(".category-options button") as NodeListOf<HTMLButtonElement>),
     ].map((b) => (b.textContent ?? "").replace("✓ ", "").trim());
@@ -487,26 +489,29 @@ describe("die Panels antworten in der gewählten Sprache", () => {
     const card = host.querySelector(".profile-detail");
     expect(card).not.toBeNull();
     const s = text(card as HTMLElement);
-    expect(s).toContain("Hier steht genau, was geprüft wird");
+    expect(s).toContain("Angeforderte Prüfungen");
     expect(s).toContain("Code-Muster");
     expect(s).toContain("Tiefe AST-Regeln");
     expect(s).toContain("BERICHT:");
     expect(s).toContain("DIESES PROFIL NEHMEN");
-    expect(s).toContain(PROFILE_DURATION.standard);
+    // The dialog used to print a reference time here; the row is gone with the
+    // unbacked number, and this pins that no seconds came back in its place.
+    expect(s).not.toMatch(/~\d+\s*(s|Sekunden)\b/i);
+    expect(s).not.toContain("REFERENZZEIT:");
     expect(offenders(host)).toEqual([]);
   });
 
   it("Profil-Chips: Englische Beschriftungen bleiben byte-identisch", async () => {
-    const host = await show(createElement(ProfileChips, { variant: "landing" }), "en");
+    const host = await show(createElement(ProfileChips, { variant: "analyze-panel" }), "en");
     const chips = host.querySelector(".profile-options:not(.category-options)");
     const labels = [...(chips?.querySelectorAll("button") ?? [])].map((b) =>
       (b.textContent ?? "").replace("✓ ", "").trim(),
     );
-    expect(labels).toEqual(["Quick", "Standard", "Deep", "Security", "Quality", "Custom"]);
+    expect(labels).toEqual(["Quick", "Standard", "Deep", "Security", "Quality"]);
     const categoryLabels = [
       ...(host.querySelectorAll(".category-options button") as NodeListOf<HTMLButtonElement>),
     ].map((b) => (b.textContent ?? "").replace("✓ ", "").trim());
     expect(categoryLabels).toEqual(FINDING_CATEGORIES.map((c) => t("en", c.label)));
-    expect(host.textContent ?? "").toContain(PROFILE_DURATION.standard);
+    expect(host.textContent ?? "").toContain(t("en", "profile.durationNote"));
   });
 });

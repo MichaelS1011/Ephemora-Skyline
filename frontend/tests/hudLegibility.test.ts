@@ -1,9 +1,9 @@
 import { describe, it, expect } from "vitest";
 import {
-  liftHexForDusk,
   THREAT_COLOR,
   UNCHECKED_COLOR,
   ENV,
+  threatColor,
   severityColor,
 } from "../src/city/palette";
 import { landmarkFileId } from "../src/city/layout";
@@ -11,6 +11,7 @@ import type { CityData, CityFile } from "../src/city/types";
 
 // ── WCAG relative luminance / contrast, so the assertions are the same
 // numbers the browser probe reported for task #30.
+
 function lin(c: number): number {
   const s = c / 255;
   return s <= 0.04045 ? s / 12.92 : Math.pow((s + 0.055) / 1.055, 2.4);
@@ -27,44 +28,55 @@ function contrast(a: string, b: string): number {
   return (Math.max(la, lb) + 0.05) / (Math.min(la, lb) + 0.05);
 }
 
-describe("#30 far-view heat-cell legibility lift", () => {
-  const ground = "#3a372d"; // Legacy dusk helper remains available.
-  const safe = THREAT_COLOR.safe;
+/**
+ * #30 — die ruhigen Stufen des Heat-Rasters.
+ *
+ * Dieser Block hieß früher „far-view heat-cell legibility lift" und rechnete
+ * fünf seiner sieben Fälle gegen `liftHexForDusk` auf einem Dämmerboden
+ * `#3a372d`. Beides war nicht mehr im Bild: `HeatCells.tsx` malt
+ * `threatColor(...)` und `UNCHECKED_COLOR` unverändert, und die Welt steht
+ * seit dem Tageslichtpass auf `ENV.ground`. Zwei davon behaupteten eine
+ * Lesbarkeit *des Bildes*, gemessen haben sie eine Zahl *der Quelle* — ein
+ * Wächter, der nichts mehr anfassen kann, weil das Angefasste weg ist.
+ *
+ * Die Fälle sind auf die Werte umgestellt, die tatsächlich gemalt werden, und
+ * sagen jetzt, was sie messen: Töne, die ins Bild gehen, gegen den Boden, den
+ * das Bild hat. Auf dem heutigen Band bestehen sie ohne jeden Lift, mit 6,44:1
+ * (`safe`) und 3,91:1 (`unchecked`) gegen die erklärte 2,5:1. `tests/
+ * klein12-deadGuard.test.ts` hält fest, dass kein Legibilitätsfall hier wieder
+ * von einem Helfer ohne Leser in der Bildkette abhängt.
+ */
+describe("#30 calm heat tiles on the ground the city paints", () => {
+  /** Der Ton, den HeatCells wirklich malt — nicht die Tabelle dahinter. */
+  const safe = threatColor("safe", false);
   const unchecked = UNCHECKED_COLOR;
+  const ground = ENV.ground;
 
-  it("raises the calm `safe` tile off the dusk ground (was 1.76:1)", () => {
-    expect(contrast(safe, ground)).toBeLessThan(2); // measured before-state
-    expect(contrast(liftHexForDusk(safe), ground)).toBeGreaterThanOrEqual(2.5);
-  });
-
-  it("raises the `unchecked` tile off the ground too", () => {
-    expect(contrast(liftHexForDusk(unchecked), ground)).toBeGreaterThan(
-      contrast(unchecked, ground),
+  it("keeps the calm `safe` tile readable on the shipped ground (measured 6.44:1)", () => {
+    expect(safe, "threatColor gibt einen anderen Ton als THREAT_COLOR.safe").toBe(
+      THREAT_COLOR.safe,
+    );
+    expect(contrast(safe, ground), "`safe` steht auf dem Boden von heute").toBeGreaterThanOrEqual(
+      2.5,
     );
   });
 
-  it("never lets `unchecked` lose its separation from `safe`", () => {
-    const ls = relLum(liftHexForDusk(safe));
-    const lu = relLum(liftHexForDusk(unchecked));
-    // ordering kept: unchecked stays lighter than safe
-    expect(lu).toBeGreaterThan(ls);
-    // and the pair is still told apart (>= 1.3:1 luminance ratio)
-    expect(contrast(liftHexForDusk(unchecked), liftHexForDusk(safe))).toBeGreaterThanOrEqual(1.3);
+  it("keeps the `unchecked` tile readable on the shipped ground (measured 3.91:1)", () => {
+    expect(contrast(unchecked, ground)).toBeGreaterThanOrEqual(2.5);
   });
 
-  it("is monotonic — the lift never darkens a tile or reorders the ramp", () => {
+  it("keeps `unchecked` apart from `safe` — lighter, and told apart (measured 1.65:1)", () => {
+    expect(relLum(unchecked), "ungelesen muss heller bleiben als ruhig").toBeGreaterThan(
+      relLum(safe),
+    );
+    expect(contrast(unchecked, safe)).toBeGreaterThanOrEqual(1.3);
+  });
+
+  it("keeps the alarm end hotter than the calm end", () => {
     for (const sev of ["P0", "P1", "P2"] as const) {
       const hex = severityColor(sev, false);
-      expect(relLum(liftHexForDusk(hex))).toBeGreaterThanOrEqual(relLum(hex) - 1e-6);
+      expect(relLum(hex), `${sev} dunkler als die ruhige Stufe`).toBeGreaterThan(relLum(safe));
     }
-    // hot ends stay hotter than the calm safe end after lifting
-    expect(relLum(liftHexForDusk(severityColor("P1", false)))).toBeGreaterThan(
-      relLum(liftHexForDusk(safe)),
-    );
-  });
-
-  it("is deterministic for the same input", () => {
-    expect(liftHexForDusk(safe)).toBe(liftHexForDusk(safe));
   });
 });
 
@@ -131,10 +143,4 @@ describe("#16c landmark resolves to the riskiest file (cached)", () => {
     expect(first).toBe("f1");
     expect(second).toBe(first);
   });
-});
-
-// Daylight cells use the unmodified semantic colors.
-it("keeps calm and unchecked cells readable on daylight ground", () => {
-  expect(contrast(THREAT_COLOR.safe, ENV.ground)).toBeGreaterThanOrEqual(2.5);
-  expect(contrast(UNCHECKED_COLOR, ENV.ground)).toBeGreaterThanOrEqual(2.5);
 });

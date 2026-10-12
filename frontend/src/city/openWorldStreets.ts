@@ -186,6 +186,32 @@ export const VEHICLE_WHEELS: VehicleWheel[] = [
   { vehicle: "bus", y: 0.22, z: -1.6, r: 0.24, t: 0.14, color: "#0c0c0b" },
 ];
 
+/**
+ * The street fleet's own coats.
+ *
+ * They used to be a literal inside `RoadSystem.tsx` — the one vehicle colour
+ * surface with no table and no guard, and one of its four entries (#ff6a4d) sat
+ * inside the alarm band while `#ffd9a0` was literally the streetlight's own
+ * filament colour. A parked car that matches the beacon colour is a second,
+ * unexplained security key. These five are desaturated day-coats;
+ * `trafficLivery.test.ts` measures every one against all six grades.
+ */
+export const FLEET_LIVERY = ["#c8ccd2", "#7f8b93", "#8d7f6d", "#5f6f78", "#a9b2b8"] as const;
+
+/**
+ * One car, in world units, next to the 1.35-tall resident that walks past it.
+ *
+ * The fleet was a 0.85 × 0.22 slab with a smaller slab on it and no wheels: half
+ * the height of a person, so the street read as a car park of toys. Length along
+ * local X, width along local Z, and the wheel radius is what turns the odometer
+ * into the roll angle.
+ */
+export const CAR_SHAPE = {
+  body: { w: 1.9, h: 0.5, d: 0.95, y: 0.44 },
+  cabin: { w: 0.92, h: 0.42, d: 0.86, y: 0.86 },
+  wheel: { r: 0.19, t: 0.14, y: 0.19, x: 0.62, z: 0.48 },
+} as const;
+
 /** The stop sign: a grey post and a small board, placed by the component at the
  *  transit stop so the city and the open world show the same furniture. */
 export const STOP_POST: StreetPost = {

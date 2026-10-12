@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { bindHost, isLoopbackHost } from "../src/server/bind-address.js";
+import { bindHost, isLoopbackHost, portInUseMessage } from "../src/server/bind-address.js";
 
 /**
  * The default bind of the HTTP server.
@@ -64,5 +64,32 @@ describe("isLoopbackHost", () => {
 
   it("says the default bind is loopback", () => {
     expect(isLoopbackHost(bindHost({}))).toBe(true);
+  });
+});
+
+/**
+ * A busy port is how a second checkout actually dies, and until now it died as an
+ * unhandled Node trace, which reads as a broken install. The sentence has to
+ * carry the two numbers the person needs and the three settings that solve it.
+ */
+describe("what a busy port says", () => {
+  const said = portInUseMessage(4000, "127.0.0.1");
+
+  it("names the port and the address it tried", () => {
+    expect(said).toContain("4000");
+    expect(said).toContain("127.0.0.1");
+    expect(said, "it says what did not happen").toContain("did not start");
+  });
+
+  it("names every setting that gets a second instance running", () => {
+    for (const knob of ["PORT=", "BACKEND_PORT=", "FRONTEND_ORIGIN="]) {
+      expect(said, `${knob} is missing from the advice`).toContain(knob);
+    }
+  });
+
+  it("is one sentence, not a stack trace", () => {
+    expect(said).not.toContain("EADDRINUSE");
+    expect(said).not.toContain("at ");
+    expect(said.split("\n")).toHaveLength(1);
   });
 });
