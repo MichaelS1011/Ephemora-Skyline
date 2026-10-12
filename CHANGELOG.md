@@ -109,6 +109,16 @@ were run on it as a whole.
 
 ### Fixed
 
+- **Two checks read the machine they ran on, not the code they test.** The first
+  CI run of this tree (`gh run view 38265309295`) went red on both while every
+  gate was green locally. The repository-address check matched its remote out of
+  `.git/config` with a character class that excluded only `/` and `.` — a
+  runner writes the URL without its `.git` suffix and follows it with a tab and a
+  `fetch =`, so the captured "slug" contained a newline. And the offline Docker
+  check assumed it was the only reader of `SEMGREP_DOCKER`, a switch the CI test
+  job sets to `0` on purpose; it now names the switch in both of its branches,
+  and a second case asserts what a machine that refused Docker as an engine
+  source gets: no version probe, no inspect, no container.
 - **The city kept 316 px reserved for a panel that was not there.** The canvas
   makes room for the project card because the card is opaque and takes pointer
   events, and `:has()` asks the DOM rather than the render tree — so when an info

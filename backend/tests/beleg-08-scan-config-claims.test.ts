@@ -228,6 +228,18 @@ describe("your own patterns (README.md:132)", () => {
 
 describe("the docker fallback the offline switch closes (README.md:102, README.md:105, docs/GETTING_STARTED.md:81)", () => {
   const previous = process.env["SKYLINE_OFFLINE"];
+  /**
+   * `SEMGREP_DOCKER=0` is how a machine says "my Docker is not an engine source"
+   * — the CI test job sets it, so that no badge depends on an image pull. Both
+   * branches below therefore name the switch themselves instead of inheriting
+   * it: on a laptop with Docker running they would otherwise say opposite things
+   * from a runner.
+   */
+  const previousDockerSwitch = process.env["SEMGREP_DOCKER"];
+  const schalteUm = (wert?: string) => {
+    if (wert === undefined) delete process.env["SEMGREP_DOCKER"];
+    else process.env["SEMGREP_DOCKER"] = wert;
+  };
 
   it("inspects the named image instead of pulling it, and runs no container", async () => {
     calls.length = 0;
@@ -235,6 +247,7 @@ describe("the docker fallback the offline switch closes (README.md:102, README.m
     const dir = await mkdtemp(path.join(tmpdir(), "beleg-docker-"));
     await writeFile(path.join(dir, "a.ts"), "eval(user);\n", "utf-8");
     process.env["SKYLINE_OFFLINE"] = "1";
+    schalteUm(undefined);
     try {
       const adapter = new SemgrepAdapter();
       // no binary on PATH, docker present, nothing cached
@@ -253,6 +266,31 @@ describe("the docker fallback the offline switch closes (README.md:102, README.m
     } finally {
       if (previous === undefined) delete process.env["SKYLINE_OFFLINE"];
       else process.env["SKYLINE_OFFLINE"] = previous;
+      schalteUm(previousDockerSwitch);
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("asks nothing of the image store on a machine that refused Docker as an engine source", async () => {
+    calls.length = 0;
+    const { SemgrepAdapter } = await import("../src/services/security/adapters/semgrep-adapter.js");
+    const dir = await mkdtemp(path.join(tmpdir(), "beleg-nodocker-"));
+    await writeFile(path.join(dir, "a.ts"), "eval(user);\n", "utf-8");
+    process.env["SKYLINE_OFFLINE"] = "1";
+    // what `.github/workflows/ci.yml` sets for the test job
+    schalteUm("0");
+    try {
+      const adapter = new SemgrepAdapter();
+      Object.assign(adapter, { binaryAvailable: false, dockerAvailable: null });
+      const issues = await adapter.scanBatch(dir, new Map([["a.ts", "eval(user);\n"]]));
+      expect(issues).toEqual([]);
+      // the refusal is the first thing the fallback reads: no version probe, no
+      // inspect, no container — the engine reports itself as not run instead
+      expect(calls.filter((c) => c[0] === "docker")).toEqual([]);
+    } finally {
+      if (previous === undefined) delete process.env["SKYLINE_OFFLINE"];
+      else process.env["SKYLINE_OFFLINE"] = previous;
+      schalteUm(previousDockerSwitch);
       await rm(dir, { recursive: true, force: true });
     }
   });

@@ -149,7 +149,7 @@ function badgeByLabel(label: string): Badge {
 function repoSlug(): string {
   const url = (JSON.parse(read("package.json")) as { repository?: { url?: string } }).repository
     ?.url;
-  const slug = url?.match(/github\.com\/([^/]+)\/([^/.]+)/);
+  const slug = url?.match(/github\.com\/([^/\s]+)\/([^/\s.]+)/);
   expect(url, "package.json must carry a repository url").toBeTruthy();
   expect(slug, `repository url is not a GitHub address: ${url}`).toBeTruthy();
   return `${slug![1]}/${slug![2]}`;
@@ -409,7 +409,10 @@ describe("the surface a stranger reads", () => {
       "a second address for this repository is an address nobody gave us:\n" + offenders.join("\n"),
     ).toEqual([]);
     const gitConfig = exists(".git/config") ? read(".git/config") : "";
-    const remote = gitConfig.match(/url = https:\/\/github\.com\/([^/]+)\/([^/.]+)/);
+    // The runner writes the remote without its `.git` suffix, and a config line
+    // is followed by a tab and a `fetch =` — a class that only excludes `/` and `.`
+    // swallows both and reports a slug with a newline in it.
+    const remote = gitConfig.match(/url = https:\/\/github\.com\/([^/\s]+)\/([^/\s.]+)/);
     if (remote) expect(`${remote[1]}/${remote[2]}`).toBe(slug);
     for (const rel of ["README.md", "CONTRIBUTING.md"]) {
       expect(read(rel), `${rel} clones from an address other than the published one`).toContain(
