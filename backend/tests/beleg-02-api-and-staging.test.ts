@@ -129,7 +129,7 @@ describe("the task graph ARCHITECTURE describes (docs/ARCHITECTURE.md:29-33)", (
   }
 });
 
-describe("what the staging route really keeps (README.md:107)", () => {
+describe("what the staging route really keeps (README.md:111)", () => {
   const previousRoot = process.env["CODECITY_UPLOAD_DIR"];
   const previousTtl = process.env["CODECITY_UPLOAD_TTL_HOURS"];
 
@@ -171,7 +171,7 @@ describe("what the staging route really keeps (README.md:107)", () => {
   });
 
   it("gives the git history its own 20 MB budget", () => {
-    // README.md:107 "The folder picker sends .git too — up to 20 MB of it, in its own budget"
+    // README.md:111 "The folder picker sends .git too — up to 20 MB of it, in its own budget"
     const route = read("backend/src/server/routes/local-analyze.ts");
     expect(route).toMatch(/const GIT_MAX_TOTAL_BYTES = 20 \* 1024 \* 1024;/);
   });

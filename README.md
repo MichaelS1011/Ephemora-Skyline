@@ -23,6 +23,33 @@
 
 > **The gates are in the tree.** `.github/workflows/ci.yml` is part of this repository: it defines five checks — lint, the type check, the build, the test suite, the dependency audit — and triggers on pushes to `main` and on pull requests against it. No status badge sits above this line, because no file in this repository can show a run result, and a badge that shows nothing is a decoration; the badge that is there names the five checks instead. Every command is under Quick start; run them yourself before you file anything.
 
+## Quick start
+
+Requires **Node 20.19+ or 22.12+** (Node 21 is unsupported) and **npm >= 10**. Optional: `gitleaks`, `semgrep`, `osv-scanner` and `ruff` on `PATH` — without them the corresponding checks report themselves as skipped instead of pretending to have run.
+
+```bash
+git clone https://github.com/MichaelS1011/Ephemora-Skyline.git   # Apache-2.0: a mirror or a fork is permitted
+cd Ephemora-Skyline
+npm install            # workspaces: frontend + backend
+npm run dev            # backend on :4000 + frontend on :3010
+```
+
+Open **http://localhost:3010** and click **Choose project folder** — or **Explore demo** first. The demo uses sample files and findings; no scanner ran on that city.
+
+### The gates CI enforces
+
+```bash
+npm run lint           # ESLint, zero warnings
+npm run type-check     # tsc --noEmit, both packages
+npm run test           # Vitest — 192 test files: 115 frontend, 77 backend (2026-10-12)
+npm run build          # production build, both packages
+node scripts/audit-gate.mjs   # dependency audit, see below
+```
+
+The file counts are read out of this tree by a test (`backend/tests/public-surface-claims.test.ts`), so anyone with the checkout can check them. The case count is a measurement from one machine rather than something the repository re-checks: 1,717 cases on 2026-10-12 — 660 backend, 1,057 frontend — from three consecutive full runs, each ending with exit 0 and **no test skipped**, so it is that day's number and not today's total. Cases that need an external scanner binary are skipped only when that binary is genuinely absent: the probe asks the filesystem, not the scanner, because a cold `semgrep --version` took 11–104 s here and used to retire three real assertions as skips.
+
+The audit gate fails on every high or critical finding **except** those explicitly accepted in `scripts/audit-gate.mjs` with a reason and a re-check date. Today one advisory is accepted: `braces` (GHSA-vfj7-8cjw-p6xm) has no fixed release, and it reaches the tree only through the file watcher that Tailwind's build depends on. It is named in the gate rather than hidden by a lowered threshold.
+
 ## Why it is different
 
 Most security tooling is a list of findings you scroll. Ephemora Skyline makes a codebase **spatially legible**, so "where is the risk?" is answered by sight before you read a line. Clarity is the first security control — and a number you cannot check is not a measurement, so every channel in the city is a real metric.
@@ -60,36 +87,11 @@ Worth reading before the feature list means anything to you.
 - **It does not write to your project.** The explanation layer has a voice and no pen. Fixes happen in your editor or your coding agent, and a fresh scan shows what moved.
 - **A city is not an archive.** Results live in the local process — the last 20, for 24 hours. A `?city=` link is a pointer into a running session. Export the SARIF or the PNG if the finding has to outlive the process.
 
-## Quick start
-
-Requires **Node 20.19+ or 22.12+** (Node 21 is unsupported) and **npm >= 10**. Optional: `gitleaks`, `semgrep`, `osv-scanner` and `ruff` on `PATH` — without them the corresponding checks report themselves as skipped instead of pretending to have run.
-
-```bash
-git clone https://github.com/MichaelS1011/Ephemora-Skyline.git   # Apache-2.0: a mirror or a fork is permitted
-cd Ephemora-Skyline
-npm install            # workspaces: frontend + backend
-npm run dev            # backend on :4000 + frontend on :3010
-```
-
-Open **http://localhost:3010** and click **Choose project folder** — or **Explore demo** first. The demo uses sample files and findings; no scanner ran on that city.
-
-### The gates CI enforces
-
-```bash
-npm run lint           # ESLint, zero warnings
-npm run type-check     # tsc --noEmit, both packages
-npm run test           # Vitest — 192 test files: 115 frontend, 77 backend (2026-10-12)
-npm run build          # production build, both packages
-node scripts/audit-gate.mjs   # dependency audit, see below
-```
-
-The file counts are read out of this tree by a test (`backend/tests/public-surface-claims.test.ts`), so anyone with the checkout can check them. The case count is a measurement from one machine rather than something the repository re-checks: 1,714 cases on 2026-10-12 — 657 backend, 1,057 frontend — from three consecutive full runs, each ending with exit 0 and **no test skipped**, so it is that day's number and not today's total. Cases that need an external scanner binary are skipped only when that binary is genuinely absent: the probe asks the filesystem, not the scanner, because a cold `semgrep --version` took 11–104 s here and used to retire three real assertions as skips.
-
-The audit gate fails on every high or critical finding **except** those explicitly accepted in `scripts/audit-gate.mjs` with a reason and a re-check date. Today one advisory is accepted: `braces` (GHSA-vfj7-8cjw-p6xm) has no fixed release, and it reaches the tree only through the file watcher that Tailwind's build depends on. It is named in the gate rather than hidden by a lowered threshold.
-
 ## Privacy model
 
-The backend binds to `127.0.0.1` by default, and the five routes that could do anything beyond answering a question — start a scan, cancel one, run a folder's own tests, purge the staged copies, verify a scan against a later one — additionally refuse requests that a foreign web page sent (checked by `Origin` / `Sec-Fetch-Site`, so a random site you visit cannot make your local scanner run your tests). The table below is not decoration: the entry screen of the app renders the same list from the same declaration the backend obeys (`OUTBOUND_CALLS`), and a test fails if the two ever name different hosts. What that test pins is the host set — the wording of each row is written twice, so it can drift while the hosts still match. The browser asks nothing of the network that could reach past this machine before you do anything: the UI font ships inside the app, a separate test fails if the entry document ever references a third-party host, and what the entry screen does request — the copy footprint it prints — goes to the local backend over `127.0.0.1`. The newest-release lookup in the first row below is part of that silence: it runs only while the reader has switched it on in the More menu of a city, and that switch starts **off**.
+**Nothing listens on a public address.** The backend binds to `127.0.0.1` by default. The five routes that could do anything beyond answering a question — start a scan, cancel one, run a folder's own tests, purge the staged copies, verify a scan against a later one — additionally refuse a request that a foreign web page sent, checked by `Origin` and `Sec-Fetch-Site`. A random site you visit cannot make your local scanner run your tests.
+**The table below is not decoration.** The entry screen of the app renders the same list from the same declaration the backend obeys (`OUTBOUND_CALLS`), and a test fails if the two ever name different hosts. What that test pins is the host set: the wording of each row is written twice, so it can drift while the hosts still match.
+**Before you do anything, the browser asks nothing that reaches past this machine.** The UI font ships inside the app, a separate test fails if the entry document ever references a third-party host, and what the entry screen does request — the copy footprint it prints — goes to the local backend over `127.0.0.1`. The newest-release lookup in the first row below is part of that silence: it runs only while the reader has switched it on in the More menu of a city, and that switch starts **off**.
 
 When you pick a folder, the **browser** reads it and posts the contents to the local backend over `127.0.0.1`: your source is never uploaded and never sent to a third party — it crosses the loopback interface and stops there. What does leave the machine are lookups the scanners make for themselves, and those carry names, never code:
 
@@ -106,7 +108,7 @@ When you pick a folder, the **browser** reads it and posts the contents to the l
 
 `SKYLINE_OFFLINE=1` switches off the update check even for a reader who turned it on, the OSV check and the dependency check, and switches off Semgrep unless a local rule pack is selected — a pack that is already on your disk needs no download. It also closes the three paths a profile never asks about: **pip-audit** is skipped instead of resolving requirements against `pypi.org`, the **Semgrep Docker fallback** only runs on an image already cached locally instead of pulling one, and **Run test file** refuses to `npm ci` a staged copy that has no `node_modules`. With the switch set, nothing in the table above is reached. It is an environment variable, not a UI control yet. The city then reports what went missing through `scanProvenance` and paints those buildings the colour of ground no scanner looked at, instead of calling them clean.
 
-**What the staged copy is.** To scan a folder the backend writes it to `$TMPDIR/codecity-uploads/<id>` with owner-only permissions, and keeps it for 24 hours (override with `CODECITY_UPLOAD_DIR` / `CODECITY_UPLOAD_TTL_HOURS`) so the in-city test runner can execute your project's own tests from the city you are looking at. The folder picker sends `.git` too — up to 15 MB of it, in its own budget, trimmed in the browser before anything is posted — because churn, author districts and the deep profile's history scan are impossible without commit history. Local analysis is capped at **10,000 files / 150 MB / 2 MB per file**. What never joins a scan is counted rather than hidden: your project's own `.gitignore` sets its paths aside _before_ the cap is applied (measured on this repository on 2026-10-12 by walking it with the client's own skip-list and source-shape rule, then again with the project's `.gitignore` pruning it: **17,360** source-shaped files on disk, **392** of them the project calls source; the kept half is the number the app itself prints when you point it at this checkout), `node_modules` and build output are skipped, and the summary names every number it left out.
+**What the staged copy is.** To scan a folder the backend writes it to `$TMPDIR/codecity-uploads/<id>` with owner-only permissions, and keeps it for 24 hours (override with `CODECITY_UPLOAD_DIR` / `CODECITY_UPLOAD_TTL_HOURS`) so the in-city test runner can execute your project's own tests from the city you are looking at. The folder picker sends `.git` too — up to 15 MB of it, in its own budget, trimmed in the browser before anything is posted — because churn, author districts and the deep profile's history scan are impossible without commit history. Local analysis is capped at **10,000 files / 150 MB / 2 MB per file**. What never joins a scan is counted rather than hidden. Your project's own `.gitignore` sets its paths aside _before_ the cap is applied, and `node_modules` and build output are skipped, so the summary names every number it left out. Measured on this repository on 2026-10-12, walked with the client's own skip-list and source-shape rule: **17,360** source-shaped files on disk, **392** of them the project calls source. That second number is the one the app itself prints when you point it at this checkout.
 
 **What the saved city carries.** A finding stores the line it was found on plus a two-line code frame, and the result is served as JSON you can export and share. Credential values are erased to `‹hidden›` before a finding is kept, and the erasure does not trust the variable name: it masks `NAME = "…"` assignments _and_ known token shapes (GitHub, AWS, Slack, Google, Stripe, OpenAI, npm, JWT, private-key headers), because `const pat = "ghp_…"` in a test fixture is a real token behind an innocent name — that exact line is how we found the hole, in our own repository. The name stays, because the name is what tells you where to fix. Masking is not limited to secret findings: it runs on every frame at the scanner boundary, because a `console.log` one line above a password carries that password in its neighbour lines. `.env`, `.env.production` and friends are in the scan surface **because** of that masking, and are read as data — no complexity, no code-shape questions.
 

@@ -32,7 +32,7 @@ const walkTree = (node: CityDir): void => {
 };
 walkTree(city.tree);
 
-describe("the caption over the built city (README.md:158)", () => {
+describe("the caption over the built city (README.md:162)", () => {
   it("ships 73 sample files", () => {
     expect(demo.summary.totalFiles).toBe(73);
     expect(demo.files).toHaveLength(73);
@@ -41,7 +41,7 @@ describe("the caption over the built city (README.md:158)", () => {
   });
 
   it("raises six districts over them", () => {
-    // README.md:158 "73 sample files in six districts"; the summary says the same
+    // README.md:162 "73 sample files in six districts"; the summary says the same
     expect(demo.summary.totalDirectories).toBe(6);
     expect(city.tree.children).toHaveLength(6);
   });
@@ -58,7 +58,7 @@ describe("the caption over the built city (README.md:158)", () => {
   });
 
   it("draws the riskiest file as the critical one, and it is the tallest too", () => {
-    // README.md:20 and :158 "the riskiest file as a landmark tower with a red beam";
+    // README.md:22 and :158 "the riskiest file as a landmark tower with a red beam";
     // README.md:30-31 say what the two channels carry: height = complexity,
     // beacon = findings weighted by risk.
     const drawn: CityFile[] = [];
@@ -90,7 +90,7 @@ describe("the caption over the built city (README.md:158)", () => {
   });
 
   it("names its own alarm count: one of six plots carries a critical finding", () => {
-    // README.md:47 and :158 quote the map's sentence "▲ 1 of 6 plots carries a critical finding"
+    // README.md:162 quotes the map's sentence "▲ 1 of 6 plots carries a critical finding"
     const withCritical = city.tree.children.filter((d) => d.findingsBySeverity.P0 > 0);
     expect(withCritical).toHaveLength(1);
     expect(withCritical[0]!.name).toBe("backend");
@@ -98,7 +98,7 @@ describe("the caption over the built city (README.md:158)", () => {
   });
 });
 
-describe("the finding cards the captions describe (README.md:163, CHANGELOG.md:113-117)", () => {
+describe("the finding cards the captions describe (README.md:166, CHANGELOG.md)", () => {
   it("shows seven findings in six files", () => {
     expect(allFindings).toHaveLength(7);
     expect(new Set(allFindings.map((f) => f.file)).size).toBe(6);
@@ -129,7 +129,7 @@ describe("the finding cards the captions describe (README.md:163, CHANGELOG.md:1
     for (const [engine, ran] of Object.entries(provenance)) {
       expect(ran, `the demo claims ${engine} ran`).toBe(false);
     }
-    // README.md:72 "The demo uses sample files and findings; no scanner ran on that city."
+    // README.md:37 "The demo uses sample files and findings; no scanner ran on that city."
     expect(city.unverifiedEngines.length).toBeGreaterThan(0);
   });
 });

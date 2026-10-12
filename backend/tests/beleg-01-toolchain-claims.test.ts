@@ -48,7 +48,7 @@ describe("the runtime the documents ask for (README.md:63, docs/GETTING_STARTED.
   });
 
   it("asks for npm 10 or newer", () => {
-    // README.md:63 "and **npm >= 10**", GETTING_STARTED.md:25 "≥ 10.0.0"
+    // README.md:28 "and **npm >= 10**", GETTING_STARTED.md:25 "≥ 10.0.0"
     expect(engines.npm).toBe(">=10.0.0");
   });
 
@@ -164,7 +164,7 @@ describe("the gates the README tells a reader to run (README.md:74-86)", () => {
   });
 
   it("accepts exactly one advisory by name, the braces one it states", () => {
-    // README.md:86: "Today one advisory is accepted: `braces` (GHSA-vfj7-8cjw-p6xm)"
+    // README.md:51: "Today one advisory is accepted: `braces` (GHSA-vfj7-8cjw-p6xm)"
     const gate = read("scripts/audit-gate.mjs");
     const allowed = gate.slice(gate.indexOf("const ALLOWED"), gate.indexOf("function audit"));
     const accepted = [

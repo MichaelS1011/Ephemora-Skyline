@@ -5,7 +5,7 @@ import { mapResultToCityData, type CityDir } from "../src/utils/cityMapper.js";
 /**
  * BELEG-02 — the semantic-zoom claim, measured at both ends of its own range.
  *
- * README.md:39: "Scale-independent semantic zoom. The overview draws one block per
+ * README.md:68: "Scale-independent semantic zoom. The overview draws one block per
  * top-level folder — ten folders or ten thousand, the picture stays readable. …
  * Files that are not drawn show honestly as a podium (“+N more files”), never
  * silently dropped."

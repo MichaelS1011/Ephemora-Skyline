@@ -181,7 +181,7 @@ first pass above cites, restored out of the commit it belonged to, and replacing
 it would trade a record for a picture of today.
 
 The five gates were run on the tree that carries them: lint and the type check
-over both packages with zero warnings, **192 test files and 1,714 cases** (657
+over both packages with zero warnings, **192 test files and 1,717 cases** (660
 backend, 1,057 frontend) in three consecutive full runs, each ending with exit 0
 and no test skipped, the production build for both packages, and the audit gate
 with its one accepted advisory named in the gate itself. The same four jobs ran

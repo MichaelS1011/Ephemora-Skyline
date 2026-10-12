@@ -45,7 +45,7 @@ describe("the test files the changelog and the readme cite", () => {
   });
 
   /**
-   * README.md:84 promises the counted runs ended with "no test skipped". A cited
+   * README.md:49 promises the counted runs ended with "no test skipped". A cited
    * file is the evidence for a public claim, so a skip in it would quietly retire
    * that claim.
    */
@@ -266,5 +266,122 @@ describe("the one file-with-line-number a document cites", () => {
     const source = read("backend/src/server/index.ts");
     expect(source).toMatch(/listening on a non-loopback address/);
     expect(source).toMatch(/isLoopbackHost\(HOST\)/);
+  });
+});
+
+/**
+ * A `README.md:NN` in a comment is a promise that the sentence a reader jumps
+ * to is the one the check is about. Line numbers do not survive an edit — moving
+ * the Quick start above the feature list on 2026-10-12 moved every line below it
+ * — and 16 of the 66 citations in this tree had already drifted onto blank lines
+ * and table separators before that. Every one of them is re-pointed here, and the
+ * check keeps them on their sentence: where a comment carries no quote, only the
+ * "points at real content" half can be enforced, and those are counted.
+ */
+describe("the README line citations inside this repository's own checks", () => {
+  const readme = read("README.md").split("\n");
+
+  const glätten = (s: string): string =>
+    s
+      .replace(/[“”]/g, '"')
+      .replace(/[*`]/g, "")
+      // `_like this_` is emphasis; `SKYLINE_OFFLINE` and `a_b` are not, and
+      // stripping every underscore turns an identifier into a word that exists
+      // nowhere and reports a correct citation as drift
+      .replace(/(^|\s)_([^_\s][^_]*?)_(?=\s|$)/g, "$1$2")
+      .replace(/\s+/g, " ")
+      .trim();
+
+  const quellen = [
+    ...readdirSync(path.join(REPO, "backend/tests")).map((f) => `backend/tests/${f}`),
+    ...readdirSync(path.join(REPO, "frontend/tests")).map((f) => `frontend/tests/${f}`),
+    ...readdirSync(path.join(REPO, "scripts")).map((f) => `scripts/${f}`),
+  ].filter((f) => /\.(ts|tsx|mjs)$/.test(f));
+
+  const funde = (() => {
+    const out: { wo: string; von: number; bis: number; zitatz?: string }[] = [];
+    for (const rel of quellen) {
+      const zeilen = read(rel).split("\n");
+      zeilen.forEach((zeile, i) => {
+        for (const m of zeile.matchAll(/README\.md:(\d+)(?:-(\d+))?/g)) {
+          const von = Number(m[1]);
+          const bis = Number(m[2] ?? m[1]);
+          // the quoted sentence usually shares the line, or sits on one of the
+          // two after it (a describe() names the claim, the next line quotes it)
+          const umfeld = zeilen.slice(i, i + 3).join("\n");
+          const zitatz = [...umfeld.matchAll(/["“`]([^"”`]{12,})["”`]/g)]
+            .map((q) => glätten(q[1] ?? ""))
+            .find((q) => readme.some((r) => glätten(r).includes(q.slice(0, 40))));
+          out.push({ wo: `${rel}:${i + 1}`, von, bis, zitatz });
+        }
+      });
+    }
+    return out;
+  })();
+
+  it("are numerous enough to be worth guarding", () => {
+    expect(funde.length).toBeGreaterThanOrEqual(20);
+  });
+
+  it("point at a line that holds something", () => {
+    const leer: string[] = [];
+    for (const f of funde) {
+      const inhalt = readme
+        .slice(f.von - 1, f.bis)
+        .map((l) => l.trim())
+        .filter((l) => l.length > 0 && !/^\|[\s-|]+\|$/.test(l) && l !== "```");
+      if (inhalt.length === 0) {
+        leer.push(
+          `${f.wo} → README.md:${f.von}${f.bis !== f.von ? `-${f.bis}` : ""} holds nothing`,
+        );
+      }
+    }
+    expect(leer, `these citations point into whitespace:\n${leer.join("\n")}`).toEqual([]);
+  });
+
+  it("land on the sentence they quote, wherever the file has moved to", () => {
+    const veraltet: string[] = [];
+    const ohneZitat: string[] = [];
+    /**
+     * One comment can name two places and quote one sentence — "(README.md:106,
+     * README.md:109)" beside the offline paragraph is such a line. The quote has
+     * to be found at one of the positions a line names, not at each of them,
+     * or the check would demand a sentence twice.
+     */
+    const dieselbeZeile = new Map<string, typeof funde>();
+    for (const f of funde) {
+      dieselbeZeile.set(f.wo, [...(dieselbeZeile.get(f.wo) ?? []), f]);
+    }
+    for (const [wo, gruppe] of dieselbeZeile) {
+      const zitatz = gruppe.map((g) => g.zitatz).find(Boolean);
+      if (!zitatz) {
+        ohneZitat.push(...gruppe.map((g) => g.wo));
+        continue;
+      }
+      const bereich = glätten(
+        gruppe.map((g) => readme.slice(Math.max(0, g.von - 2), g.bis + 1).join("\n")).join("\n"),
+      );
+      if (!bereich.includes(zitatz.slice(0, 40))) {
+        const erste = gruppe[0]!;
+        veraltet.push(
+          `${wo} → "${zitatz.slice(0, 46)}" is not at ${gruppe.map((g) => `README.md:${g.von}`).join(" / ")}, which holds "${readme[erste.von - 1]?.trim().slice(0, 52)}"`,
+        );
+      }
+    }
+    expect(
+      veraltet,
+      `these citations no longer sit on their sentence:\n${veraltet.join("\n")}`,
+    ).toEqual([]);
+    /**
+     * A citation with no quoted sentence cannot be checked against content, so it
+     * is counted and the count is a ratchet: 45 on 2026-10-12, after 21 of the
+     * drifted ones were re-pointed at their sentence. The number may go down when
+     * a comment gains a quote and may not go up when a new citation is written
+     * without one — that is the whole cost of adding a pointer here.
+     */
+    expect(
+      ohneZitat.length,
+      `${ohneZitat.length} citations carry no quoted sentence (the count was 45 on 2026-10-12): ${ohneZitat.join(", ")}`,
+    ).toBeLessThanOrEqual(45);
   });
 });

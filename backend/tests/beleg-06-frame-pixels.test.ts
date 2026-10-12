@@ -150,14 +150,16 @@ describe("the two frames the caption compares", () => {
   });
 
   it("are overwhelmingly identical, which is what the sentence claims", () => {
-    // README.md:158 "Streets, kerbs, trees, sky and nameplates are pixel-identical."
+    // README.md:162 carries the measured pair. The claim that streets, kerbs, trees,
+    // sky and nameplates are pixel-identical is one of the two states named in
+    // docs/UI_REVIEW.md, where the pose control is described.
     const { before: a, after: b, identical } = compare();
     expect(b.width * b.height).toBe(a.width * a.height);
     expect(identical / (a.width * a.height)).toBeGreaterThan(0.98);
   });
 });
 
-describe("the measured numbers in the caption (README.md:158)", () => {
+describe("the measured numbers in the caption (README.md:162)", () => {
   const sums = (frame: "before" | "after"): number[] => {
     const { before: a, after: b, diff } = compare();
     const r = frame === "before" ? a : b;
