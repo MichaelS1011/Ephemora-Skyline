@@ -62,8 +62,9 @@ docker/*.local.yml
 
 # Local tooling drops: agent scratch, editor session state, recording caches.
 # These belong on this disk only — and they are not decoration: measured on this
-# checkout, 16,161 of the 16,711 source-shaped files under the repository live in
-# these folders, against 550 in the project itself, so a folder scan of this
+# checkout on 2026-10-12 with the app's own walk rules, 16,968 of the 17,360
+# source-shaped files under the repository live in these folders, against 392 in
+# the project itself, so a folder scan of this
 # repository would read tooling output as the developer's code unless the rule
 # lives in the file git actually ships.
 .qoder-scratch/

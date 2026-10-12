@@ -13,6 +13,8 @@
 
 **Your local codebase, rendered as a living 3D city in daylight.** Point it at a folder and watch it rise: folders become districts, files become buildings, a taller building holds more tangled code, and a red beacon marks a security finding. Your source never leaves the machine. A desktop web application — phones are not supported and not planned.
 
+**To see it before you read any of this:** `git clone` this repository, `npm install`, `npm run dev`, open **http://localhost:3010** and press _Explore demo_. The exact commands, what each of the five gates checks and what the tool will not tell you are below.
+
 |                                                                                                                                                                             |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
 | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | [![The finished demo city: six districts, the project panel, the map naming its own alarm count](docs/assets/demo-city-poster.png?v=2026-10-12)](docs/assets/demo-city.mp4) | **[Watch the 28-second clip](docs/assets/demo-city.mp4)** — one visit, filmed as it happens: the entry screen, the demo opened, the city assembling, the Security Tour flying finding to finding. No sound, no cuts, no sped-up frames; every pixel is drawn by the app on a laptop. The clip plays 28.5 s at 800 × 500 and 15 fps, 442 KB, one video stream and no audio track. The poster beside it is its own frame of the finished city, not a frame of the clip, and it carries its own measurements in `docs/UI_REVIEW.md`. |
@@ -35,7 +37,7 @@ Most security tooling is a list of findings you scroll. Ephemora Skyline makes a
 | Blue shield                | Test coverage, when an `lcov` report exists  |
 | Grey `#6b6a63` "unscanned" | No engine looked here — not a claim of clean |
 
-- **It builds in front of you.** Every visit starts on an unbuilt plot — its streets, kerbs and crossings are already drawn, and the Ephe's are already walking them. Pick a folder and the city assembles — roads, plots, buildings — while the citizens who do the construction explain what they are raising.
+- **It builds in front of you.** Every visit starts on an unbuilt plot — its streets, kerbs and crossings are already drawn, and the Ephe's are already walking them. The Ephe's are the city's small inhabitants: the ones who do the construction, and who say what they are raising while they raise it. Pick a folder and the city assembles — roads, plots, buildings — while they explain it.
 - **Scale-independent semantic zoom.** The overview draws one block per top-level folder — ten folders or ten thousand, the picture stays readable. Click into a block to open it as its own district. Files that are not drawn show honestly as a podium ("+N more files"), never silently dropped.
 - **Security Tour.** The camera flies finding to finding, highest risk first, with a plain-language explanation and a fix suggestion.
 - **Findings you can verify.** Every finding carries its file, its line, the line the rule matched with two lines either side read out of your copy of the file, and a link to the rule that fired. Open the file in your editor from the card. Each one also carries a fingerprint — rule, path, line and the (masked) line itself — so a verdict you record survives scanning the same folder again, and the same finding can be named in a report, in the city JSON and by an agent. A finding that moves to another line or into a renamed file counts as a new one, and says so.
@@ -87,7 +89,7 @@ The audit gate fails on every high or critical finding **except** those explicit
 
 ## Privacy model
 
-The backend binds to `127.0.0.1` by default, and the two routes that execute anything additionally refuse requests that a foreign web page sent (checked by `Origin` / `Sec-Fetch-Site`, so a random site you visit cannot make your local scanner run your tests). The table below is not decoration: the entry screen of the app renders the same list from the same declaration the backend obeys (`OUTBOUND_CALLS`), and a test fails if the two ever name different hosts. What that test pins is the host set — the wording of each row is written twice, so it can drift while the hosts still match. The browser asks nothing of the network that could reach past this machine before you do anything: the UI font ships inside the app, a separate test fails if the entry document ever references a third-party host, and what the entry screen does request — the copy footprint it prints — goes to the local backend over `127.0.0.1`. The newest-release lookup in the first row below is part of that silence: it runs only while the reader has switched it on in the More menu of a city, and that switch starts **off**.
+The backend binds to `127.0.0.1` by default, and the five routes that could do anything beyond answering a question — start a scan, cancel one, run a folder's own tests, purge the staged copies, verify a scan against a later one — additionally refuse requests that a foreign web page sent (checked by `Origin` / `Sec-Fetch-Site`, so a random site you visit cannot make your local scanner run your tests). The table below is not decoration: the entry screen of the app renders the same list from the same declaration the backend obeys (`OUTBOUND_CALLS`), and a test fails if the two ever name different hosts. What that test pins is the host set — the wording of each row is written twice, so it can drift while the hosts still match. The browser asks nothing of the network that could reach past this machine before you do anything: the UI font ships inside the app, a separate test fails if the entry document ever references a third-party host, and what the entry screen does request — the copy footprint it prints — goes to the local backend over `127.0.0.1`. The newest-release lookup in the first row below is part of that silence: it runs only while the reader has switched it on in the More menu of a city, and that switch starts **off**.
 
 When you pick a folder, the **browser** reads it and posts the contents to the local backend over `127.0.0.1`: your source is never uploaded and never sent to a third party — it crosses the loopback interface and stops there. What does leave the machine are lookups the scanners make for themselves, and those carry names, never code:
 
@@ -104,7 +106,7 @@ When you pick a folder, the **browser** reads it and posts the contents to the l
 
 `SKYLINE_OFFLINE=1` switches off the update check even for a reader who turned it on, the OSV check and the dependency check, and switches off Semgrep unless a local rule pack is selected — a pack that is already on your disk needs no download. It also closes the three paths a profile never asks about: **pip-audit** is skipped instead of resolving requirements against `pypi.org`, the **Semgrep Docker fallback** only runs on an image already cached locally instead of pulling one, and **Run test file** refuses to `npm ci` a staged copy that has no `node_modules`. With the switch set, nothing in the table above is reached. It is an environment variable, not a UI control yet. The city then reports what went missing through `scanProvenance` and paints those buildings the colour of ground no scanner looked at, instead of calling them clean.
 
-**What the staged copy is.** To scan a folder the backend writes it to `$TMPDIR/codecity-uploads/<id>` with owner-only permissions, and keeps it for 24 hours (override with `CODECITY_UPLOAD_DIR` / `CODECITY_UPLOAD_TTL_HOURS`) so the in-city test runner can execute your project's own tests from the city you are looking at. The folder picker sends `.git` too — up to 15 MB of it, in its own budget, trimmed in the browser before anything is posted — because churn, author districts and the deep profile's history scan are impossible without commit history. Local analysis is capped at **10,000 files / 150 MB / 2 MB per file**. What never joins a scan is counted rather than hidden: your project's own `.gitignore` sets its paths aside _before_ the cap is applied (measured on this repository — 16,711 source-shaped files on disk, 550 of them the project calls source), `node_modules` and build output are skipped, and the summary names every number it left out.
+**What the staged copy is.** To scan a folder the backend writes it to `$TMPDIR/codecity-uploads/<id>` with owner-only permissions, and keeps it for 24 hours (override with `CODECITY_UPLOAD_DIR` / `CODECITY_UPLOAD_TTL_HOURS`) so the in-city test runner can execute your project's own tests from the city you are looking at. The folder picker sends `.git` too — up to 15 MB of it, in its own budget, trimmed in the browser before anything is posted — because churn, author districts and the deep profile's history scan are impossible without commit history. Local analysis is capped at **10,000 files / 150 MB / 2 MB per file**. What never joins a scan is counted rather than hidden: your project's own `.gitignore` sets its paths aside _before_ the cap is applied (measured on this repository on 2026-10-12 by walking it with the client's own skip-list and source-shape rule, then again with the project's `.gitignore` pruning it: **17,360** source-shaped files on disk, **392** of them the project calls source; the kept half is the number the app itself prints when you point it at this checkout), `node_modules` and build output are skipped, and the summary names every number it left out.
 
 **What the saved city carries.** A finding stores the line it was found on plus a two-line code frame, and the result is served as JSON you can export and share. Credential values are erased to `‹hidden›` before a finding is kept, and the erasure does not trust the variable name: it masks `NAME = "…"` assignments _and_ known token shapes (GitHub, AWS, Slack, Google, Stripe, OpenAI, npm, JWT, private-key headers), because `const pat = "ghp_…"` in a test fixture is a real token behind an innocent name — that exact line is how we found the hole, in our own repository. The name stays, because the name is what tells you where to fix. Masking is not limited to secret findings: it runs on every frame at the scanner boundary, because a `console.log` one line above a password carries that password in its neighbour lines. `.env`, `.env.production` and friends are in the scan surface **because** of that masking, and are read as data — no complexity, no code-shape questions.
 
@@ -135,11 +137,11 @@ Your own patterns are supported too: up to 25 regular expressions with severity,
 
 The deep AST scan needs rules, and where those rules come from is a decision with a licence attached. The Semgrep Rules License v1.0 states: "This license does not allow you to distribute the rules, or to make them available to others as a service." So the registry stays what it always was — fetched by `semgrep` itself, by you, at scan time — and what ships in this repository is rules we wrote and own.
 
-| Pack                 | Where it lives                                                       | Rules | Licence                                                 |
-| -------------------- | -------------------------------------------------------------------- | ----- | ------------------------------------------------------- |
-| `ephemora-core`      | `backend/rules/ephemora-core/`                                       | 12    | Apache-2.0, same as the program — ours to ship and grow |
-| _(nothing selected)_ | `semgrep.dev`, during the scan                                       | 225   | Semgrep Rules License v1.0 — not redistributable        |
-| your own             | `~/.ephemora-skyline/rule-packs/<id>/` (or `CODECITY_RULE_PACK_DIR`) | any   | yours                                                   |
+| Pack                 | Where it lives                                                       | Rules                                                                  | Licence                                                 |
+| -------------------- | -------------------------------------------------------------------- | ---------------------------------------------------------------------- | ------------------------------------------------------- |
+| `ephemora-core`      | `backend/rules/ephemora-core/`                                       | 12                                                                     | Apache-2.0, same as the program — ours to ship and grow |
+| _(nothing selected)_ | `semgrep.dev`, during the scan                                       | not in this tree — the registry's own count, on the registry's own day | Semgrep Rules License v1.0 — not redistributable        |
+| your own             | `~/.ephemora-skyline/rule-packs/<id>/` (or `CODECITY_RULE_PACK_DIR`) | any                                                                    | yours                                                   |
 
 A pack is a directory with a `pack.json` manifest and rule YAML beside it. The manifest's `ruleCount` is checked against the files at load time, and a pack whose manifest lies is not offered at all. Scans select packs **by id**; a path is rejected, because a client-supplied directory would let the scanner read rules from anywhere on the machine.
 
@@ -182,8 +184,8 @@ Full detail in [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md), first run in [`
 Ephemora-Skyline/
 ├── backend/src/
 │   ├── server/            # Express app, loopback bind, local-only guard
-│   │   └── routes/        # analyze-local, status, job-progress, result/source,
-│   │                      # sarif, demo, health, tests, update-check
+│   │   └── routes/        # local-analyze, status, job-progress, source, demo,
+│   │                      # health, tests, agent (handoff + verify), update-check
 │   ├── services/
 │   │   ├── analyzer/      # pipeline: enumerate -> parse -> metrics -> aggregate
 │   │   └── security/      # scanner facade + adapters (regex, gitleaks, semgrep,
@@ -193,8 +195,8 @@ Ephemora-Skyline/
 │   └── utils/             # cityMapper (layout) + SARIF export
 ├── frontend/src/
 │   ├── city/              # layout, palette, types, geometry
-│   ├── components/        # 3D scene + HUD (CityScene, Building, InfoPanel,
-│   │                      # FindingsPanel, Minimap, SearchBar, Triage, ...)
+│   ├── components/        # 3D scene + HUD (CityScene, Building, ContextCard,
+│   │                      # InfoPanel, FindingsPanel, Minimap, SearchBar, ...)
 │   ├── config/            # scan profiles, finding categories, rule packs
 │   ├── editor/            # deep links into your editor, workspace root
 │   ├── findings/          # finding presentation and knowledge
@@ -205,7 +207,7 @@ Ephemora-Skyline/
 │   ├── prefs.ts           # language, graphics-lite, colour-blind mode
 │   └── reviews.ts         # triage state, per city
 ├── docs/                  # ARCHITECTURE, GETTING_STARTED, UI_REVIEW, assets/
-├── scripts/               # audit-gate, clone-stats
+├── scripts/               # audit-gate, clone-stats, first-drive
 └── .github/               # CI, issue and PR templates, dependabot
 ```
 
@@ -226,6 +228,8 @@ Ephemora-Skyline/
 | `GET  /api/result/:id/handoff`        | one finding per line, NDJSON, for a coding agent (`docs/AGENTS.md`) |
 | `POST /api/verify`                    | did the findings of one scan survive a later one?                   |
 | `GET  /api/rule-packs`                | the rule packs on this disk, and whether the offline switch is set  |
+| `GET  /api/footprint`                 | the staged copies: how many, how big, how long they stay            |
+| `POST /api/footprint/purge`           | delete the copies that are past their keep time                     |
 | `POST /api/tests/:id/run`             | run one of that city's own test files                               |
 | `GET  /api/tests/run/:runId`          | output of that run                                                  |
 | `GET  /api/update/check`              | the anonymous newest-release check                                  |

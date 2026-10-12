@@ -30,8 +30,16 @@ describe("the API table (README.md:212-230)", () => {
     (m) => ({ method: m[1]!.toUpperCase(), path: m[2]! }),
   );
 
-  it("names fifteen routes, as many as the table has rows", () => {
-    expect(rows.length).toBe(16);
+  /**
+   * The count is the table's own shape, not a fact about the server — the two
+   * cases below are what prove the rows are the right ones, in both directions.
+   * It is pinned because a document that quietly grows a third direction (more
+   * rows than routes, or routes with no row) is the failure this table exists
+   * to prevent. 2026-10-12: the two staged-copy routes were named in the
+   * privacy section but had no row here; they have one now.
+   */
+  it("names eighteen routes, as many as the table has rows", () => {
+    expect(rows.length).toBe(18);
   });
 
   it("lists only routes the server actually registers", () => {

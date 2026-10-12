@@ -18,8 +18,9 @@ import { existsSync, mkdirSync, writeFileSync } from "fs";
 /**
  * #41 — Regel-Packs.
  *
- * Der Aufhänger war gemessen: `semgrep --config p/security-audit` lädt 225
- * Regeln während des Scans von semgrep.dev, und die Semgrep Rules License v1.0
+ * Der Aufhänger ist eine Lizenz, keine Zahl: `semgrep --config p/security-audit`
+ * lädt seine Regeln während des Scans von semgrep.dev — wie viele an welchem Tag,
+ * das beantwortet die Registry, kein Artefakt in diesem Baum —, und die Semgrep Rules License v1.0
  * sagt dazu: "This license does not allow you to distribute the rules, or to
  * make them available to others as a service." Ein Bundling dieser Packs ins
  * Programm wäre also kein Formeldetail, sondern ein Verstoß. Gebündelt wird
@@ -149,7 +150,7 @@ describe("Regel-Pack ephemora-core (#41)", () => {
     expect(withPack.config.rulePacks).toEqual(["ephemora-core"]);
     expect(semgrepRuleDirs(withPack.config.rulePacks)[0]).toContain("ephemora-core");
 
-    // Offline ohne Pack: semgrep würde 225 Regeln von semgrep.dev ziehen
+    // Offline ohne Pack: semgrep würde seine Regeln von semgrep.dev ziehen
     process.env.SKYLINE_OFFLINE = "1";
     try {
       expect(resolveConfig().config.tools.semgrep).toBe(false);

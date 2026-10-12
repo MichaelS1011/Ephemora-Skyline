@@ -8,10 +8,12 @@ import type { FindingCategory } from "../../models/index.js";
  * Rule packs — a named, versioned bundle of semgrep rules that a scan can be
  * pointed at.
  *
- * The reason this exists is a measured one: `semgrep --config p/security-audit`
- * downloads 225 rules from semgrep.dev *during the scan*, and the Semgrep Rules
- * License v1.0 says in as many words "This license does not allow you to
- * distribute the rules, or to make them available to others as a service." So
+ * The reason this exists is a licence, not a count: `semgrep --config
+ * p/security-audit` fetches its rules from semgrep.dev *during the scan* — how
+ * many, on which day, is the registry's answer and no file in this repository
+ * can show it — and the Semgrep Rules License v1.0 says in as many words "This
+ * license does not allow you to distribute the rules, or to make them available
+ * to others as a service." So
  * the registry packs are not ours to ship. What we ship is rules we wrote and
  * own, tested against positive and negative fixtures, and a second root where
  * a user can put packs they fetched themselves.

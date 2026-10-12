@@ -3,9 +3,10 @@
  *
  * Why it lives here too: the browser walks the folder first, and a folder that
  * git does not track still costs a `File` object and a slot against the file
- * cap. Measured on this repository: 16,711 candidate files and 242 MB were
- * offered for a project of 550 files and 13,9 MB, because 14,037 of them sat in
- * local tooling folders the project's .gitignore sets aside. The backend
+ * cap. Measured on this repository on 2026-10-12 with the walk rules below:
+ * 17,360 candidate files and 262 MB were offered for a project of 392 files and
+ * 3.4 MB, because 16,968 of them sat in local tooling folders the project's
+ * .gitignore sets aside. The backend
  * already skips those paths; counting them first is what made the cap refuse a
  * folder the scan would have read happily.
  *

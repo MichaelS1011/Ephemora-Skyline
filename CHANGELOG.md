@@ -75,8 +75,9 @@ were run on it as a whole.
 - **The browser reads your `.gitignore` before it counts.** The folder picker
   walked every path on disk and then refused the folder for being large, so a
   checkout with its own build output inside it could not be scanned at all:
-  measured on this repository, **16.711** source-shaped files on disk against
-  **550** the project itself calls source. The client now applies the same
+  measured on this repository on 2026-10-12 with the shipped walk rules,
+  **17,360** source-shaped files on disk against
+  **392** the project itself calls source. The client now applies the same
   matcher the backend parser uses — mirrored byte for byte between
   `frontend/src/config/gitignore.ts` and `backend/src/services/analyzer/gitignore.ts`,
   with a test on each side that fails if the two bodies stop being identical —
@@ -212,7 +213,7 @@ were run on it as a whole.
   of the pipeline, in the refusal text, and in the document that quotes them.
   The old pair was set before anyone had pointed the picker at a real checkout;
   with the `.gitignore` pruning running in front of the count, this repository is
-  550 files, and a mid-sized TypeScript service stops arriving as a refusal. The
+  392 source-shaped files, and a mid-sized TypeScript service stops arriving as a refusal. The
   two walls are one number on both sides, and a test says so.
   `backend/tests/upload-caps.test.ts`
 - **The colour-blind switch reaches the city.** Until now it stopped at the flat

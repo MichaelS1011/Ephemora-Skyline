@@ -3,9 +3,10 @@
  * The folder's own .gitignore decides what is project source — before anything
  * is counted against the file cap.
  *
- * Measured on this repository: a scan of its own folder offered 16,711 source-
- * shaped files and 242 MB, of which 16,161 sat in local tooling folders the
- * project's .gitignore sets aside; the project itself is 550 files and 13,9 MB.
+ * Measured on this repository on 2026-10-12, with the walk rules the shipped
+ * client carries: a scan of its own folder offered 17,360 source-shaped files
+ * and 262 MB, of which 16,968 sat in local tooling folders the
+ * project's .gitignore sets aside; the project itself is 392 files and 3.4 MB.
  * The backend already skipped those paths, so the cap refused a folder for
  * files the scan would never have read. These checks hold the two pickers to
  * the same answer, because a folder that costs 31 s of reading in one picker

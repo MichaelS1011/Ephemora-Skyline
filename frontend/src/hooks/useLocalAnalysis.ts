@@ -234,8 +234,8 @@ function firstIgnoredAncestor(ignores: IgnoreMatcher, rel: string): string | nul
  * the file — that is what makes the cap answerable before 31 s of reading.
  *
  * The .gitignore answer comes first, because it is the folder's own statement
- * about what is not its source: measured on this repository, 16,161 of 16,711
- * candidates sat in local tooling folders the project already sets aside.
+ * about what is not its source: measured on this repository on 2026-10-12, 16,968
+ * of 17,360 candidates sat in local tooling folders the project already sets aside.
  */
 function classifyCandidate(
   rel: string,
