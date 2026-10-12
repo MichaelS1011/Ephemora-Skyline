@@ -97,7 +97,10 @@ were run on it as a whole.
 - **The street fleet has a shape, a coat and wheels that turn.** The taxi and the
   bus were the same pair of boxes at two scales; they now have a body, a cabin
   and four wheels each, on a lit material instead of an emissive one, in one of
-  five coats that no other surface in the city wears. `frontend/tests/roadFleet.test.ts`
+  five coats that no other surface in the city wears. The cars that drive a lane
+  roll theirs with the distance covered — half a turn per half circumference, and
+  `frontend/tests/roadFleet.test.ts` measures exactly that — while the taxi at the
+  kerb and the bus at its stop keep theirs still, because those two are parked.
 - **The compose stack publishes on loopback ports you can move.** Both published
   ports are parameters now, because the fixed pair collided with `npm run dev`
   on the machine that develops the file, and both loopback spellings are in the
