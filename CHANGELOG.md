@@ -63,10 +63,14 @@ were run on it as a whole.
 - **The self-scan number now travels with its list.** README.md:54 claimed 68
   findings and 59 quoted test text for the first scan of this repository, and no
   artefact in the tree or the working folders could reproduce either number. The
-  one allowed run over this checkout (default profile, scratch folders and git
-  history left out through the exclude field, both counted) reported 10 findings
+  one allowed run over this checkout (default profile, 412 files — everything
+  git calls the project, tool folders set aside by the repository's own
+  `.gitignore`, no git history) reported 10 findings
   and 1 of them on an `expect(...)` line; its handoff list ships as
   `docs/self-scan-findings.ndjson` and the sentence carries those two numbers.
+  The run was repeated on 12 October after a reformat moved two of the list's
+  pointers: the guard went red on exactly that, and repeating the run is what
+  keeps the file checkable instead of patched.
   `backend/tests/selbst23-two-numbers.test.ts`
 - **The browser reads your `.gitignore` before it counts.** The folder picker
   walked every path on disk and then refused the folder for being large, so a
