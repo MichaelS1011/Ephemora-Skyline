@@ -181,10 +181,14 @@ first pass above cites, restored out of the commit it belonged to, and replacing
 it would trade a record for a picture of today.
 
 The five gates were run on the tree that carries them: lint and the type check
-over both packages with zero warnings, **192 test files and 1,713 cases** (656
+over both packages with zero warnings, **192 test files and 1,714 cases** (657
 backend, 1,057 frontend) in three consecutive full runs, each ending with exit 0
 and no test skipped, the production build for both packages, and the audit gate
-with its one accepted advisory named in the gate itself.
+with its one accepted advisory named in the gate itself. The same four jobs ran
+on GitHub Actions for the pushed head (run `38266378931`), where five backend
+cases skip — three in `rule-packs.test.ts` and two in `gitleaks-paths.test.ts`,
+because the runner has neither `ruff` nor `gitleaks` — which is the answer the
+README says an absent engine gets.
 
 ### The clip ran faster than the visit it filmed
 
