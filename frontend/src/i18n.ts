@@ -1185,6 +1185,40 @@ export const DICT = {
     en: "{n} scanner did not cover this file — no finding is not clean",
     de: "{n} Prüfprogramm war für diese Datei nicht aktiv — kein Befund heißt hier nicht sauber",
   },
+  /**
+   * S2: the checked card has to name its engines too, or "checked and clean"
+   * and "nobody looked at this" stay indistinguishable where the verdict is
+   * read (R3-02: aws.ts, a bare green line while gitleaks and semgrep looked).
+   */
+  "panel.coverageExamined": {
+    en: "Examined by {engines}",
+    de: "Geprüft von {engines}",
+  },
+  "panel.coverageBlind": {
+    en: " — {blind} does not open this format",
+    de: " — {blind} öffnet dieses Format nicht",
+  },
+  "panel.coverageNoScanner": {
+    en: "No security scanner opens this format — only the pattern baseline read it",
+    de: "Kein Sicherheits-Scanner öffnet dieses Format — nur die Mustergrundlage hat es gelesen",
+  },
+  "panel.coverageUnread": {
+    en: "No scanner read this file at all — the city shows only its measured shape",
+    de: "Kein Prüfprogramm hat diese Datei gelesen — die Stadt zeigt nur ihre gemessene Form",
+  },
+  /**
+   * S2 · R3-03: a threat word raised on nothing but review-level hygiene
+   * notes has to say what it stands on. The underlying computation is
+   * untouched — this is provenance on the chip, not a new scoring rule.
+   */
+  "panel.chipBasisOne": {
+    en: "{word} · from {count} review-level note ({notes}), no security rule matched",
+    de: "{word} · aus {count} Prüfhinweis auf Review-Stufe ({notes}) — keine Sicherheitsregel hat gegriffen",
+  },
+  "panel.chipBasisMany": {
+    en: "{word} · from {count} review-level notes ({notes}), no security rule matched",
+    de: "{word} · aus {count} Prüfhinweisen auf Review-Stufe ({notes}) — keine Sicherheitsregel hat gegriffen",
+  },
 
   // ── Info panel — structure block ──────────────────────────────────────────
   "panel.structureAria": {
@@ -1654,6 +1688,26 @@ export const DICT = {
   "scan.noSource": {
     en: "No analyzable source files in this folder (supported: {exts})",
     de: "In diesem Ordner liegen keine analysierbaren Quelldateien (unterstützt: {exts})",
+  },
+  "scan.pickerTimeout": {
+    en: "Still choosing? Take your time. If no dialog opened, you can open an alternative; this replaces the first selection.",
+    de: "Noch bei der Auswahl? Lass dir Zeit. Falls kein Dialog geöffnet wurde, kannst du einen alternativen öffnen; dieser ersetzt die erste Auswahl.",
+  },
+  "scan.pickerUnavailable": {
+    en: "The folder dialog could not open. You can try the alternative folder dialog.",
+    de: "Der Ordnerdialog konnte nicht geöffnet werden. Du kannst den alternativen Ordnerdialog versuchen.",
+  },
+  "scan.pickerReadFailed": {
+    en: "The selected folder could not be read. Choose another folder.",
+    de: "Der gewählte Ordner konnte nicht gelesen werden. Wähle einen anderen Ordner.",
+  },
+  "picker.waiting": {
+    en: "Waiting for folder selection",
+    de: "Warte auf die Ordnerauswahl",
+  },
+  "picker.alternative": {
+    en: "Open alternative folder dialog",
+    de: "Alternativen Ordnerdialog öffnen",
   },
 
   // ── Limits: a file may be refused, but never silently (measured: 30 of 62 gone) ──
@@ -2139,6 +2193,19 @@ export const DICT = {
   "ctx.blindTip": {
     en: "No engine that could report on these ran in this scan. Zero findings here is a blind spot, not a clean result.",
     de: "Keine Engine, die das melden könnte, lief in diesem Scan. Null Funde sind hier eine Lücke, kein sauberes Ergebnis.",
+  },
+  /**
+   * S2: the shipped rule set's own blind classes belong on the screen, not
+   * only in the README's prose (R3-03). Phrased as a statement about the
+   * rules — never as a promise that the listed classes are absent.
+   */
+  "ctx.classCoverage": {
+    en: "What the shipped rules cannot see: authorisation/IDOR and race conditions have no rule at all. SSRF, weak randomness, server-side response sinks, path traversal and credential literals are matched by shape heuristics only — they catch the obvious line, not the clever one. No finding in these classes means un-checked, not clean",
+    de: "Was die mitgelieferten Regeln nicht sehen: Autorisierung/IDOR und Race-Conditions haben überhaupt keine Regel. SSRF, schwache Zufälligkeit, serverseitige Antwort-Senken, Pfadtraversierung und Credential-Literale erkennt nur eine Form-Heuristik — sie greift die offensichtliche Zeile, nicht die clevere. Kein Befund heißt hier ungeprüft, nicht sauber",
+  },
+  "ctx.classCoverageTip": {
+    en: "A statement about the shipped rules, not about your code: these classes can still be present — unseen.",
+    de: "Eine Aussage über die mitgelieferten Regeln, nicht über Ihren Code: Diese Klassen können vorkommen — ungesehen.",
   },
   "ctx.testTip": {
     en: "Test findings can describe intentional fixtures or real executed code. Review the evidence before treating them as product vulnerabilities. They remain listed and have lower priority in the overview.",

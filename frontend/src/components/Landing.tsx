@@ -633,7 +633,10 @@ export function Landing() {
     budgetWaitSec,
     stages,
     pickFolder,
+    openAlternativePicker,
+    canUseAlternativePicker,
     cancel,
+    isPicking,
     isAnalyzing,
   } = useLocalAnalysis();
   const [cancelledAt, setCancelledAt] = useState(0);
@@ -743,11 +746,13 @@ export function Landing() {
                 <path d="M3 7V5a1 1 0 0 1 1-1h5l2 3h9a1 1 0 0 1 1 1v11H3Z" />
                 <path d="M3 10h18" />
               </svg>
-              {isCollecting
-                ? t(lang, "landing.primaryCollecting")
-                : isAnalyzing
-                  ? t(lang, "landing.primaryAnalyzing")
-                  : t(lang, "landing.primary")}
+              {isPicking
+                ? t(lang, "picker.waiting")
+                : isCollecting
+                  ? t(lang, "landing.primaryCollecting")
+                  : isAnalyzing
+                    ? t(lang, "landing.primaryAnalyzing")
+                    : t(lang, "landing.primary")}
             </button>
             <button
               onClick={loadDemo}
@@ -769,6 +774,28 @@ export function Landing() {
               {demoLoading ? t(lang, "landing.secondaryLoading") : t(lang, "landing.secondary")}
             </button>
           </div>
+          {isPicking && (
+            <div className="mt-3">
+              <p id="picker-status" role="status" className="start-state-next">
+                {notice || t(lang, "picker.waiting")}
+              </p>
+              <div className="start-state-actions">
+                {canUseAlternativePicker && (
+                  <button
+                    type="button"
+                    className="start-state-action"
+                    aria-describedby="picker-status"
+                    onClick={openAlternativePicker}
+                  >
+                    {t(lang, "picker.alternative")}
+                  </button>
+                )}
+                <button type="button" className="start-cancel" onClick={cancel}>
+                  {t(lang, "landing.cancel")}
+                </button>
+              </div>
+            </div>
+          )}
           <div className="landing-assure">
             <p id="local-note" className="landing-privacy">
               {t(lang, "landing.privacy")}
@@ -856,6 +883,21 @@ export function Landing() {
               </div>
             </details>
           </div>
+          {!error && footError && (
+            // R1-15: with the backend dead this page stayed fully optimistic —
+            // even "RECENTLY OPENED … Open again →" — and the only trace was
+            // two console 502s, although the footprint read above already
+            // calls the server within a second. The failure is now named here,
+            // in the existing server-down copy, with the command that fixes it.
+            <div id="landing-server-down" role="status">
+              <StartNotice
+                lang={lang}
+                kind="server-down"
+                measured={ts(lang, "err.serverDown")}
+                next={ts(lang, "err.serverDownHint")}
+              />
+            </div>
+          )}
           {error && (
             <div id="landing-error">
               {demoFailed ? (
@@ -876,7 +918,7 @@ export function Landing() {
               )}
             </div>
           )}
-          {isAnalyzing && (
+          {isAnalyzing && !isPicking && (
             <ScanProgress
               lang={lang}
               collecting={isCollecting}

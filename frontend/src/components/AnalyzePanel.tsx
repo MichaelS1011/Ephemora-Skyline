@@ -55,12 +55,16 @@ export function AnalyzePanel({ className = "" }: { className?: string }) {
   const popoverRef = useRef<HTMLDivElement>(null);
   const {
     state,
+    notice,
     errorMessage,
     analysisProgress,
     analysisStage,
     collected,
     pickFolder,
+    openAlternativePicker,
+    canUseAlternativePicker,
     cancel,
+    isPicking,
     isAnalyzing,
   } = useLocalAnalysis();
 
@@ -170,7 +174,12 @@ export function AnalyzePanel({ className = "" }: { className?: string }) {
               color: isAnalyzing ? "#a03a2c" : "#e8503c",
             }}
           >
-            {state === "collecting" ? (
+            {isPicking ? (
+              <span className="flex items-center justify-center gap-2">
+                <span className="inline-block w-2 h-2 rounded-full bg-[#e8b23c] animate-pulse" />
+                {t(lang, "picker.waiting")}
+              </span>
+            ) : state === "collecting" ? (
               <span className="flex items-center justify-center gap-2">
                 <span className="inline-block w-2 h-2 rounded-full bg-[#e8503c] animate-pulse" />
                 {t(lang, "analyze.reading")}
@@ -184,6 +193,33 @@ export function AnalyzePanel({ className = "" }: { className?: string }) {
               t(lang, "landing.primary")
             )}
           </button>
+
+          {isPicking && (
+            <div className="mt-2">
+              <p
+                id="analyze-picker-status"
+                role="status"
+                aria-live="polite"
+                className="font-mono text-[11px] text-[color:var(--meta-strong)] text-center"
+              >
+                {notice || t(lang, "picker.waiting")}
+              </p>
+              {/* The native dialog stays open as long as the person uses it; this
+                  is the way out for the one who is waiting, and it opens only on
+                  their own click. */}
+              {canUseAlternativePicker && (
+                <button
+                  type="button"
+                  onClick={openAlternativePicker}
+                  aria-describedby="analyze-picker-status"
+                  className="w-full mt-2 py-1 rounded-sm font-mono text-[11px] tracking-widest border border-[#e8b23c]
+                             text-[#e8b23c] bg-transparent hover:bg-[rgba(232,178,60,0.08)] transition-all duration-150"
+                >
+                  {t(lang, "picker.alternative")}
+                </button>
+              )}
+            </div>
+          )}
 
           {state === "collecting" && collected.files > 0 && (
             <div className="mt-2 font-mono text-[11px] text-[color:var(--meta-strong)] text-center">

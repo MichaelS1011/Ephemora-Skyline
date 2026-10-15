@@ -6,7 +6,7 @@ import { IgnoreMatcher } from "../config/gitignore";
 import { progressLine, stageEntries, type StageEntry } from "../config/scanStages";
 import { formatCount, t, type Lang } from "../i18n";
 
-export type AnalysisState = "idle" | "collecting" | "analyzing" | "success" | "error";
+export type AnalysisState = "idle" | "picking" | "collecting" | "analyzing" | "success" | "error";
 
 /** Must mirror the backend pipeline's SUPPORTED_EXTENSIONS */
 const SUPPORTED_EXTENSIONS = new Set([
@@ -48,7 +48,7 @@ const SUPPORTED_EXTENSIONS = new Set([
 const ENV_FILE = /(^|\/)\.env(\.|$)/;
 
 /** Directory names that never contain relevant source code */
-const SKIP_DIRS =
+export const SKIP_DIRS =
   /^(node_modules|dist|build|out|\.next|\.nuxt|coverage|\.turbo|\.vscode|\.idea|__pycache__|\.venv|venv|target|vendor|\.pytest_cache|\.mypy_cache|\.gradle|Pods|bin|obj)$/i;
 
 /** Dependency manifests are small text files the CVE layer (osv) needs —
@@ -127,14 +127,23 @@ async function readPayload(
  */
 const MAX_FILES = 10_000;
 const MAX_TOTAL_BYTES = 150 * 1024 * 1024;
-const MAX_FILE_BYTES = 1.5 * 1024 * 1024;
+/**
+ * The per-file wall, and it is the one the docs sell: README and GETTING_STARTED
+ * both promise 2 MB per file, and the backend route accepts 2 MB
+ * (`backend/src/server/routes/local-analyze.ts`). This side used to cap at
+ * 1.5 MB, so a 1.7 MB file was refused although two documents said it would be
+ * read. `frontend/tests/picker-file-size-cap.test.ts` walks a 1.7 MB file
+ * through the real classifier, and `backend/tests/public-surface-claims.test.ts`
+ * pins this number to the backend's copy and to the sentences.
+ */
+export const MAX_FILE_BYTES = 2 * 1024 * 1024;
 /**
  * Mirror of MAX_PATH_LEN in the backend upload route. A path longer than this is
  * refused there, so the reader refuses it too — and counts it. Skipping them
  * quietly is how 30 of 62 files vanished from a scan the UI called complete.
  * backend/tests/upload-caps.test.ts pins the two constants to each other.
  */
-const MAX_PATH_LEN = 512;
+export const MAX_PATH_LEN = 512;
 /**
  * The .git folder rides along (base64) so the backend can read real git
  * history — churn hotspots, author districts, history secrets — from a
@@ -156,14 +165,14 @@ interface LocalFile {
 }
 
 /** One file the folder offered, before anybody has read its bytes */
-interface Candidate {
+export interface Candidate {
   rel: string;
   file: File;
   git: boolean;
 }
 
 /** Everything one enumeration pass learned about a folder */
-interface FolderPlan {
+export interface FolderPlan {
   candidates: Candidate[];
   /** source files among them — the number the file cap is about */
   found: number;
@@ -197,7 +206,7 @@ function addDropped(dropped: DroppedFiles, key: keyof DroppedFiles, by = 1): Dro
   return { ...dropped, [key]: dropped[key] + by };
 }
 
-function isSourceShaped(rel: string): boolean {
+export function isSourceShaped(rel: string): boolean {
   const dot = rel.lastIndexOf(".");
   const ext = dot > rel.lastIndexOf("/") ? rel.slice(dot).toLowerCase() : "";
   const base = rel.split("/").pop() ?? "";
@@ -237,7 +246,7 @@ function firstIgnoredAncestor(ignores: IgnoreMatcher, rel: string): string | nul
  * about what is not its source: measured on this repository on 2026-10-12, 16,968
  * of 17,360 candidates sat in local tooling folders the project already sets aside.
  */
-function classifyCandidate(
+export function classifyCandidate(
   rel: string,
   file: File,
   excludes: string[],
@@ -309,6 +318,9 @@ function isDirHandlePickerAvailable(): boolean {
   return typeof (window as { showDirectoryPicker?: unknown }).showDirectoryPicker === "function";
 }
 
+/** Offer another picker after a wait; never expire a user's native dialog. */
+const PICKER_ALTERNATIVE_DELAY_MS = 4_000;
+
 // ── The sentences the waiting user is allowed to read ──────────────────────
 // All of them come from the dictionary: a German screen that catches an English
 // line mid-wait was one of the audited defects, and the server's own wording
@@ -351,6 +363,10 @@ export function useLocalAnalysis() {
   /** The server's own words behind `errorMessage` — evidence, not the claim */
   const [errorDetail, setErrorDetail] = useState("");
   const [notice, setNotice] = useState("");
+  const [canUseAlternativePicker, setCanUseAlternativePicker] = useState(false);
+  const pickerTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const alternativeRunRef = useRef<number | null>(null);
+  const inputCleanupRef = useRef<(() => void) | null>(null);
   const [collected, setCollected] = useState({ files: 0, bytes: 0, total: 0 });
   const [foundFiles, setFoundFiles] = useState(0);
   const [dropped, setDropped] = useState<DroppedFiles | null>(null);
@@ -392,7 +408,40 @@ export function useLocalAnalysis() {
     }
   }, []);
 
-  useEffect(() => () => stopPolling(), [stopPolling]);
+  const cleanupPicker = useCallback(() => {
+    if (pickerTimerRef.current !== null) clearTimeout(pickerTimerRef.current);
+    pickerTimerRef.current = null;
+    alternativeRunRef.current = null;
+    inputCleanupRef.current?.();
+    inputCleanupRef.current = null;
+  }, []);
+
+  const finishPicker = useCallback(() => {
+    cleanupPicker();
+    setCanUseAlternativePicker(false);
+    setNotice("");
+  }, [cleanupPicker]);
+
+  const offerAlternativePicker = useCallback(
+    (run: number, key: "scan.pickerTimeout" | "scan.pickerUnavailable") => {
+      if (runRef.current !== run) return;
+      alternativeRunRef.current = run;
+      setCanUseAlternativePicker(true);
+      setNotice(t(langRef.current, key));
+    },
+    [],
+  );
+
+  useEffect(
+    () => () => {
+      runRef.current += 1;
+      cancelledRef.current = true;
+      cleanupPicker();
+      abortRef.current?.abort();
+      stopPolling();
+    },
+    [cleanupPicker, stopPolling],
+  );
 
   /**
    * The one writer of the stage line: the server's stage (in the display
@@ -403,6 +452,7 @@ export function useLocalAnalysis() {
     const l = langRef.current;
     // Nothing uploaded yet and no stage named: the reading counter owns the line
     // (the landing block shows it), and "uploading" would be a lie.
+    if (stateRef.current === "picking") return;
     if (!stageRef.current && stateRef.current === "collecting") return;
     const base = stageRef.current
       ? progressLine(l, stageRef.current)
@@ -780,6 +830,14 @@ export function useLocalAnalysis() {
     setState("error");
   }, []);
 
+  const failCollection = useCallback((err: unknown, run: number) => {
+    if (runRef.current !== run) return;
+    setErrorMessage(t(langRef.current, "scan.pickerReadFailed"));
+    setErrorDetail(err instanceof Error ? err.message : String(err));
+    stateRef.current = "error";
+    setState("error");
+  }, []);
+
   const collectFromFileList = useCallback(
     async (fileList: File[], rootName: string, run: number) => {
       const excludes = loadExcludes();
@@ -828,36 +886,75 @@ export function useLocalAnalysis() {
     [nothingFound, readAndUpload, refuseOverCap],
   );
 
-  /** Fallback for browsers without the File System Access API */
+  /** Called synchronously from a user action, never from a timer or rejection. */
   const pickViaInputFallback = useCallback(
     (run: number) => {
+      if (runRef.current !== run) return Promise.resolve();
       return new Promise<void>((resolve) => {
         const input = document.createElement("input");
         input.type = "file";
         input.setAttribute("webkitdirectory", "");
         input.setAttribute("directory", "");
         input.style.display = "none";
-        input.onchange = () => {
-          const fileList = Array.from(input.files ?? []);
-          const rootName = fileList[0]?.webkitRelativePath?.split("/")[0] ?? "local folder";
+        let active = true;
+        const detach = () => {
+          active = false;
+          input.onchange = null;
+          input.oncancel = null;
           input.remove();
-          if (runRef.current !== run) {
-            resolve();
-            return;
-          }
-          void collectFromFileList(fileList, rootName, run).finally(resolve);
+          inputCleanupRef.current = null;
         };
-        input.oncancel = () => {
-          input.remove();
-          if (runRef.current === run) setState("idle");
+        inputCleanupRef.current = () => {
+          detach();
           resolve();
         };
+        const cancelled = () => {
+          if (!active || runRef.current !== run) return;
+          detach();
+          runRef.current += 1;
+          finishPicker();
+          stateRef.current = "idle";
+          setState("idle");
+          resolve();
+        };
+        input.onchange = () => {
+          if (!active || runRef.current !== run) return;
+          const fileList = Array.from(input.files ?? []);
+          if (fileList.length === 0) {
+            cancelled();
+            return;
+          }
+          const rootName = fileList[0]?.webkitRelativePath?.split("/")[0] ?? "local folder";
+          detach();
+          finishPicker();
+          stateRef.current = "collecting";
+          setState("collecting");
+          startedAtRef.current = Date.now();
+          void collectFromFileList(fileList, rootName, run)
+            .catch((err: unknown) => failCollection(err, run))
+            .finally(resolve);
+        };
+        input.oncancel = cancelled;
         document.body.appendChild(input);
-        input.click();
+        try {
+          input.click();
+        } catch {
+          detach();
+          offerAlternativePicker(run, "scan.pickerUnavailable");
+          resolve();
+        }
       });
     },
-    [collectFromFileList],
+    [collectFromFileList, failCollection, finishPicker, offerAlternativePicker],
   );
+
+  const openAlternativePicker = useCallback(() => {
+    if (alternativeRunRef.current !== runRef.current) return;
+    // Retire the native selection before opening the input, including same-turn clicks.
+    const run = ++runRef.current;
+    finishPicker();
+    return pickViaInputFallback(run);
+  }, [finishPicker, pickViaInputFallback]);
 
   /**
    * The File System Access walk: enumerate first (a count that moves while the
@@ -940,8 +1037,9 @@ export function useLocalAnalysis() {
   );
 
   const pickFolder = useCallback(async () => {
-    if (stateRef.current === "collecting" || stateRef.current === "analyzing") return;
+    if (["picking", "collecting", "analyzing"].includes(stateRef.current)) return;
     const run = ++runRef.current;
+    finishPicker();
     cancelledRef.current = false;
     jobIdRef.current = null;
     stageRef.current = null;
@@ -958,30 +1056,54 @@ export function useLocalAnalysis() {
     setFoundFiles(0);
     startedAtRef.current = Date.now();
     abortRef.current = new AbortController();
-    setState("collecting");
+    stateRef.current = "picking";
+    setState("picking");
+    setAnalysisStage("");
     setStageOf(null);
     if (!isDirHandlePickerAvailable()) {
       await pickViaInputFallback(run);
       return;
     }
+    pickerTimerRef.current = setTimeout(() => {
+      if (runRef.current !== run) return;
+      pickerTimerRef.current = null;
+      offerAlternativePicker(run, "scan.pickerTimeout");
+    }, PICKER_ALTERNATIVE_DELAY_MS);
+    let picked: DirHandle;
     try {
       const picker = (
         window as unknown as { showDirectoryPicker?: (opts?: unknown) => Promise<DirHandle> }
       ).showDirectoryPicker;
       if (!picker) throw new Error("unsupported");
-      const dir = await picker.call(window, { mode: "read" });
-      await collectFromDirectoryHandle(dir, run);
+      picked = await picker.call(window, { mode: "read" });
     } catch (err) {
-      // AbortError = user cancelled the native dialog
-      if (err instanceof Error && err.name === "AbortError") {
+      if (runRef.current !== run) return;
+      finishPicker();
+      // DOMException need not inherit Error (including across realms).
+      if (err && typeof err === "object" && "name" in err && err.name === "AbortError") {
+        runRef.current += 1;
+        stateRef.current = "idle";
         setState("idle");
         return;
       }
-      if (runRef.current !== run) return;
-      // Some Chromium builds restrict the API — fall back transparently
-      await pickViaInputFallback(run);
+      offerAlternativePicker(run, "scan.pickerUnavailable");
+      return;
     }
-  }, [collectFromDirectoryHandle, pickViaInputFallback, setStageOf]);
+    if (runRef.current !== run) return;
+    finishPicker();
+    stateRef.current = "collecting";
+    setState("collecting");
+    startedAtRef.current = Date.now();
+    await collectFromDirectoryHandle(picked, run).catch((err: unknown) => failCollection(err, run));
+  }, [
+    collectFromDirectoryHandle,
+    failCollection,
+    finishPicker,
+    offerAlternativePicker,
+    pickViaInputFallback,
+    setAnalysisStage,
+    setStageOf,
+  ]);
 
   /**
    * Cancel, for real: the run's identity is retired so no late answer can write
@@ -992,6 +1114,8 @@ export function useLocalAnalysis() {
   const cancel = useCallback(() => {
     runRef.current += 1;
     cancelledRef.current = true;
+    finishPicker();
+    stateRef.current = "idle";
     const controller = abortRef.current;
     abortRef.current = null;
     controller?.abort();
@@ -1013,14 +1137,12 @@ export function useLocalAnalysis() {
     setErrorMessage("");
     setErrorDetail("");
     setNotice(t(langRef.current, "scan.cancelled"));
-  }, [setAnalysisProgress, setAnalysisStage, stopPolling]);
+  }, [finishPicker, setAnalysisProgress, setAnalysisStage, stopPolling]);
 
   const reset = useCallback(() => {
-    setErrorMessage("");
-    setErrorDetail("");
+    cancel();
     setNotice("");
-    setState("idle");
-  }, []);
+  }, [cancel]);
 
   const stages: StageEntry[] = stageEntries(lang, rawStage);
 
@@ -1038,9 +1160,12 @@ export function useLocalAnalysis() {
     budgetWaitSec,
     stages,
     pickFolder,
+    openAlternativePicker,
+    canUseAlternativePicker,
     cancel,
     reset,
-    isAnalyzing: state === "collecting" || state === "analyzing",
+    isPicking: state === "picking",
+    isAnalyzing: state === "picking" || state === "collecting" || state === "analyzing",
     supportsDirectoryPicker: isDirHandlePickerAvailable(),
   };
 }
