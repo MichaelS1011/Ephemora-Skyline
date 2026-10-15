@@ -25,6 +25,13 @@ export default defineConfig({
   },
   server: {
     port: 3010,
+    // Fail loudly on a port collision instead of drifting: without this, a
+    // second checkout's `npm run dev` silently lands on 3011+ while its /api
+    // proxy still points at the FIRST checkout's backend — the UI looks like
+    // your build but answers from another process. Refusing to start is
+    // recoverable (PORT= + BACKEND_PORT=, see CONTRIBUTING.md); a silent
+    // foreign backend is not.
+    strictPort: true,
     proxy: {
       // 127.0.0.1, not localhost: the backend binds loopback explicitly, and a
       // name would let the resolver answer ::1 first — which nothing listens on.
