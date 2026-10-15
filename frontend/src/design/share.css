@@ -437,6 +437,15 @@
   font-size: 12px;
   pointer-events: auto;
 }
+/* R2-09: at 1280×720 the nudge sat directly on the `[?] shortcuts` link
+   (both anchored left, ~6 px apart) — and the measured overlap at 1440×900
+   was 102×8 px of real intersection, so the threshold is 1000 px, not 800.
+   At 1920×1080 (the lane's no-overlap frame) nothing moves. */
+@media (max-height: 1000px) {
+  .share-hint {
+    bottom: calc(var(--dock-h, 90px) + 118px);
+  }
+}
 .share-hint-text {
   margin: 0 0 9px;
   color: #f2efe8;

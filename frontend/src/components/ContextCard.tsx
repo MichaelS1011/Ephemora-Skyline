@@ -190,7 +190,8 @@ export function ContextCard() {
         </div>
       </dl>
 
-      {(dataLines > 0 ||
+      {(isRoot ||
+        dataLines > 0 ||
         drawLines.length > 0 ||
         testLine !== "" ||
         uncheckedLine !== "" ||
@@ -236,6 +237,20 @@ export function ContextCard() {
           {blind.length > 0 && (
             <div className="ctx-note" style={{ color: "#8f8b82" }} title={t(lang, "ctx.blindTip")}>
               {t(lang, "ctx.blind", { list: blind.join(", ") })}
+            </div>
+          )}
+          {/* S2 · R3-03: the rule set's own blind classes belong on the screen
+              the user is reading, once per project — not only in the README's
+              prose. Phrased about the rules, never as a promise the classes
+              are absent from the code. */}
+          {isRoot && (
+            <div
+              className="ctx-note"
+              data-context-class-coverage="true"
+              style={{ color: "#8f8b82" }}
+              title={t(lang, "ctx.classCoverageTip")}
+            >
+              {t(lang, "ctx.classCoverage")}
             </div>
           )}
           {testLine !== "" && (

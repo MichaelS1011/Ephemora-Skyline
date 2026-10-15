@@ -54,7 +54,7 @@ export function HeatmapToggle() {
       aria-label={t(lang, "heat.groupAria")}
       data-tip={t(lang, "heat.groupTip")}
     >
-      <span className="font-mono text-[11px] tracking-wider text-[#98948a] mr-1">HEAT</span>
+      <span className="font-mono text-[12px] tracking-wider text-[#98948a] mr-1">HEAT</span>
       {CHANNELS.map(({ id, label, tipKey }) => {
         const unavailable = id === "churn" && !churnAvailable;
         const active = heatChannel === id;
@@ -66,7 +66,7 @@ export function HeatmapToggle() {
             aria-disabled={unavailable || undefined}
             data-tip={unavailable ? t(lang, "heat.churnUnavailableTip") : t(lang, tipKey)}
             onClick={() => pick(id)}
-            className="font-mono text-[11px] tracking-wider px-1.5 py-0.5 rounded transition-all duration-150
+            className="font-mono text-[12px] tracking-wider px-1.5 py-0.5 rounded transition-all duration-150
                        focus:outline-none focus:ring-1 focus:ring-[#e8503c] cursor-pointer
                        hover:brightness-125 active:scale-[0.96]"
             style={{

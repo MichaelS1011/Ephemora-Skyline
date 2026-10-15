@@ -62,6 +62,12 @@ const BRIDGE: Record<string, { en: string; de: string }> = {
     en: "{n} files were not read",
     de: "{n} Dateien wurden nicht gelesen",
   },
+  // R1-23 / R2-13 / R3-10: the strip carried `1 files were not read`. The
+  // singular branch is the same shape the drop rows already use.
+  "summary.unreadOne": {
+    en: "{n} file was not read",
+    de: "{n} Datei wurde nicht gelesen",
+  },
   "summary.dwell": {
     en: "closes in {s} s · hover to hold",
     de: "schließt in {s} s · zum Halten darüber",

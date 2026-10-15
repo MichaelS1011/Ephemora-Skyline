@@ -245,9 +245,13 @@
   z-index: 1;
   min-height: 62px;
   border-top: 1px solid rgba(242, 239, 232, 0.07);
-  font: 400 11px/1.5 var(--font-mono);
+  /* R2-08: #7e847a over the rendered ground (rgb(33,37,39) on the lane's
+     frame, rgb(40,43,42) on ours — the ground is a moving picture) measured
+     4,03:1 at 11 px while the same ink over the gradient reached 4,67:1.
+     #979d92 recomputes to ≥5,14:1 on both sampled grounds. */
+  font: 400 12px/1.5 var(--font-mono);
   letter-spacing: 0.02em;
-  color: #7e847a;
+  color: #979d92;
 }
 
 /* ── 8. The waiting room ────────────────────────────────────────────────── */
@@ -765,7 +769,7 @@
 }
 .start-summary-files,
 .start-summary-missing {
-  font: 400 11px/1.5 var(--font-mono);
+  font: 400 12px/1.5 var(--font-mono);
   color: #8f8b82;
 }
 .start-summary-missing {
@@ -817,9 +821,12 @@
 }
 .start-summary-dwell {
   flex: 1;
-  font: 400 11px/1.4 var(--font-mono);
+  font: 400 12px/1.4 var(--font-mono);
   letter-spacing: 0.04em;
-  color: #6f7469;
+  /* R2-07: #6f7469 measured 3,78:1 on the card ground (rgba(18,18,16,.94))
+     at 11 px — under AA for text this small that drives an action. #8f958a
+     recomputes to 5,90:1 on the same pixels. */
+  color: #8f958a;
   font-variant-numeric: tabular-nums;
 }
 .start-summary-pin,
@@ -882,12 +889,12 @@
   flex: none;
 }
 .start-summary-strip-text {
-  font: 500 11px/1.4 var(--font-mono);
+  font: 500 12px/1.4 var(--font-mono);
   letter-spacing: 0.05em;
   color: #e8e4da;
 }
 .start-summary-strip-meta {
-  font: 400 11px/1.4 var(--font-mono);
+  font: 400 12px/1.4 var(--font-mono);
   color: #8f8b82;
   font-variant-numeric: tabular-nums;
 }

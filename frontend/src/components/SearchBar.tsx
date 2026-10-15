@@ -204,7 +204,7 @@ export function SearchBar() {
           aria-autocomplete="list"
           aria-activedescendant={activeOptionId}
           aria-describedby={open ? statusId : undefined}
-          className="w-full font-jetbrains text-xs pl-10 pr-10 py-3 rounded-lg outline-none transition-all duration-150"
+          className="w-full font-jetbrains text-xs pl-10 pr-10 py-3 rounded-lg outline-none transition-colors duration-150"
           style={{
             background: "rgba(18, 18, 16, 0.88)",
             border: `1px solid ${open ? "rgba(232,178,60,0.6)" : "rgba(150,142,128,0.3)"}`,

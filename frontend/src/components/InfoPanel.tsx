@@ -9,7 +9,7 @@ import {
   UNCHECKED_COLOR,
   authorColor,
 } from "../city/palette";
-import { isUncheckedClean } from "../city/provenance";
+import { coverageLine, isUncheckedClean, verdictBasis } from "../city/provenance";
 import { CATEGORY_IDS, categoryMeta } from "../config/findingCategories";
 import type { VoxelSectionSpec } from "../city/voxels";
 import { OpenInIde } from "./OpenInIde";
@@ -739,6 +739,13 @@ export function InfoPanel() {
   );
   const engines = file.unverifiedBy ?? [];
   const unchecked = isUncheckedClean(file);
+  // S2: the card states which engines examined THIS file, derived from the
+  // payload's own provenance — the checked-clean case has to be tellable from
+  // "nobody looked" at the place the verdict is read (R3-02).
+  const coverage = coverageLine(file, cityData.scanProvenance, lang);
+  // S2 · R3-03: a threat word raised on nothing but review-level notes says
+  // so; the underlying severity computation is untouched.
+  const chipBasis = worstSeverity ? verdictBasis(file) : null;
   // The line the editor should land on: a historical secret is evidence about
   // a commit, not about this file, so it never becomes the jump target.
   const firstLiveFindingLine = file.findings.find(
@@ -874,7 +881,13 @@ export function InfoPanel() {
           title={t(lang, "panel.threatTitle")}
         >
           {worstSeverity
-            ? t(lang, SEVERITY_WORD[worstSeverity])
+            ? chipBasis
+              ? t(lang, chipBasis.count === 1 ? "panel.chipBasisOne" : "panel.chipBasisMany", {
+                  word: t(lang, SEVERITY_WORD[worstSeverity]),
+                  count: chipBasis.count,
+                  notes: chipBasis.notes.join(", "),
+                })
+              : t(lang, SEVERITY_WORD[worstSeverity])
             : t(lang, unchecked ? "panel.statusUnchecked" : "panel.statusNoFindings")}
         </span>
         {file.churnScore !== undefined &&
@@ -1153,6 +1166,18 @@ export function InfoPanel() {
           <span className="font-jetbrains text-[11px]" style={{ color: "#29d398" }}>
             {t(lang, "panel.noFindingsChecked")}
           </span>
+        </div>
+      )}
+      {/* The coverage line sits in the same slot the verdict is read — for
+          every file, found or not: which engines examined it, and where no
+          security scanner even opens the format. */}
+      {coverage && (
+        <div
+          className="file-coverage font-jetbrains text-[11px] mt-1.5"
+          data-file-coverage={coverage.kind}
+          style={{ color: "#8f8b82" }}
+        >
+          {coverage.text}
         </div>
       )}
       <div className="mt-4">

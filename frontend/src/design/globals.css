@@ -1160,6 +1160,16 @@ button:disabled {
   right: 22px !important;
   border-radius: 7px;
 }
+/* R2-09 (screenshot 44-city-1280x720.png): at short desktop heights the
+   minimap's 240 px box, anchored 96 px up, lands exactly over the height
+   mast's tick column (0.75/0.50/0.25/0.00). Below an 800 px viewport the
+   minimap re-anchors to the bottom edge — the dock is centred and the
+   right-hand strip is free — so the mast legend stays fully visible. */
+@media (max-height: 800px) {
+  .city-minimap {
+    bottom: 12px !important;
+  }
+}
 .app-shell:has(.panel-info, .panel-findings) .city-minimap {
   display: none;
 }
@@ -1169,7 +1179,8 @@ button:disabled {
   left: 22px;
   display: flex;
   gap: 12px;
-  font-size: 11px;
+  /* R2-15: legend numbers join the 12 px HUD floor. */
+  font-size: 12px;
   color: #a7ac9f;
 }
 .city-legend > span {
@@ -1196,8 +1207,15 @@ button:disabled {
 .workspace-heatmap .glass {
   border-radius: 6px;
 }
-.workspace-heatmap button {
-  font-size: 11px;
+.workspace-heatmap button,
+.workspace-heatmap [role="radio"] {
+  /* R2-15: 11 px was the default HUD size; this one has room for 12.
+     The [role="radio"] twin is not decoration: stadt-ui.css sets
+     `font-size: var(--fs-meta)` on `.workspace-heatmap [role="radio"]` —
+     specificity (0,2,0) — which beat the plain `button` rule (0,1,1) even
+     from this last-loaded sheet. Measured live: all three channel buttons
+     still computed 11 px until the selector matched the same way. */
+  font-size: 12px;
   min-height: 28px;
 }
 .workspace-shortcuts {

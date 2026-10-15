@@ -107,7 +107,12 @@ export function HudOverlay({ apiStatus }: HudOverlayProps) {
                 ? t(lang, "hud.demoProject")
                 : apiStatus === "connecting"
                   ? t(lang, "hud.connecting")
-                  : t(lang, "hud.localProject")}
+                  : // R1-22: the `≈` next to the name explained itself to no one —
+                    // the words lived in a tooltip and an sr-only span. While the
+                    // identity is inferred, the line under the name says so plainly.
+                    identityIsGuessed(cityData)
+                    ? t(lang, "hud.identityGuessedAria")
+                    : t(lang, "hud.localProject")}
             </span>
           </button>
         </div>

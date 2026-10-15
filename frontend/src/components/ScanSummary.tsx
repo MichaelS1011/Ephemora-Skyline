@@ -228,14 +228,21 @@ export function ScanSummary({ demo = false }: { demo?: boolean }) {
           <span className="start-summary-dot" style={{ background: accent }} aria-hidden="true" />
           <span className="start-summary-strip-text">{status}</span>
           <span className="start-summary-strip-meta">
-            {t(lang, demo ? "summary.demoFiles" : "summary.filesAnalyzed", {
-              count: nf(cityData.totalFiles),
-            })}
+            {demo
+              ? t(lang, "summary.demoFiles", { count: nf(cityData.totalFiles) })
+              : tsCount(
+                  lang,
+                  "summary.filesAnalyzed",
+                  "summary.filesAnalyzedOne",
+                  cityData.totalFiles,
+                  { count: nf(cityData.totalFiles) },
+                )}
             {total > 0 &&
               ` · ${tsCount(lang, "ctx.findingsMany", "ctx.findingsOne", total, { count: nf(total) })}`}
             {findingsInTests > 0 &&
               ` · ${t(lang, "summary.testsShort", { count: nf(findingsInTests) })}`}
-            {unread > 0 && ` · ${ts(lang, "summary.unread", { n: nf(unread) })}`}
+            {unread > 0 &&
+              ` · ${tsCount(lang, "summary.unread", "summary.unreadOne", unread, { n: nf(unread) })}`}
           </span>
           <button
             type="button"
@@ -272,9 +279,15 @@ export function ScanSummary({ demo = false }: { demo?: boolean }) {
             {status}
           </span>
           <span className="start-summary-files">
-            {t(lang, demo ? "summary.demoFiles" : "summary.filesAnalyzed", {
-              count: nf(cityData.totalFiles),
-            })}
+            {demo
+              ? t(lang, "summary.demoFiles", { count: nf(cityData.totalFiles) })
+              : tsCount(
+                  lang,
+                  "summary.filesAnalyzed",
+                  "summary.filesAnalyzedOne",
+                  cityData.totalFiles,
+                  { count: nf(cityData.totalFiles) },
+                )}
           </span>
           {total > 0 && (
             <span className="start-summary-severities">
