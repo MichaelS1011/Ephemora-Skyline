@@ -211,6 +211,48 @@ describe("the tool toggles decide which engines run", () => {
     expect(res.executed).toBe(false);
     expect(calls.osv + calls.npmAudit).toBe(0);
   });
+
+  /**
+   * The audit that finds nothing is the case most users get, and it used to
+   * answer `executed: false` — so the panel said no dependency audit had looked
+   * at the project, in front of a lockfile that had just been audited. The
+   * finding count is not the provenance question.
+   */
+  it("counts a clean npm audit as an audit that ran", async () => {
+    const { scanner, calls } = fakes({
+      profile: "custom",
+      tools: { dependencies: true, osv: false, gitleaks: false, semgrep: false, ruff: false },
+    });
+    const res = await scanner.scanDependencies("/tmp/none", files());
+    expect(calls.npmAudit, "npm audit is the engine this path asks").toBe(1);
+    expect(res.executed, "an audit with nothing to report is still an audit").toBe(true);
+    expect(res.added).toBe(0);
+    expect(res.runner).toBe("npm-audit");
+  });
+
+  /**
+   * `dependencies` is one boolean for two programs. When osv-scanner answered
+   * the CVE question, the card named `npm audit` — an engine that never ran —
+   * so the payload now carries which runner it is talking about.
+   */
+  it("reports the runner that answered, not the flag's own name", async () => {
+    const { scanner, calls } = fakes({
+      profile: "custom",
+      tools: { dependencies: true, osv: true, gitleaks: false, semgrep: false, ruff: false },
+    });
+    poke(scanner, "osvAdapter", {
+      lastBatchExecuted: true,
+      lastRunner: "osv",
+      scanRepository: async () => {
+        calls.osv++;
+        return new Map();
+      },
+    });
+    const res = await scanner.scanDependencies("/tmp/none", files());
+    expect(res.executed).toBe(true);
+    expect(res.runner, "npm audit never ran, and the payload must not claim it did").toBe("osv");
+    expect(calls.npmAudit).toBe(0);
+  });
 });
 
 describe("allowlist matching", () => {

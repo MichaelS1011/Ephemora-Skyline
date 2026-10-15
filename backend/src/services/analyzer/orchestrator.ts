@@ -344,6 +344,8 @@ export class AnalysisOrchestrator {
       gitleaksRan: boolean;
       semgrepRan: boolean;
       depsRan: boolean;
+      /** Which engine answered the CVE question: `npm-audit`, `osv`, `pip-audit`. */
+      depsRunner: string | null;
       ruffRan: boolean;
       osvRan: boolean;
       churnRan: boolean;
@@ -353,6 +355,7 @@ export class AnalysisOrchestrator {
       gitleaksRan: false,
       semgrepRan: false,
       depsRan: false,
+      depsRunner: null as string | null,
       ruffRan: false,
       osvRan: false,
       churnRan: false,
@@ -382,6 +385,7 @@ export class AnalysisOrchestrator {
       emit(89, "Dependency audit (npm)");
       const deps = await this.scanner.scanDependencies(dirPath, fileAnalyses);
       scanProvenance.depsRan = deps.executed;
+      scanProvenance.depsRunner = deps.runner ?? null;
     } catch (e) {
       this.logger.warn({ e }, "Dependency scan failed — continuing without CVE findings");
     }
@@ -477,6 +481,9 @@ export class AnalysisOrchestrator {
         gitleaks: scanProvenance.gitleaksRan,
         semgrep: scanProvenance.semgrepRan,
         dependencies: scanProvenance.depsRan,
+        /** names the engine that answered the CVE question, so the card never
+            credits `npm audit` for a scan only osv-scanner took part in */
+        dependencyRunner: scanProvenance.depsRunner,
         osv: scanProvenance.osvRan,
         ruff: scanProvenance.ruffRan,
         churn: scanProvenance.churnRan,

@@ -219,6 +219,8 @@ export interface ProjectSummary {
     gitleaks: boolean;
     semgrep: boolean;
     dependencies?: boolean;
+    /** Which engine answered the dependency CVE question: `npm-audit`, `osv`, `pip-audit`. */
+    dependencyRunner?: string | null;
     osv?: boolean;
     ruff?: boolean;
     /** git history was deep enough for trustworthy churn scores */

@@ -170,6 +170,12 @@ export interface ScanProvenance {
   gitleaks: boolean;
   semgrep: boolean;
   dependencies?: boolean;
+  /**
+   * Which engine answered the dependency CVE question — `npm-audit`, `osv` or
+   * `pip-audit`. Absent in payloads written before the flag existed, where the
+   * card falls back to the engine the `dependencies` flag is named for.
+   */
+  dependencyRunner?: string | null;
   osv?: boolean;
   ruff?: boolean;
   churn?: boolean;

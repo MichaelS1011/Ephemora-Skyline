@@ -93,6 +93,28 @@ const ran = (provenance: ScanProvenance | undefined, key: keyof ScanProvenance):
   provenance?.[key] === true;
 
 /**
+ * The engine's name IN A GIVEN RESULT. `dependencies` is one boolean for two
+ * different programs: the CVE question can be answered by osv-scanner (which is
+ * then also the one that read the lockfile), by the npm audit fallback, or by
+ * pip-audit. Naming `npm audit` for a scan it never took part in is the same
+ * error the whole table exists to prevent, so the payload's `dependencyRunner`
+ * decides the label wherever it is present; a payload written before the field
+ * is read as the engine the flag is named for.
+ */
+const RUNNER_LABELS: Record<string, string> = {
+  "npm-audit": "npm audit",
+  osv: "osv-scanner",
+  "osv-scanner": "osv-scanner",
+  "pip-audit": "pip-audit",
+};
+
+export function engineLabel(spec: EngineSpec, provenance: ScanProvenance | undefined): string {
+  if (spec.key === "dependencies" && provenance?.dependencyRunner)
+    return RUNNER_LABELS[provenance.dependencyRunner] ?? provenance.dependencyRunner;
+  return spec.label;
+}
+
+/**
  * Which switched-off engines would have looked at THIS FILE.
  *
  * The per-file rule the backend applies, plus the manifests: a lockfile that no
@@ -111,7 +133,7 @@ export function missingEnginesForFile(
       !ran(provenance, e.key) &&
       ((e.perFile && coversLanguage(e, language)) ||
         (e.requiresFile !== undefined && e.requiresFile.test(path))),
-  ).map((e) => e.label);
+  ).map((e) => engineLabel(e, provenance));
 }
 
 /**
@@ -140,8 +162,8 @@ export function missingEnginesForProject(
     if (e.fileLanguages.length > 0) return present.some((l) => coversLanguage(e, l));
     return !e.needs || present.some((l) => e.needs!.test(l));
   };
-  return SECURITY_ENGINES.filter((e) => !ran(provenance, e.key) && applicable(e)).map(
-    (e) => e.label,
+  return SECURITY_ENGINES.filter((e) => !ran(provenance, e.key) && applicable(e)).map((e) =>
+    engineLabel(e, provenance),
   );
 }
 
@@ -310,4 +332,107 @@ export function scanVerdict(
   if (!provenance) return { kind: "unknown" };
   const missing = missingEnginesForProject(provenance, languages, files);
   return missing.length > 0 ? { kind: "shallow", missing } : { kind: "clear" };
+}
+
+// ── S2 · the file card's own coverage statement ────────────────────────────
+
+export interface FileCoverage {
+  /** Engines that examined THIS file, the `regex` baseline named first. */
+  examined: string[];
+  /** Engines that ran over the project but do not open this file's format. */
+  formatBlind: string[];
+  /** No security engine covers the format at all — only the baseline read it. */
+  noSecurityScan: boolean;
+}
+
+/**
+ * Which engines looked at one file — derived from data already in the result
+ * (the provenance flags × the engine/language table), no new backend field.
+ * Measured on the first-touch panel (R3-02): `config/aws.ts` showed a bare
+ * "✓ No findings in this file", and nothing on the card said that gitleaks
+ * and semgrep had looked and classed the key as a known example. "Checked and
+ * clean" and "nobody looked at this" are only distinguishable if the checked
+ * card names its engines too.
+ */
+export function fileCoverage(
+  file: { language?: string; path?: string },
+  provenance: ScanProvenance | undefined,
+): FileCoverage | null {
+  if (!provenance) return null;
+  const language = file.language ?? "";
+  const path = file.path ?? "";
+  const examined: string[] = provenance.regex === true ? ["regex"] : [];
+  const formatBlind: string[] = [];
+  let security = 0;
+  for (const e of SECURITY_ENGINES) {
+    if (!ran(provenance, e.key)) continue;
+    const reads =
+      (e.perFile && coversLanguage(e, language)) ||
+      (e.requiresFile !== undefined && e.requiresFile.test(path));
+    if (reads) {
+      // one name per engine: the dependency row and the osv row can resolve to
+      // the same program, and a card that lists it twice is a card nobody trusts
+      const name = engineLabel(e, provenance);
+      if (!examined.includes(name)) examined.push(name);
+      security++;
+    } else if (e.perFile && !coversLanguage(e, language)) {
+      if (!formatBlind.includes(e.label)) formatBlind.push(e.label);
+    }
+  }
+  return { examined, formatBlind, noSecurityScan: security === 0 };
+}
+
+/**
+ * The coverage line in the reader's language, for the same slot the verdict
+ * sits in. Null only when the payload carries no provenance at all — then the
+ * card has nothing to vouch for and says nothing, as everywhere else.
+ */
+export function coverageLine(
+  file: { language?: string; path?: string },
+  provenance: ScanProvenance | undefined,
+  lang: Lang,
+): { kind: "examined" | "no-scanner"; text: string } | null {
+  const cov = fileCoverage(file, provenance);
+  if (!cov) return null;
+  if (cov.noSecurityScan)
+    return {
+      kind: "no-scanner",
+      text: cov.examined.includes("regex")
+        ? t(lang, "panel.coverageNoScanner")
+        : t(lang, "panel.coverageUnread"),
+    };
+  return {
+    kind: "examined",
+    text:
+      t(lang, "panel.coverageExamined", { engines: cov.examined.join(", ") }) +
+      (cov.formatBlind.length > 0
+        ? t(lang, "panel.coverageBlind", { blind: cov.formatBlind.join(", ") })
+        : ""),
+  };
+}
+
+/**
+ * What a threat word actually stands on.
+ *
+ * Measured (R3-03): `src/subtle.js` holds six severe classes no active rule
+ * looks for and earns a bare MEDIUM chip whose only basis is one P2
+ * `regex:CONSOLE_USAGE` hygiene note. A hygiene finding means "not a
+ * vulnerability" by the backend's own category table — so a risk word raised
+ * on nothing but hygiene notes must show that basis. Presentation of
+ * provenance only: the computation underneath is untouched.
+ */
+export function verdictBasis(file: {
+  findings: Array<{ category?: string; message?: string; ruleId?: string; type?: string }>;
+}): { count: number; notes: string[] } | null {
+  if (file.findings.length === 0) return null;
+  if (!file.findings.every((f) => f.category === "hygiene")) return null;
+  const notes = [...new Set(file.findings.map((f) => noteLabel(f)))];
+  return { count: file.findings.length, notes };
+}
+
+/** The note's own leading clause, lower-cased: "Console output — …" → "console output". */
+function noteLabel(f: { message?: string; ruleId?: string; type?: string }): string {
+  const first = (f.message ?? "").split(" — ")[0]?.trim() ?? "";
+  const raw = first || f.ruleId || f.type || "note";
+  return raw.charAt(0).toLowerCase() + raw.slice(1);
 }

@@ -1,5 +1,11 @@
 import { describe, it, expect } from "vitest";
-import { describeGitignoreSkips, isUncheckedClean, scanVerdict } from "../src/city/provenance";
+import {
+  describeGitignoreSkips,
+  isUncheckedClean,
+  missingEnginesForProject,
+  fileCoverage,
+  scanVerdict,
+} from "../src/city/provenance";
 import type { ScanProvenance } from "../src/city/types";
 
 /** Every engine ran — the baseline a claim of "clear" is earned against. */
@@ -109,5 +115,103 @@ describe("isUncheckedClean", () => {
     expect(
       isUncheckedClean({ findings: [{ severity: "P0" }], unverifiedBy: ["semgrep", "ruff"] }),
     ).toBe(false);
+  });
+});
+
+/**
+ * `dependencies` is one boolean for two different engines. When osv-scanner
+ * answered the CVE question the audit phase reports "executed", and the card
+ * used to name `npm audit` anyway — an engine that never ran. Measured on a
+ * local scan with osv-scanner installed: the package-lock card credited
+ * `npm audit` while npm audit had been skipped by design.
+ */
+describe("the dependency row names the engine that actually answered", () => {
+  /** How often each of the two dependency engines is named on the card. */
+  const names = (cov: { examined: string[] }): { npmAudit: number; osv: number } => ({
+    npmAudit: cov.examined.filter((n) => n === "npm audit").length,
+    osv: cov.examined.filter((n) => n === "osv-scanner").length,
+  });
+
+  it("credits osv-scanner when osv answered the CVE question", () => {
+    const p: ScanProvenance = {
+      regex: true,
+      gitleaks: true,
+      semgrep: true,
+      dependencies: true,
+      dependencyRunner: "osv",
+      osv: true,
+    };
+    // a JS project with a lockfile: nothing is missing, and nothing is invented
+    expect(scanVerdict(p, 0, JS, ["package.json", "package-lock.json"])).toEqual({
+      kind: "clear",
+    });
+  });
+
+  it("still names npm audit when npm audit is the engine that ran", () => {
+    const p: ScanProvenance = {
+      regex: true,
+      gitleaks: true,
+      semgrep: true,
+      dependencies: true,
+      dependencyRunner: "npm-audit",
+      osv: false,
+    };
+    // osv-scanner was never installed, so the project IS shallower than a full
+    // CVE scan — saying `clear` here would be the same invention from the other side
+    expect(scanVerdict(p, 0, JS, ["package-lock.json"])).toEqual({
+      kind: "shallow",
+      missing: ["osv-scanner"],
+    });
+    expect(names(fileCoverage({ path: "package-lock.json", language: "JSON" }, p)!).npmAudit).toBe(
+      1,
+    );
+    expect(names(fileCoverage({ path: "package-lock.json", language: "JSON" }, p)!).osv).toBe(0);
+  });
+
+  it("credits the lockfile card with the engine that read it, once", () => {
+    const viaOsv: ScanProvenance = {
+      regex: true,
+      gitleaks: true,
+      semgrep: true,
+      dependencies: true,
+      dependencyRunner: "osv",
+      osv: true,
+    };
+    const cov = fileCoverage({ path: "package-lock.json", language: "JSON" }, viaOsv);
+    expect(cov, "a lockfile with a finished CVE audit is covered ground").toBeTruthy();
+    expect(
+      names(cov!).npmAudit,
+      `npm audit never ran here — osv-scanner answered the CVE question, and the card ` +
+        `credits ${JSON.stringify(cov!.examined)}`,
+    ).toBe(0);
+    expect(names(cov!).osv, `card credits ${JSON.stringify(cov!.examined)}`).toBe(1);
+  });
+
+  it("falls back to npm audit for a payload written before the runner existed", () => {
+    // no `dependencyRunner` key at all — a city JSON saved before this field
+    const p = {
+      regex: true,
+      gitleaks: true,
+      semgrep: true,
+      dependencies: true,
+      osv: true,
+    } as ScanProvenance;
+    const cov = fileCoverage({ path: "package-lock.json", language: "JSON" }, p)!;
+    expect(names(cov).npmAudit).toBe(1);
+  });
+
+  it("does not credit npm audit when nothing dependency-related ran", () => {
+    const p: ScanProvenance = {
+      regex: true,
+      gitleaks: true,
+      semgrep: true,
+      dependencies: false,
+      dependencyRunner: null,
+      osv: false,
+    };
+    expect(missingEnginesForProject(p, JS, ["package-lock.json"])).toEqual([
+      "npm audit",
+      "osv-scanner",
+    ]);
   });
 });

@@ -109,7 +109,10 @@ export class SecurityScanner {
       };
     }
     const { issuesByFile, executed } = await this.dependencyAdapter.scanRepository(clonePath);
-    if (!executed || issuesByFile.size === 0) return { executed: false, added: 0, runner: null };
+    // A clean audit is an audit that RAN. Reporting it as not-run made the panel
+    // claim a depth gap in front of a lockfile that had just been checked — and
+    // it did so on exactly the projects the tool is meant to reassure.
+    if (!executed) return { executed: false, added: 0, runner: null };
     return {
       executed: true,
       added: this.mergeByFile(issuesByFile, fileAnalyses, "npm-audit"),
@@ -435,23 +438,25 @@ export class SecurityScanner {
       const allowed = this.filterForPath(extras, fa.path);
       if (allowed.length === 0) continue;
 
-      // Batch findings arrive without content — enrich with knowledge + code
-      // frame against the on-disk content read above
-      enrichIssues(allowed, contentByPath.get(fa.path));
+      // gitleaks names the file and line only, so the line the report shows has
+      // to be read from disk here — BEFORE enrichment, because enrichment
+      // consumes the matched value, and masking a line that was already clipped
+      // at 120 characters can leave the back half of a credential behind.
       for (const iss of allowed) {
         if (
           !iss.code &&
           iss.provenance?.startsWith("gitleaks") &&
           iss.provenance !== "gitleaks-history"
         ) {
-          // This is the line the report will show. gitleaks only names the file
-          // and line, so the text has to be read from disk here — and it must
-          // arrive masked, because enrichIssues ran before this fill.
-          const raw = contentByPath.get(fa.path)?.split("\n")[iss.line - 1]?.trim().slice(0, 120);
-          const masked = raw ? maskSecretText(raw) : raw;
-          if (masked) iss.code = masked;
+          const raw = contentByPath.get(fa.path)?.split("\n")[iss.line - 1]?.trim();
+          const masked = raw ? maskSecretText(raw, iss.secretValue ?? []) : undefined;
+          if (masked) iss.code = masked.slice(0, 120);
         }
       }
+
+      // Batch findings arrive without content — enrich with knowledge + code
+      // frame against the on-disk content read above
+      enrichIssues(allowed, contentByPath.get(fa.path));
 
       const merged = dedupIssues([...fa.vulnerabilities, ...allowed]);
       mergedCount += merged.length - fa.vulnerabilities.length;
