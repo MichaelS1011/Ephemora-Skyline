@@ -83,7 +83,7 @@ describe("the pipeline leaves ignored files out of the city", () => {
   });
 
   it("skips what the rules name, keeps what they negate, and counts it", async () => {
-    const orchestrator = new AnalysisOrchestrator(new SecurityScanner());
+    const orchestrator = new AnalysisOrchestrator(pipelineScanner());
     const result = await orchestrator.analyzeDirectory("ignore-test", dir, {
       owner: "local",
       name: "ignore-test",
@@ -100,3 +100,23 @@ describe("the pipeline leaves ignored files out of the city", () => {
     expect(result.summary.skippedByGitignore).toEqual({ files: 2, directories: 1 });
   }, 30_000); // needs longer than vitest's 5 s default on a six-file folder // the real pipeline, which means the real batch engines: semgrep alone
 });
+
+/**
+ * This file asks which files joined the scan. The dependency audit is not part of
+ * that question — and once the pipeline stops reporting an unrun osv as an
+ * answer, that route spends a real `npm audit` round trip per test. Stubbed here,
+ * so the assertions stay about the pipeline and the run stays about one second.
+ */
+function pipelineScanner(): SecurityScanner {
+  const scanner = new SecurityScanner();
+  (
+    scanner as unknown as {
+      dependencyAdapter: {
+        scanRepository: () => Promise<{ issuesByFile: Map<string, never[]>; executed: boolean }>;
+      };
+    }
+  ).dependencyAdapter = {
+    scanRepository: async () => ({ issuesByFile: new Map(), executed: false }),
+  };
+  return scanner;
+}

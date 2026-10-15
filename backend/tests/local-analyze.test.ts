@@ -189,7 +189,7 @@ describe("handleLocalAnalyze", () => {
 
   it("stores a completed result and clears progress for a real directory", async () => {
     const logger = pino({ level: "silent" });
-    const real = new AnalysisOrchestrator(new SecurityScanner());
+    const real = new AnalysisOrchestrator(pipelineScanner());
     const store = new Map<string, AnalysisResult>();
     const res = makeRes();
     await handleLocalAnalyze(
@@ -282,3 +282,23 @@ describe("handleLocalAnalyze", () => {
     expect(new Set(given.map((g) => g.instance)).size).toBe(2);
   });
 });
+
+/**
+ * This file asks which files joined the scan. The dependency audit is not part of
+ * that question — and once the pipeline stops reporting an unrun osv as an
+ * answer, that route spends a real `npm audit` round trip per test. Stubbed here,
+ * so the assertions stay about the pipeline and the run stays about one second.
+ */
+function pipelineScanner(): SecurityScanner {
+  const scanner = new SecurityScanner();
+  (
+    scanner as unknown as {
+      dependencyAdapter: {
+        scanRepository: () => Promise<{ issuesByFile: Map<string, never[]>; executed: boolean }>;
+      };
+    }
+  ).dependencyAdapter = {
+    scanRepository: async () => ({ issuesByFile: new Map(), executed: false }),
+  };
+  return scanner;
+}

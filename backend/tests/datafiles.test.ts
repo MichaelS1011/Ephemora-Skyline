@@ -86,7 +86,7 @@ SELECT id, CASE WHEN label = 'ada' THEN 'first' ELSE 'later' END FROM tiers ORDE
   });
 
   it("gives a data file no functions, no classes, no sections, no imports", async () => {
-    const orchestrator = new AnalysisOrchestrator(new SecurityScanner());
+    const orchestrator = new AnalysisOrchestrator(pipelineScanner());
     const result = await orchestrator.analyzeDirectory("datafile-test", dir, {
       owner: "local",
       name: "datafile-test",
@@ -121,7 +121,7 @@ SELECT id, CASE WHEN label = 'ada' THEN 'first' ELSE 'later' END FROM tiers ORDE
       1,
     );
 
-    const orchestrator = new AnalysisOrchestrator(new SecurityScanner());
+    const orchestrator = new AnalysisOrchestrator(pipelineScanner());
     const result = await orchestrator.analyzeDirectory("sqlfile-test", dir, {
       owner: "local",
       name: "sqlfile-test",
@@ -174,3 +174,23 @@ describe("the two data decisions", () => {
     expect(hasDataLines("src/app.ts")).toBe(false);
   });
 });
+
+/**
+ * This file asks which files joined the scan. The dependency audit is not part of
+ * that question — and once the pipeline stops reporting an unrun osv as an
+ * answer, that route spends a real `npm audit` round trip per test. Stubbed here,
+ * so the assertions stay about the pipeline and the run stays about one second.
+ */
+function pipelineScanner(): SecurityScanner {
+  const scanner = new SecurityScanner();
+  (
+    scanner as unknown as {
+      dependencyAdapter: {
+        scanRepository: () => Promise<{ issuesByFile: Map<string, never[]>; executed: boolean }>;
+      };
+    }
+  ).dependencyAdapter = {
+    scanRepository: async () => ({ issuesByFile: new Map(), executed: false }),
+  };
+  return scanner;
+}

@@ -196,6 +196,15 @@ describe("the tool toggles decide which engines run", () => {
    */
   it("asks the CVE scanner once per scan, not once per phase", async () => {
     const { scanner, calls } = fakes({ profile: "standard" });
+    // an osv that ANSWERED — "tried and absent from PATH" is the next test's case
+    poke(scanner, "osvAdapter", {
+      lastBatchExecuted: true,
+      lastRunner: "osv",
+      scanRepository: async () => {
+        calls.osv++;
+        return new Map();
+      },
+    });
     await scanner.scanRepositoryBatch("/tmp/none", files());
     await scanner.scanDependencies("/tmp/none", files());
     expect(calls.osv).toBe(1);
@@ -235,6 +244,33 @@ describe("the tool toggles decide which engines run", () => {
    * the CVE question, the card named `npm audit` — an engine that never ran —
    * so the payload now carries which runner it is talking about.
    */
+  /**
+   * Selected but not installed is not an answer. The batch phase used to mark the
+   * question closed whatever it brought back, which both reported
+   * `dependencies: true` with no engine on the machine and locked out the
+   * `npm audit` fallback that SECURITY.md promises for exactly this case.
+   */
+  it("asks the npm audit fallback when the selected osv never ran", async () => {
+    const { scanner, calls } = fakes({ profile: "standard" });
+    await scanner.scanRepositoryBatch("/tmp/none", files());
+    const res = await scanner.scanDependencies("/tmp/none", files());
+    expect(calls.osv, "the batch phase already tried osv — do not ask it twice").toBe(1);
+    expect(calls.npmAudit, "the fallback is the answer this machine can give").toBe(1);
+    expect(res.executed).toBe(true);
+    expect(res.runner).toBe("npm-audit");
+  });
+
+  it("reports no dependency audit when neither osv nor the fallback could run", async () => {
+    const { scanner } = fakes({ profile: "standard" });
+    poke(scanner, "dependencyAdapter", {
+      scanRepository: async () => ({ issuesByFile: new Map(), executed: false }),
+    });
+    await scanner.scanRepositoryBatch("/tmp/none", files());
+    const res = await scanner.scanDependencies("/tmp/none", files());
+    expect(res.executed, "nothing ran, so nothing may claim to have run").toBe(false);
+    expect(res.runner).toBeNull();
+  });
+
   it("reports the runner that answered, not the flag's own name", async () => {
     const { scanner, calls } = fakes({
       profile: "custom",

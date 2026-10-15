@@ -93,7 +93,7 @@ describe("the pipeline walks artifacts out and real sources back in", () => {
   });
 
   it("scans the real sources and none of the tool traces", async () => {
-    const orchestrator = new AnalysisOrchestrator(new SecurityScanner());
+    const orchestrator = new AnalysisOrchestrator(pipelineScanner());
     const result = await orchestrator.analyzeDirectory("artifact-test", dir, {
       owner: "local",
       name: "artifact-test",
@@ -120,3 +120,23 @@ describe("the pipeline walks artifacts out and real sources back in", () => {
       expect(paths, not).not.toContain(not);
   }, 60_000);
 });
+
+/**
+ * This file asks which files joined the scan. The dependency audit is not part of
+ * that question — and once the pipeline stops reporting an unrun osv as an
+ * answer, that route spends a real `npm audit` round trip per test. Stubbed here,
+ * so the assertions stay about the pipeline and the run stays about one second.
+ */
+function pipelineScanner(): SecurityScanner {
+  const scanner = new SecurityScanner();
+  (
+    scanner as unknown as {
+      dependencyAdapter: {
+        scanRepository: () => Promise<{ issuesByFile: Map<string, never[]>; executed: boolean }>;
+      };
+    }
+  ).dependencyAdapter = {
+    scanRepository: async () => ({ issuesByFile: new Map(), executed: false }),
+  };
+  return scanner;
+}

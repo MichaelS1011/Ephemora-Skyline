@@ -89,7 +89,7 @@ describe("progress contract over HTTP — fed by real orchestrator events", () =
     store.set("job-1", makeSkeleton("job-1", REPO));
 
     const write = makeProgressWriter("job-1");
-    const orchestrator = new AnalysisOrchestrator(new SecurityScanner());
+    const orchestrator = new AnalysisOrchestrator(pipelineScanner());
     const result = await orchestrator.analyzeDirectory("job-1", workDir, REPO, (event) => {
       events.push(event);
       write(event);
@@ -175,3 +175,23 @@ describe("progress contract over HTTP — fed by real orchestrator events", () =
     expect(callStatus(store, "demo-001").statusCode).toBe(404);
   });
 });
+
+/**
+ * This file asks which files joined the scan. The dependency audit is not part of
+ * that question — and once the pipeline stops reporting an unrun osv as an
+ * answer, that route spends a real `npm audit` round trip per test. Stubbed here,
+ * so the assertions stay about the pipeline and the run stays about one second.
+ */
+function pipelineScanner(): SecurityScanner {
+  const scanner = new SecurityScanner();
+  (
+    scanner as unknown as {
+      dependencyAdapter: {
+        scanRepository: () => Promise<{ issuesByFile: Map<string, never[]>; executed: boolean }>;
+      };
+    }
+  ).dependencyAdapter = {
+    scanRepository: async () => ({ issuesByFile: new Map(), executed: false }),
+  };
+  return scanner;
+}

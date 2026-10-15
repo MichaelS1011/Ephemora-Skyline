@@ -32,7 +32,10 @@ export class SecurityScanner {
   private ruffAdapter: RuffAdapter = new RuffAdapter();
   private config: ResolvedScanConfig;
   /** One CVE question per scan: the batch phase and the dependency phase share it */
+  /** osv brought an answer back — the dependency phase must not ask again. */
   private cveAnswered = false;
+  /** osv was tried this scan, with or without an answer: asking twice is one trip too many. */
+  private cveAsked = false;
   semgrepAdapter: SemgrepAdapter | null = null;
 
   constructor(adapters?: ScannerAdapter[], config?: ResolvedScanConfig) {
@@ -97,10 +100,13 @@ export class SecurityScanner {
     // again here cost a second network round trip per scan.
     if (this.cveAnswered) return { executed: true, added: 0, runner: this.osvAdapter.lastRunner };
 
-    // osv covers npm too — prefer it, fall back to the npm-audit adapter
-    const useOsv = this.config.tools.osv;
+    // osv covers npm too — prefer it, fall back to the npm-audit adapter. A batch
+    // that TRIED osv and brought nothing back (no binary on PATH) is not an
+    // answer: the fallback is what SECURITY.md promises a reader who selected
+    // osv-scanner but never installed it.
+    const useOsv = this.config.tools.osv && !this.cveAsked;
     const osv = useOsv ? await this.osvAdapter.scanRepository(clonePath) : new Map();
-    this.cveAnswered = useOsv;
+    this.cveAnswered = useOsv && this.osvAdapter.lastBatchExecuted;
     if (useOsv && this.osvAdapter.lastBatchExecuted) {
       return {
         executed: true,
@@ -407,14 +413,18 @@ export class SecurityScanner {
 
     const osvTask = (async (): Promise<Map<string, SecurityIssue[]>> => {
       if (!this.config.tools.osv) return new Map();
-      // "answered" = it was asked in this scan, whatever it brought back — the
-      // dependency phase must not spend a second round trip on the same question
-      this.cveAnswered = true;
+      this.cveAsked = true;
       try {
         const found = await this.osvAdapter.scanRepository(clonePath);
+        // "answered" means an answer came back. A scan that never ran leaves the
+        // question open for the dependency phase's fallback, and reporting it as
+        // answered is how `dependencies: true` reached a payload with no
+        // dependency engine on the machine.
+        this.cveAnswered = this.osvAdapter.lastBatchExecuted;
         return found;
       } catch (e) {
         this.logger.warn({ e }, "osv batch scan failed — CVEs skipped");
+        this.cveAnswered = false;
         return new Map();
       }
     })();
