@@ -5,7 +5,7 @@
  * Analysis progress is served by GET /api/status/:id; the frontend polls it.
  */
 
-import type { Request, Response, NextFunction } from "express";
+import type { Request, Response } from "express";
 
 import express from "express";
 import cors from "cors";
@@ -18,7 +18,7 @@ import pino from "pino";
 import type { AnalysisResult } from "../models/index.js";
 import type { ResolvedScanConfig } from "../services/security/scan-config.js";
 import { AnalysisOrchestrator } from "../services/analyzer/orchestrator.js";
-import { corsOptionsFor, localOnlyRoute } from "./local-only.js";
+import { corsOptionsFor, localOnlyRoute, uploadLimitAwareErrorHandler } from "./local-only.js";
 import { SecurityScanner } from "../services/security/scanner.js";
 import { READ_BUDGET_EXEMPT } from "./read-budget.js";
 import { getHealth } from "./routes/health.js";
@@ -368,10 +368,7 @@ app.get("/api/status/:id", (req: Request, res: Response): void => {
 });
 
 // ── Error handling ─────────────────────────────────────────────────────────
-app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
-  logger.error({ err }, "Unhandled error");
-  res.status(500).json({ error: "Internal server error" });
-});
+app.use(uploadLimitAwareErrorHandler(logger));
 
 // ── Graceful shutdown ──────────────────────────────────────────────────────
 const shutdown = (signal: string) => {

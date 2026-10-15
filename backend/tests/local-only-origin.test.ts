@@ -5,6 +5,7 @@ import {
   isForeignBrowserRequest,
   localOnlyRoute,
   refusalFor,
+  uploadLimitAwareErrorHandler,
 } from "../src/server/local-only.js";
 
 /**
@@ -177,5 +178,48 @@ describe("what a refused write says back", () => {
       },
     );
     expect(passed).toBe(true);
+  });
+});
+
+/**
+ * A folder too big for the upload is a limit the user walked into, not a crash.
+ * The shared error handler used to answer every error with `500 Internal server
+ * error`, which made the wall look like a fault and left the page's own 413
+ * sentence unreachable. Measured with a 212 MB body on the edge-state lane.
+ */
+describe("the body limit answers as what it is", () => {
+  const fakeRes = () => {
+    const seen = { status: 0, body: null as unknown };
+    const res = {
+      headersSent: false,
+      status(code: number) {
+        seen.status = code;
+        return res;
+      },
+      json(body: unknown) {
+        seen.body = body;
+        return res;
+      },
+    };
+    return { seen, res };
+  };
+  const handler = uploadLimitAwareErrorHandler({ error: () => {} });
+
+  it("413 for the body parser's own error", () => {
+    const { seen, res } = fakeRes();
+    const err = Object.assign(new Error("request entity too large"), {
+      type: "entity.too.large",
+      status: 413,
+    });
+    handler(err, {} as never, res as never);
+    expect(seen.status).toBe(413);
+    expect((seen.body as { error: string }).error).toMatch(/exceeds/i);
+  });
+
+  it("still 500 for a real fault, and the sentence stays uninformative on purpose", () => {
+    const { seen, res } = fakeRes();
+    handler(new Error("connect ECONNREFUSED"), {} as never, res as never);
+    expect(seen.status).toBe(500);
+    expect(JSON.stringify(seen.body)).not.toContain("ECONNREFUSED");
   });
 });

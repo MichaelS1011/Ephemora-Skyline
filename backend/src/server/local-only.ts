@@ -118,3 +118,31 @@ export function localOnlyRoute(req: Request, res: Response, next: NextFunction):
   }
   next();
 }
+
+/**
+ * The body limit's error, answered as what it is.
+ *
+ * `express.json({ limit })` throws a `PayloadTooLargeError`, and the shared
+ * error handler folded every error into `500 Internal server error`. So the one
+ * wall a user can actually walk into — a folder bigger than the upload the app
+ * accepts — arrived as a crash, and the branch in the reader that explains the
+ * limit in the user's own language (`res.status === 413`) never ran. Measured by
+ * the edge-state lane with a 212 MB body: HTTP 500, `{"error":"Internal server
+ * error"}`.
+ *
+ * The sentence itself belongs to the page, which owns both languages; the
+ * server's job is the status.
+ */
+export function uploadLimitAwareErrorHandler(logger: { error: (o: unknown, msg: string) => void }) {
+  return (err: unknown, _req: Request, res: Response): void => {
+    const e = err as { type?: string; status?: number; statusCode?: number };
+    const tooLarge = e?.type === "entity.too.large" || e?.status === 413 || e?.statusCode === 413;
+    if (tooLarge) {
+      res.status(413).json({ error: "Request body exceeds the upload this app accepts" });
+      return;
+    }
+    logger.error({ err }, "Unhandled error");
+    if (res.headersSent) return;
+    res.status(500).json({ error: "Internal server error" });
+  };
+}
