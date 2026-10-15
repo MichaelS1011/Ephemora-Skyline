@@ -8,6 +8,7 @@ import {
   structureLines,
 } from "../../analyzer/metrics.js";
 import { enrichIssues } from "../finding-knowledge.js";
+import { CREDENTIAL_NAME } from "../redact.js";
 import type { ScannerAdapter } from "../adapter.js";
 import { languageOfPath, type CustomPattern } from "../scan-config.js";
 
@@ -29,6 +30,37 @@ export interface ScanPattern {
 }
 
 const CUSTOM_SCORE: Record<"P0" | "P1" | "P2", number> = { P0: 9, P1: 6, P2: 3 };
+
+/**
+ * Provider-format credential values (regeln-lane 2026-10-14). The shapes are
+ * the ones vendors print in their own documentation; a value that matches one
+ * is credential-shaped wherever it sits, keyword name or not.
+ */
+const PROVIDER_VALUE =
+  /(?:AKIA[0-9A-Z]{16}|ghp_[A-Za-z0-9]{36}|sk-[A-Za-z0-9]{20,}|xox[baprs]-[A-Za-z0-9-]{10,}|AIza[0-9A-Za-z_-]{35}|ya29\.[A-Za-z0-9_-]{10,})/;
+
+/** Vendor-documented example values (AWS's own docs keys). Findings — but
+ * classified as examples, never shouted as live credentials (and never P0). */
+const DOCUMENTED_EXAMPLE = /^(?:AKIAIOSFODNN7EXAMPLE|wJalrXUtnFEMI\/K7MDENG\/bPxRfiCYEXAMPLEKEY)$/;
+
+/**
+ * Does the literal value read as a credential rather than as a label? The
+ * keyword name alone is not enough ("password-field-selector" is a CSS class),
+ * so a non-provider value must mix letters with digits. Labels like "changeme",
+ * "example", "placeholder-value" and the `# label only` case stay silent.
+ */
+function credentialShaped(value: string): boolean {
+  if (!value) return false;
+  return PROVIDER_VALUE.test(value) || (/\d/.test(value) && /[A-Za-z]/.test(value));
+}
+
+/** camelCase/snake_case name whose segments show a security purpose. */
+function securityShapedName(name: string): boolean {
+  const snake = name.replace(/([a-z0-9])([A-Z])/g, "$1_$2").toLowerCase();
+  return /(?:^|_)(?:token|session|nonce|password|passwd|secret|otp|code|key|credential|auth)(?:$|_)/.test(
+    snake,
+  );
+}
 
 /**
  * A user rule becomes a scanner rule — the same shape, the same gates, the same
@@ -93,13 +125,14 @@ export const REGEX_PATTERNS: ScanPattern[] = [
     score: 9,
   },
   {
-    // PATH_TRAVERSAL: only flag (a) real filesystem/response calls with ../,
-    // or (b) known user-input sources concatenated with a ../ path segment.
-    // NOT import/require statements (those are handled by the import-skip in scanFile)
+    // PATH_TRAVERSAL: the traversal is the flow, not the segment — a real
+    // filesystem call whose argument concatenates or interpolates request
+    // input fires even without a literal '../'; the literal stays a supporting
+    // signal. Import/require lines are skipped in the loop below.
     regex:
-      /(?:(?:fs\.\w+File\w*|res\.sendFile|res\.download)\s*\([^;]{0,200}['"]\.\.\/)|(?:userInput|(?:req|request)\s*\.\s*(?:query|body|params)\s*\.\s*\w+)\s*\+[^;\n]{0,120}['"`]\/?\.\.?\/|['"`]\/?\.\.?\/['"`]\s*\+/g,
+      /(?:(?:fs\.\w+File\w*|res\.sendFile|res\.download)\s*\([^;]{0,200}['"]\.\.\/)|(?:userInput|(?:req|request)\s*\.\s*(?:query|body|params)\s*\.\s*\w+)\s*\+[^;\n]{0,120}['"`]\/?\.\.?\/|['"`]\/?\.\.?\/['"`]\s*\+|(?:fs\s*\.\s*(?:readFileSync|readFile|createWriteStream|createReadStream|writeFileSync|writeFile|appendFileSync|appendFile|open)\s*\(|path\s*\.\s*(?:join|resolve)\s*\()[^;\n)]{0,150}?(?:req|request)\s*\.\s*(?:query|body|params|headers)/g,
     type: "PATH_TRAVERSAL",
-    severity: "P0",
+    severity: "P1",
     message: "Path traversal in filesystem or response call with user-supplied input",
     fix: "Validate and sanitize file paths; use path.resolve() and compare against an allowed base directory",
     score: 9,
@@ -111,6 +144,84 @@ export const REGEX_PATTERNS: ScanPattern[] = [
     message: "XSS risk — unsanitized HTML insertion",
     fix: "Use textContent or sanitize with DOMPurify; avoid dangerouslySetInnerHTML with untrusted content",
     score: 7,
+  },
+  {
+    // Server-side XSS: the response body itself is assembled from request
+    // input. A constant string, a plain variable or an object response is not
+    // this finding — concatenation is the gate.
+    regex:
+      /(?:res|rsp|reply|response)\s*\.\s*(?:send|end|json)\s*\(\s*(?:[^;\n]{0,120}?\+\s*(?:req|request)\s*\.\s*(?:query|body|params|headers|cookies)|(?:req|request)\s*\.\s*(?:query|body|params|headers|cookies)[^;\n]{0,120}?\+)/g,
+    type: "XSS",
+    severity: "P1",
+    message: "Server-side XSS — response body assembled from request input",
+    fix: "Escape before embedding request data in HTML, or send data as JSON and render on the client",
+    score: 7,
+  },
+  {
+    // Credential literal, general form: a bounded always-on pattern baseline.
+    // Provenance is "regex", severity is P1 and the message says "fallback" —
+    // this is a heuristic second pair of eyes for when gitleaks is absent or
+    // silent, never a scanner verdict. The value gate in the loop keeps
+    // labels ("password-field-selector", "changeme", `# label only`) silent.
+    regex: new RegExp(`${CREDENTIAL_NAME.source}\\s*[:=]\\s*["']([^"'$%\\\\]{8,})["']`, "gi"),
+    type: "HARDCODED_SECRET",
+    severity: "P1",
+    message:
+      "Credential literal in source — regex pattern baseline (offline fallback heuristic, not a scanner verdict)",
+    fix: "Load the value from the environment or a secret manager and rotate anything committed",
+    score: 7,
+    cwe: "CWE-798",
+  },
+  {
+    // Credential literal, provider-prefix form: the value shape alone (AWS,
+    // GitHub, OpenAI, Slack, Google, OAuth) is the finding — no credential
+    // keyword in the name required. Documented example values are classified
+    // as examples in the loop; this rule never emits a P0.
+    regex:
+      /(?:^|[=:(,[{])\s*["'](AKIA[0-9A-Z]{16}|ghp_[A-Za-z0-9]{36}|sk-[A-Za-z0-9]{20,}|xox[baprs]-[A-Za-z0-9-]{10,}|AIza[0-9A-Za-z_-]{35}|ya29\.[A-Za-z0-9_-]{10,})["']/gm,
+    type: "HARDCODED_SECRET",
+    severity: "P1",
+    message:
+      "Provider-format credential literal — regex pattern baseline (offline fallback heuristic, not a scanner verdict)",
+    fix: "Load the value from the environment or a secret manager and rotate anything committed",
+    score: 7,
+    cwe: "CWE-798",
+  },
+  {
+    // SSRF: a server-side fetch whose URL comes straight from the request.
+    regex:
+      /(?:\bfetch\s*\(|\bhttps?\s*\.\s*(?:get|request)\s*\(|\baxios\s*\.\s*(?:get|post)\s*\()[^;\n]{0,120}?(?:req|request)\s*\.\s*(?:query|body|params|headers)/g,
+    type: "SSRF",
+    severity: "P1",
+    message: "Server-side request to a URL taken from the request — SSRF",
+    fix: "Resolve and validate the target against an allowlist of schemes and hosts before fetching",
+    score: 8,
+    cwe: "CWE-918",
+  },
+  {
+    // Weak randomness in a security-shaped binding; the loop checks the name
+    // and reports the line of the Math.random() call itself.
+    regex:
+      /(?:([\w$]+)\s*=\s*Math\s*\.\s*random\s*\(|function\s+([\w$]+)\s*\([^)]{0,60}\)\s*\{[\s\S]{0,120}?\breturn\s+Math\s*\.\s*random\s*\()/g,
+    type: "WEAK_RANDOMNESS",
+    severity: "P2",
+    message: "Security-relevant value derived from Math.random() — predictable",
+    fix: "Use crypto.randomBytes() or crypto.randomUUID() for tokens, sessions and secrets",
+    score: 4,
+    cwe: "CWE-330",
+  },
+  {
+    // CORS wildcard + credentials in the same block/statement. The leading
+    // boundary class starts the match outside the header-name string literal;
+    // the loop re-anchors the finding to the Allow-Origin line.
+    regex:
+      /[\s{(=,:[\]]\s*["']Access-Control-Allow-Origin["']\s*[:,=]\s*["']\*["'][\s\S]{0,80}?[\s{(=,:[\]]\s*["']Access-Control-Allow-Credentials["']\s*[:,=]\s*(?:"true"|'true'|true)(?=\s*[,;)}\]]|\s*$)|[\s{(=,:[\]]\s*["']Access-Control-Allow-Credentials["']\s*[:,=]\s*(?:"true"|'true'|true)(?=\s*[,;)}\]]|\s*$)[\s\S]{0,80}?["']Access-Control-Allow-Origin["']\s*[:,=]\s*["']\*["']/g,
+    type: "CORS",
+    severity: "P1",
+    message: "CORS misconfiguration — browsers block credentialed responses with a wildcard origin",
+    fix: "Use a specific allowlisted origin for credentialed requests, or omit credential support for public responses",
+    score: 7,
+    cwe: "CWE-942",
   },
   {
     regex:
@@ -371,6 +482,12 @@ export class RegexAdapter implements ScannerAdapter {
       structure ??= structureLines(content, detectLanguage(filePath));
       return isTextOnlyLine(structure[line - 1] ?? "", lines[line - 1] ?? "");
     };
+    // The structure view of a line is blank: the text sits inside a
+    // multi-line literal or a block comment — prose, not catalogue shape.
+    const isMultilineProse = (line: number): boolean => {
+      structure ??= structureLines(content, detectLanguage(filePath));
+      return (structure[line - 1] ?? "").trim() === "" && (lines[line - 1] ?? "").trim() !== "";
+    };
 
     for (const pattern of this.activePatterns) {
       // Language gating: loose equality is a JavaScript-only pitfall — in
@@ -396,7 +513,28 @@ export class RegexAdapter implements ScannerAdapter {
       const regex = new RegExp(pattern.regex.source, pattern.regex.flags);
       let match: RegExpExecArray | null;
       while ((match = regex.exec(scannable)) !== null) {
-        const lineNum = findLineNum(match.index);
+        let lineNum = findLineNum(match.index);
+
+        // WEAK_RANDOMNESS: only a security-shaped binding counts, and the
+        // finding sits on the Math.random() call — not on the function line
+        // several lines above it (sec-subtle/src/subtle.js:27 shape).
+        if (pattern.type === "WEAK_RANDOMNESS") {
+          const name = match[1] ?? match[2] ?? "";
+          if (!securityShapedName(name)) {
+            if (match[0].length === 0) regex.lastIndex++;
+            continue;
+          }
+          const at = match[0].lastIndexOf("Math");
+          if (at >= 0) lineNum = findLineNum(match.index + at);
+        }
+
+        // CORS: report the wildcard-origin line, whichever order the pair
+        // appears in.
+        if (pattern.type === "CORS") {
+          const at = match[0].search(/Access-Control-Allow-Origin/);
+          if (at >= 0) lineNum = findLineNum(match.index + at);
+        }
+
         if (syntax && !syntax.allows(match.index, pattern.type)) {
           if (match[0].length === 0) regex.lastIndex++;
           continue;
@@ -407,10 +545,22 @@ export class RegexAdapter implements ScannerAdapter {
           continue;
         }
 
+        // The credential and CORS rules find their answer in data-shaped
+        // catalogue lines (`secretAccessKey: "wJal…",` is a text-only line yet
+        // carries the literal secret; an origin/credentials pair in a config
+        // object is a real configuration). The exemption is narrow: the value
+        // must be credential-shaped (provider format, or letters mixed with
+        // digits), so labels ("secret": "example", "password-field-selector")
+        // and prose inside multi-line literals stay suppressed.
+        const shapedCredential =
+          pattern.type === "HARDCODED_SECRET" && credentialShaped(match[1] ?? "");
+        const dataExempt =
+          (shapedCredential || pattern.type === "CORS") && !isMultilineProse(lineNum);
+
         // Never flag text that only names the construct: an advice entry, a fix
         // suggestion's unsafe example, a rule catalogue. Rules that name their
         // file type are exempt, because there the string is the fact.
-        if (!pattern.paths && isTextLine(lineNum)) {
+        if (!pattern.paths && isTextLine(lineNum) && !dataExempt) {
           if (match[0].length === 0) regex.lastIndex++;
           continue;
         }
@@ -423,6 +573,42 @@ export class RegexAdapter implements ScannerAdapter {
             if (match[0].length === 0) regex.lastIndex++;
             continue;
           }
+          // A quote is only a query under construction when something
+          // non-literal is joined into it (concatenation, interpolation,
+          // printf/format building) — or when it already carries injection
+          // payload. A quoted constant like `SELECT COUNT(*) FROM metrics
+          // LIMIT 10` with neither is a finished string, not a risk (the
+          // P0 false alarm on sec-false-positive-bait/src/bait.js:14).
+          const tailLines = scannable
+            .slice(match.index + match[0].length, match.index + match[0].length + 80)
+            .split("\n");
+          // A match ending on the last character still leaves its own (empty)
+          // line in the split, but the index read is `string | undefined` under
+          // noUncheckedIndexedAccess. Guarded at runtime — no assertion — so the
+          // two tests below can never be handed undefined.
+          const tail = tailLines[0] ?? "";
+          const dynamic =
+            /\$\{|%\(|%[sd]|\bformat\s*\(|[fF]["']/.test(match[0]) ||
+            // the mask rewrites in-string quotes, so the operator can sit
+            // behind one or two quote characters: `" + id` / `' + req.x`
+            /^\s*["']?\s*(?:\+\s*\S|\.\s*[\w$])/.test(tail);
+          const payload =
+            /(?:\b1\s*=\s*1\b|['"]\s*(?:OR|AND)\s|\s--|\/\*|\bUNION\b|\bsleep\s*\(|\bbenchmark\s*\(|xp_cmdshell)/i.test(
+              match[0] + tail,
+            );
+          if (!dynamic && !payload) {
+            if (match[0].length === 0) regex.lastIndex++;
+            continue;
+          }
+        }
+
+        // HARDCODED_SECRET (regex fallback rules): the keyword name or the
+        // position alone is not enough — the value has to read as a credential,
+        // not as a label. This is what keeps "password-field-selector",
+        // "changeme", "placeholder-value" and the `# label only` case silent.
+        if (pattern.type === "HARDCODED_SECRET" && !shapedCredential) {
+          if (match[0].length === 0) regex.lastIndex++;
+          continue;
         }
 
         // PATH_TRAVERSAL: skip lines that are imports/requires or comments
@@ -449,13 +635,23 @@ export class RegexAdapter implements ScannerAdapter {
           severity = "P1";
         }
 
+        let message = pattern.message + (isTestFile ? " (in test file)" : "");
+        // The vendor-documented example keys (AWS's own docs pair) are findings
+        // — the file does carry the shape — but classified as examples, never
+        // shouted, and this rule cannot emit a P0 by construction.
+        if (pattern.type === "HARDCODED_SECRET" && DOCUMENTED_EXAMPLE.test(match[1] ?? "")) {
+          message =
+            "Example credential (vendor-documented value) — regex pattern baseline (offline fallback heuristic), classified as an example, not a live secret";
+        }
+
         issues.push({
           type: pattern.type,
           severity,
           score: pattern.score,
           line: lineNum,
-          code: lineContent.trim().slice(0, 120),
-          message: pattern.message + (isTestFile ? " (in test file)" : ""),
+          code: lineContent.trim(),
+          secretValue: shapedCredential ? match[1] : undefined,
+          message,
           fix: pattern.fix,
           cwe: pattern.cwe,
           provenance: "regex",
@@ -465,6 +661,8 @@ export class RegexAdapter implements ScannerAdapter {
       }
     }
     enrichIssues(issues, content);
+    // Enrichment masks complete values (including neighbours) before this display limit.
+    for (const issue of issues) issue.code = issue.code.slice(0, 120);
     return this.aggregateNoise(issues);
   }
 

@@ -123,12 +123,28 @@ const CWE_TO_CATEGORY: Readonly<Record<number, FindingCategory>> = {
   73: "permissions",
 };
 
-/** Types that are a category by definition and carry no CWE to derive from. */
+/**
+ * Types that are a category by definition and carry no CWE to derive from.
+ *
+ * The three regex-layer types below are the exception to that sentence, and are
+ * here for the opposite reason: their CWE numbers have no family row. CWE-918 is
+ * filed under protection-mechanism failure and CWE-942 under access control, and
+ * giving either one a row would reclassify every third-party rule that cites it —
+ * so the regex rules name their bucket themselves. WEAK_RANDOMNESS lands here for
+ * completeness: CWE-330 already derives to crypto, and the row says so out loud.
+ */
 const TYPE_TO_CATEGORY: Readonly<Record<string, FindingCategory>> = {
   VULNERABLE_DEPENDENCY: "dependencies",
   LOOSE_EQUALITY: "hygiene",
   DESTRUCTIVE_COMMAND: "permissions",
   CONSOLE_USAGE: "hygiene",
+  // Untrusted data reaching an outbound request the server itself performs.
+  SSRF: "injection",
+  // A predictable value where the whole point is that nobody can guess it.
+  WEAK_RANDOMNESS: "crypto",
+  // The response is readable by an origin nobody chose — data exposure, and
+  // "permissions" here would bury it behind the filter for filesystem damage.
+  CORS: "exposure",
 };
 
 /**
