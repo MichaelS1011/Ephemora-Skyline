@@ -9,6 +9,9 @@
  */
 const HIDDEN = "‹hidden›";
 
+/** Shared with the regex detector, including compounds such as mysqlpassword. */
+export const CREDENTIAL_NAME = /(?:password|passwd|secret|token|api[_-]?key)\w*/i;
+
 const SENSITIVE = new Set([
   "secret",
   "token",
@@ -33,11 +36,9 @@ function words(name: string): string[] {
     .filter(Boolean);
 }
 
-/**
- * A name counts when one of its words is a credential word, or when a compound
- * name ends in one — `monkey` is one word and does not, `access_key` does.
- */
+/** Keep detector-matched compounds and credential words; `monkey` stays readable. */
 export function looksLikeSecretName(name: string): boolean {
+  if (CREDENTIAL_NAME.test(name)) return true;
   const parts = words(name);
   if (parts.some((p) => SENSITIVE.has(p))) return true;
   return parts.length > 1 && parts.some((p) => /(?:secret|token|key|password|credential)$/.test(p));
@@ -59,8 +60,9 @@ const SECRET_SHAPES: RegExp[] = [
   /\bgh[pousr]_[A-Za-z0-9]{20,}\b/g, // GitHub
   /\bAKIA[0-9A-Z]{16}\b/g, // AWS access key id
   /\bASIA[0-9A-Z]{16}\b/g, // AWS temporary key id
-  /\bxox[baprs]-[0-9A-Za-z-]{10,}\b/g, // Slack
-  /\bAIza[0-9A-Za-z_-]{30,}\b/g, // Google API key
+  /\bxox[baprs]-[0-9A-Za-z-]{10,}/g, // Slack (a trailing hyphen is part of the value)
+  /\bAIza[0-9A-Za-z_-]{30,}/g, // Google API key
+  /\bya29\.[0-9A-Za-z_-]{10,}/g, // Google OAuth access token
   /\b[ps]k_(?:live|test)_[0-9A-Za-z]{16,}\b/g, // Stripe
   /\bsk-[A-Za-z0-9]{20,}\b/g, // OpenAI-style
   /\bnpm_[A-Za-z0-9]{30,}\b/g, // npm access token, the form `npm_…`
@@ -101,29 +103,41 @@ function maskSecretShapes(text: string): string {
  * name looks like a credential. Quotes and spacing are kept so the line still
  * reads like the source it came from.
  */
-export function maskSecretText(text: string, knownValue?: string): string {
+export function maskSecretText(text: string, knownValue?: string | readonly string[]): string {
   if (!text) return text;
   let out = text;
-  // gitleaks reports the exact string it matched — that is better than guessing
-  if (knownValue && knownValue.length >= 6) out = out.split(knownValue).join(HIDDEN);
+  const known = typeof knownValue === "string" ? [knownValue] : (knownValue ?? []);
+  // Longest first, so an overlapping shorter match cannot leave a secret's suffix.
+  for (const value of [...new Set(known)].sort((a, b) => b.length - a.length)) {
+    if (value.length >= 6) out = out.split(value).join(HIDDEN);
+  }
   out = maskSecretShapes(out);
 
-  const assign = /([A-Za-z_][A-Za-z0-9_.-]*)(\s*[:=]\s*)(["']?)/g;
+  const assign = /(["']?)([A-Za-z_][A-Za-z0-9_.-]*)\1([ \t]*[:=][ \t]*)(["'`]?)/g;
   let match: RegExpExecArray | null;
   let result = "";
   let cursor = 0;
   while ((match = assign.exec(out)) !== null) {
-    const name = match[1]!;
-    if (!looksLikeSecretName(name)) continue;
+    if (!looksLikeSecretName(match[2]!)) continue;
     const valueStart = match.index + match[0].length;
-    const quote = match[3] ?? "";
-    const rest = out.slice(valueStart);
-    // to the closing quote when the value is quoted, otherwise to end of line
-    const end = quote ? rest.indexOf(quote) : -1;
-    const valueEnd = valueStart + (end > 0 ? end : rest.length);
-    result += out.slice(cursor, valueStart) + HIDDEN + (quote && end > 0 ? quote : "");
-    cursor = valueEnd + (end > 0 ? 1 : 0);
-    assign.lastIndex = cursor;
+    const quote = match[4] ?? "";
+    let valueEnd = valueStart;
+    if (quote) {
+      while (valueEnd < out.length && out[valueEnd] !== quote && !/[\r\n]/.test(out[valueEnd]!)) {
+        valueEnd += out[valueEnd] === "\\" && valueEnd + 1 < out.length ? 2 : 1;
+      }
+    } else {
+      while (valueEnd < out.length && !/[\s,;)}\]&"']/.test(out[valueEnd]!)) valueEnd++;
+    }
+    const value = out.slice(valueStart, valueEnd);
+    // A hidden-marker prefix that the display clip cut short is already redacted;
+    // rewriting it to the full marker would lengthen the line back past the clip
+    // and make the boundary non-idempotent.
+    if (!value || value.startsWith(HIDDEN.slice(0, 1))) continue;
+    if (value === `${HIDDEN}…`) continue;
+    result += out.slice(cursor, valueStart) + HIDDEN;
+    cursor = valueEnd;
+    assign.lastIndex = valueEnd + (quote && out[valueEnd] === quote ? 1 : 0);
   }
   return cursor === 0 ? out : result + out.slice(cursor);
 }
@@ -152,20 +166,21 @@ export function isSecretFinding(issue: { type?: string; provenance?: string }): 
  * the raw line) bypassed enrichment entirely, which is how the value reached a
  * CI run. Masking at the call site of one adapter was not enough.
  */
-export function maskIssueFrames(issue: {
-  code?: string;
-  snippet?: { line: string; before: string[]; after: string[] };
-  /** The exact value a scanner matched. Used for masking, then dropped: it must
-   *  never reach the persisted result, where it would be the thing we promised
-   *  not to store. */
-  secretValue?: string;
-}): void {
-  const known = issue.secretValue;
+export function maskIssueFrames(
+  issue: {
+    code?: string;
+    snippet?: { line: string; before: string[]; after: string[] };
+    /** Consumed before persistence; never store the matched credential. */
+    secretValue?: string;
+  },
+  knownValues: readonly string[] = [],
+): void {
+  const known = issue.secretValue === undefined ? knownValues : [...knownValues, issue.secretValue];
   if (issue.code) issue.code = maskSecretText(issue.code, known);
   if (issue.snippet) {
     issue.snippet.line = maskSecretText(issue.snippet.line, known);
     issue.snippet.before = issue.snippet.before.map((l) => maskSecretText(l, known));
     issue.snippet.after = issue.snippet.after.map((l) => maskSecretText(l, known));
   }
-  if (known !== undefined) delete issue.secretValue;
+  delete issue.secretValue;
 }

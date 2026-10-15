@@ -1,6 +1,6 @@
 import type { SecurityIssue } from "../../models/index.js";
 import { categoryOf } from "./categories.js";
-import { maskIssueFrames } from "./redact.js";
+import { maskIssueFrames, maskSecretText } from "./redact.js";
 
 export interface FindingKnowledge {
   /** Plain-language: what does this finding mean for the code owner? */
@@ -175,6 +175,25 @@ export const FINDING_KNOWLEDGE: Record<string, FindingKnowledge> = {
     explain:
       "This deletes down the filesystem root or writes to a raw device. If the path above it is ever empty or unset, the command stops being a cleanup and destroys the machine it runs on.",
   },
+  SSRF: {
+    explain:
+      "A URL that arrived in the request is fetched by the server itself, so the caller decides where your process connects. From outside you only ever see the reply, but the target can be an internal service, a neighbour on the localhost, or the cloud provider's metadata endpoint — all of which trust a request because it came from inside. Take the target from an allowlist of hosts and schemes, refuse link-local and private addresses, and do not forward the response body to the caller.",
+    cwe: "CWE-918",
+    refUrl: "https://cwe.mitre.org/data/definitions/918.html",
+  },
+  WEAK_RANDOMNESS: {
+    explain:
+      "Math.random() is a statistical generator, not a cryptographic one: its output is derived from its previous state, so seeing a few values lets an attacker predict the rest. That is fine for a jitter delay and fatal for anything meant to be unguessable — a reset token, a session id, a verification code — because the value is only a secret if nobody can compute it. Draw these from crypto.randomBytes() or crypto.randomUUID() instead.",
+    cwe: "CWE-330",
+    refUrl: "https://cwe.mitre.org/data/definitions/330.html",
+  },
+  CORS: {
+    explain:
+      "Access-Control-Allow-Origin: * combined with Access-Control-Allow-Credentials: true is a CORS misconfiguration. Browsers block JavaScript from reading the response to a credentialed cross-origin request with a wildcard origin; this combination does not demonstrate authenticated data exposure. For credentialed requests, return a specific origin from an allowlist and Vary: Origin when it varies. For public responses, omit credential support and send requests without credentials. CORS is not authentication or CSRF protection.",
+    cwe: "CWE-942",
+    refUrl:
+      "https://developer.mozilla.org/en-US/docs/Web/HTTP/Guides/CORS/Errors/CORSNotSupportingCredentials",
+  },
 };
 
 export function knowledgeFor(type: string): FindingKnowledge {
@@ -202,12 +221,19 @@ const MAX_SNIPPET_LINE = 160;
  * Build a small code frame around the flagged line (semgrep/ESLint codeframe
  * style) so every finding can show WHERE in the file the problem lives.
  */
-export function buildSnippet(content: string | undefined, line: number): CodeSnippet | undefined {
+export function buildSnippet(
+  content: string | undefined,
+  line: number,
+  knownValues: readonly string[] = [],
+): CodeSnippet | undefined {
   if (!content) return undefined;
   const lines = content.split("\n");
   const idx = Math.min(Math.max(line - 1, 0), lines.length - 1);
-  const trim = (s: string): string =>
-    s.length > MAX_SNIPPET_LINE ? `${s.slice(0, MAX_SNIPPET_LINE)}…` : s;
+  const trim = (s: string): string => {
+    // Mask complete values before clipping can turn them into unrecognisable fragments.
+    const masked = maskSecretText(s, knownValues);
+    return masked.length > MAX_SNIPPET_LINE ? `${masked.slice(0, MAX_SNIPPET_LINE)}…` : masked;
+  };
   const before = lines.slice(Math.max(0, idx - CONTEXT_LINES), idx).map(trim);
   const flagged = trim(lines[idx] ?? "");
   const after = lines.slice(idx + 1, idx + 1 + CONTEXT_LINES).map(trim);
@@ -220,6 +246,8 @@ export function buildSnippet(content: string | undefined, line: number): CodeSni
  * called by every adapter/facade merge that has the file content at hand.
  */
 export function enrichIssues(issues: SecurityIssue[], content?: string): void {
+  // Capture all matched values before masking consumes them, including neighbours.
+  const knownValues = issues.flatMap((issue) => (issue.secretValue ? [issue.secretValue] : []));
   for (const issue of issues) {
     if (!issue.explanation) {
       const knowledge = knowledgeFor(issue.type);
@@ -242,13 +270,9 @@ export function enrichIssues(issues: SecurityIssue[], content?: string): void {
       if (row >= 0) issue.line = row + 1;
     }
     if (!issue.snippet && !issue.historyCommit && issue.provenance !== "gitleaks-history") {
-      issue.snippet = buildSnippet(content, issue.line);
+      issue.snippet = buildSnippet(content, issue.line, knownValues);
     }
-    // Every code frame is masked, not only the credential finding's own.
-    // A frame reaches two lines past the finding, so a hygiene hit one line
-    // above a `DB_PASSWORD = …` carried the password into the city JSON the
-    // user exports — measured on a two-file fixture: the credential findings
-    // were clean, the CONSOLE_USAGE frame next to them was not.
-    maskIssueFrames(issue);
+    // Also mask adapter-provided frames and non-secret findings beside a credential.
+    maskIssueFrames(issue, knownValues);
   }
 }

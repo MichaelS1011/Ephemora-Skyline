@@ -271,7 +271,12 @@ export class GitleaksAdapter implements ScannerAdapter {
         severity: "P0" as const,
         score: 10,
         line: l.StartLine ?? 1,
-        code: (content.split("\n")[l.StartLine - 1] ?? "").trim().slice(0, 120),
+        // Masked before the display clip: a value cut in half is no longer a
+        // shape the boundary recognises, and the tail left behind is the secret.
+        code: maskSecretText((content.split("\n")[l.StartLine - 1] ?? "").trim(), l.Secret).slice(
+          0,
+          120,
+        ),
         // gitleaks tells us the secret itself; the masking boundary consumes it.
         // Before that this field was parsed and dropped, which is how a token
         // behind an innocuous name (`const pat = "ghp_…"`) left the machine.
@@ -311,7 +316,7 @@ export class GitleaksAdapter implements ScannerAdapter {
         severity: "P0",
         score: 10,
         line: lineNum,
-        code: maskSecretText((lines[lineNum - 1] ?? "").trim().slice(0, 120), secretVal),
+        code: maskSecretText((lines[lineNum - 1] ?? "").trim(), secretVal).slice(0, 120),
         message: "Hardcoded secret detected — high-entropy credential (gitleaks fallback)",
         fix: "Use environment variables or a secrets manager",
         provenance: "gitleaks-fallback",
@@ -329,7 +334,7 @@ export class GitleaksAdapter implements ScannerAdapter {
         severity: "P0",
         score: 10,
         line: lineNum,
-        code: maskSecretText((lines[lineNum - 1] ?? "").trim().slice(0, 120), m[0]),
+        code: maskSecretText((lines[lineNum - 1] ?? "").trim(), m[0]).slice(0, 120),
         message: "Hardcoded secret detected — known token pattern (AWS/GitHub/Slack)",
         fix: "Revoke and move to secrets manager",
         provenance: "gitleaks-fallback",

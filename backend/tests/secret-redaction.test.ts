@@ -7,12 +7,15 @@ import {
   maskSecretText,
   maskIssueFrames,
 } from "../src/services/security/redact.js";
-import { enrichIssues } from "../src/services/security/finding-knowledge.js";
+import { buildSnippet, enrichIssues } from "../src/services/security/finding-knowledge.js";
+import { sarifToIssues } from "../src/services/security/sarif-mapper.js";
 import { detectLanguage, isDataFile } from "../src/services/analyzer/metrics.js";
 import { isScannedPath } from "../src/services/analyzer/orchestrator.js";
 import { SecurityScanner } from "../src/services/security/scanner.js";
 import { GitleaksAdapter } from "../src/services/security/adapters/gitleaks-adapter.js";
-import type { FileAnalysis, SecurityIssue } from "../src/models/index.js";
+import { RegexAdapter } from "../src/services/security/adapters/regex-adapter.js";
+import { resultToSarif } from "../src/utils/sarif.js";
+import type { AnalysisResult, FileAnalysis, SecurityIssue } from "../src/models/index.js";
 
 /**
  * A finding carries the line it was found on, and the whole result is written to
@@ -390,5 +393,301 @@ describe("a credential shape is masked whatever the name beside it says", () => 
     ]) {
       expect(maskSecretText(plain), plain).toBe(plain);
     }
+  });
+});
+
+// Synthetic values only; provider prefixes are assembled, never used as credentials.
+const REGEX_CREDENTIALS = [
+  { label: "AWS", name: "bearer", value: "AKIA" + "ABCDEFGHIJKLMNOP" },
+  { label: "GitHub control", name: "bearer", value: "ghp_" + "a1".repeat(18) },
+  { label: "OpenAI", name: "bearer", value: "sk-" + "a1".repeat(12) },
+  { label: "Slack trailing hyphen", name: "bearer", value: "xoxb-" + "a1".repeat(8) + "-" },
+  { label: "Google trailing hyphen", name: "bearer", value: "AIza" + "a1".repeat(17) + "-" },
+  { label: "OAuth", name: "bearer", value: "ya29." + "Abcdef1234567890" },
+  { label: "OAuth trailing hyphen", name: "bearer", value: "ya29." + "a1".repeat(8) + "-" },
+  ...[
+    "mysqlpassword",
+    "mysqlpasswd",
+    "clientsecretvalue",
+    "mytokenbuffer",
+    "myapikeyvalue",
+    "my_api_key_suffix",
+  ].map((name) => ({ label: name, name, value: VALUE })),
+];
+
+function exportedIssues(issues: SecurityIssue[]): string {
+  return JSON.stringify(
+    resultToSarif({
+      id: "synthetic-redaction-check",
+      files: [{ path: "src/synthetic.ts", vulnerabilities: issues }],
+    } as AnalysisResult),
+  );
+}
+
+function clipped(line: string): string {
+  return line.length > 160 ? line.slice(0, 160) + "…" : line;
+}
+
+describe("regex credentials cross the canonical redaction boundary", () => {
+  it.each(REGEX_CREDENTIALS)(
+    "masks $label without erasing the name or nearby code",
+    ({ name, value }) => {
+      const line = `const ${name} = "${value}"; const total = 3;`;
+      expect(maskSecretText(line)).toBe(`const ${name} = "‹hidden›"; const total = 3;`);
+    },
+  );
+
+  it.each(REGEX_CREDENTIALS)(
+    "keeps $label out of findings, neighbour frames and SARIF",
+    async ({ name, value }) => {
+      const line = `const ${name} = "${value}";`;
+      const masked = `const ${name} = "‹hidden›";`;
+      const issues = await new SecurityScanner([new RegexAdapter()]).scanFile(
+        "src/synthetic.ts",
+        `console.log("boot");\n${line}\nconst total = 3;`,
+      );
+      const secret = issues.find((issue) => issue.type === "HARDCODED_SECRET");
+      const neighbour = issues.find((issue) => issue.type === "CONSOLE_USAGE");
+      expect(secret).toBeDefined();
+      expect(neighbour).toBeDefined();
+      expect(secret?.code).toBe(masked);
+      expect(secret?.snippet?.line).toBe(masked);
+      expect(neighbour?.snippet?.after).toEqual([masked, "const total = 3;"]);
+      expect(JSON.stringify(issues)).not.toContain(value);
+      expect(JSON.stringify(issues)).not.toContain("secretValue");
+      expect(exportedIssues(issues)).not.toContain(value);
+      expect(exportedIssues(issues)).toContain("‹hidden›");
+    },
+  );
+
+  for (const limit of [120, 160]) {
+    it.each(REGEX_CREDENTIALS)(
+      `masks $label before the ${limit}-character cut`,
+      async ({ name, value }) => {
+        const start = 'const pad = "';
+        const end = `"; const ${name} = "`;
+        const prefix = start + "x".repeat(limit - 8 - start.length - end.length) + end;
+        const line = `${prefix}${value}";`;
+        const masked = `${prefix}‹hidden›";`;
+        const issues = await new SecurityScanner([new RegexAdapter()]).scanFile(
+          "src/synthetic.ts",
+          `console.log("boot");\n${line}`,
+        );
+        const secret = issues.find((issue) => issue.type === "HARDCODED_SECRET");
+        const neighbour = issues.find((issue) => issue.type === "CONSOLE_USAGE");
+        expect(secret).toBeDefined();
+        expect(neighbour).toBeDefined();
+        expect(secret?.code).toBe(masked.slice(0, 120));
+        expect(secret?.snippet?.line).toBe(clipped(masked));
+        expect(neighbour?.snippet?.after).toEqual([clipped(masked)]);
+        // Checking only the complete value would miss a leaked, truncated prefix.
+        expect(JSON.stringify(issues)).not.toContain(value.slice(0, 8));
+        expect(exportedIssues(issues)).not.toContain(value.slice(0, 8));
+        expect(buildSnippet(line, 1)?.line).toBe(clipped(masked));
+      },
+    );
+  }
+
+  it.each([false, true])(
+    "shares known values before enrichment consumes them (reverse=%s)",
+    (reverse) => {
+      const value = "SyntheticOpaqueValue12345";
+      const lines = [`console.log("${value}");`, `const arbitrary = "${value}";`];
+      const issues: SecurityIssue[] = [
+        {
+          type: "CONSOLE_USAGE",
+          severity: "P2",
+          score: 3,
+          line: 1,
+          code: lines[0]!,
+          message: "console",
+        },
+        {
+          type: "HARDCODED_SECRET",
+          severity: "P1",
+          score: 7,
+          line: 2,
+          code: lines[1]!,
+          message: "secret",
+          secretValue: value,
+        },
+      ];
+      if (reverse) issues.reverse();
+      enrichIssues(issues, lines.join("\n"));
+      const firstPass = JSON.stringify(issues);
+      expect(firstPass).not.toContain(value);
+      expect(firstPass).not.toContain("secretValue");
+      expect(issues.find((issue) => issue.type === "CONSOLE_USAGE")?.code).toBe(
+        'console.log("‹hidden›");',
+      );
+      enrichIssues(issues, lines.join("\n"));
+      expect(JSON.stringify(issues)).toBe(firstPass);
+    },
+  );
+
+  it("masks repeated generic values in the adapter before truncating unrelated code", async () => {
+    const prefix = `console.log("${"x".repeat(100)}", "`;
+    const content = `${prefix}${VALUE}");\nconst mysqlpassword = "${VALUE}";`;
+    const issues = await new SecurityScanner([new RegexAdapter()]).scanFile(
+      "src/synthetic.ts",
+      content,
+    );
+    const neighbour = issues.find((issue) => issue.type === "CONSOLE_USAGE");
+    expect(issues.some((issue) => issue.type === "HARDCODED_SECRET")).toBe(true);
+    expect(neighbour?.code).toBe(`${prefix}‹hidden›");`.slice(0, 120));
+    expect(JSON.stringify(issues)).not.toContain(VALUE.slice(0, 5));
+    expect(exportedIssues(issues)).not.toContain(VALUE.slice(0, 5));
+  });
+
+  it("masks quoted credential properties and preserves empty values and harmless suffixes", () => {
+    expect(maskSecretText(`{ "mysqlpassword": "${VALUE}", "total": 3 }`)).toBe(
+      '{ "mysqlpassword": "‹hidden›", "total": 3 }',
+    );
+    expect(maskSecretText(`DB_PASSWORD=${VALUE}; const total = 3;`)).toBe(
+      "DB_PASSWORD=‹hidden›; const total = 3;",
+    );
+    for (const line of [
+      'const monkey = "bananas123";',
+      'const bearer = "ya29.short";',
+      'const bearer = "ghp_short";',
+      'const password = ""; const total = 3;',
+      "const total = price + shipping;",
+    ])
+      expect(maskSecretText(line)).toBe(line);
+  });
+});
+
+/**
+ * The display clip is a second boundary, and it sat on the wrong side of the
+ * mask in three places: `slice(0, 120)` ran BEFORE `maskSecretText`, so a value
+ * that starts inside the first 120 characters and ends past them left the
+ * leading fragment — `ghp_aB3dE5fG7hI9` — in the report. A fragment no shape
+ * rule recognises is not a truncated secret, it is a secret with its checksum
+ * half missing, and it is exactly what the panel, the city JSON and the SARIF
+ * file must never carry. The control in each case below is the OLD order: the
+ * same line clipped first, then masked, still holding the prefix.
+ */
+describe("the 120-character display clip never cuts a credential in half", () => {
+  /** 40 characters, so a line that puts its start at ~106 crosses the clip. */
+  const PAT = "ghp_" + "aB3dE5fG7hI9jK1lM3nO5pQ7rS9tU1vW3xY5";
+  const LONG_LINE = `const ${"billing_provider_oauth_".repeat(4)}access_token = "${PAT}";`;
+
+  it("proves the clip really crosses the value (control)", () => {
+    expect(LONG_LINE.slice(0, 120)).not.toContain(PAT);
+    // the old order left this much of the token on the card: enough to identify
+    // the provider and the victim, not enough for any shape rule to catch
+    expect(LONG_LINE.slice(0, 120)).toContain(PAT.slice(0, 6));
+    expect(LONG_LINE.slice(0, 120)).not.toContain(PAT.slice(0, 10));
+    expect(LONG_LINE.length).toBeGreaterThan(120);
+  });
+
+  /**
+   * The clip can cut the `‹hidden›` marker itself. That is a cosmetic edge, not
+   * a leak — but the mask must then leave the fragment alone: rewriting it to
+   * the full marker would lengthen the line back past the display limit, so a
+   * second pass through the boundary would undo the first one.
+   */
+  it("never lengthens a clipped hidden marker on a second pass", () => {
+    const clipped = maskSecretText(LONG_LINE).slice(0, 120);
+    expect(clipped).toContain("‹");
+    expect(maskSecretText(clipped)).toBe(clipped);
+  });
+
+  it("masks the gitleaks batch line before clipping it", async () => {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), "codecity-clip-"));
+    await fs.mkdir(path.join(dir, "src"), { recursive: true });
+    await fs.writeFile(path.join(dir, "src", "keys.ts"), `${LONG_LINE}\nconst a = 1;\n`, "utf-8");
+
+    const scanner = new SecurityScanner();
+    (scanner as unknown as { gitleaksAdapter: unknown; semgrepAdapter: unknown }).gitleaksAdapter =
+      {
+        scanRepository: async () =>
+          new Map([
+            [
+              "src/keys.ts",
+              [
+                {
+                  type: "HARDCODED_SECRET",
+                  severity: "P0",
+                  score: 10,
+                  line: 1,
+                  code: "",
+                  secretValue: PAT,
+                  message: "Hardcoded secret detected (github-pat) — gitleaks",
+                  provenance: "gitleaks",
+                  ruleId: "github-pat",
+                } as unknown as SecurityIssue,
+              ],
+            ],
+          ]),
+        enableBatchMode: () => {},
+      };
+    (scanner as unknown as { semgrepAdapter: unknown }).semgrepAdapter = null;
+
+    const files = [
+      {
+        path: "src/keys.ts",
+        language: "TypeScript",
+        lines: { total: 2, code: 2, comments: 0, blank: 0 },
+        complexity: { cyclomatic: 1 },
+        functions: [],
+        classes: [],
+        imports: [],
+        exports: [],
+        vulnerabilities: [],
+      } as unknown as FileAnalysis,
+    ];
+    await scanner.scanRepositoryBatch(dir, files);
+    await fs.rm(dir, { recursive: true, force: true });
+
+    const secret = files[0]!.vulnerabilities.find((i) => i.type === "HARDCODED_SECRET");
+    expect(secret, "the batch finding must survive to be checked").toBeTruthy();
+    expect(secret!.code!.length, "the display clip still applies").toBeLessThanOrEqual(120);
+    expect(secret!.code).not.toContain(PAT.slice(0, 10));
+    expect(secret!.code).toContain("‹");
+    expect(maskSecretText(secret!.code!)).toBe(secret!.code);
+    expect(JSON.stringify(secret!.snippet)).not.toContain(PAT.slice(0, 10));
+  });
+
+  it("masks the no-binary fallback before clipping it", () => {
+    const adapter = new GitleaksAdapter();
+    const fallback = (adapter as unknown as { fallbackScan: (c: string) => SecurityIssue[] })
+      .fallbackScan;
+    const issues = fallback.call(adapter, `${LONG_LINE}\n`);
+    expect(issues.length, "the fallback must find the pattern").toBeGreaterThan(0);
+    for (const issue of issues) {
+      expect(issue.code!.length).toBeLessThanOrEqual(120);
+      expect(issue.code).not.toContain(PAT.slice(0, 10));
+    }
+  });
+
+  it("masks a semgrep region snippet before clipping it", () => {
+    const issues = sarifToIssues({
+      runs: [
+        {
+          tool: {
+            driver: { rules: [{ id: "js-hardcoded-token", shortDescription: { text: "t" } }] },
+          },
+          results: [
+            {
+              ruleId: "js-hardcoded-token",
+              message: { text: "Hardcoded token found." },
+              locations: [
+                {
+                  physicalLocation: {
+                    artifactLocation: { uri: "src/keys.ts" },
+                    region: { startLine: 1, snippet: { text: LONG_LINE } },
+                  },
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    } as never);
+    expect(issues.length).toBe(1);
+    expect(issues[0]!.code!.length).toBeLessThanOrEqual(120);
+    expect(issues[0]!.code).not.toContain(PAT.slice(0, 10));
+    expect(issues[0]!.code).toContain("‹");
   });
 });

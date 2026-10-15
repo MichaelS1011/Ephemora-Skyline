@@ -1,4 +1,6 @@
 import type { SecurityIssue } from "../../models/index.js";
+import { maskSecretText } from "./redact.js";
+import { FINDING_KNOWLEDGE, knowledgeFor } from "./finding-knowledge.js";
 
 type Sarif = {
   runs: Array<{
@@ -36,6 +38,29 @@ const SEVERITY_MAP: Record<string, "P0" | "P1" | "P2"> = {
 
 const SCORE_MAP: Record<string, number> = { P0: 10, P1: 7, P2: 3 };
 
+/**
+ * Vendor noise must not cross this boundary (R3-10, measured three identical
+ * runs on `target-warm.json`): a semgrep rule's help text carried its Pro-plan
+ * advertisement (`💎 Enable cross-file analysis and Pro rules for free at
+ * sg.run/pro`) and an unsubstituted metavariable (`$FUNC`) straight into the
+ * UI's "To fix" block. Two kinds of line/pattern are removed; the useful part
+ * of the sentence stays word-for-word.
+ */
+export function stripScannerNoise(text: string): string {
+  const withoutPromo = text
+    .split("\n")
+    .filter((line) => !/sg\.run|\bPro rules\b|Enable cross-file analysis|💎/i.test(line))
+    .join("\n");
+  // Unsubstituted semgrep metavariables: $NAME and ${NAME}, plus the pair of
+  // backticks a rule quotes them in. A leading digit ($5) is money, not a
+  // template — kept.
+  const withoutMetavars = withoutPromo.replace(/`?\$\{?[A-Za-z_][A-Za-z0-9_]*\}?`?/g, "");
+  return withoutMetavars
+    .replace(/[ \t]{2,}/g, " ")
+    .replace(/\s+([.,;:!?])/g, "$1")
+    .trim();
+}
+
 export function sarifToIssues(sarif: Sarif, contentByPath?: Map<string, string>): SecurityIssue[] {
   const issues: SecurityIssue[] = [];
   for (const run of sarif.runs ?? []) {
@@ -56,20 +81,35 @@ export function sarifToIssues(sarif: Sarif, contentByPath?: Map<string, string>)
       if (!loc) continue;
       const filePath = loc.artifactLocation.uri;
       const line = loc.region.startLine ?? 1;
-      const code =
-        loc.region.snippet?.text?.slice(0, 120) ??
-        contentByPath?.get(filePath)?.split("\n")[line - 1]?.trim().slice(0, 120) ??
-        "";
+      // Masked at full length, then clipped: the region snippet of a secret
+      // rule is the credential, and half of it is no shape the mask knows.
+      const code = maskSecretText(
+        loc.region.snippet?.text ??
+          contentByPath?.get(filePath)?.split("\n")[line - 1]?.trim() ??
+          "",
+      ).slice(0, 120);
       const level = res.level ?? "warning";
       const severity = SEVERITY_MAP[level] ?? "P1";
+      const type = sarifRuleToType(res.ruleId);
+      // Both fields cross the boundary cleaned (R3-10). When the strip leaves
+      // nothing behind, the finding falls back to the curated knowledge entry
+      // for its type instead of showing an empty or advertised card.
+      const cleanedMessage = stripScannerNoise(res.message.text ?? "");
+      const message = cleanedMessage === "" ? knowledgeFor(type).explain : cleanedMessage;
+      const help = ruleHelp.get(res.ruleId);
+      let fix: string | undefined;
+      if (help !== undefined) {
+        const cleanedFix = stripScannerNoise(help);
+        fix = cleanedFix === "" ? FINDING_KNOWLEDGE[type]?.explain : cleanedFix;
+      }
       issues.push({
-        type: sarifRuleToType(res.ruleId),
+        type,
         severity,
         score: SCORE_MAP[severity] ?? 7,
         line,
         code,
-        message: res.message.text,
-        fix: ruleHelp.get(res.ruleId),
+        message,
+        fix,
         provenance: "semgrep",
         ruleId: res.ruleId,
         cwe: ruleCwe.get(res.ruleId),

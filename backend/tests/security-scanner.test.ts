@@ -61,7 +61,20 @@ const config = {
     const [result] = await scanner.scan([file]);
     const secretVulns = result!.vulnerabilities.filter((v) => v.type === "HARDCODED_SECRET");
     expect(secretVulns.length).toBeGreaterThan(0);
-    expect(secretVulns.every((v) => v.severity === "P0")).toBe(true);
+    // Severity is a promise per provenance now: gitleaks reports P0, the regex
+    // credential rules are an offline fallback and deliberately stay at P1.
+    const gitleaksSecrets = secretVulns.filter((v) => v.provenance?.startsWith("gitleaks"));
+    const baselineSecrets = secretVulns.filter((v) => v.provenance === "regex");
+    expect(gitleaksSecrets.length + baselineSecrets.length, "a finding nobody owns").toBe(
+      secretVulns.length,
+    );
+    expect(gitleaksSecrets.every((v) => v.severity === "P0")).toBe(true);
+    expect(baselineSecrets.length).toBeGreaterThan(0);
+    for (const hit of baselineSecrets) {
+      expect(hit.severity).toBe("P1");
+      expect(hit.message.toLowerCase(), hit.message).toContain("baseline");
+      expect(hit.message.toLowerCase(), hit.message).toContain("fallback");
+    }
     expect(secretVulns.some((v) => v.provenance?.startsWith("gitleaks"))).toBe(true);
   });
 
