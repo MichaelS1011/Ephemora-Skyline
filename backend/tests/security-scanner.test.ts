@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { SecurityScanner } from "../src/services/security/scanner.js";
+import { RegexAdapter } from "../src/services/security/adapters/regex-adapter.js";
 import type { FileAnalysis } from "../src/models/index.js";
 
 /** Helper: build a minimal FileAnalysis with the given source content */
@@ -61,21 +62,48 @@ const config = {
     const [result] = await scanner.scan([file]);
     const secretVulns = result!.vulnerabilities.filter((v) => v.type === "HARDCODED_SECRET");
     expect(secretVulns.length).toBeGreaterThan(0);
-    // Severity is a promise per provenance now: gitleaks reports P0, the regex
+    // Severity is a promise per provenance: gitleaks reports P0, the regex
     // credential rules are an offline fallback and deliberately stay at P1.
+    // WHICH of the two answers is a property of the machine — without the
+    // gitleaks binary its no-binary fallback steps in with `gitleaks-fallback`,
+    // and its findings win the dedup, so a check that demanded both families
+    // here would read the toolchain rather than the rule. Both sides are pinned
+    // below, each against the scanner that always runs it.
     const gitleaksSecrets = secretVulns.filter((v) => v.provenance?.startsWith("gitleaks"));
     const baselineSecrets = secretVulns.filter((v) => v.provenance === "regex");
     expect(gitleaksSecrets.length + baselineSecrets.length, "a finding nobody owns").toBe(
       secretVulns.length,
     );
     expect(gitleaksSecrets.every((v) => v.severity === "P0")).toBe(true);
-    expect(baselineSecrets.length).toBeGreaterThan(0);
+    expect(baselineSecrets.every((v) => v.severity === "P1")).toBe(true);
+  });
+
+  /**
+   * The same fixture through the baseline alone: this is the half that must hold
+   * on every machine, including one with no scanner installed at all — which is
+   * the case the fallback exists for, and the case CI runs in.
+   */
+  it("keeps the regex baseline's own credential findings at P1, binary or not", async () => {
+    const ghp = "ghp_" + "16C7e42F292c6912E7710c838347Ae178B4a";
+    const file = makeFile(`
+const config = {
+  token: "${ghp}",
+  aws_key: "AKIA" + "IOSFODNN7EXAMPLE",
+  secret: "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY",
+};
+    `);
+    const [result] = await new SecurityScanner([new RegexAdapter()]).scan([file]);
+    const baselineSecrets = result!.vulnerabilities.filter((v) => v.type === "HARDCODED_SECRET");
+    expect(
+      baselineSecrets.length,
+      "the baseline must see a credential without any engine",
+    ).toBeGreaterThan(0);
     for (const hit of baselineSecrets) {
+      expect(hit.provenance).toBe("regex");
       expect(hit.severity).toBe("P1");
       expect(hit.message.toLowerCase(), hit.message).toContain("baseline");
       expect(hit.message.toLowerCase(), hit.message).toContain("fallback");
     }
-    expect(secretVulns.some((v) => v.provenance?.startsWith("gitleaks"))).toBe(true);
   });
 
   it("ignores low-entropy placeholder secrets", async () => {
