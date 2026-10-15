@@ -14,13 +14,13 @@ Thanks for your interest. Ephemora Skyline is a focused 3D visualizer — small,
 ```bash
 git clone https://github.com/MichaelS1011/Ephemora-Skyline.git
 cd Ephemora-Skyline
-npm install                 # requires Node >= 20, npm >= 10
+npm install                 # engines: node ^20.19.0 || >=22.12.0, npm >= 10 — Node 21 is unsupported
 npm run dev                 # backend :4000 + frontend :3010
 ```
 
 Optional, for the deeper scans: put `gitleaks`, `semgrep`, `osv-scanner` and `ruff` on your `PATH`. Without them the corresponding checks report themselves as skipped — they never pretend to have run.
 
-**Two checkouts on one machine.** The backend owns `:4000` and will not share it — it says so and exits rather than dying in a stack trace. The dev server moves itself to `:3011` when `:3010` is taken, so give the second checkout all three numbers and it runs beside the first:
+**Two checkouts on one machine.** Neither server drifts on its own: the backend owns `:4000` and says so and exits rather than dying in a stack trace, and the dev server runs with `strictPort`, so it fails instead of quietly moving to `:3011`. Give the second checkout all three numbers and it runs beside the first:
 
 ```bash
 PORT=4100 FRONTEND_ORIGIN=http://localhost:3011 npm run dev --workspace backend
@@ -29,14 +29,14 @@ BACKEND_PORT=4100 npm run dev --workspace frontend -- --port 3011
 
 `FRONTEND_ORIGIN` is what the write guard reads: without it, every upload from the moved page is refused, because the guard only admits the origins it was told to serve. `BACKEND_PORT` is what the dev proxy reads: without it, the second frontend keeps talking to the **first** checkout's backend and your server-side edits appear to do nothing.
 
-## Before you open a PR — the four gates
+## Before you open a PR — the five gates
 
 These are exactly what CI enforces: the steps in `.github/workflows/ci.yml`, which triggers on pushes to `main` and on pull requests against it. Run them clean first:
 
 ```bash
 npm run lint          # ESLint, zero warnings
 npm run type-check    # tsc --noEmit across both packages
-npm run test          # Vitest — 192 test files: 115 frontend, 77 backend (2026-10-12)
+npm run test          # Vitest — 199 test files: 120 frontend, 79 backend (2026-10-15)
 npm run build         # production build, both packages
 ```
 

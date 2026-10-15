@@ -48,7 +48,8 @@ backend/src/
 │       ├── tests.ts         # POST /api/tests/:id/run — the project's own tests
 │       ├── update-check.ts  # GET /api/update/check (the one self-request)
 │       ├── demo.ts          # GET /api/demo, /api/cities/default
-│       └── health.ts        # GET /api/health
+│       ├── health.ts        # GET /api/health
+│       └── agent.ts         # GET /api/result/:id/handoff, POST /api/verify (docs/AGENTS.md)
 ├── services/
 │   ├── analyzer/
 │   │   ├── orchestrator.ts  # the pipeline: enumerate → parse → scan → aggregate
@@ -208,8 +209,10 @@ Folder picked in the browser ──File[] over loopback──▶ Orchestrator �
 - **`backend/src/utils/cityMapper.ts`** builds a hierarchical directory tree
   (`CityDir` tree) from the full file list, with per-directory aggregates
   (fileCount, LOC, languages, findings, threatScore, topFindings). Per directory
-  only the top-K files (`detailFiles`, weighted Threat×√LOC) are rendered
-  individually; the rest are counted honestly as `remainingFiles` (podium).
+  only the top-K files (`detailFiles`, ordered by `cityMapper.ts`'s additive
+  sort key `roleWeight×1e6 + worstSeverity×1000 + min(LOC, 1000)` — no
+  multiplication of threat by size) are rendered individually; the rest are
+  counted honestly as `remainingFiles` (podium).
   Import relationships are resolved (relative paths, extensions, `index.*`,
   `@/` alias) and aggregated at both the file **and** directory level.
 - **`frontend/src/city/layout.ts`** lays out deterministically (path-hashed

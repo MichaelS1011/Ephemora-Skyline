@@ -209,9 +209,10 @@ to _i_/15 s), so the film takes the time the visit took:
 The largest offset is the one honest cost of the method: where the page painted
 slower than the target rate — the moment the city assembles — a frame is held for
 up to 0,1193 s. Nothing is re-timed, and nothing is dropped forward. The file is
-800 × 500, 442 KB, one video track, no audio track; README.md:17 states those
-numbers and `backend/tests/beleg-04-demo-clip.test.ts` now reads them out of that
-sentence instead of repeating them, so the document and the bytes cannot drift.
+800 × 500, 442 KB, one video track, no audio track; the README's clip sentence
+states those numbers and `backend/tests/beleg-04-demo-clip.test.ts` now reads
+them out of that sentence instead of repeating them, so the document and the
+bytes cannot drift.
 The poster beside it is 1280 × 800 and 355 KB.
 
 ### What measuring the frames found in the layout

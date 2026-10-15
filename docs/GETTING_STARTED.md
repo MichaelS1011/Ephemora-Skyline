@@ -15,7 +15,7 @@ Open **http://localhost:3010** and click **Choose project folder** to pick any f
 
 A folder is read up to **10,000 files, 150 MB in total, 2 MB per file**. Whatever does not join the scan is counted on screen by the reason it left — including the paths your own `.gitignore` sets aside, which the browser skips before it counts anything, so a checkout with large local tooling folders still reads as the project inside it.
 
-No folder handy? Click **explore a demo city first** to see the full experience with sample data.
+No folder handy? Click **Explore demo** to see the full experience with sample data.
 
 That's the entire primary path. Everything below is configuration, tooling, and deployment.
 
@@ -48,6 +48,8 @@ npm install
 ```
 
 This installs all workspaces (root, frontend, backend) via npm workspaces. For a deterministic install from the lockfile (e.g. in CI), use `npm ci` instead.
+
+Two facts the install itself does not say: the repo ships an `.npmrc` with `legacy-peer-deps=true`, so every `npm install` and `npm ci` here resolves peer dependencies in npm 6's relaxed mode — nothing in the command output hints that this file is the reason. And a fresh install prints `7 vulnerabilities (2 moderate, 5 high)` while the gate stays green: all five high findings trace to one advisory the audit gate accepts by name (`GHSA-vfj7-8cjw-p6xm`, braces, no fixed release upstream) reached through five build-time package paths — braces, chokidar, fast-glob, micromatch, tailwindcss — and `node scripts/audit-gate.mjs` prints exactly that arithmetic and fails on anything else.
 
 ### 3. Start developing
 
@@ -165,6 +167,8 @@ kill <PID>
 
 On Linux without `lsof`, use `ss -tlnp | grep -E '3010|4000'` instead.
 
+Since 2026-10-14 the frontend dev server runs with `strictPort`: if `:3010` is already taken it exits with `Port 3010 is already in use` instead of landing on `:3011+` while its proxy still talks to the first checkout's backend — free the port as above, or point a second checkout at its own pair with `BACKEND_PORT=…` and `--port` (plus `FRONTEND_ORIGIN=` on the backend).
+
 ### TypeScript errors after cloning
 
 ```bash
@@ -187,11 +191,17 @@ curl http://localhost:4000/api/demo
 Check the proxy target in `frontend/vite.config.ts`:
 
 ```ts
-// Dev server proxy
+// Dev server proxy — the target is 127.0.0.1 by address, not "localhost" by
+// name (the resolver would answer ::1 first, and nothing listens there), and
+// it follows BACKEND_PORT so a second checkout can point at its own backend.
 server: {
+  port: 3010,
   proxy: {
-    '/api': 'http://localhost:4000'
-  }
+    "/api": {
+      target: `http://127.0.0.1:${process.env.BACKEND_PORT ?? "4000"}`,
+      changeOrigin: true,
+    },
+  },
 }
 ```
 
