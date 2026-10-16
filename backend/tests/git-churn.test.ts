@@ -1,6 +1,16 @@
 /**
  * git-churn tests — parser and scoring, verified against a real git repo
  * created in a temp dir (no fixtures on disk that could go stale).
+ *
+ * Deliberately a real-process test, and deliberately not one of the quiet
+ * scanner's customers. It builds a five-commit history with `git init/add/commit
+ * /mv` because the claim is about what `git log --numstat` actually prints for a
+ * rename — a stubbed churn reader would test the parser against a fixture someone
+ * typed, and the whole point is that the fixture is the tool's own output. What
+ * it forks is `git`, twice per case, into a temp directory it deletes: no
+ * gitleaks, no semgrep, no ruff, no osv-scanner, no `npm audit`. Measured
+ * 5,4 s of test time at load 106 — the load is git indexing, not a scanner engine,
+ * and it is the shortest honest way to ask this question.
  */
 
 import { afterAll, beforeAll, describe, expect, it } from "vitest";

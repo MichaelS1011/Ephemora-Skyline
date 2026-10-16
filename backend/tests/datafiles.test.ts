@@ -4,7 +4,7 @@ import { tmpdir } from "os";
 import path from "path";
 import { RegexAdapter } from "../src/services/security/adapters/regex-adapter.js";
 import { AnalysisOrchestrator } from "../src/services/analyzer/orchestrator.js";
-import { SecurityScanner } from "../src/services/security/scanner.js";
+import { quietScanner } from "./helpers/scanners.js";
 import {
   estimateCyclomaticComplexity,
   extractSections,
@@ -18,6 +18,15 @@ import {
  * Treating them as code produced the two loudest wrong results in the first
  * self-scan: a data blob as the city's "highest-risk file", and a function
  * list that named the same JSON keys over and over.
+ *
+ * The two pipeline cases used to hand the orchestrator a real `SecurityScanner`
+ * and so ran gitleaks, semgrep, ruff, osv-scanner and `npm audit` over three tiny
+ * temp files: measured 41,4 s of test time at load 53, inside a 30 s budget. The
+ * question here is what the pipeline builds out of a data file, so the scanner is
+ * the quiet one from `helpers/scanners.ts`. Its `{ regex: true }` is load-bearing:
+ * the case asserts that `catalog.json` carries no finding, and that only means
+ * something if the shipped regex catalogue actually read the file — an empty stub
+ * would pass the same assertion without testing anything.
  */
 describe("data files are not scanned as code", () => {
   const adapter = new RegexAdapter();
@@ -86,7 +95,7 @@ SELECT id, CASE WHEN label = 'ada' THEN 'first' ELSE 'later' END FROM tiers ORDE
   });
 
   it("gives a data file no functions, no classes, no sections, no imports", async () => {
-    const orchestrator = new AnalysisOrchestrator(pipelineScanner());
+    const orchestrator = new AnalysisOrchestrator(quietScanner({ regex: true }));
     const result = await orchestrator.analyzeDirectory("datafile-test", dir, {
       owner: "local",
       name: "datafile-test",
@@ -121,7 +130,7 @@ SELECT id, CASE WHEN label = 'ada' THEN 'first' ELSE 'later' END FROM tiers ORDE
       1,
     );
 
-    const orchestrator = new AnalysisOrchestrator(pipelineScanner());
+    const orchestrator = new AnalysisOrchestrator(quietScanner({ regex: true }));
     const result = await orchestrator.analyzeDirectory("sqlfile-test", dir, {
       owner: "local",
       name: "sqlfile-test",
@@ -174,23 +183,3 @@ describe("the two data decisions", () => {
     expect(hasDataLines("src/app.ts")).toBe(false);
   });
 });
-
-/**
- * This file asks which files joined the scan. The dependency audit is not part of
- * that question — and once the pipeline stops reporting an unrun osv as an
- * answer, that route spends a real `npm audit` round trip per test. Stubbed here,
- * so the assertions stay about the pipeline and the run stays about one second.
- */
-function pipelineScanner(): SecurityScanner {
-  const scanner = new SecurityScanner();
-  (
-    scanner as unknown as {
-      dependencyAdapter: {
-        scanRepository: () => Promise<{ issuesByFile: Map<string, never[]>; executed: boolean }>;
-      };
-    }
-  ).dependencyAdapter = {
-    scanRepository: async () => ({ issuesByFile: new Map(), executed: false }),
-  };
-  return scanner;
-}

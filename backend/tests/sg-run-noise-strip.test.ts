@@ -1,6 +1,14 @@
 import { describe, it, expect } from "vitest";
 import { sarifToIssues, stripScannerNoise } from "../src/services/security/sarif-mapper.js";
 import { FINDING_KNOWLEDGE } from "../src/services/security/finding-knowledge.js";
+/**
+ * Stays as it is on purpose: `tests/helpers/scanners.ts` has nothing to take from
+ * this file. The engine already ran — its SARIF is reproduced below as recorded
+ * output, advertisement and unsubstituted `$FUNC` included — and what is under test
+ * is the mapping that consumes those bytes. In-process, no binary, no child process,
+ * no share of the suite's load. Replacing the recorded report with a stub would make
+ * the case assert about the stub.
+ */
 
 /**
  * R3-10: a semgrep-derived finding carried the vendor's Pro advertisement and

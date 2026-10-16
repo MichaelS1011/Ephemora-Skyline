@@ -6,6 +6,12 @@
  *
  * Acceptance signature S3: >=28 of 36 planted vulnerabilities found, <=1 false
  * positive, none of them on P0.
+ *
+ * Not a candidate for `tests/helpers/scanners.ts`, and not part of the suite's load
+ * problem either: this is the regex layer itself (`new RegexAdapter()` over 36 real
+ * fixture files), which is shipped code running in-process. It forks nothing — gitleaks,
+ * semgrep, ruff, osv-scanner and `npm audit` never appear in a run of this file — and
+ * quiet-scanning it would replace the measurement with a mock of itself.
  */
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "fs";

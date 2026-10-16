@@ -7,7 +7,7 @@ import {
   isArtifactPath,
   isScanCandidate,
 } from "../src/services/analyzer/orchestrator.js";
-import { SecurityScanner } from "../src/services/security/scanner.js";
+import { quietScanner } from "./helpers/scanners.js";
 
 /**
  * Measured with a local measurement script that is not shipped over a fixture of the
@@ -20,6 +20,14 @@ import { SecurityScanner } from "../src/services/security/scanner.js";
  * "coverage*" copy. One file never scanned is one file the city must not
  * paint clean — the exclusion decision belongs to the analyzer's file
  * selection, in exactly one place.
+ *
+ * The pipeline case used to build a real `SecurityScanner` for that question and
+ * so forked gitleaks, semgrep, ruff, osv-scanner and `npm audit` over ten small
+ * temp files: measured 18,5 s of test time at load 50, inside a 60 s budget. It
+ * now takes the quiet scanner from `helpers/scanners.ts`, with `{ regex: true }`
+ * keeping the shipped regex catalogue over the same ten files. The case counts which
+ * paths joined the scan and asserts nothing about findings, so nothing here changed
+ * except the forks.
  */
 describe("artifact exclusion — the single file-selection decision", () => {
   it("keeps tool output out of the scan at any depth", () => {
@@ -93,7 +101,7 @@ describe("the pipeline walks artifacts out and real sources back in", () => {
   });
 
   it("scans the real sources and none of the tool traces", async () => {
-    const orchestrator = new AnalysisOrchestrator(pipelineScanner());
+    const orchestrator = new AnalysisOrchestrator(quietScanner({ regex: true }));
     const result = await orchestrator.analyzeDirectory("artifact-test", dir, {
       owner: "local",
       name: "artifact-test",
@@ -118,25 +126,5 @@ describe("the pipeline walks artifacts out and real sources back in", () => {
       ".nyc_output/out.json",
     ])
       expect(paths, not).not.toContain(not);
-  }, 60_000);
+  }, 60_000); // headroom only; the quiet scanner walks this folder in well under a second
 });
-
-/**
- * This file asks which files joined the scan. The dependency audit is not part of
- * that question — and once the pipeline stops reporting an unrun osv as an
- * answer, that route spends a real `npm audit` round trip per test. Stubbed here,
- * so the assertions stay about the pipeline and the run stays about one second.
- */
-function pipelineScanner(): SecurityScanner {
-  const scanner = new SecurityScanner();
-  (
-    scanner as unknown as {
-      dependencyAdapter: {
-        scanRepository: () => Promise<{ issuesByFile: Map<string, never[]>; executed: boolean }>;
-      };
-    }
-  ).dependencyAdapter = {
-    scanRepository: async () => ({ issuesByFile: new Map(), executed: false }),
-  };
-  return scanner;
-}

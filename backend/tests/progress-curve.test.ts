@@ -6,13 +6,19 @@
  * reports its share of the files it actually read, so the bar moves while work is
  * happening; the deep scan keeps its own stage because its duration is the
  * server's, not a counted quantity.
+ *
+ * The scanner is the quiet one from `helpers/scanners.ts` — this file measures the
+ * parse phase's emissions over 40 small files, and `{ regex: true }` — the shipped
+ * regex catalogue — is the only scanner code that question touches. Forking gitleaks
+ * over the same 40 files cost this run its 30 s budget on a loaded machine without
+ * ever being the assertion.
  */
 
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { promises as fs } from "fs";
 import path from "path";
 import { AnalysisOrchestrator } from "../src/services/analyzer/orchestrator.js";
-import { SecurityScanner } from "../src/services/security/scanner.js";
+import { quietScanner } from "./helpers/scanners.js";
 import { resolveConfig } from "../src/services/security/scan-config.js";
 import type { GitHubRepo, ProgressEvent } from "../src/models/index.js";
 
@@ -43,7 +49,7 @@ afterAll(async () => {
 describe("the parse phase reports shares, not a jump", () => {
   it("emits several distinct progress values between 30 and 85 while parsing", async () => {
     const events: ProgressEvent[] = [];
-    const orchestrator = new AnalysisOrchestrator(new SecurityScanner());
+    const orchestrator = new AnalysisOrchestrator(quietScanner({ regex: true }));
     const { config } = resolveConfig({ profile: "quick" });
     const result = await orchestrator.analyzeDirectory(
       "curve-test",

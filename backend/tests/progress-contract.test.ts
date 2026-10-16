@@ -11,10 +11,18 @@ import {
   deleteJobProgress,
 } from "../src/server/routes/job-progress.js";
 import { AnalysisOrchestrator } from "../src/services/analyzer/orchestrator.js";
-import { SecurityScanner } from "../src/services/security/scanner.js";
+import { quietScanner } from "./helpers/scanners.js";
 import { getDemoResult } from "../src/server/routes/demo.js";
 import type { AnalysisResult, ProgressEvent } from "../src/models/index.js";
 import { usePrivateStaging } from "./helpers/privateStaging.js";
+/**
+ * The orchestrator runs for real; its scanner does not. This file's claim is the
+ * stage sequence and what `GET /api/status/:id` reads off it, not what gitleaks or
+ * semgrep find in two small files. The `pipelineScanner()` that used to be here
+ * forked all four engines plus `npm audit` and cost 21,8 s of the 26 s run at
+ * load 43. `quietScanner({ regex: true })` keeps the shipped regex catalogue over
+ * the same two files and starts no process; no case here asserts a finding.
+ */
 // A staging root of this file's own — the TTL prune below fast-forwards the clock,
 // and in the shared suite root that reaches into a sibling file's staged folders.
 const STAGING = await usePrivateStaging("progress-contract");
@@ -89,7 +97,7 @@ describe("progress contract over HTTP — fed by real orchestrator events", () =
     store.set("job-1", makeSkeleton("job-1", REPO));
 
     const write = makeProgressWriter("job-1");
-    const orchestrator = new AnalysisOrchestrator(pipelineScanner());
+    const orchestrator = new AnalysisOrchestrator(quietScanner({ regex: true }));
     const result = await orchestrator.analyzeDirectory("job-1", workDir, REPO, (event) => {
       events.push(event);
       write(event);
@@ -175,23 +183,3 @@ describe("progress contract over HTTP — fed by real orchestrator events", () =
     expect(callStatus(store, "demo-001").statusCode).toBe(404);
   });
 });
-
-/**
- * This file asks which files joined the scan. The dependency audit is not part of
- * that question — and once the pipeline stops reporting an unrun osv as an
- * answer, that route spends a real `npm audit` round trip per test. Stubbed here,
- * so the assertions stay about the pipeline and the run stays about one second.
- */
-function pipelineScanner(): SecurityScanner {
-  const scanner = new SecurityScanner();
-  (
-    scanner as unknown as {
-      dependencyAdapter: {
-        scanRepository: () => Promise<{ issuesByFile: Map<string, never[]>; executed: boolean }>;
-      };
-    }
-  ).dependencyAdapter = {
-    scanRepository: async () => ({ issuesByFile: new Map(), executed: false }),
-  };
-  return scanner;
-}

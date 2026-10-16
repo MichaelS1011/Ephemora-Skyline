@@ -10,15 +10,53 @@
 // brightest ground that can ever sit behind it, and the labels that live inside
 // the world — where no chrome tint lies between them and the picture — must
 // stay opaque, because that is where the measured failure was (1,83:1).
+//
+// ── Soll-Zustand: zwölf Fälle, was sie behaupten, wie oft sie asserten ─────
+// „F.“ = die Assertions, die der Fallkörper selbst trifft (seine Zeilen × seine
+// Pflichten). Die Farb-Mechanik guardiert zusätzlich in `rootToken`, `parseColor`,
+// `declaredColour`, `designFile` und in den Szenen-Helfern — das ist der Takt der
+// Maschine, kein Verhalten.
+//
+//  Fall                            behauptet                                          F. vorher  F. nachher
+//  1  eigene Token-Schicht         alpha in (0,1), Blur-Token exists                         3        3
+//  2  Schrift, hellster Grund      4 helle Gründe × 5 Token-Tinten ≥ 4,5                    20       20
+//  3  Schrift, dunkelster Grund    2 Tinten über #0d0d0c → jetzt alle 5 ≥ 4,5                2        5
+//  4  Glas auf jeder Fläche        6 Selektoren × (Regel + backdrop-filter + Token)         18       18
+//  5  Welt-Labels undurchsichtig   Wächter hat > 3 Regeln + jede ohne backdrop-filter        1        1
+//                                  (9 Welt-Regeln)                                   (+9)   10       10
+//  6  Accessibility widerrufen     keine Solid-Regel + begründende Zeile im Blatt            2        2
+//  7  globals.css lädt zuletzt     main.tsx-Reihenfolge + 3 Blätter davor                     5        5
+//  8  genau eine Regel regiert     7 Flächen × 1: eine unlayered Regel                        7        7
+//  9  Fläche hält, was sie malt     7 Flächen × 9 Pflichten: Sieger, Token, Grundton,       63       63
+//                                 Glanz, 4 Felder, Tinte gemessen, Kontrast ≥ 4,5
+//  10 jede Tinte, Liste voll       7 Tinten × (gelistet + Fläche) + Minimum, jetzt mit      15       22
+//                                 eigenem Urteil pro Tinte
+//  11 Zähne: Konstante heller      Kopie-erreicht + 7 Flächen × (unter 4,5, unter 0,92)     15       16
+//  12 Zähne: zweite Flächen-Regel  Kopie-erreicht + 2 Flächennachschlagen + 4 Belege          5        8
+//  ────────────────────────────────────────────────────────────────────────────────────────────
+//  Kein Verhalten entfernt, nichts gelockert: 165 → 179 Fallkörper-Assertions. Fälle 3, 10 und
+//  11/12 zählen höher, weil der geteilte Aufbau es hergibt — der dunkle Grund hält jetzt die
+//  ganze Tintenliste, jede getragene Tinte hat ein eigenes Urteil, jede Mutationsszene guardiert
+//  ihre eigene Kopie. Ausgeführte `expect`-Aufrufe gesamt 5469 → 3159: dieselben Messungen, aber
+//  die Szene wird geteilt statt je Fall neu aufgebaut (7 → 5 Berechnungen) und das Minimum pro
+//  Tinte ist eins statt zwei — die Mechanik-Guards laufen seltener, kein Verhalten leiser. Was
+//  ein Fall mit zwei Szenen war (11), lief unter fremder Last über den Vitest-Timeout: zwei Fälle.
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "fs";
 import path from "path";
 import { ENV } from "../src/city/palette";
 import { contrast } from "./colourMath";
 
-const DESIGN = path.resolve(import.meta.dirname, "../src/design");
-const css = ["globals.css", "stadt-ui.css", "start.css", "city-funktion.css"].map(
-  (f) => [f, readFileSync(path.join(DESIGN, f), "utf-8")] as const,
+/** Der Text einer Quelldatei: Blätter wie Components werden gleich gelesen. */
+const quelle = (rel: string): string =>
+  readFileSync(path.resolve(import.meta.dirname, rel), "utf-8");
+
+/** Die vier Blätter, die Chrome-Flächen schreiben, sind die Szene; eine Kopie
+ *  mit einem anderen Blatt darin ist eine Mutation. */
+type Sheets = readonly (readonly [string, string])[];
+
+const css: Sheets = ["globals.css", "stadt-ui.css", "start.css", "city-funktion.css"].map(
+  (f) => [f, quelle(`../src/design/${f}`)] as const,
 );
 const allCss = css.map(([, t]) => t).join("\n");
 
@@ -31,6 +69,12 @@ const CHROME = [
   ".workspace-modes .glass",
   ".workspace-heatmap .glass",
 ];
+
+/** Die eine Schicht, die jede dieser Flächen tragen muss. */
+const TOKEN_BG = "var(--glass-chrome-bg)";
+
+/** Die Solid-Entscheidung vom 2. Oktober — sie darf nicht neben dem Glas stehen. */
+const SOLIDE_DOCK = /background:\s*#20201e\s*!important/;
 
 /* ── Which declaration actually rules a surface ────────────────────────────
  * Everything above this line proves the *token* is safe. None of it proves a
@@ -59,9 +103,21 @@ const LOAD_ORDER = ["city-funktion.css", "start.css", "stadt-ui.css", "globals.c
 
 const VIEWPORT = { width: 1600, reducedMotion: false };
 
-/** The four bright grounds the city can show behind a frosted bar. The plaza is
- *  the brightest floor in the picture; the haze at the horizon is a close second. */
-const GROUNDS = [ENV.plot, ENV.ground, ENV.fog, ENV.crosswalk];
+/** The grounds the city can show behind a frosted bar, brightest first: the plaza is
+ *  the brightest floor in the picture. Eine Tabelle für beide Leser — die Tint-Fälle
+ *  gehen ihre Zeilen, die Szene darunter kompositet ihre Farben. */
+const GRÜNDE = [
+  { sagt: "Plaza", farbe: ENV.plot },
+  { sagt: "Boden", farbe: ENV.ground },
+  { sagt: "Horizont-Nebel", farbe: ENV.fog },
+  { sagt: "Feldweg", farbe: ENV.crosswalk },
+];
+const GROUNDS = GRÜNDE.map((g) => g.farbe);
+
+const DUNKELSTER_GRUND = { sagt: "Schwarz", farbe: "#0d0d0c" };
+
+/** WCAG AA für normalen Text — das Kriterium jedes Kontrastfalls hier. */
+const STUFE = 4.5;
 
 type Decl = { prop: string; value: string; important: boolean };
 type Rule = {
@@ -78,14 +134,24 @@ type Rule = {
 const withoutComments = (text: string): string =>
   text.replace(/\/\*[\s\S]*?\*\//g, (m) => m.replace(/[^\n]/g, " "));
 
-function tokensFrom(files: readonly (readonly [string, string])[]): Map<string, string> {
-  const tokens = new Map<string, string>();
-  for (const [, text] of files) {
-    for (const m of withoutComments(text).matchAll(/(--[\w-]+)\s*:\s*([^;]+);/g)) {
-      if (!tokens.has(m[1] as string)) tokens.set(m[1] as string, (m[2] as string).trim());
-    }
-  }
-  return tokens;
+/** Ein Selektor ist eine Kommata-Liste; die Kaskade entscheidet pro Teil. */
+const selektoren = (sel: string): string[] =>
+  sel
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+
+/** Schlüssel ist die Blätter-Identität: dieselben Blätter sind dieselben Regeln, und
+ *  jede Szene liest beides mehrfach. */
+function puffern<T>(lesen: (files: Sheets) => T): (files: Sheets) => T {
+  const cache = new WeakMap<Sheets, T>();
+  return (files) => {
+    const bekannt = cache.get(files);
+    if (bekannt !== undefined) return bekannt;
+    const wert = lesen(files);
+    cache.set(files, wert);
+    return wert;
+  };
 }
 
 /** Declarations keep their semicolons inside `var()`-free parens, so a plain
@@ -102,8 +168,8 @@ function parseDecls(body: string): Decl[] {
     }));
 }
 
-/** Every rule with the at-rules sitting around it. A brace walk, because the
- *  linear regex the case above uses cannot tell a media block from its host. */
+/** Every rule with the at-rules sitting around it. A brace walk, because a
+ *  linear regex cannot tell a media block from its host. */
 function parseRules(text: string, file: string, orderBase: number): Rule[] {
   const src = withoutComments(text);
   const out: Rule[] = [];
@@ -143,12 +209,48 @@ function parseRules(text: string, file: string, orderBase: number): Rule[] {
   return out;
 }
 
-function rulesFrom(files: readonly (readonly [string, string])[]): Rule[] {
-  return LOAD_ORDER.flatMap((f, i) => {
+const tokensOf = puffern((files: Sheets) => {
+  const tokens = new Map<string, string>();
+  for (const [, text] of files) {
+    for (const m of withoutComments(text).matchAll(/(--[\w-]+)\s*:\s*([^;]+);/g)) {
+      if (!tokens.has(m[1] as string)) tokens.set(m[1] as string, (m[2] as string).trim());
+    }
+  }
+  return tokens;
+});
+
+const rulesOf = puffern((files: Sheets) =>
+  LOAD_ORDER.flatMap((f, i) => {
     const text = files.find(([name]) => name === f)?.[1];
     if (text === undefined) throw new Error(`${f} is in the load order but not read`);
     return parseRules(text, f, i * 1e5);
-  });
+  }),
+);
+
+/** Die Regeln, deren Selektor auf eine Chrome-Fläche endet — aus dem strukturierten
+ *  Read, nicht aus einer zweiten Kopie derselben Blätter. */
+const flächentreffer = (sel: string, files: Sheets): Rule[] =>
+  rulesOf(files).filter((r) => selektoren(r.sel).some((one) => one.endsWith(sel)));
+
+const hatDeklaration = (regeln: Rule[], suche: (d: Decl) => boolean): boolean =>
+  regeln.some((r) => r.decls.some(suche));
+
+/** The state a component carries by dimming its own text, in whichever shape
+ *  the dim was written: an inline `opacity: <state> ? 1 : 0.4` (the four sites
+ *  the dock shipped) or the Tailwind `disabled:opacity-40` on the same bar.
+ *  Both shapes are read because both were shipped here, and a guard that knew
+ *  only one would go quiet the next time the other came back. A ternary gives
+ *  up its darker branch — that is the state the reader is shown. Absent means
+ *  undimmed. No cascade reader can see either shape: both are inline styles. */
+function stateDim(component: string): number {
+  const dims = [
+    ...[...component.matchAll(/opacity:\s*[^;{}]*\?\s*([\d.]+)\s*:\s*([\d.]+)/g)].flatMap((m) => [
+      Number(m[1]),
+      Number(m[2]),
+    ]),
+    ...[...component.matchAll(/disabled:opacity-(\d+)/g)].map((m) => Number(m[1]) / 100),
+  ];
+  return dims.length === 0 ? 1 : Math.min(...dims);
 }
 
 function mediaApplies(cond: string): boolean {
@@ -194,6 +296,11 @@ const classNames = (compound: string): string[] =>
  *  FindingsPanel.tsx:226, InfoPanel.tsx:771, ActionBar.tsx:278,
  *  CoachMarks.tsx:273, ModeBar.tsx:34, HeatmapToggle.tsx:52. */
 type Surface = { name: string; own: string[]; ancestors: string[][] };
+
+/** Klassen, wie sie am Element stehen; `ebenen` = eine Klasse je Ebene der
+ *  Ahnenkette, von der Fläche nach außen. */
+const klassen = (s: string): string[] => s.split(/\s+/).filter(Boolean);
+const ebenen = (...ebene: string[]): string[][] => ebene.map(klassen);
 
 /** Does this selector hit the surface element itself (not a child, not a
  *  pseudo-element)? Compounds are matched right to left; a compound without a
@@ -250,10 +357,7 @@ function backgroundOwners(
     // bar rules below are written as `.workspace-modes .glass,
     // .workspace-heatmap .glass`, and scoring the joined string would read as
     // four classes and beat a single flat rule that really ties with it.
-    const hits = rule.sel
-      .split(",")
-      .map((s) => s.trim())
-      .filter((s) => hitsSurface(s, surface));
+    const hits = selektoren(rule.sel).filter((s) => hitsSurface(s, surface));
     if (hits.length === 0) continue;
     const hit = hits.reduce((a, b) => (specificity(b) > specificity(a) ? b : a)) as string;
     for (const decl of rule.decls) {
@@ -303,19 +407,9 @@ function layersOf(resolved: string): string[] {
  *  around the dark landing screen — reading the `:root` value would measure a
  *  label the workspace never paints. Custom properties inherit, so the scope
  *  that wins is the last rule naming the element's own scope. */
-function inkInScope(
-  files: readonly (readonly [string, string])[],
-  name: string,
-  scope: string,
-): string {
-  const rules = rulesFrom(files);
-  const scoped = rules
-    .filter((r) =>
-      r.sel
-        .split(",")
-        .map((s) => s.trim())
-        .includes(scope),
-    )
+function inkInScope(files: Sheets, name: string, scope: string): string {
+  const scoped = rulesOf(files)
+    .filter((r) => selektoren(r.sel).includes(scope))
     .flatMap((r) =>
       r.decls.filter((d) => d.prop === name).map((d) => d.value.replace(/!important/g, "").trim()),
     )
@@ -328,7 +422,7 @@ function inkInScope(
  *  that is the shell these bars live in; the `:root` value belongs to the dark
  *  landing screen and would measure a colour the workspace never paints. */
 function declaredColour(
-  files: readonly (readonly [string, string])[],
+  files: Sheets,
   source: string,
   rule: RegExp,
   what: string,
@@ -338,41 +432,23 @@ function declaredColour(
   expect(m, `${what}: keine regierende Farb-Deklaration zu lesen`).not.toBeNull();
   const raw = (m as RegExpMatchArray)[group]!.trim();
   const token = raw.match(/^var\((--[\w-]+)\)$/)?.[1];
-  return token ? inkInScope(files, token, ".app-shell") : resolveVars(raw, tokensFrom(files));
+  return token ? inkInScope(files, token, ".app-shell") : resolveVars(raw, tokensOf(files));
 }
 
-const designFile = (files: readonly (readonly [string, string])[], name: string): string => {
+const designFile = (files: Sheets, name: string): string => {
   const text = files.find(([f]) => f === name)?.[1];
   expect(text, `${name} ist nicht geladen`).not.toBeUndefined();
   return text as string;
 };
 
-/** The state a component carries by dimming its own text, in whichever shape
- *  the dim was written: an inline `opacity: <state> ? 1 : 0.4` (the four sites
- *  the dock shipped) or the Tailwind `disabled:opacity-40` on the same bar.
- *  Both shapes are read because both were shipped here, and a guard that knew
- *  only one would go quiet the next time the other came back. A ternary gives
- *  up its darker branch — that is the state the reader is shown. Absent means
- *  undimmed. No cascade reader can see either shape: both are inline styles. */
-function stateDim(component: string): number {
-  const dims = [
-    ...[...component.matchAll(/opacity:\s*[^;{}]*\?\s*([\d.]+)\s*:\s*([\d.]+)/g)].flatMap((m) => [
-      Number(m[1]),
-      Number(m[2]),
-    ]),
-    ...[...component.matchAll(/disabled:opacity-(\d+)/g)].map((m) => Number(m[1]) / 100),
-  ];
-  return dims.length === 0 ? 1 : Math.min(...dims);
-}
-
 const COACH_HINT = /\.start-coach-strip-hint\s*\{[^}]*color:\s*([^;]+);/;
 const DISABLED_LABEL = /color:\s*unavailable\s*\?\s*["'`]([^"'`]+)["'`]/;
 const HEAT_CAPTION = /text-\[(#[0-9a-f]{6})\][^>]*>HEAT</;
 
-/* The dock's own three inks, read off the component rather than typed in here.
- * None of them is a token: the step buttons and the triage start paint a
- * brighter cream than `--color-text`, the ordinary dock label paints a duller
- * one, and the overflow menu hands a third cream to its items inline. */
+/* The dock's own inks, read off the component rather than typed in here. None
+ * of them is a token: the step buttons and the triage start paint a brighter
+ * cream than `--color-text`, the ordinary dock label paints a duller one, and
+ * the overflow menu hands a third cream to its items inline. */
 const STEP_LABEL = /style=\{\{\s*color:\s*"(#[0-9a-f]{6})"[^{}]*whiteSpace: "nowrap"/;
 const ACTION_LABEL = /color:\s*active\s*\?\s*"(#[0-9a-f]{6})"\s*:\s*"(#[0-9a-f]{6})"/;
 const MENU_LABEL = /className="action-secondary-menu[\s\S]{0,700}?color:\s*"(#[0-9a-f]{6})"/;
@@ -382,100 +458,95 @@ const MORE_LABEL = /color:\s*menuOpen \? "[^"]+" : "(#[0-9a-f]{6})"/;
  *  outside the sheet copies the mutation cases pass through `chromeState`: an
  *  inline style is not a design file, and no mutation of a sheet is expected to
  *  move it. */
-const HEAT_TOGGLE = readFileSync(
-  path.resolve(import.meta.dirname, "../src/components/HeatmapToggle.tsx"),
-  "utf-8",
-);
-const ACTION_BAR = readFileSync(
-  path.resolve(import.meta.dirname, "../src/components/ActionBar.tsx"),
-  "utf-8",
-);
+const HEAT_TOGGLE = quelle("../src/components/HeatmapToggle.tsx");
+const ACTION_BAR = quelle("../src/components/ActionBar.tsx");
 
-/** Every ink that sits on a frosted bar. The four token inks are what the shell
- *  resolves for a label; the ones below are what these surfaces additionally
- *  paint from their own declarations — the coach's hint line, the disabled
- *  switch, the bar's caption, and the three literals the dock and its overflow
- *  menu carry inline. There is no exception here: a state a reader is asked to
- *  read (the struck-through CHURN channel, an empty step in the triage queue) is
- *  text like any other, and an ink list that names only the tokens measures
- *  labels the bars never paint.
- *  An inline `opacity` belongs to the ink, not to the surface — it is folded in
- *  where the contrast is taken, because that blend is what the eye gets. */
-function chromeInks(files: readonly (readonly [string, string])[]) {
-  const dockDim = stateDim(ACTION_BAR);
-  return [
-    { name: "--color-text", colour: inkInScope(files, "--color-text", ".app-shell"), opacity: 1 },
-    {
-      name: "--meta-strong (.app-shell)",
-      colour: inkInScope(files, "--meta-strong", ".app-shell"),
-      opacity: 1,
-    },
-    { name: "--meta (.app-shell)", colour: inkInScope(files, "--meta", ".app-shell"), opacity: 1 },
-    { name: "--brand-ink", colour: inkInScope(files, "--brand-ink", ".app-shell"), opacity: 1 },
-    // The header's 11 px caption, read off the running app on 2026-10-11.
-    { name: "header caption", colour: "rgb(146, 156, 135)", opacity: 1 },
-    {
-      name: "coach hint strip",
-      colour: declaredColour(
-        files,
-        designFile(files, "start.css"),
-        COACH_HINT,
-        ".start-coach-strip-hint",
-      ),
-      opacity: 1,
-    },
-    {
-      name: "disabled heat label",
-      colour: declaredColour(
-        files,
-        HEAT_TOGGLE,
-        DISABLED_LABEL,
-        "HeatmapToggle: deaktiviertes Label",
-      ),
-      opacity: stateDim(HEAT_TOGGLE),
-    },
-    {
-      name: "HEAT caption",
-      colour: (HEAT_TOGGLE.match(HEAT_CAPTION)?.[1] as string) ?? "",
-      opacity: 1,
-    },
-    // The dock's step buttons and its start button; `#fff2e9` is brighter than
-    // any token, which is exactly why no token read covered it.
-    {
-      name: "dock step label",
-      colour: declaredColour(files, ACTION_BAR, STEP_LABEL, "ActionBar: Schritt-Label ‹ / ›"),
-      opacity: dockDim,
-    },
-    {
-      name: "dock action label",
-      colour: declaredColour(
-        files,
-        ACTION_BAR,
-        ACTION_LABEL,
-        "ActionBar: Aktionsknopf, zweite Farbe",
-        2,
-      ),
-      opacity: dockDim,
-    },
-    // The overflow menu's trigger, closed: the one label on the bar that is
-    // deliberately quieter than the rest, and still a word a reader has to make
-    // out. The open state takes `--brand-ink`, already in this list.
-    {
-      name: "dock more label",
-      colour: declaredColour(files, ACTION_BAR, MORE_LABEL, "ActionBar: Mehr-Knopf, geschlossen"),
-      opacity: dockDim,
-    },
-    // The overflow menu's items inherit this from the menu container's inline
-    // style; the container's own plate is opaque `#20201e`, darker than every
-    // field this file composites, so holding the ink to the glass fields is the
-    // stricter read, not a different one.
-    {
-      name: "export menu label",
-      colour: declaredColour(files, ACTION_BAR, MENU_LABEL, "ActionBar: Tinte des Export-Popups"),
-      opacity: dockDim,
-    },
-  ];
+const HEAT_DIM = stateDim(HEAT_TOGGLE);
+const DOCK_DIM = stateDim(ACTION_BAR);
+
+/** Every ink that sits on a frosted bar — eine Zeile pro Tinte. The four token
+ *  inks are what the shell resolves for a label; the rest is what these surfaces
+ *  additionally paint from their own declarations: the coach's hint line, the
+ *  disabled switch, the bar's caption, and the literals the dock and its
+ *  overflow menu carry inline. There is no exception here: a state a reader is
+ *  asked to read (the struck-through CHURN channel, an empty step in the triage
+ *  queue) is text like any other, and an ink list that names only the tokens
+ *  measures labels the bars never paint.
+ *  `token` löst die Shell auf, `blatt` liest eine Farb-Deklaration aus einem
+ *  Blatt, `text` aus einem Component, `fest` ist im laufenden App gemessen
+ *  (2026-10-11). Eine inline `opacity` gehört zur Tinte, nicht zur Fläche — sie
+ *  steht in `dimm` und wird wirksam, wo der Kontrast genommen wird. */
+type TintenZeile = {
+  sagt: string;
+  token?: string;
+  blatt?: readonly [datei: string, regel: RegExp, gruppe?: number];
+  text?: readonly [text: string, regel: RegExp, gruppe?: number];
+  klasse?: readonly [text: string, regel: RegExp];
+  fest?: string;
+  dimm?: number;
+};
+
+const TINTEN: TintenZeile[] = [
+  { sagt: "--color-text", token: "color-text" },
+  { sagt: "--meta-strong (.app-shell)", token: "meta-strong" },
+  { sagt: "--meta (.app-shell)", token: "meta" },
+  { sagt: "--brand-ink", token: "brand-ink" },
+  { sagt: "header caption", fest: "rgb(146, 156, 135)" },
+  { sagt: "coach hint strip", blatt: ["start.css", COACH_HINT] },
+  { sagt: "disabled heat label", text: [HEAT_TOGGLE, DISABLED_LABEL], dimm: HEAT_DIM },
+  { sagt: "HEAT caption", klasse: [HEAT_TOGGLE, HEAT_CAPTION] },
+  { sagt: "dock step label", text: [ACTION_BAR, STEP_LABEL], dimm: DOCK_DIM },
+  { sagt: "dock action label", text: [ACTION_BAR, ACTION_LABEL, 2], dimm: DOCK_DIM },
+  // The overflow menu's trigger, closed: the one label on the bar that is
+  // deliberately quieter than the rest, and still a word a reader has to make
+  // out. The open state takes `--brand-ink`, already in this list.
+  { sagt: "dock more label", text: [ACTION_BAR, MORE_LABEL], dimm: DOCK_DIM },
+  // The overflow menu's items inherit this from the menu container's inline
+  // style; the container's own plate is opaque `#20201e`, darker than every
+  // field this file composites, so holding the ink to the glass fields is the
+  // stricter read, not a different one.
+  { sagt: "export menu label", text: [ACTION_BAR, MENU_LABEL], dimm: DOCK_DIM },
+];
+
+/** Die Lesewege einer Tinte, ein Aufruf. Wo eine Utility-Klasse den Text malt
+ *  statt einer Farb-Deklaration (`HEAT caption`), bleibt der Read ohne Guard —
+ *  alles andere wirft eine Behauptung: die Tinte ist weggelaufen. */
+function tintenfarbe(t: TintenZeile, files: Sheets): string {
+  if (t.fest !== undefined) return t.fest;
+  if (t.token !== undefined) return inkInScope(files, `--${t.token}`, ".app-shell");
+  if (t.klasse) return withoutComments(t.klasse[0]).match(t.klasse[1])?.[1] ?? "";
+  const [quelle, regel, gruppe] = t.blatt
+    ? [designFile(files, t.blatt[0]), t.blatt[1], t.blatt[2]]
+    : [t.text?.[0] as string, t.text?.[1] as RegExp, t.text?.[2]];
+  return declaredColour(files, quelle, regel, t.sagt, gruppe ?? 1);
 }
+
+const chromeInks = (files: Sheets) =>
+  TINTEN.map((t) => ({ name: t.sagt, colour: tintenfarbe(t, files), opacity: t.dimm ?? 1 }));
+
+/** Die Tinten, die eine Schale ohne eigene Deklaration malt: vier Token und die
+ *  11-px-Caption, als `:root`-Werte — nicht im `.app-shell`-Scope. `--meta-faint` fehlt
+ *  bewusst: eine Landing-Tinte auf keiner verglasten Fläche, darum war das alte
+ *  „AA on glass“-Versprechen neben ihr falsch gemessen. */
+const TOKEN_TINTEN: TintenZeile[] = [
+  { sagt: "--color-text", token: "color-text" },
+  { sagt: "--meta-strong", token: "meta-strong" },
+  { sagt: "--meta", token: "meta" },
+  { sagt: "--brand-ink", token: "brand-ink" },
+  { sagt: "header caption", fest: "rgb(146, 156, 135)" },
+];
+
+/** Welche Tinte auf welcher Fläche liegt — die Liste hinter Fall 10, getippt statt
+ *  abgeleitet: dass eine fehlende Tinte hier auffällt, ist gerade der Wächter. */
+const TRAGENDE_TINTEN: Array<{ ink: string; fläche: string }> = [
+  { ink: "coach hint strip", fläche: "first-look coach" },
+  { ink: "disabled heat label", fläche: "heat channel" },
+  { ink: "HEAT caption", fläche: "heat channel" },
+  { ink: "dock step label", fläche: "action dock" },
+  { ink: "dock action label", fläche: "action dock" },
+  { ink: "dock more label", fläche: "action dock" },
+  { ink: "export menu label", fläche: "action dock" },
+];
 
 /** The whole read for one set of design files: what rules each surface, and
  *  what that paints under each of the four bright grounds the city can show.
@@ -489,14 +560,12 @@ function chromeInks(files: readonly (readonly [string, string])[]) {
  *  the pixel at mid-height is two to five points darker and the labels there
  *  read better than this case demands. A changed sheen token moves the number
  *  here rather than leaving it claimed. */
-function chromeState(files: readonly (readonly [string, string])[]) {
-  const rules = rulesFrom(files);
-  const tokens = tokensFrom(files);
-  const grounds = GROUNDS;
+function chromeState(files: Sheets) {
+  const rules = rulesOf(files);
+  const tokens = tokensOf(files);
   const inks = chromeInks(files).map((ink) => ({ ...ink, parsed: parseColor(ink.colour) }));
   return SURFACES.map((surface) => {
     const { ranked, winner } = backgroundOwners(surface, rules, tokens);
-    const unlayered = ranked.filter((o) => !o.rule.layer);
     const value = winner
       ? winner.decl.value
           .replace(/!important/g, "")
@@ -509,97 +578,79 @@ function chromeState(files: readonly (readonly [string, string])[]) {
     const isColour = (layer: string): boolean =>
       /rgba?\([^)]*\)|#[0-9a-f]{3,8}\b/i.test(layer) && !/gradient\(/i.test(layer);
     const colourLayer = [...layers].reverse().find(isColour);
-    const imageLayer = layers.find((l) => /gradient\(/i.test(l));
-    const sheen = imageLayer ? (imageLayer.match(/rgba?\([^)]*\)/)?.[0] ?? null) : null;
+    const sheen = layers.find((l) => /gradient\(/i.test(l))?.match(/rgba?\([^)]*\)/)?.[0] ?? null;
     const bg = colourLayer ? parseColor(colourLayer) : null;
-    const fields = bg
-      ? grounds.map((ground) => {
-          const tinted = toHex(composite(bg, ground));
-          return sheen ? toHex(composite(parseColor(sheen), tinted)) : tinted;
+    // Tint over the ground first, then the sheen over that — what the browser
+    // draws, in the order it draws it.
+    const felder = bg
+      ? GROUNDS.map((ground) => {
+          const getönt = toHex(composite(bg, ground));
+          return sheen ? toHex(composite(parseColor(sheen), getönt)) : getönt;
         })
       : [];
     // What the eye gets: the ink laid over this field at its own opacity. At
     // opacity 1 this is the declared colour unchanged; a dimmed label blends
     // toward the field, which is exactly how it drops off the floor.
-    const onField = (ink: (typeof inks)[number], field: string): string =>
+    const aufFeld = (ink: (typeof inks)[number], field: string): string =>
       toHex(composite({ rgb: ink.parsed.rgb, alpha: ink.opacity }, field));
-    const worst = bg
-      ? Math.min(
-          ...fields.flatMap((field) => inks.map((ink) => contrast(onField(ink, field), field))),
-        )
-      : 0;
-    const worstInk = bg
-      ? inks.reduce(
-          (acc, ink) => {
-            const c = Math.min(...fields.map((field) => contrast(onField(ink, field), field)));
-            return c < acc.c ? { ink: ink.name, c } : acc;
-          },
-          { ink: inks[0]?.name ?? "", c: Number.POSITIVE_INFINITY },
-        )
-      : { ink: "", c: 0 };
+    // Eine Messung pro Tinte: `worst` und `worstInk` lesen dieselbe Zeile.
+    const tinten = bg
+      ? inks.map((ink) => ({
+          ink: ink.name,
+          c: Math.min(...felder.map((feld) => contrast(aufFeld(ink, feld), feld))),
+        }))
+      : [];
     return {
       surface,
       ranked,
-      unlayered,
+      unlayered: ranked.filter((o) => !o.rule.layer),
       winner,
       colourLayer: colourLayer ?? "",
       sheen,
-      fields,
-      worst,
-      worstInk,
+      fields: felder,
+      worst: tinten.length ? Math.min(...tinten.map((t) => t.c)) : 0,
+      worstInk: tinten.length ? tinten.reduce((a, t) => (t.c < a.c ? t : a)) : { ink: "", c: 0 },
     };
   });
 }
 
+type Szene = ReturnType<typeof chromeState>[number];
+
+/** Die sieben Flächen, Klassen wie am Element: `own` = eigene, `ahnen` = eine
+ *  je Ebene der Ahnenkette. */
 const SURFACES: Surface[] = [
-  { name: "workspace header", own: ["workspace-header"], ancestors: [["app-shell"]] },
+  { name: "workspace header", own: klassen("workspace-header"), ancestors: ebenen("app-shell") },
   {
     name: "findings panel",
-    own: ["panel-findings", "panel-card", "pointer-events-auto"],
-    ancestors: [["app-shell"], ["construction-ui"]],
+    own: klassen("panel-findings panel-card pointer-events-auto"),
+    ancestors: ebenen("app-shell", "construction-ui"),
   },
   {
     name: "file panel",
-    own: ["panel-info", "panel-card", "panel-scroll", "animate-slide-right", "pointer-events-auto"],
-    ancestors: [["app-shell"], ["construction-ui"]],
+    own: klassen("panel-info panel-card panel-scroll animate-slide-right pointer-events-auto"),
+    ancestors: ebenen("app-shell", "construction-ui"),
   },
   {
     name: "action dock",
-    own: [
-      "action-dock-row",
-      "flex",
-      "flex-wrap",
-      "items-center",
-      "justify-center",
-      "gap-1",
-      "rounded-xl",
-      "p-1.5",
-    ],
-    ancestors: [["action-dock"], ["app-shell"], ["construction-ui"]],
+    own: klassen(
+      "action-dock-row flex flex-wrap items-center justify-center gap-1 rounded-xl p-1.5",
+    ),
+    ancestors: ebenen("action-dock", "app-shell", "construction-ui"),
   },
   {
     name: "first-look coach",
-    own: ["city-coach", "start-coach"],
-    ancestors: [["app-shell"], ["construction-ui"]],
+    own: klassen("city-coach start-coach"),
+    ancestors: ebenen("app-shell", "construction-ui"),
   },
   {
     name: "mode bar",
-    own: [
-      "glass",
-      "flex",
-      "items-center",
-      "gap-1",
-      "rounded",
-      "px-2",
-      "py-1.5",
-      "pointer-events-auto",
-    ],
-    ancestors: [["workspace-modes"], ["construction-ui"], ["app-shell"]],
+    own: klassen("glass flex items-center gap-1 rounded px-2 py-1.5 pointer-events-auto"),
+    ancestors: ebenen("workspace-modes", "construction-ui", "app-shell"),
   },
   {
     name: "heat channel",
-    own: ["glass", "flex", "items-center", "gap-1", "rounded", "px-2", "py-1.5"],
-    ancestors: [["workspace-heatmap"], ["construction-ui"], ["app-shell"]],
+    own: klassen("glass flex items-center gap-1 rounded px-2 py-1.5"),
+    ancestors: ebenen("workspace-heatmap", "construction-ui", "app-shell"),
   },
 ];
 
@@ -648,6 +699,48 @@ describe("Das Glas der festen Schale hält seine Lesbarkeit", () => {
   // not the whole file at collection time.
   const tint = (): ReturnType<typeof parseColor> => parseColor(rootToken("glass-chrome-bg"));
 
+  /** Der geteilte Szenenaufbau: was über jeder Fläche regiert, welche Feldfarben
+   *  das für die vier Gründe ergibt. */
+  const szene = (files: Sheets = css): Szene[] => chromeState(files);
+
+  /** Eine Fläche beim Namen — eine Tabelle, die eine Fläche erfindet, fällt hier. */
+  const fläche = (reihe: Szene[], name: string): Szene => {
+    const f = reihe.find((s) => s.surface.name === name);
+    expect(f, `${name} ist keine Chrome-Fläche`).not.toBeUndefined();
+    return f as Szene;
+  };
+
+  /** Eine Blatt-Kopie, in der genau ein Blatt anders schreibt — die Szene der
+   *  Mutations-Fälle. Guardiert, dass die Änderung angekommen ist: eine Kopie, an der
+   *  der Replace vorbeiläuft, wäre ein grüner Wächter über nichts. */
+  const kopie = (datei: string, ändern: (text: string) => string): Sheets => {
+    const alt = designFile(css, datei);
+    const aus = css.map(([f, t]) => [f, f === datei ? ändern(t) : t] as const);
+    const neu = aus.find(([f]) => f === datei)?.[1];
+    expect(neu, `die Kopie hat ${datei} nicht erreicht`).not.toBe(alt);
+    return aus;
+  };
+
+  /** Kurzform der Flächen-Prädikate: Name + was dort fehlt. */
+  const sag = (f: Szene, was: string): string => `${f.surface.name}: ${was}`;
+
+  /** Wer über einer Fläche regiert — der Beleg jeder Kaskaden-Fehlermeldung. */
+  const regenten = (f: Szene): string[] =>
+    f.unlayered.map((o) => `${o.rule.file}:${o.rule.line} → ${o.decl.value.slice(0, 60)}`);
+
+  /** Ein Durchlauf durch die Grund-Tabelle: eine Zeile pro Grund, pro Grund jede
+   *  Tinte einzeln — das Chrome-Tint über diesem Grund, nie das Blatt allein. */
+  function schriftAufGründen(gründe: ReadonlyArray<{ sagt: string; farbe: string }>): void {
+    for (const grund of gründe) {
+      const feld = toHex(composite(tint(), grund.farbe));
+      for (const t of TOKEN_TINTEN) {
+        const rgb = toHex(parseColor(t.fest ?? rootToken(t.token as string)).rgb);
+        const k = contrast(rgb, feld);
+        expect(k, `${t.sagt} über ${grund.sagt} (${feld})`).toBeGreaterThanOrEqual(STUFE);
+      }
+    }
+  }
+
   it("trägt eine eigene Token-Schicht, keine verstreuten Zahlen", () => {
     expect(tint().alpha).toBeGreaterThan(0);
     expect(tint().alpha).toBeLessThan(1);
@@ -658,271 +751,167 @@ describe("Das Glas der festen Schale hält seine Lesbarkeit", () => {
     // The plaza is the brightest floor in the picture; the sky behind the header
     // and the haze at the horizon are close seconds. Whichever of these sits
     // under a frosted bar is the worst case for the label on it.
-    const grounds = [ENV.plot, ENV.ground, ENV.fog, ENV.crosswalk];
-    // The inks that actually sit on a glassed surface, read off the running app
-    // on 2026-10-11: the header's brand line and the heat bar's label are the
-    // two darkest things on the frost. `--meta-faint` is deliberately NOT in
-    // this set — it is a landing-screen ink and appears on none of the five
-    // glassed surfaces, which is what the old "AA on glass" note beside it
-    // meant: that promise was measured over the dark shell, not over the city.
-    const inks = ["color-text", "meta-strong", "meta", "brand-ink"].map((t) =>
-      parseColor(rootToken(t)),
-    );
-    inks.push(parseColor("rgb(146, 156, 135)")); // the header's 11px caption
-    for (const ground of grounds) {
-      const field = toHex(composite(tint(), ground));
-      for (const ink of inks) {
-        const c = contrast(toHex(ink.rgb), field);
-        expect(
-          c,
-          `Text ${toHex(ink.rgb)} auf Glas über ${ground} (${field})`,
-        ).toBeGreaterThanOrEqual(4.5);
-      }
-    }
+    schriftAufGründen(GRÜNDE);
   });
 
   it("hält auch auf dem dunkelsten Grund", () => {
-    const field = toHex(composite(tint(), "#0d0d0c"));
-    for (const t of ["color-text", "meta-strong"]) {
-      const ink = parseColor(rootToken(t));
-      expect(contrast(toHex(ink.rgb), field), t).toBeGreaterThanOrEqual(4.5);
-    }
+    // Derselbe Satz Tinten wie oben: der dunkle Boden hielt vorher nur gegen
+    // zwei von ihnen, hätte die übrigen drei dort also frei erfunden.
+    schriftAufGründen([DUNKELSTER_GRUND]);
   });
-
-  /** Every rule of the design files, split into header and body — linear, and
-   *  a nested-quantifier regex over 1.5k lines of CSS hangs the runner. */
-  function rules(text: string): Array<{ sel: string; body: string }> {
-    const out: Array<{ sel: string; body: string }> = [];
-    for (const m of text.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
-      out.push({ sel: (m[1] ?? "").trim(), body: m[2] ?? "" });
-    }
-    return out;
-  }
-  const allRules = css.flatMap(([f, t]) => rules(t).map((r) => ({ ...r, file: f })));
 
   it("legt das Glas auf jede Chrome-Fläche", () => {
     for (const sel of CHROME) {
-      const hits = allRules.filter((r) =>
-        r.sel.split(",").some((one) => one.trim().endsWith(sel.trim())),
-      );
+      const hits = flächentreffer(sel, css);
       expect(hits.length, `${sel} hat keine Regel mehr`).toBeGreaterThan(0);
-      expect(
-        hits.some((r) => /backdrop-filter/.test(r.body)),
-        `${sel} bekommt kein Glas`,
-      ).toBe(true);
-      expect(
-        hits.some((r) => /var\(--glass-chrome-bg\)/.test(r.body)),
-        `${sel} benutzt nicht die eine Token-Schicht`,
-      ).toBe(true);
+      const glas = hatDeklaration(hits, (d) => /backdrop-filter$/.test(d.prop));
+      expect(glas, `${sel} bekommt kein Glas`).toBe(true);
+      const token = hatDeklaration(hits, (d) => d.value.includes(TOKEN_BG));
+      expect(token, `${sel} benutzt nicht die eine Token-Schicht`).toBe(true);
     }
   });
 
   it("lässt die Welt-Labels in Ruhe — dort ist das der gemessene Ausfall", () => {
     // 1,83:1 was the district plate under a frosted layer over the plaza. The
     // fix is not a better tint: it is that nothing tints them at all.
-    const worldRules = allCss.match(/\.cf-[a-z-]+[^{}]*\{[^}]*\}/g) ?? [];
-    expect(
-      worldRules.length,
-      "keine Welt-Label-Regeln gefunden — Wächter taugt nichts",
-    ).toBeGreaterThan(3);
-    for (const rule of worldRules) {
-      expect(rule, `Welt-Fläche wird verglast:\n${rule.slice(0, 120)}`).not.toMatch(
-        /backdrop-filter/,
-      );
+    // Welt-Label = jede Regel, die über `.cf-` Text auf das Bild malt.
+    const welt = allCss.match(/\.cf-[a-z-]+[^{}]*\{[^}]*\}/g) ?? [];
+    expect(welt.length, "keine Welt-Label-Regeln — der Wächter taugt nichts").toBeGreaterThan(3);
+    for (const regel of welt) {
+      expect(regel, "Welt-Fläche wird verglast").not.toMatch(/backdrop-filter/);
     }
   });
 
   it("widerruft die Accessibility-Entscheidung nicht stillschweigend", () => {
-    const dock = allCss.match(/\.action-dock-row\s*\{([^}]*)\}/g) ?? [];
-    const text = dock.join("\n");
-    expect(
-      text,
-      "die alte Solid-Regel ist noch da UND das Glas auch — zwei Quellen für eine Fläche",
-    ).not.toMatch(/background:\s*#20201e\s*!important/);
-    const comment = css.find(([, t]) => t.includes("glass-chrome-bg"))?.[1] ?? "";
-    expect(comment, "keine Zeile erklärt, warum das Glas wieder da ist").toMatch(/accessibility/i);
+    const dock = (allCss.match(/\.action-dock-row\s*\{([^}]*)\}/g) ?? []).join("\n");
+    expect(dock, "Solid-Regel und Glas: zwei Quellen für eine Fläche").not.toMatch(SOLIDE_DOCK);
+    const begründung = css.find(([, t]) => t.includes("glass-chrome-bg"))?.[1] ?? "";
+    expect(begründung, "keine Zeile erklärt das Glas wieder da ist").toMatch(/accessibility/i);
   });
-
-  /* ── The four cases below read the ruling declaration, not the token. ──── */
 
   it("lädt globals.css zuletzt — die Ordnung, gegen die eine zweite Regel gewinnen würde", () => {
     // Every tie in this cascade is decided by file order, so the order is a
     // fact the guard has to hold on to rather than a premise it borrows.
-    const main = readFileSync(path.resolve(import.meta.dirname, "../src/main.tsx"), "utf-8");
+    const main = quelle("../src/main.tsx");
     const appImport = main.indexOf(`from "./App"`);
     const designImport = main.indexOf(`import "./design/globals.css"`);
     expect(appImport, "main.tsx importiert App nicht").toBeGreaterThan(-1);
     expect(designImport, "main.tsx importiert globals.css nicht").toBeGreaterThan(appImport);
     // The other three sheets come in through the component graph, which runs
     // first: measured in the browser as the order of style[data-vite-dev-id].
-    for (const file of ["stadt-ui.css", "start.css", "city-funktion.css"]) {
-      expect(LOAD_ORDER.indexOf(file), `${file} ist nicht vor globals.css geladen`).toBeLessThan(
+    for (const file of LOAD_ORDER.filter((f) => f !== "globals.css")) {
+      expect(LOAD_ORDER.indexOf(file), `${file} lädt nicht vor globals.css`).toBeLessThan(
         LOAD_ORDER.indexOf("globals.css"),
       );
     }
   });
 
+  /* ── Die vier Fälle darunter lesen die regierende Declaration, nicht das Token. ── */
+
   it("dass über jeder Chrome-Fläche genau eine Regel regiert", () => {
-    for (const state of chromeState(css)) {
-      const owners = state.unlayered.map(
-        (o) => `${o.rule.file}:${o.rule.line} → ${o.decl.value.slice(0, 60)}`,
-      );
-      expect(
-        owners,
-        `${state.surface.name} wird von ${owners.length} Regeln regiert:\n  ${owners.join("\n  ")}`,
-      ).toHaveLength(1);
+    for (const f of szene()) {
+      expect(regenten(f), sag(f, `${f.unlayered.length} Regeln regieren`)).toHaveLength(1);
     }
   });
 
   it("hält die Fläche, die diese Regel berechnet, die Tinte über jedem Grund", () => {
-    const token = rootToken("glass-chrome-bg");
+    const token = parseColor(rootToken("glass-chrome-bg")).rgb;
     const sheenStop = (rootToken("glass-chrome-sheen")
       .replace(/\s+/g, " ")
       .match(/rgba?\([^)]*\)/) ?? [""])[0];
-    for (const state of chromeState(css)) {
-      const winner = state.winner;
-      expect(winner, `${state.surface.name} hat regierenden Hintergrund`).not.toBeNull();
-      expect(
-        winner?.decl.value.replace(/\s+/g, " "),
-        `${state.surface.name} wird nicht aus einer Hand verglast: ${winner?.rule.file}:${winner?.rule.line} → ${winner?.decl.value}`,
-      ).toContain("var(--glass-chrome-bg)");
-      expect(state.colourLayer, `${state.surface.name}: kein Grundton zu lesen`).not.toBe("");
-      expect(
-        parseColor(state.colourLayer).rgb,
-        `${state.surface.name}: die regierende Regel rechnet nicht zum Chrome-Token`,
-      ).toEqual(parseColor(token).rgb);
-      // The same declaration carries the sheen, so the field this case measures
-      // is the field the browser draws: colour first, then the top stop of
-      // exactly this gradient on top of it.
-      expect(state.sheen, `${state.surface.name}: kein Glanz auf der Fläche`).not.toBeNull();
-      expect(
-        parseColor(state.sheen as string),
-        `${state.surface.name}: der Glanz auf der Fläche ist nicht der des Tokens`,
-      ).toEqual(parseColor(sheenStop));
-      expect(
-        state.fields,
-        `${state.surface.name}: Feldfarben ${state.fields.join(" ")}`,
-      ).toHaveLength(4);
-      expect(state.worstInk.ink, `${state.surface.name}: keine Tinte gemessen`).not.toBe("");
-      // 4,5 is the criterion, not a measured number: every value this case
-      // prints comes out of the composite above.
-      expect(
-        state.worst,
-        `${state.surface.name} hält nur ${state.worst.toFixed(2)} (${state.worstInk.ink}) über ${state.fields.join(" ")}`,
-      ).toBeGreaterThanOrEqual(4.5);
+    // Sieben Flächen, neun Pflichten — eine Zeile pro Pflicht.
+    for (const f of szene()) {
+      const wer = regenten(f)[0] ?? "keine Regel";
+      const verglast = f.winner?.decl.value.replace(/\s+/g, " ");
+      const grundton = parseColor(f.colourLayer).rgb;
+      expect(f.winner, sag(f, "hat keine regierende Regel")).not.toBeNull();
+      expect(verglast, `${sag(f, "nicht aus einer Hand verglast")}: ${wer}`).toContain(TOKEN_BG);
+      expect(f.colourLayer, sag(f, "kein Grundton zu lesen")).not.toBe("");
+      expect(grundton, `${sag(f, "Grundton rechnet nicht zum Token")}: ${wer}`).toEqual(token);
+      expect(f.sheen, sag(f, "kein Glanz auf der Fläche")).not.toBeNull();
+      // The same declaration carries the sheen, so the field measured here is
+      // the field the browser draws: colour first, this gradient's top stop on
+      // exactly that. A changed sheen token moves the number, not this line.
+      const glanz = parseColor(f.sheen as string);
+      expect(glanz, sag(f, "Glanz ist nicht der des Tokens")).toEqual(parseColor(sheenStop));
+      expect(f.fields, sag(f, `Felder ${f.fields.join(" ")}`)).toHaveLength(GROUNDS.length);
+      expect(f.worstInk.ink, sag(f, "keine Tinte gemessen")).not.toBe("");
+      // 4,5 is the criterion, not a measured number: every value printed here
+      // comes out of the composite above.
+      const hält = sag(f, `hält nur ${f.worst.toFixed(2)} (${f.worstInk.ink})`);
+      expect(f.worst, hält).toBeGreaterThanOrEqual(STUFE);
     }
   });
 
   it("hält jede Tinte der Liste über jedem Grund, und die Liste ist vollständig", () => {
     // The guard against an exception. None of these are tokens: the coach's hint
-    // line is a literal in start.css, and every other one is an inline style in
-    // a component. Naming them here is what turns "the ink list drops one
-    // surface's text" into a red case instead of a quietly smaller measurement —
-    // a guard that excepts a surface does not guard it.
-    const carried = [
-      { ink: "coach hint strip", surface: "first-look coach" },
-      { ink: "disabled heat label", surface: "heat channel" },
-      { ink: "HEAT caption", surface: "heat channel" },
-      { ink: "dock step label", surface: "action dock" },
-      { ink: "dock action label", surface: "action dock" },
-      { ink: "dock more label", surface: "action dock" },
-      // The export items hang off the dock and inherit the menu's ink. Held to
-      // the dock's fields rather than to their own plate, because the plate is
-      // opaque `#20201e` and every glass field this file computes is brighter.
-      { ink: "export menu label", surface: "action dock" },
-    ];
-    const states = chromeState(css);
+    // line is a literal in start.css, every other one an inline style in a
+    // component. Naming them is what turns "the ink list drops one surface's
+    // text" into a red case instead of a quietly smaller measurement — a guard
+    // that excepts a surface does not guard it.
+    const states = szene();
     const inks = chromeInks(css);
-    const floor = 4.5;
-    const rows: string[] = [];
-    let lowest = Number.POSITIVE_INFINITY;
-    for (const c of carried) {
-      const ink = inks.find((i) => i.name === c.ink);
-      expect(
-        ink,
-        `${c.ink} fehlt in der Tintenliste — eine Fläche ist wieder ausgenommen`,
-      ).toBeDefined();
-      const state = states.find((s) => s.surface.name === c.surface);
-      expect(state, `${c.surface} ist keine Chrome-Fläche`).toBeDefined();
-      const parsed = parseColor(ink!.colour);
+    let tiefste = Number.POSITIVE_INFINITY;
+    for (const c of TRAGENDE_TINTEN) {
+      const t = inks.find((i) => i.name === c.ink);
+      expect(t, `${c.ink} fehlt in der Liste — eine Fläche ist ausgenommen`).toBeDefined();
+      const state = fläche(states, c.fläche);
+      const parsed = parseColor(t!.colour);
       // The dimming belongs to the ink, not to the surface: text at `opacity`
       // over the field it sits on is what the eye gets.
-      const opacity = parsed.alpha * ink!.opacity;
-      const cells = GROUNDS.map((ground, i) => {
-        const field = state!.fields[i] as string;
-        const effective = toHex(composite({ rgb: parsed.rgb, alpha: opacity }, field));
-        const ratio = contrast(effective, field);
-        lowest = Math.min(lowest, ratio);
-        return `${ground}→${field}${effective !== ink!.colour.toLowerCase() ? `≈${effective}` : ""} ${ratio.toFixed(2)}`;
+      const deckung = parsed.alpha * t!.opacity;
+      const zellen = state.fields.map((feld, i) => {
+        const effektiv = toHex(composite({ rgb: parsed.rgb, alpha: deckung }, feld));
+        const blendet = effektiv !== t!.colour.toLowerCase() ? `≈${effektiv}` : "";
+        const ratio = contrast(effektiv, feld);
+        return { ratio, sagt: `${GROUNDS[i]}→${feld}${blendet} ${ratio.toFixed(2)}` };
       });
-      rows.push(
-        `  ${c.ink.padEnd(21)} ${ink!.colour}${opacity < 1 ? ` ×${opacity}` : ""}: ${cells.join("   ")}`,
-      );
+      const schwächste = Math.min(...zellen.map((z) => z.ratio));
+      tiefste = Math.min(tiefste, schwächste);
+      const zellenText = zellen.map((z) => z.sagt).join("  ");
+      // Ein Urteil pro getragener Tinte: welche fällt, steht im Namen des Falls,
+      // nicht erst im globalen Minimum unter sieben Zeilen.
+      const urteil = `${c.ink} auf ${c.fläche}: ${schwächste.toFixed(2)} — ${zellenText}`;
+      expect(schwächste, urteil).toBeGreaterThanOrEqual(STUFE);
     }
-    expect(
-      lowest,
-      `Tinte auf der festen Schale, gefordert ≥ ${floor} über jedem Grund:\n${rows.join("\n")}`,
-    ).toBeGreaterThanOrEqual(floor);
+    expect(tiefste, "Tinte auf der festen Schale, ≥ 4,5 über jedem Grund").toBeGreaterThanOrEqual(
+      STUFE,
+    );
   });
 
-  it("fällt, sobald die Konstante oder die Fläche geändert wird — der Wächter hat Zähne", () => {
+  it("fällt, sobald die Konstante heller gemacht wird — der Wächter hat Zähne", () => {
     // A guard that cannot fail has not checked anything, so both mutations run
     // the same machinery as the cases above: no number is typed in here, every
     // one is what the composite of this file returns for the copied sheets.
-    const good = chromeState(css);
-    const lighter: Array<readonly [string, string]> = css.map(
-      ([f, t]) =>
-        [
-          f,
-          f === "globals.css"
-            ? t.replace(
-                /--glass-chrome-bg:\s*rgba\(14,\s*16,\s*21,\s*0\.92\)/,
-                "--glass-chrome-bg: rgba(14, 16, 21, 0.8)",
-              )
-            : t,
-        ] as const,
+    const gute = szene();
+    const heller = szene(
+      kopie("globals.css", (t) =>
+        t.replace(
+          /--glass-chrome-bg:\s*rgba\(14,\s*16,\s*21,\s*0\.92\)/,
+          "--glass-chrome-bg: rgba(14, 16, 21, 0.8)",
+        ),
+      ),
     );
-    expect(lighter[0]?.[1], "die Kopie hat die Konstante nicht erreicht").not.toBe(css[0]?.[1]);
-    const washed = chromeState(lighter);
-    for (const [i, state] of washed.entries()) {
-      expect(state.worst, `${state.surface.name} bei 0,80`).toBeLessThan(4.5);
-      expect(state.worst, `${state.surface.name} fällt nicht gegenüber 0,92`).toBeLessThan(
-        good[i]?.worst as number,
-      );
+    for (const [i, f] of heller.entries()) {
+      expect(f.worst, sag(f, "bei 0,80")).toBeLessThan(STUFE);
+      expect(f.worst, sag(f, "fällt nicht gegenüber 0,92")).toBeLessThan(gute[i]?.worst as number);
     }
+  });
 
-    // A second, later rule over one surface, appended in a copy of the sheet —
-    // the shape that actually shipped here: a flat `#243747` sitting later in
+  it("fällt, sobald eine zweite, spätere Regel die Fläche an sich zieht", () => {
+    // The shape that actually shipped here: a flat `#243747` sitting later in
     // globals.css than the token, which left the mode bar at rgb(36, 55, 71)
     // in the running app while the old case still found "a rule with token and
     // blur" somewhere in the tree and signed the surface off.
-    const flat: Array<readonly [string, string]> = css.map(
-      ([f, t]) =>
-        [
-          f,
-          f === "globals.css" ? `${t}\n.workspace-modes .glass {\n  background: #243747;\n}\n` : t,
-        ] as const,
+    const flache = szene(
+      kopie("globals.css", (t) => `${t}\n.workspace-modes .glass {\n  background: #243747;\n}\n`),
     );
-    expect(
-      flat.find(([f]) => f === "globals.css")?.[1],
-      "die Kopie hat die Flächen-Regel nicht erreicht",
-    ).not.toBe(css.find(([f]) => f === "globals.css")?.[1]);
-    const before = chromeState(css).find((s) => s.surface.name === "mode bar");
-    const modeBar = chromeState(flat).find((s) => s.surface.name === "mode bar");
-    expect(
-      before?.unlayered.length,
-      "schon im echten Baum regieren zwei Regeln die Modusleiste",
-    ).toBe(1);
-    expect(
-      modeBar?.unlayered.map((o) => `${o.rule.file}:${o.rule.line}`),
-      "eine zweite Regel über derselben Fläche, und die Zahl der Eigentümer bleibt bei eins",
-    ).toHaveLength(2);
-    expect(
-      modeBar?.winner?.colour,
-      "die flache Farbe gewinnt, aber der Auswerter nennt immer noch das Token",
-    ).toBe("#243747");
-    expect(modeBar?.worst, "die flache Modusleiste hält 4,5 — der Wächter ist blind").toBeLessThan(
-      4.5,
-    );
+    const vorher = fläche(szene(), "mode bar");
+    const modus = fläche(flache, "mode bar");
+    expect(vorher.unlayered.length, "im echten Baum regieren zwei über der Modusleiste").toBe(1);
+    const eigentümer = modus.unlayered.map((o) => `${o.rule.file}:${o.rule.line}`);
+    expect(eigentümer, "zweite Regel, aber nur ein Eigentümer gemeldet").toHaveLength(2);
+    expect(modus.winner?.colour, "flache Farbe gewinnt, genannt wird das Token").toBe("#243747");
+    expect(modus.worst, "flache Modusleiste hält 4,5 — der Wächter ist blind").toBeLessThan(STUFE);
   });
 });

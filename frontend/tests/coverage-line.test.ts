@@ -5,9 +5,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { InfoPanel } from "../src/components/InfoPanel";
 import { ContextCard } from "../src/components/ContextCard";
 import { t } from "../src/i18n";
-import { fileCoverage } from "../src/city/provenance";
+import { fileCoverage, mergeEngineGaps } from "../src/city/provenance";
 import { useStore } from "../src/stores/useStore";
-import type { CityData, CityDir, CityFile, CityFinding } from "../src/city/types";
+import type { CityData, CityDir, CityFile, CityFinding, ScanProvenance } from "../src/city/types";
 
 /**
  * S2 — "checked and clean" and "nobody looked at this" must be distinguishable
@@ -250,5 +250,162 @@ describe("the class-coverage sentence is once per project, not per file", () => 
     await select(aws);
     expect(container.querySelector("[data-context-class-coverage]")).toBeNull();
     expect(text()).not.toContain(t("en", "ctx.classCoverage"));
+  });
+});
+
+/**
+ * S14 — the dependency engine name, followed from the payload to the card.
+ *
+ * The cases above (and `provenance.test.ts`) type their provenance by hand.
+ * These carry the keys `backend/src/services/analyzer/orchestrator.ts:479-492`
+ * really writes into `summary.scanProvenance` — `dependencyRunner` included, and
+ * in the third case deliberately ABSENT, as in a city JSON exported before the
+ * field existed — enter through the one door a city has (`setCityData`, the only
+ * place `mergeEngineGaps` runs), and are read back off the card.
+ *
+ * The lockfile building is the only one that can answer this: `dependencies` is
+ * one boolean for two programs, and the table's `requiresFile` rule makes the
+ * manifest the file where the CVE answer lives. Its `unverifiedBy` is absent on
+ * arrival — the backend's per-file table (`scan-depth.ts`) names only
+ * gitleaks/semgrep/ruff — so every dependency engine that shows up on these
+ * cards was named by the frontend, and it has to be the program that looked.
+ */
+
+/** How often a name sits in the card's text: a program named twice is a bug. */
+function countIn(haystack: string, needle: string): number {
+  return haystack.split(needle).length - 1;
+}
+
+/** The provenance of a JS repo whose batch engines ran; the CVE keys come per case. */
+function backendProvenance(over: Partial<ScanProvenance>): ScanProvenance {
+  return {
+    regex: true,
+    gitleaks: true,
+    semgrep: true,
+    ruff: false,
+    churn: false,
+    duplicates: false,
+    coverage: false,
+    ...over,
+  };
+}
+
+describe("the lockfile card names the engine that actually answered", () => {
+  it("credits osv-scanner and never npm audit when osv answered the CVE question", async () => {
+    const lock = file("package-lock.json", "JSON", []);
+    const data = city(
+      [lock],
+      backendProvenance({ dependencies: true, dependencyRunner: "osv", osv: true }),
+    );
+    // the door: `mergeEngineGaps` runs inside setCityData, before any consumer reads
+    useStore.getState().setCityData(data);
+    await show(createElement(InfoPanel), data);
+    await select(lock);
+
+    const line = container.querySelector("[data-file-coverage]");
+    expect(line, "the lockfile of a finished CVE audit says nothing about coverage").toBeTruthy();
+    expect(line!.getAttribute("data-file-coverage")).not.toBe("no-scanner");
+    expect(text()).toContain(
+      t("en", "panel.coverageExamined", { engines: "regex, gitleaks, semgrep, osv-scanner" }),
+    );
+    // TWO table rows resolve to this program (the dependency row through the
+    // runner, the osv row by its own label) — the card must still say it once
+    expect(countIn(text(), "osv-scanner")).toBe(1);
+    expect(
+      text(),
+      "npm audit was skipped by design here — the card credits it anyway",
+    ).not.toContain("npm audit");
+    // and nothing on the way in marked this lockfile as unchecked ground
+    expect(lock.unverifiedBy ?? []).toEqual([]);
+  });
+
+  it("names npm audit once, as the examiner, when npm audit is the engine that ran", async () => {
+    const lock = file("package-lock.json", "JSON", []);
+    const data = city(
+      [lock],
+      backendProvenance({ dependencies: true, dependencyRunner: "npm-audit", osv: false }),
+    );
+    useStore.getState().setCityData(data);
+    await show(createElement(InfoPanel), data);
+    await select(lock);
+
+    const line = container.querySelector("[data-file-coverage]");
+    expect(line).toBeTruthy();
+    expect(line!.getAttribute("data-file-coverage")).toBe("examined");
+    // the runner's own name, once: no second CVE engine joins the examiners
+    expect(line!.textContent).toContain("npm audit");
+    expect(line!.textContent, "osv-scanner never ran — it is not an examiner").not.toContain(
+      "osv-scanner",
+    );
+    expect(countIn(text(), "npm audit")).toBe(1);
+    expect(lock.unverifiedBy).toEqual(["osv-scanner"]);
+    // osv-scanner stays off the naming of WHO LOOKED; it appears once more on the
+    // card, in the ⊘ gap line the merger filled — a real gap, not an invention
+    expect(countIn(text(), "osv-scanner")).toBe(1);
+    expect(container.querySelector('[data-file-verdict="unchecked"]')!.textContent).toContain(
+      "osv-scanner",
+    );
+  });
+
+  it("falls back to npm audit once for a city JSON exported before the runner existed", async () => {
+    const lock = file("package-lock.json", "JSON", []);
+    // an old export: the `dependencyRunner` key is not in the object at all
+    const old = backendProvenance({ dependencies: true, osv: true });
+    expect("dependencyRunner" in old).toBe(false);
+    const data = city([lock], old);
+    useStore.getState().setCityData(data);
+    await show(createElement(InfoPanel), data);
+    await select(lock);
+
+    const line = container.querySelector("[data-file-coverage]");
+    expect(line).toBeTruthy();
+    expect(line!.getAttribute("data-file-coverage")).toBe("examined");
+    expect(text()).toContain(
+      t("en", "panel.coverageExamined", {
+        engines: "regex, gitleaks, semgrep, npm audit, osv-scanner",
+      }),
+    );
+    // the fallback names the engine the flag is named for — and the table's
+    // second row does not turn that into a second mention of the same program
+    expect(countIn(text(), "npm audit")).toBe(1);
+    expect(countIn(text(), "osv-scanner")).toBe(1);
+    expect(lock.unverifiedBy).toBeUndefined();
+  });
+});
+
+describe("the arriving payload closes its own lockfile gap, once", () => {
+  it("fills the lockfile with the audits that never read it, by their right names", async () => {
+    const lock = file("package-lock.json", "JSON", []);
+    // what the backend writes when the CVE question went unanswered (scanner.ts:98)
+    const data = city(
+      [lock],
+      backendProvenance({ dependencies: false, dependencyRunner: null, osv: false }),
+    );
+    expect(lock.unverifiedBy, "the backend names no dependency engine on a file").toBeUndefined();
+    useStore.getState().setCityData(data);
+    // union, and the door runs once: a second pass finds nothing left to add
+    expect(mergeEngineGaps(data)).toBe(0);
+    expect(lock.unverifiedBy).toEqual(["npm audit", "osv-scanner"]);
+
+    await show(createElement(InfoPanel), data);
+    await select(lock);
+    const verdict = container.querySelector('[data-file-verdict="unchecked"]');
+    expect(verdict, "the gap the merger filled never reaches the card").toBeTruthy();
+    expect(verdict!.textContent).toContain("npm audit");
+    expect(verdict!.textContent).toContain("osv-scanner");
+    // named once each: the examined line does not repeat the engine that did not run
+    expect(countIn(text(), "npm audit")).toBe(1);
+    expect(countIn(text(), "osv-scanner")).toBe(1);
+  });
+
+  it("leaves the lockfile of a scan where osv answered unmarked", () => {
+    const lock = file("package-lock.json", "JSON", []);
+    const data = city(
+      [lock],
+      backendProvenance({ dependencies: true, dependencyRunner: "osv", osv: true }),
+    );
+    useStore.getState().setCityData(data);
+    expect(lock.unverifiedBy, "osv-scanner answered — the lockfile was looked at").toBeUndefined();
+    expect(mergeEngineGaps(data)).toBe(0);
   });
 });

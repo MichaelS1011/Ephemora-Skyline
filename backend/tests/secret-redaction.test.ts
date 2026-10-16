@@ -25,6 +25,15 @@ import type { AnalysisResult, FileAnalysis, SecurityIssue } from "../src/models/
  * goes. The values below are obvious placeholders, because a test that proves
  * masking must not itself look like a leaked credential.
  */
+/**
+ * Deliberately a real scanner and a real gitleaks adapter, and on the short list of
+ * files that must not move to `tests/helpers/scanners.ts`. The claim is what crosses
+ * the masking boundary: a credential that gitleaks itself reported must leave this
+ * process with the value gone, and an adapter that reports no secret is exactly the
+ * failure this file would never notice. So `new SecurityScanner()`,
+ * `new GitleaksAdapter()` and one batch merge over a temp folder stay real, and the
+ * `gitleaks detect` runs they fork are the price of the answer.
+ */
 const VALUE = "unit-test-placeholder-value-1234567890";
 
 describe("a secret finding does not repeat the secret", () => {

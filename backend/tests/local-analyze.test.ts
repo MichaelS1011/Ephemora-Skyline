@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll, afterAll } from "vitest";
+import { describe, it, expect, afterAll } from "vitest";
 import { promises as fs } from "fs";
 import path from "path";
 import {
@@ -10,13 +10,25 @@ import {
   AnalysisOrchestrator,
   SUPPORTED_EXTENSIONS,
 } from "../src/services/analyzer/orchestrator.js";
-import { SecurityScanner } from "../src/services/security/scanner.js";
-import pino from "pino";
+import { quietScanner } from "./helpers/scanners.js";
+import type { Request } from "express";
 import type { AnalysisResult } from "../src/models/index.js";
 import { usePrivateStaging } from "./helpers/privateStaging.js";
 // A staging root of this file's own — the TTL prune below fast-forwards the clock,
 // and in the shared suite root that reaches into a sibling file's staged folders.
 const STAGING = await usePrivateStaging("local-analyze");
+
+/**
+ * The one case that runs a real pipeline (`stores a completed result…`) used to
+ * build a real `SecurityScanner` for a single `app.js`, and paid for gitleaks,
+ * semgrep, ruff, osv-scanner and `npm audit`: measured 30,7 s of test time in a
+ * 35,8 s run at load 75, which is where the 90 s budget and the 500 ms poll below
+ * came from. The route contract itself — status codes, staging, job ids, one
+ * orchestrator per analysis — never depended on an engine answer, so the case now
+ * takes `quietScanner({ regex: true })` from `helpers/scanners.ts`: the shipped
+ * regex catalogue, no child process. The budget and the poll stay as they are; they
+ * are headroom now, not a necessity.
+ */
 
 afterAll(() => STAGING.release());
 
@@ -56,7 +68,7 @@ function makeRes() {
 }
 
 function makeReq(body: unknown) {
-  return { body } as unknown as import("express").Request;
+  return { body } as unknown as Request;
 }
 
 /** Orchestrator stub that records the directory it was given */
@@ -188,8 +200,7 @@ describe("handleLocalAnalyze", () => {
   }, 15000);
 
   it("stores a completed result and clears progress for a real directory", async () => {
-    const logger = pino({ level: "silent" });
-    const real = new AnalysisOrchestrator(pipelineScanner());
+    const real = new AnalysisOrchestrator(quietScanner({ regex: true }));
     const store = new Map<string, AnalysisResult>();
     const res = makeRes();
     await handleLocalAnalyze(
@@ -209,9 +220,11 @@ describe("handleLocalAnalyze", () => {
     );
     expect(res.statusCode).toBe(202);
     const id = (res.body as { id: string }).id;
-    // The real pipeline on one file: measured 23 s locally, and CI is slower
-    // than that — a 30 s wait budget timed out there while the run was still
-    // healthy, so the poll gets most of the test timeout instead of half of it.
+    // The wait budget is history, not a measurement any more: with the real
+    // engines this poll needed most of 30 s on a loaded machine and timed out in
+    // CI while the run was still healthy. The quiet pipeline finishes in a few
+    // hundred ms — the 100 rounds are left in place so a loaded box cannot turn a
+    // healthy run red, and a completed job leaves the loop on the first check.
     for (let i = 0; i < 100 && store.get(id)?.status === "analyzing"; i++) {
       await new Promise((r) => setTimeout(r, 500));
     }
@@ -282,23 +295,3 @@ describe("handleLocalAnalyze", () => {
     expect(new Set(given.map((g) => g.instance)).size).toBe(2);
   });
 });
-
-/**
- * This file asks which files joined the scan. The dependency audit is not part of
- * that question — and once the pipeline stops reporting an unrun osv as an
- * answer, that route spends a real `npm audit` round trip per test. Stubbed here,
- * so the assertions stay about the pipeline and the run stays about one second.
- */
-function pipelineScanner(): SecurityScanner {
-  const scanner = new SecurityScanner();
-  (
-    scanner as unknown as {
-      dependencyAdapter: {
-        scanRepository: () => Promise<{ issuesByFile: Map<string, never[]>; executed: boolean }>;
-      };
-    }
-  ).dependencyAdapter = {
-    scanRepository: async () => ({ issuesByFile: new Map(), executed: false }),
-  };
-  return scanner;
-}

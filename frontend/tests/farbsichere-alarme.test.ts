@@ -14,7 +14,8 @@ import { createRoot, type Root } from "react-dom/client";
 import { ScanSummary } from "../src/components/ScanSummary";
 import { useStore } from "../src/stores/useStore";
 import { SEVERITY_COLOR, SEVERITY_CVD_COLOR } from "../src/city/palette";
-import type { CityData, CityDir, CityFile } from "../src/city/types";
+import { city, dir, file, finding, provenance } from "./helpers/cityFixture";
+import type { CityData, CityFile } from "../src/city/types";
 
 const SRC = path.resolve(import.meta.dirname, "../src");
 
@@ -65,55 +66,27 @@ describe("jede Schweregrad-Farbe im Programm geht durch den Schalter", () => {
 
 /* ── one of the eight, painted and measured in the DOM ────────────────────── */
 
+/**
+ * One building with one P0 — the alarm the summary has to paint. Built through
+ * `helpers/cityFixture` so a payload change lands here once, not in a private
+ * copy of the object literal.
+ */
 const hit = (): CityFile =>
-  ({
-    id: "f-1",
-    name: "a.ts",
-    path: "src/a.ts",
-    language: "TypeScript",
-    linesOfCode: 40,
-    cyclomaticComplexity: 2,
-    threatLevel: "critical",
-    findings: [{ severity: "P0", line: 1, message: "crit", type: "X" }],
-  }) as unknown as CityFile;
+  file("src/a.ts", "TypeScript", [
+    finding({ type: "X", severity: "P0", line: 1, message: "crit", category: undefined }),
+  ]);
 
-const city = (): CityData => {
-  const f = hit();
-  const tree = {
-    name: "probe",
-    path: "",
-    fileCount: 1,
-    linesOfCode: 40,
-    languages: { TypeScript: 40 },
-    findingsBySeverity: { P0: 1, P1: 0, P2: 0 },
-    threatScore: 10,
-    topFindings: [],
-    children: [],
-    detailFiles: [f],
-    remainingFiles: 0,
-    districtFiles: [],
-  } as unknown as CityDir;
-  return {
-    repo: { owner: "local", name: "probe", branch: "main" },
+const cityOf = (f: CityFile): CityData =>
+  city({
     analysisId: "scan-1",
     languages: { TypeScript: 40 },
     totalFiles: 1,
     renderedFiles: 1,
     findingsBySeverity: { P0: 1, P1: 0, P2: 0 },
-    fileConnections: [],
-    dirConnections: [],
-    meta: {},
-    scanProvenance: {
-      regex: true,
-      gitleaks: true,
-      semgrep: true,
-      dependencies: true,
-      osv: true,
-      ruff: true,
-    },
-    tree,
-  } as unknown as CityData;
-};
+    // every security engine ran: the accent is a result, not an unproven green
+    scanProvenance: provenance(),
+    tree: dir({ path: "", name: "probe", detailFiles: [f] }),
+  });
 
 let container: HTMLDivElement;
 let root: Root;
@@ -126,7 +99,7 @@ async function summary(colorblind: boolean): Promise<string> {
     {
       ...useStore.getInitialState(),
       prefs: { ...useStore.getInitialState().prefs, lang: "de", colorblind },
-      cityData: city(),
+      cityData: cityOf(hit()),
       buildPhase: "built",
     },
     true,

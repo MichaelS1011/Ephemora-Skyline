@@ -3,6 +3,18 @@ import { SecurityScanner } from "../src/services/security/scanner.js";
 import { RegexAdapter } from "../src/services/security/adapters/regex-adapter.js";
 import type { FileAnalysis } from "../src/models/index.js";
 
+/**
+ * Deliberately a real scanner, and deliberately not converted to
+ * `tests/helpers/scanners.ts`. This file's claim is the facade itself: that
+ * `SecurityScanner` merges the adapters, sorts P0>P1>P2, masks what leaves
+ * `scanFile` and answers the batch/dependency phases. A stub cannot prove a
+ * facade — the quiet scanner is exactly the object this file would be testing if
+ * it used it. So it forks what it forks: `gitleaks version` once, then one
+ * `gitleaks detect` per `scanFile` call, because "no credential survives this
+ * boundary" is a claim about the real secret finder, not about a fake that
+ * reports none. It is one of the intentional engine tests, and the load it costs
+ * is the price of the answer.
+ */
 /** Helper: build a minimal FileAnalysis with the given source content */
 function makeFile(content: string): FileAnalysis {
   return {

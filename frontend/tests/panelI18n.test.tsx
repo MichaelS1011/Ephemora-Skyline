@@ -13,6 +13,7 @@ import { Minimap } from "../src/components/Minimap";
 import { ProfileChips } from "../src/components/ProfileChips";
 import { CoachMarks } from "../src/components/CoachMarks";
 import { useStore } from "../src/stores/useStore";
+import { city, dir, file, provenance } from "./helpers/cityFixture";
 import type { CityData, CityDir, CityFile } from "../src/city/types";
 
 /**
@@ -93,24 +94,16 @@ function labelsOf(root: HTMLElement): string[] {
 }
 
 // ── Messaufbau: dieselbe Stadt, zwei Sprachen ───────────────────────────────
-function file(path: string): CityFile {
-  return {
-    id: path,
-    name: path.split("/").pop() ?? path,
-    path,
-    language: "TypeScript",
-    linesOfCode: 40,
-    cyclomaticComplexity: 3,
-    threatLevel: "safe",
-    findings: [],
-  };
-}
-const files = (dir: string, n: number) =>
-  Array.from({ length: n }, (_, i) => file(`${dir}/f${i}.ts`));
+// Die Gebäude und Bezirke baut `helpers/cityFixture`; jede Zahl, die ein Fall
+// zitiert, steht hier und nicht im Builder — das Casebook (92 Dateien, 249 Code-
+// plus 300 Datenzeilen, 4 P0 und 3 P1, 84 von 92 ungeprüfte Häuser) ist die
+// Messung selbst, kein Default.
+
+const caseFiles = (where: string, n: number): CityFile[] =>
+  Array.from({ length: n }, (_, i) => file(`${where}/f${i}.ts`, "TypeScript"));
 
 function subDistrict(path: string, fileCount: number): CityDir {
-  return {
-    name: path.split("/").pop() ?? path,
+  return dir({
     path,
     fileCount,
     linesOfCode: fileCount * 40,
@@ -119,18 +112,15 @@ function subDistrict(path: string, fileCount: number): CityDir {
     languages: { TypeScript: fileCount * 40 },
     dataLanguages: {},
     findingsBySeverity: { P0: 0, P1: 0, P2: 0 },
-    threatScore: 0,
-    topFindings: [],
-    children: [],
-    detailFiles: files(path, Math.min(5, fileCount)),
+    detailFiles: caseFiles(path, Math.min(5, fileCount)),
     remainingFiles: Math.max(0, fileCount - Math.min(5, fileCount)),
-    districtFiles: files(path, 6),
-  };
+    districtFiles: caseFiles(path, 6),
+  });
 }
 
 /** Der Fall aus #51: 92 Dateien, 249 Code- plus 300 Datenzeilen, 7 Funde. */
 function cityData(overrides: Partial<CityData> = {}): CityData {
-  const frontend: CityDir = {
+  const frontend: CityDir = dir({
     name: "frontend",
     path: "frontend",
     fileCount: 92,
@@ -152,16 +142,15 @@ function cityData(overrides: Partial<CityData> = {}): CityData {
       permissions: 0,
     },
     threatScore: 61,
-    topFindings: [],
     children: [subDistrict("frontend/src", 60), subDistrict("frontend/tests", 26)],
-    detailFiles: files("frontend", 6),
+    detailFiles: caseFiles("frontend", 6),
     remainingFiles: 0,
-    districtFiles: files("frontend", 6),
+    districtFiles: caseFiles("frontend", 6),
     topAuthor: "m.soppa",
     topAuthorShare: 0.62,
     unverifiedFiles: 84,
-  };
-  const tree: CityDir = {
+  });
+  const tree: CityDir = dir({
     ...frontend,
     name: "",
     path: "",
@@ -169,8 +158,8 @@ function cityData(overrides: Partial<CityData> = {}): CityData {
     detailFiles: [],
     districtFiles: [],
     children: [frontend],
-  };
-  return {
+  });
+  return city({
     repo: { owner: "local", name: "casebook", branch: "main" },
     totalFiles: 92,
     renderedFiles: 16,
@@ -185,27 +174,11 @@ function cityData(overrides: Partial<CityData> = {}): CityData {
     skippedByGitignore: { files: 49, directories: 3 },
     unverifiedEngines: ["semgrep"],
     limits: { skylineTowers: 6, buildingsPerDirectory: 35 },
-    scanProvenance: {
-      regex: true,
-      gitleaks: true,
-      semgrep: false,
-      dependencies: true,
-      ruff: true,
-      osv: true,
-    },
+    // semgrep war aus, alle anderen liefen — der Fall, den #51 gemessen hat
+    scanProvenance: provenance({ semgrep: false }),
     tree,
-    fileConnections: [],
-    dirConnections: [],
-    meta: {
-      churn: false,
-      deadCode: false,
-      duplicates: false,
-      cycles: false,
-      coverage: false,
-      blame: false,
-    },
     ...overrides,
-  };
+  });
 }
 
 let container: HTMLDivElement;

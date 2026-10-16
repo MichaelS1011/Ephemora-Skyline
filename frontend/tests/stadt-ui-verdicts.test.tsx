@@ -18,10 +18,25 @@ import { FindingsPanel } from "../src/components/FindingsPanel";
 import { t, type Lang } from "../src/i18n";
 import { isUncheckedClean } from "../src/city/provenance";
 import { useStore } from "../src/stores/useStore";
-import type { CityData, CityDir, CityFile, CityFinding } from "../src/city/types";
+import { city as cityOf, dir, file as fileOf, finding, provenance } from "./helpers/cityFixture";
+import type { CityData, CityFile, CityFinding } from "../src/city/types";
 
-function finding(over: Partial<CityFinding> = {}): CityFinding {
-  return {
+/**
+ * Every payload here is built through `helpers/cityFixture`, so a field the
+ * domain gains is known to one place instead of being quietly missing from a
+ * private copy. The two things this file declares itself: the scanner's own
+ * English sentence (which its assertions quote) and the JavaScript file the
+ * panel opens.
+ */
+
+/** A file the way the local scan maps one: JavaScript, three lines, one folder. */
+function file(path: string, findings: CityFinding[] = [], unverifiedBy?: string[]): CityFile {
+  return fileOf(path, "JavaScript", findings, unverifiedBy, { linesOfCode: 3 });
+}
+
+/** The gitleaks hit the real scan of repo-deep reports. */
+function secret(over: Partial<CityFinding> = {}): CityFinding {
+  return finding({
     type: "HARDCODED_SECRET",
     severity: "P0",
     line: 2,
@@ -30,78 +45,33 @@ function finding(over: Partial<CityFinding> = {}): CityFinding {
     ruleId: "generic-api-key",
     category: "secrets",
     ...over,
-  } as CityFinding;
-}
-
-function file(path: string, findings: CityFinding[], unverifiedBy?: string[]): CityFile {
-  return {
-    id: `f-${path}`,
-    name: path.split("/").pop() ?? path,
-    path,
-    language: "JavaScript",
-    linesOfCode: 3,
-    cyclomaticComplexity: 1,
-    threatLevel: findings.length > 0 ? "critical" : "safe",
-    findings,
-    unverifiedBy,
-  };
-}
-
-function dir(path: string, detailFiles: CityFile[]): CityDir {
-  const p0 = detailFiles.reduce(
-    (s, f) => s + f.findings.filter((q) => q.severity === "P0").length,
-    0,
-  );
-  return {
-    name: path.split("/").pop() ?? path,
-    path,
-    fileCount: detailFiles.length,
-    linesOfCode: 100,
-    languages: { JavaScript: 100 },
-    findingsBySeverity: { P0: p0, P1: 0, P2: 0 },
-    threatScore: p0 > 0 ? 60 : 0,
-    topFindings: [],
-    children: [],
-    detailFiles,
-    remainingFiles: 0,
-    districtFiles: [],
-  } as CityDir;
+  });
 }
 
 /**
  * `allEngines` builds the two cities the header has to tell apart: one whose
  * security engines all ran, one where gitleaks was switched off — same zero
- * findings, a different statement.
+ * findings, a different statement. The severity counts, the languages and the
+ * file totals follow from the buildings, the way the mapper adds them up.
  */
 function city(detailFiles: CityFile[], allEngines = true): CityData {
-  const findings = detailFiles.flatMap((f) => f.findings);
-  return {
-    repo: { owner: "local", name: "probe", branch: "main" },
+  return cityOf({
     analysisId: "scan-1",
     languages: { JavaScript: 100 },
-    totalFiles: detailFiles.length,
-    renderedFiles: detailFiles.length,
-    threatScore: 0,
-    findingsBySeverity: {
-      P0: findings.filter((f) => f.severity === "P0").length,
-      P1: 0,
-      P2: 0,
-    },
-    fileConnections: [],
-    dirConnections: [],
-    meta: {},
     unverifiedEngines: allEngines ? [] : ["gitleaks"],
-    scanProvenance: {
-      regex: true,
-      gitleaks: allEngines,
-      semgrep: true,
-      dependencies: true,
-      osv: true,
-      ruff: true,
-    },
-    tree: dir("", detailFiles),
-  } as unknown as CityData;
+    scanProvenance: provenance({ gitleaks: allEngines }),
+    tree: dir({ path: "", detailFiles }),
+  });
 }
+
+/**
+ * `messageDe` is not on `CityFinding` yet: the panel reads it as its own German
+ * line as soon as Lane LOKAL ships it (`InfoPanel.tsx`), and a field the type
+ * does not declare cannot go through a typed builder. The case below therefore
+ * stays hand-built — the declared fields still come from the builder, the one
+ * pending field is named here.
+ */
+type FindingWithGerman = CityFinding & { messageDe?: string };
 
 let container: HTMLDivElement;
 let root: Root;
@@ -182,7 +152,7 @@ describe("grün im Panel heißt: ein Engine hätte es finden können", () => {
   });
 
   it("keeps the finding list, not the verdict, for a file that has findings", async () => {
-    const hit = file("src/config.js", [finding()]);
+    const hit = file("src/config.js", [secret()]);
     expect(isUncheckedClean(hit)).toBe(false);
     await show(createElement(InfoPanel), city([hit]));
     await act(async () => useStore.getState().setSelectedUnit({ kind: "file", id: hit.id }));
@@ -214,7 +184,7 @@ describe("die Kopfzeile qualifizierte ihr „Keine Funde“ nicht", () => {
   });
 
   it("reads the severity count in the singular it means", async () => {
-    const hit = file("src/config.js", [finding()]);
+    const hit = file("src/config.js", [secret()]);
     await show(createElement(HudOverlay, { apiStatus: "live" as const }), city([hit]));
     const chip = container.querySelector(".workspace-severities button");
     expect(chip!.getAttribute("aria-label")).toBe(
@@ -226,7 +196,7 @@ describe("die Kopfzeile qualifizierte ihr „Keine Funde“ nicht", () => {
 
 describe("der Fundtext bekommt seine deutsche Zeile, ohne ihn zu überschreiben", () => {
   it("keeps the scanner's English sentence and adds the curated German one", async () => {
-    await show(createElement(InfoPanel), city([file("src/config.js", [finding()])]));
+    await show(createElement(InfoPanel), city([file("src/config.js", [secret()])]));
     await act(async () =>
       useStore.getState().setSelectedUnit({ kind: "file", id: "f-src/config.js" }),
     );
@@ -244,9 +214,13 @@ describe("der Fundtext bekommt seine deutsche Zeile, ohne ihn zu überschreiben"
   });
 
   it("prefers the backend's own German once LOKAL ships it", async () => {
-    const withDe = file("src/config.js", [
-      finding({ messageDe: "Hartkodierte Zugangsdaten in Zeile 2" } as Partial<CityFinding>),
-    ]);
+    // hand-built on purpose: `messageDe` is a field the type does not declare
+    // yet, so no typed builder may write it — see `FindingWithGerman` above
+    const german: FindingWithGerman = {
+      ...secret(),
+      messageDe: "Hartkodierte Zugangsdaten in Zeile 2",
+    };
+    const withDe = file("src/config.js", [german]);
     await show(createElement(InfoPanel), city([withDe]));
     await act(async () => useStore.getState().setSelectedUnit({ kind: "file", id: withDe.id }));
     expect(container.querySelector("[data-finding-de]")!.textContent).toContain(
@@ -255,7 +229,7 @@ describe("der Fundtext bekommt seine deutsche Zeile, ohne ihn zu überschreiben"
   });
 
   it("stays quiet instead of guessing when the payload says nothing German", async () => {
-    const noCategory = file("src/config.js", [finding({ category: undefined })]);
+    const noCategory = file("src/config.js", [secret({ category: undefined })]);
     await show(createElement(InfoPanel), city([noCategory]));
     await act(async () =>
       useStore.getState().setSelectedUnit({ kind: "file", id: "f-src/config.js" }),
@@ -267,7 +241,7 @@ describe("der Fundtext bekommt seine deutsche Zeile, ohne ihn zu überschreiben"
   });
 
   it("carries the same pair in the findings list", async () => {
-    await show(createElement(FindingsPanel), city([file("src/config.js", [finding()])]));
+    await show(createElement(FindingsPanel), city([file("src/config.js", [secret()])]));
     await act(async () => useStore.getState().setShowFindings(true));
     const pair = container.querySelector("[data-finding-de]");
     expect(pair, "the findings list shows the English line alone").toBeTruthy();
@@ -283,7 +257,7 @@ describe("ein Urteil, das der Speicher nicht annimmt, sagt es", () => {
    * full day of triage could still die with the tab and look saved.
    */
   it("answers the refused verdict where the verdict was clicked", async () => {
-    const hit = file("src/config.js", [finding()]);
+    const hit = file("src/config.js", [secret()]);
     await show(createElement(InfoPanel), city([hit]));
     await act(async () => useStore.getState().setSelectedUnit({ kind: "file", id: hit.id }));
     expect(container.querySelector("[data-verdicts-blocked]")).toBeNull();
@@ -307,7 +281,7 @@ describe("ein Urteil, das der Speicher nicht annimmt, sagt es", () => {
   });
 
   it("walks away when the storage takes the write again", async () => {
-    const hit = file("src/config.js", [finding()]);
+    const hit = file("src/config.js", [secret()]);
     await show(createElement(InfoPanel), city([hit]));
     await act(async () => useStore.getState().setSelectedUnit({ kind: "file", id: hit.id }));
     const setItem = vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
@@ -321,7 +295,7 @@ describe("ein Urteil, das der Speicher nicht annimmt, sagt es", () => {
   });
 
   it("says it in the language the panel speaks", async () => {
-    const hit = file("src/config.js", [finding()]);
+    const hit = file("src/config.js", [secret()]);
     await show(createElement(InfoPanel), city([hit]), "en");
     await act(async () => useStore.getState().setSelectedUnit({ kind: "file", id: hit.id }));
     const setItem = vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
@@ -337,7 +311,7 @@ describe("ein Urteil, das der Speicher nicht annimmt, sagt es", () => {
 describe("der Editor-Weg nennt sein Ziel und bleibt korrigierbar", () => {
   it("prints the absolute path the deep link will ask for", async () => {
     localStorage.setItem("codecity.workspaceRoot:local/probe", "/Users/dev/probe");
-    const hit = file("src/config.js", [finding()]);
+    const hit = file("src/config.js", [secret()]);
     await show(createElement(InfoPanel), city([hit]));
     await act(async () => useStore.getState().setSelectedUnit({ kind: "file", id: hit.id }));
     const path = container.querySelector(".ide-path");
@@ -359,7 +333,7 @@ describe("der Editor-Weg nennt sein Ziel und bleibt korrigierbar", () => {
   });
 
   it("stays out of the panel for a city that was never on this disk", async () => {
-    const hit = file("src/config.js", [finding()]);
+    const hit = file("src/config.js", [secret()]);
     const demo = city([hit]);
     demo.repo = { ...demo.repo, owner: "codecity" };
     await show(createElement(InfoPanel), demo);
@@ -370,7 +344,7 @@ describe("der Editor-Weg nennt sein Ziel und bleibt korrigierbar", () => {
 
 describe("Schweregrade tragen nicht nur ihre Farbe", () => {
   it("switches the panel chips with the colour-blind preference", async () => {
-    const hit = file("src/config.js", [finding()]);
+    const hit = file("src/config.js", [secret()]);
     await show(createElement(InfoPanel), city([hit]));
     await act(async () => useStore.getState().setSelectedUnit({ kind: "file", id: hit.id }));
     const readColor = () =>
@@ -381,7 +355,7 @@ describe("Schweregrade tragen nicht nur ihre Farbe", () => {
   });
 
   it("names the severity in words next to the colour", async () => {
-    const hit = file("src/config.js", [finding()]);
+    const hit = file("src/config.js", [secret()]);
     await show(createElement(InfoPanel), city([hit]));
     await act(async () => useStore.getState().setSelectedUnit({ kind: "file", id: hit.id }));
     const chip = container.querySelector(".severity-chip");
@@ -396,7 +370,11 @@ describe("Schweregrade tragen nicht nur ihre Farbe", () => {
    * neighbour did not.
    */
   it("switches the churn band like the heat tile it belongs to", async () => {
-    const hot = { ...file("src/hot.js", []), churnScore: 0.8, commitCount: 40 };
+    const hot = fileOf("src/hot.js", "JavaScript", [], undefined, {
+      churnScore: 0.8,
+      commitCount: 40,
+      linesOfCode: 3,
+    });
     await show(createElement(InfoPanel), city([hot]));
     await act(async () => useStore.getState().setSelectedUnit({ kind: "file", id: hot.id }));
     const read = (): string => {

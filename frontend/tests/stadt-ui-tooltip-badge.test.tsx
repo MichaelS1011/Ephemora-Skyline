@@ -13,16 +13,26 @@ import { Tooltip } from "../src/components/Tooltip";
 import { useStore } from "../src/stores/useStore";
 import { SEVERITY_CVD_COLOR, UNCHECKED_COLOR, severityColor } from "../src/city/palette";
 import { missingEnginesForDistrict, uncheckedFileCount } from "../src/city/provenance";
-import type { CityData, CityDir, CityFile } from "../src/city/types";
+import { addSeverityCounts, city, dir, file, finding, provenance } from "./helpers/cityFixture";
+import type { CityData, CityDir, CityFinding, Severity } from "../src/city/types";
 
 type Counts = { P0: number; P1: number; P2: number };
 
 const ZERO: Counts = { P0: 0, P1: 0, P2: 0 };
 
+/** The findings only carry the district's count onto each building; the badge
+ *  reads the counts, so no kind of mistake is claimed here. */
+const sample = (severity: Severity, message: string): CityFinding =>
+  finding({ type: "SAMPLE", severity, line: 1, message, category: undefined });
+
 /**
  * `unverifiedBy` marks every file the way the payload marks a file whose
  * covering engines did not run; `n` is how many files the plot holds. An
  * `aggregate` level ships no file list — the shape an upper district has.
+ *
+ * The counts, the file count and the unverified total are declared here because
+ * the badge is what they are measured against; lines, languages and the weighted
+ * risk follow from the buildings, the way `cityMapper.ts` adds them up.
  */
 function district(
   path: string,
@@ -30,71 +40,51 @@ function district(
   opts: { unverifiedBy?: string[]; n?: number; language?: string; aggregate?: boolean } = {},
 ): CityDir {
   const { unverifiedBy = [], n = 1, language = "TypeScript", aggregate = false } = opts;
-  const ext = language === "Markdown" ? "md" : "ts";
-  const files = Array.from({ length: n }, (_, i) => ({
-    id: `f-${path}-${i}`,
-    name: `a${i}.${ext}`,
-    path: `${path}/a${i}.${ext}`,
-    language,
-    linesOfCode: 40,
-    cyclomaticComplexity: 2,
-    threatLevel:
-      counts.P0 > 0 ? "critical" : counts.P1 > 0 ? "high" : counts.P2 ? "medium" : "safe",
-    findings: [
-      ...Array.from({ length: counts.P0 }, () => ({ severity: "P0", line: 1, message: "crit" })),
-      ...Array.from({ length: counts.P1 }, () => ({ severity: "P1", line: 1, message: "high" })),
-      ...Array.from({ length: counts.P2 }, () => ({ severity: "P2", line: 1, message: "med" })),
-    ],
-    unverifiedBy,
-  })) as unknown as CityFile[];
-  return {
-    name: path.split("/").pop() ?? path,
+  const findings = [
+    ...Array.from({ length: counts.P0 }, () => sample("P0", "crit")),
+    ...Array.from({ length: counts.P1 }, () => sample("P1", "high")),
+    ...Array.from({ length: counts.P2 }, () => sample("P2", "med")),
+  ];
+  const files = Array.from({ length: n }, (_, i) =>
+    file(
+      `${path}/a${i}.${language === "Markdown" ? "md" : "ts"}`,
+      language,
+      findings,
+      unverifiedBy,
+    ),
+  );
+  return dir({
     path,
     fileCount: n,
-    unverifiedFiles: unverifiedBy.length > 0 ? n : 0,
-    linesOfCode: 40 * n,
+    unverifiedFiles: unverifiedBy.length > 0 ? n : undefined,
+    // an aggregate level ships no buildings, so its own language map is the only
+    // truth about which engine would have looked here
     languages: { [language]: 40 * n },
     findingsBySeverity: counts,
-    threatScore: counts.P0 + counts.P1 + counts.P2,
-    topFindings: [],
-    children: [],
     detailFiles: aggregate ? [] : files,
     remainingFiles: aggregate ? n : 0,
-    districtFiles: [],
-  } as unknown as CityDir;
+  });
 }
 
 /** `enginesRan` is the difference between a checked sweep and an empty folder. */
-const city = (dirs: CityDir[], enginesRan = false): CityData =>
-  ({
-    repo: { owner: "local", name: "probe", branch: "main" },
+const cityOf = (dirs: CityDir[], enginesRan = false): CityData =>
+  city({
     analysisId: "scan-1",
-    languages: { TypeScript: 40 },
-    totalFiles: dirs.length,
-    renderedFiles: dirs.length,
     findingsBySeverity: dirs.reduce<Counts>(
-      (acc, d) => ({
-        P0: acc.P0 + d.findingsBySeverity.P0,
-        P1: acc.P1 + d.findingsBySeverity.P1,
-        P2: acc.P2 + d.findingsBySeverity.P2,
-      }),
+      (acc, d) => addSeverityCounts(acc, d.findingsBySeverity),
       ZERO,
     ),
-    fileConnections: [],
-    dirConnections: [],
-    meta: {},
-    unverifiedEngines: enginesRan ? [] : ["gitleaks", "semgrep"],
     // demo-001's own state: the two security engines were switched off.
-    scanProvenance: {
-      regex: true,
+    unverifiedEngines: enginesRan ? [] : ["gitleaks", "semgrep"],
+    scanProvenance: provenance({
       gitleaks: enginesRan,
       semgrep: enginesRan,
       dependencies: false,
       osv: false,
       ruff: false,
-    },
-    tree: { name: "probe", path: "", children: dirs, detailFiles: [], districtFiles: [] },
-  }) as unknown as CityData;
+    }),
+    tree: dir({ path: "", name: "probe", children: dirs }),
+  });
 
 let container: HTMLDivElement;
 let root: Root;
@@ -117,7 +107,7 @@ async function hover(
         lang: "de",
         colorblind: over.colorblind ?? false,
       },
-      cityData: city([dir], over.enginesRan ?? false),
+      cityData: cityOf([dir], over.enginesRan ?? false),
       buildPhase: "built",
       hoveredId: `block:${dir.path}`,
     },
@@ -211,7 +201,7 @@ describe("der Bezirksknopf weiß, ob überhaupt etwas hinsah", () => {
     const docs = district("docs", ZERO, { unverifiedBy: ["gitleaks"], n: 4, language: "Markdown" });
     await hover(docs);
     expect(badge()!.textContent).toBe("4 Dateien, von gitleaks nicht geprüft");
-    expect(missingEnginesForDistrict(docs, city([docs]).scanProvenance)).toEqual(["gitleaks"]);
+    expect(missingEnginesForDistrict(docs, cityOf([docs]).scanProvenance)).toEqual(["gitleaks"]);
   });
 
   it("falls back to the district's own count where it ships no files", async () => {
@@ -227,7 +217,7 @@ describe("der Bezirksknopf weiß, ob überhaupt etwas hinsah", () => {
 
   it("believes the payload that marks nothing unverified", async () => {
     const checked = district("src", ZERO, { unverifiedBy: [], n: 5 });
-    expect(missingEnginesForDistrict(checked, city([checked]).scanProvenance)).toEqual([]);
+    expect(missingEnginesForDistrict(checked, cityOf([checked]).scanProvenance)).toEqual([]);
     expect(uncheckedFileCount(checked)).toBe(0);
   });
 });

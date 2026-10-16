@@ -6,83 +6,63 @@ import { CityLearningGuide } from "../src/components/CityLearningGuide";
 import { ContextCard } from "../src/components/ContextCard";
 import { InfoPanel } from "../src/components/InfoPanel";
 import { useStore } from "../src/stores/useStore";
-import type { CityData, CityDir, CityFile } from "../src/city/types";
+import { city, dir, file, finding, provenance } from "./helpers/cityFixture";
+import type { CityData, CityDir, CityFile, CityFinding } from "../src/city/types";
 
-const source: CityFile = {
+/**
+ * The payloads here go through `helpers/cityFixture`; what this file declares
+ * itself is the two buildings the guide points at and the finding ids its
+ * assertions quote (`source#0`, `source#1`). The finding carries no category —
+ * a `regex` console note the scanner never classified — so no district here
+ * claims a kind of mistake.
+ */
+const consoleUsage = (over: Partial<CityFinding> = {}): CityFinding =>
+  finding({
+    type: "CONSOLE_USAGE",
+    severity: "P1",
+    line: 8,
+    message: "Check console usage",
+    ruleId: "sample",
+    provenance: "regex",
+    category: undefined,
+    ...over,
+  });
+
+const source: CityFile = file("src/index.ts", "TypeScript", [consoleUsage()], undefined, {
   id: "source",
-  name: "index.ts",
-  path: "src/index.ts",
-  language: "TypeScript",
   linesOfCode: 80,
   cyclomaticComplexity: 12,
-  threatLevel: "high",
-  findings: [
-    {
-      type: "CONSOLE_USAGE",
-      severity: "P1",
-      line: 8,
-      message: "Check console usage",
-      ruleId: "sample",
-      provenance: "regex",
-    },
-  ],
-};
-const testFile: CityFile = {
-  ...source,
-  id: "test",
-  name: "fixture.test.ts",
-  path: "tests/fixture.test.ts",
-  role: "test",
-  cyclomaticComplexity: 24,
-};
-function dir(name: string, files: CityFile[], fileCount = files.length): CityDir {
-  return {
-    name,
-    path: name,
-    fileCount,
+});
+const testFile: CityFile = file(
+  "tests/fixture.test.ts",
+  "TypeScript",
+  [consoleUsage()],
+  undefined,
+  {
+    id: "test",
+    role: "test",
     linesOfCode: 80,
-    languages: { TypeScript: 80 },
-    findingsBySeverity: { P0: 0, P1: files.flatMap((f) => f.findings).length, P2: 0 },
-    threatScore: 7,
-    topFindings: [],
-    children: [],
-    detailFiles: files,
-    districtFiles: files,
-    remainingFiles: 0,
-  };
+    cyclomaticComplexity: 24,
+  },
+);
+function district(name: string, files: CityFile[], fileCount = files.length): CityDir {
+  return dir({ path: name, fileCount, detailFiles: files, districtFiles: files });
 }
-function city(): CityData {
-  return {
+function learningCity(): CityData {
+  return city({
     repo: { owner: "local", name: "learning", branch: "main" },
     totalFiles: 42,
     renderedFiles: 2,
     totalLines: 160,
     languages: { TypeScript: 160 },
     findingsBySeverity: { P0: 0, P1: 2, P2: 0 },
-    tree: {
-      ...dir("", []),
+    scanProvenance: provenance(),
+    tree: dir({
+      path: "",
       fileCount: 42,
-      children: [dir("src", [source], 40), dir("tests", [testFile], 2)],
-    },
-    fileConnections: [],
-    dirConnections: [],
-    meta: {
-      churn: false,
-      deadCode: false,
-      duplicates: false,
-      cycles: false,
-      coverage: false,
-      blame: false,
-    },
-    scanProvenance: {
-      regex: true,
-      gitleaks: true,
-      semgrep: true,
-      dependencies: true,
-      osv: true,
-      ruff: true,
-    },
-  };
+      children: [district("src", [source], 40), district("tests", [testFile], 2)],
+    }),
+  });
 }
 let host: HTMLDivElement;
 let root: Root;
@@ -99,7 +79,7 @@ beforeEach(() => {
   useStore.setState(
     {
       ...useStore.getInitialState(),
-      cityData: city(),
+      cityData: learningCity(),
       buildPhase: "built",
       analysisId: "learning",
     },
@@ -149,7 +129,7 @@ describe("learning from the actual city", () => {
   });
 
   it("explains test and demo evidence without inventing a production risk", async () => {
-    const data = city();
+    const data = learningCity();
     data.scanProvenance = { regex: false, gitleaks: false, semgrep: false };
     useStore.setState({ cityData: data, focusPath: ["tests"] });
     await show(<CityLearningGuide />);
@@ -160,7 +140,7 @@ describe("learning from the actual city", () => {
   });
 
   it("focuses the most severe finding in the chosen file rather than assuming the first row is highest", async () => {
-    const data = city();
+    const data = learningCity();
     data.tree.children[0]!.detailFiles[0] = {
       ...source,
       findings: [
@@ -197,8 +177,8 @@ describe("learning from the actual city", () => {
   });
 
   it("has useful empty-project guidance and no invented example action", async () => {
-    const data = city();
-    data.tree = dir("", []);
+    const data = learningCity();
+    data.tree = district("", []);
     data.totalFiles = 0;
     useStore.setState({ cityData: data });
     await show(<CityLearningGuide />);
@@ -211,7 +191,7 @@ describe("learning from the actual city", () => {
   });
 
   it("keeps a 1,000-file level behind the same user-controlled disclosure", async () => {
-    const data = city();
+    const data = learningCity();
     data.tree.fileCount = data.totalFiles = 1000;
     data.tree.children[0]!.fileCount = 998;
     useStore.setState({ cityData: data });
@@ -222,8 +202,8 @@ describe("learning from the actual city", () => {
   });
 
   it("keeps no-findings context neutral when coverage is missing", async () => {
-    const data = city();
-    data.tree = dir("", []);
+    const data = learningCity();
+    data.tree = district("", []);
     data.findingsBySeverity = { P0: 0, P1: 0, P2: 0 };
     data.scanProvenance = undefined;
     useStore.setState({ cityData: data });

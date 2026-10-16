@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ContextCard } from "../src/components/ContextCard";
 import { ScanSummary } from "../src/components/ScanSummary";
 import { useStore } from "../src/stores/useStore";
+import { city, dir, file } from "./helpers/cityFixture";
 import type { CityData, CityDir, CityFile } from "../src/city/types";
 
 /**
@@ -12,27 +13,18 @@ import type { CityData, CityDir, CityFile } from "../src/city/types";
  * Three things it used to get wrong: one line figure that mixed code with
  * translation JSON, no word about what .gitignore kept out, and a district of
  * 92 files drawing 6 buildings without saying why.
+ *
+ * The buildings and districts are built through `helpers/cityFixture`; every
+ * number a case quotes — 92 files, 249 code lines, 300 data lines, 4 P0 and
+ * 3 P1, 49 kept-out files — is declared right here, because those numbers are
+ * the measurement, not a default.
  */
 
-function file(path: string): CityFile {
-  return {
-    id: path,
-    name: path.split("/").pop() ?? path,
-    path,
-    language: "TypeScript",
-    linesOfCode: 40,
-    cyclomaticComplexity: 3,
-    threatLevel: "safe",
-    findings: [],
-  };
-}
-
-const files = (dir: string, n: number): CityFile[] =>
-  Array.from({ length: n }, (_, i) => file(`${dir}/f${i}.ts`));
+const caseFiles = (where: string, n: number): CityFile[] =>
+  Array.from({ length: n }, (_, i) => file(`${where}/f${i}.ts`, "TypeScript"));
 
 function subDistrict(path: string, fileCount: number): CityDir {
-  return {
-    name: path.split("/").pop() ?? path,
+  return dir({
     path,
     fileCount,
     linesOfCode: fileCount * 40,
@@ -41,18 +33,15 @@ function subDistrict(path: string, fileCount: number): CityDir {
     languages: { TypeScript: fileCount * 40 },
     dataLanguages: {},
     findingsBySeverity: { P0: 0, P1: 0, P2: 0 },
-    threatScore: 0,
-    topFindings: [],
-    children: [],
-    detailFiles: files(path, Math.min(5, fileCount)),
+    detailFiles: caseFiles(path, Math.min(5, fileCount)),
     remainingFiles: Math.max(0, fileCount - Math.min(5, fileCount)),
-    districtFiles: files(path, 6),
-  };
+    districtFiles: caseFiles(path, 6),
+  });
 }
 
 /** The measured case book: 92 files, 249 code lines, 300 data lines. */
 function cityData(overrides: Partial<CityData> = {}): CityData {
-  const frontend: CityDir = {
+  const frontend: CityDir = dir({
     name: "frontend",
     path: "frontend",
     fileCount: 92,
@@ -63,13 +52,12 @@ function cityData(overrides: Partial<CityData> = {}): CityData {
     dataLanguages: { JSON: 300 },
     findingsBySeverity: { P0: 4, P1: 3, P2: 0 },
     threatScore: 61,
-    topFindings: [],
     children: [subDistrict("frontend/src", 60), subDistrict("frontend/tests", 26)],
-    detailFiles: files("frontend", 6),
+    detailFiles: caseFiles("frontend", 6),
     remainingFiles: 0,
-    districtFiles: files("frontend", 6),
-  };
-  const tree: CityDir = {
+    districtFiles: caseFiles("frontend", 6),
+  });
+  const tree: CityDir = dir({
     ...frontend,
     name: "",
     path: "",
@@ -77,8 +65,8 @@ function cityData(overrides: Partial<CityData> = {}): CityData {
     detailFiles: [],
     districtFiles: [],
     children: [frontend],
-  };
-  return {
+  });
+  return city({
     repo: { owner: "local", name: "casebook", branch: "main" },
     totalFiles: 92,
     renderedFiles: 16,
@@ -91,18 +79,8 @@ function cityData(overrides: Partial<CityData> = {}): CityData {
     skippedByGitignore: { files: 49, directories: 3 },
     limits: { skylineTowers: 6, buildingsPerDirectory: 35 },
     tree,
-    fileConnections: [],
-    dirConnections: [],
-    meta: {
-      churn: false,
-      deadCode: false,
-      duplicates: false,
-      cycles: false,
-      coverage: false,
-      blame: false,
-    },
     ...overrides,
-  };
+  });
 }
 
 /** A city mapped before the split existed: one line figure, no provenance rows. */
@@ -189,7 +167,7 @@ describe("project overview", () => {
 
   it("explains a plaza whose files do not all fit on the plots", async () => {
     const city = cityData();
-    city.tree.detailFiles = files("f", 35);
+    city.tree.detailFiles = caseFiles("f", 35);
     city.tree.fileCount = 60;
     city.tree.remainingFiles = 25;
     city.tree.children = [];

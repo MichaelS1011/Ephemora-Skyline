@@ -4,7 +4,19 @@ import { tmpdir } from "os";
 import path from "path";
 import { IgnoreMatcher } from "../src/services/analyzer/gitignore.js";
 import { AnalysisOrchestrator } from "../src/services/analyzer/orchestrator.js";
-import { SecurityScanner } from "../src/services/security/scanner.js";
+import { quietScanner } from "./helpers/scanners.js";
+
+/**
+ * Which paths join the scan, and which the project's own .gitignore keeps out.
+ *
+ * This file used to build a real `SecurityScanner` for that question and so paid
+ * for gitleaks, semgrep, ruff, osv-scanner and `npm audit` — measured 22,7 s of
+ * its 24 s run at load 53, which is why a nine-file folder needed a 30 s budget.
+ * It now takes the quiet scanner from `helpers/scanners.ts`: no child process, and
+ * `{ regex: true }` so the shipped regex catalogue still answers `scanFile` over
+ * the same nine paths. No case here asserts a finding, so that half is fidelity
+ * rather than necessity — the assertions are about which paths joined the scan.
+ */
 
 describe("IgnoreMatcher — git's rules, the ones a real repo uses", () => {
   const m = (): IgnoreMatcher => new IgnoreMatcher();
@@ -83,7 +95,7 @@ describe("the pipeline leaves ignored files out of the city", () => {
   });
 
   it("skips what the rules name, keeps what they negate, and counts it", async () => {
-    const orchestrator = new AnalysisOrchestrator(pipelineScanner());
+    const orchestrator = new AnalysisOrchestrator(quietScanner({ regex: true }));
     const result = await orchestrator.analyzeDirectory("ignore-test", dir, {
       owner: "local",
       name: "ignore-test",
@@ -98,25 +110,5 @@ describe("the pipeline leaves ignored files out of the city", () => {
     // directory skipped whole — the count says which, because "3 entries"
     // would hide that a folder's contents were never even read.
     expect(result.summary.skippedByGitignore).toEqual({ files: 2, directories: 1 });
-  }, 30_000); // needs longer than vitest's 5 s default on a six-file folder // the real pipeline, which means the real batch engines: semgrep alone
+  }, 30_000); // headroom only; the quiet scanner finishes this folder in well under a second
 });
-
-/**
- * This file asks which files joined the scan. The dependency audit is not part of
- * that question — and once the pipeline stops reporting an unrun osv as an
- * answer, that route spends a real `npm audit` round trip per test. Stubbed here,
- * so the assertions stay about the pipeline and the run stays about one second.
- */
-function pipelineScanner(): SecurityScanner {
-  const scanner = new SecurityScanner();
-  (
-    scanner as unknown as {
-      dependencyAdapter: {
-        scanRepository: () => Promise<{ issuesByFile: Map<string, never[]>; executed: boolean }>;
-      };
-    }
-  ).dependencyAdapter = {
-    scanRepository: async () => ({ issuesByFile: new Map(), executed: false }),
-  };
-  return scanner;
-}

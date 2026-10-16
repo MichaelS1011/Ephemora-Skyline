@@ -7,7 +7,7 @@ import {
   emptyDroppedFiles,
   sumDroppedFiles,
 } from "../src/services/analyzer/orchestrator.js";
-import type { SecurityScanner } from "../src/services/security/scanner.js";
+import { quietScanner } from "./helpers/scanners.js";
 import type { DroppedFiles, GitHubRepo } from "../src/models/index.js";
 
 /**
@@ -31,25 +31,14 @@ import type { DroppedFiles, GitHubRepo } from "../src/models/index.js";
  *
  * The tree is built here, in a temporary directory of this test's own. It is
  * not a folder of this repository and nothing outside it is read.
+ *
+ * No engine runs either: the account is a path-selection question, and
+ * `quietScanner()` from `helpers/scanners.ts` answers it without a child process
+ * and without the stale `scanDependencies` shape this file's own stub carried
+ * (`{ issuesByFile, executed }` instead of the shipped `{ executed, added,
+ * runner }`). Nothing here asserted on that field, so nothing here changed — the
+ * shape was simply wrong, and now it cannot be.
  */
-
-/** No engine runs in these tests: the question is which paths joined the scan. */
-function countingScanner(): SecurityScanner {
-  return {
-    setConfig: () => {},
-    enableBatchScans: () => {},
-    scanFile: () => [],
-    scanFileStructure: () => ({ imports: [], exports: [] }),
-    scanRepositoryBatch: async () => ({
-      gitleaksRan: false,
-      semgrepRan: false,
-      ruffRan: false,
-      osvRan: false,
-    }),
-    scanDependencies: async () => ({ issuesByFile: new Map(), executed: false }),
-    countBySeverity: () => ({ P0: 0, P1: 0, P2: 0 }),
-  } as unknown as SecurityScanner;
-}
 
 const repo = (name: string): GitHubRepo => ({
   owner: "local",
@@ -123,7 +112,7 @@ describe("the folder's account, as the drive reads it off the screen", () => {
   });
 
   it("counts the eleven paths of the folder it was handed", async () => {
-    const result = await new AnalysisOrchestrator(countingScanner()).analyzeDirectory(
+    const result = await new AnalysisOrchestrator(quietScanner()).analyzeDirectory(
       "fahrt-account",
       staged,
       repo("fahrt-account"),
@@ -141,7 +130,7 @@ describe("the folder's account, as the drive reads it off the screen", () => {
   });
 
   it("puts each path in the record that actually met it", async () => {
-    const result = await new AnalysisOrchestrator(countingScanner()).analyzeDirectory(
+    const result = await new AnalysisOrchestrator(quietScanner()).analyzeDirectory(
       "fahrt-account",
       staged,
       repo("fahrt-account"),
@@ -172,7 +161,7 @@ describe("the folder's account, as the drive reads it off the screen", () => {
    * number it prints.
    */
   it("goes wrong the moment one reason stops counting", async () => {
-    const result = await new AnalysisOrchestrator(countingScanner()).analyzeDirectory(
+    const result = await new AnalysisOrchestrator(quietScanner()).analyzeDirectory(
       "fahrt-account",
       staged,
       repo("fahrt-account"),
@@ -197,7 +186,7 @@ describe("the folder's account, as the drive reads it off the screen", () => {
       plain,
       UPLOADED.filter((p) => p !== ".gitignore" && p !== "secret.json"),
     );
-    const result = await new AnalysisOrchestrator(countingScanner()).analyzeDirectory(
+    const result = await new AnalysisOrchestrator(quietScanner()).analyzeDirectory(
       "fahrt-account-plain",
       plain,
       repo("fahrt-account-plain"),

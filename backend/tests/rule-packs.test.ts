@@ -26,6 +26,13 @@ import { existsSync, mkdirSync, writeFileSync } from "fs";
  * Programm wäre also kein Formeldetail, sondern ein Verstoß. Gebündelt wird
  * deshalb nur, wessen Regeln wir selbst geschrieben haben — und der Nachweis
  * unten läuft mit gekapptem Netz, damit "lokal" nicht nur im Text steht.
+ *
+ * Deliberately real semgrep, and on the short list of files that must not move to
+ * `tests/helpers/scanners.ts`: which rules a pack contributes is a question only the
+ * engine answers. A stub can restate a config string, it cannot show that `semgrep
+ * --rule-dirs <pack>` reads the pack's yaml and finds the pattern in a file. That is
+ * why this file probes the binary, carries 180 s / 300 s budgets and pays for a real
+ * run — the load here is the subject, not a side effect.
  */
 
 /**

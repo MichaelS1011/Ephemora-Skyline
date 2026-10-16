@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { SecurityScanner } from "../src/services/security/scanner.js";
+import { stubAdapters, type AdapterStubs } from "./helpers/scanners.js";
 import { resolveConfig } from "../src/services/security/scan-config.js";
 import type { FileAnalysis, SecurityIssue } from "../src/models/index.js";
 
@@ -9,6 +10,12 @@ import type { FileAnalysis, SecurityIssue } from "../src/models/index.js";
  * config, while the gitleaks/semgrep/ruff/osv batch merge and the dependency
  * merge appended their results unfiltered. Turning a category off therefore
  * worked for regex findings and silently did nothing for the deeper scanners.
+ *
+ * The engine fields are named through `stubAdapters()` from `helpers/scanners.ts`
+ * now, not a local `poke()`: same fields, same fakes, same assertions — one place
+ * that knows which of them may be null and which may not. This file never reached
+ * a binary and still does not; it is the place where a merge is judged without
+ * asking a program to produce one.
  */
 const issue = (over: Partial<SecurityIssue>): SecurityIssue =>
   ({
@@ -34,29 +41,17 @@ const file = (p: string): FileAnalysis =>
     vulnerabilities: [],
   }) as FileAnalysis;
 
-/** Private fields swapped for fakes: the merge is what is measured, not the tools */
-function poke(scanner: SecurityScanner, field: string, value: unknown): void {
-  (scanner as unknown as Record<string, unknown>)[field] = value;
-}
-
 /** Batch adapters are swapped for a fixed result, so the merge is what is measured */
 function scannerWithBatchFindings(
   findings: Map<string, SecurityIssue[]>,
   config = resolveConfig().config,
 ): SecurityScanner {
-  const scanner = new SecurityScanner(undefined, config);
-  poke(scanner, "gitleaksAdapter", {
-    scanRepository: async () => findings,
-    enableBatchMode: () => {},
+  return stubAdapters(new SecurityScanner(undefined, config), {
+    gitleaks: { scanRepository: async () => findings },
+    semgrep: null,
+    ruff: { lastBatchExecuted: false },
+    osv: { scanRepository: async () => new Map() },
   });
-  poke(scanner, "semgrepAdapter", null);
-  poke(scanner, "ruffAdapter", { lastBatchExecuted: false });
-  poke(scanner, "osvAdapter", {
-    scanRepository: async () => new Map(),
-    lastBatchExecuted: false,
-    lastRunner: null,
-  });
-  return scanner;
 }
 
 describe("the config judges every way a finding arrives", () => {
@@ -100,21 +95,14 @@ describe("the config judges every way a finding arrives", () => {
       profile: "custom",
       disabledFindingTypes: ["VULNERABLE_DEPENDENCY"],
     }).config;
-    const scanner = new SecurityScanner(undefined, config);
-    (
-      scanner as unknown as {
-        osvAdapter: {
-          scanRepository: () => Promise<Map<string, SecurityIssue[]>>;
-          lastBatchExecuted: boolean;
-          lastRunner: string | null;
-        };
-      }
-    ).osvAdapter = {
-      scanRepository: async () =>
-        new Map([["package-lock.json", [issue({ type: "VULNERABLE_DEPENDENCY" })]]]),
-      lastBatchExecuted: true,
-      lastRunner: "osv-scanner",
-    };
+    const scanner = stubAdapters(new SecurityScanner(undefined, config), {
+      osv: {
+        scanRepository: async () =>
+          new Map([["package-lock.json", [issue({ type: "VULNERABLE_DEPENDENCY" })]]]),
+        lastBatchExecuted: true,
+        lastRunner: "osv-scanner",
+      },
+    });
     const files = [file("src/app.ts")];
     const res = await scanner.scanDependencies("/tmp/does-not-need-to-exist", files);
     expect(res.added).toBe(0);
@@ -133,40 +121,41 @@ describe("the tool toggles decide which engines run", () => {
     calls: { gitleaks: number; semgrep: number; osv: number; npmAudit: number };
   } {
     const calls = { gitleaks: 0, semgrep: 0, osv: 0, npmAudit: 0 };
-    const scanner = new SecurityScanner(undefined, resolveConfig(config).config);
     const issues = new Map<string, SecurityIssue[]>();
-    poke(scanner, "gitleaksAdapter", {
-      scanRepository: async () => {
-        calls.gitleaks++;
-        return issues;
+    const stubs: AdapterStubs = {
+      gitleaks: {
+        scanRepository: async () => {
+          calls.gitleaks++;
+          return issues;
+        },
       },
-      enableBatchMode: () => {},
-    });
-    poke(scanner, "semgrepAdapter", {
-      lastBatchExecuted: false,
-      scanBatch: async () => {
-        calls.semgrep++;
-        return [];
+      semgrep: {
+        lastBatchExecuted: false,
+        scanBatch: async () => {
+          calls.semgrep++;
+          return [];
+        },
       },
-    });
-    poke(scanner, "osvAdapter", {
-      lastBatchExecuted: false,
-      lastRunner: null,
-      scanRepository: async () => {
-        calls.osv++;
-        return new Map();
+      osv: {
+        lastBatchExecuted: false,
+        lastRunner: null,
+        scanRepository: async () => {
+          calls.osv++;
+          return new Map();
+        },
       },
-    });
-    poke(scanner, "dependencyAdapter", {
-      scanRepository: async () => {
-        calls.npmAudit++;
-        return { issuesByFile: new Map(), executed: true };
+      dependency: {
+        scanRepository: async () => {
+          calls.npmAudit++;
+          return { issuesByFile: new Map(), executed: true };
+        },
       },
-    });
-    poke(scanner, "ruffAdapter", {
-      lastBatchExecuted: false,
-      scanRepository: async () => new Map(),
-    });
+      ruff: { lastBatchExecuted: false, scanRepository: async () => new Map() },
+    };
+    const scanner = stubAdapters(
+      new SecurityScanner(undefined, resolveConfig(config).config),
+      stubs,
+    );
     return { scanner, calls };
   }
 
@@ -197,12 +186,14 @@ describe("the tool toggles decide which engines run", () => {
   it("asks the CVE scanner once per scan, not once per phase", async () => {
     const { scanner, calls } = fakes({ profile: "standard" });
     // an osv that ANSWERED — "tried and absent from PATH" is the next test's case
-    poke(scanner, "osvAdapter", {
-      lastBatchExecuted: true,
-      lastRunner: "osv",
-      scanRepository: async () => {
-        calls.osv++;
-        return new Map();
+    stubAdapters(scanner, {
+      osv: {
+        lastBatchExecuted: true,
+        lastRunner: "osv",
+        scanRepository: async () => {
+          calls.osv++;
+          return new Map();
+        },
       },
     });
     await scanner.scanRepositoryBatch("/tmp/none", files());
@@ -262,8 +253,8 @@ describe("the tool toggles decide which engines run", () => {
 
   it("reports no dependency audit when neither osv nor the fallback could run", async () => {
     const { scanner } = fakes({ profile: "standard" });
-    poke(scanner, "dependencyAdapter", {
-      scanRepository: async () => ({ issuesByFile: new Map(), executed: false }),
+    stubAdapters(scanner, {
+      dependency: { scanRepository: async () => ({ issuesByFile: new Map(), executed: false }) },
     });
     await scanner.scanRepositoryBatch("/tmp/none", files());
     const res = await scanner.scanDependencies("/tmp/none", files());
@@ -276,12 +267,14 @@ describe("the tool toggles decide which engines run", () => {
       profile: "custom",
       tools: { dependencies: true, osv: true, gitleaks: false, semgrep: false, ruff: false },
     });
-    poke(scanner, "osvAdapter", {
-      lastBatchExecuted: true,
-      lastRunner: "osv",
-      scanRepository: async () => {
-        calls.osv++;
-        return new Map();
+    stubAdapters(scanner, {
+      osv: {
+        lastBatchExecuted: true,
+        lastRunner: "osv",
+        scanRepository: async () => {
+          calls.osv++;
+          return new Map();
+        },
       },
     });
     const res = await scanner.scanDependencies("/tmp/none", files());

@@ -242,4 +242,67 @@ describe("mapResultToCityData", () => {
     const city = mapResultToCityData(makeResult([makeFile({ path: "src/app.ts" })]));
     expect(city.scanProvenance).toBeUndefined();
   });
+
+  it("carries dependencyRunner through, not only the booleans", () => {
+    // `dependencies` is one boolean for two different programs, so the card can
+    // only name the right one from the field that says which answered. A mapper
+    // that rebuilt the object from a known key list would drop it here and leave
+    // the panel crediting `npm audit` for a scan only osv-scanner took part in.
+    const provenance = {
+      regex: true,
+      gitleaks: true,
+      semgrep: true,
+      dependencies: true,
+      dependencyRunner: "osv",
+      osv: true,
+    };
+    const analysis = makeResult([makeFile({ path: "src/app.ts" })]);
+    analysis.summary.scanProvenance = provenance;
+
+    const city = mapResultToCityData(analysis);
+    expect(city.scanProvenance?.dependencyRunner).toBe("osv");
+    expect(city.scanProvenance).toStrictEqual(provenance);
+  });
+
+  it("invents no runner for a city JSON written before the field existed", () => {
+    // A stored result with no `dependencyRunner` key at all: the mapping has to
+    // run through and hand back exactly what was stored. The engine the card
+    // falls back to is the frontend's reading of the flag — the mapper must not
+    // answer that question by writing a field the scan never produced.
+    const provenance = {
+      regex: true,
+      gitleaks: true,
+      semgrep: true,
+      dependencies: true,
+      osv: true,
+    };
+    const analysis = makeResult([makeFile({ path: "src/app.ts" })]);
+    analysis.summary.scanProvenance = provenance;
+
+    const city = mapResultToCityData(analysis);
+    expect(city.scanProvenance?.dependencyRunner).toBeUndefined();
+    expect(city.scanProvenance).toStrictEqual(provenance);
+  });
+
+  it("keeps an explicit null runner and a false dependencies flag", () => {
+    // Nothing dependency-related ran, but osv is irrelevant here: `osv: true`
+    // never means `dependencies: true`, and it never names a runner either. A
+    // mapper that derived one flag from another would turn "the audit did not
+    // run" into a claim about an engine that was never asked.
+    const provenance = {
+      regex: true,
+      gitleaks: true,
+      semgrep: true,
+      dependencies: false,
+      dependencyRunner: null,
+      osv: true,
+    };
+    const analysis = makeResult([makeFile({ path: "src/app.ts" })]);
+    analysis.summary.scanProvenance = provenance;
+
+    const city = mapResultToCityData(analysis);
+    expect(city.scanProvenance?.dependencies).toBe(false);
+    expect(city.scanProvenance?.dependencyRunner).toBeNull();
+    expect(city.scanProvenance).toStrictEqual(provenance);
+  });
 });
