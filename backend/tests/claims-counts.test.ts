@@ -386,7 +386,7 @@ describe("the claims lane of 2026-10-14 (S1: no public number breaks)", () => {
     }
   });
 
-  it("E — the accuracy bullet describes the expect-line hit that actually shipped", () => {
+  it("E — the accuracy bullet describes the expect-line hit and the eval-shaped rule that actually shipped", () => {
     const bullet = read("README.md")
       .split("\n")
       .find((l) => l.includes("There is no accuracy number here, on purpose."));
@@ -406,14 +406,14 @@ describe("the claims lane of 2026-10-14 (S1: no public number breaks)", () => {
       bullet!,
       `the real hit is the ${onExpect[0]!.ruleId} on an expect line — name it`,
     ).toContain(onExpect[0]!.ruleId);
-    expect(
-      bullet!,
-      "no eval-shaped rule ships; the sentence may not explain an eval hit",
-    ).not.toMatch(/\bnot a call to\b|\beval\b/);
+    expect(bullet!, "the sentence names the rule the same way the list does").toMatch(/EVAL_USAGE/);
+    expect(bullet!, "the sentence may not explain a hit that does not ship").not.toMatch(
+      /\bnot a call to\b/,
+    );
     expect(
       rows.some((f) => /eval/i.test(f.ruleId)),
-      "an eval rule now ships — re-describe",
-    ).toBe(false);
+      "an eval-shaped rule no longer ships — re-describe",
+    ).toBe(true);
   });
 
   it("F — CONTRIBUTING quotes the engines range and counts the gates", () => {
