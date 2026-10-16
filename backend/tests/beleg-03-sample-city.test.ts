@@ -32,7 +32,7 @@ const walkTree = (node: CityDir): void => {
 };
 walkTree(city.tree);
 
-describe("the caption over the built city (README.md:162)", () => {
+describe("the caption over the built city (README.md:167)", () => {
   it("ships 73 sample files", () => {
     expect(demo.summary.totalFiles).toBe(73);
     expect(demo.files).toHaveLength(73);
@@ -41,7 +41,7 @@ describe("the caption over the built city (README.md:162)", () => {
   });
 
   it("raises six districts over them", () => {
-    // README.md:162 "73 sample files in six districts"; the summary says the same
+    // README.md:167 "73 sample files in six districts"; the summary says the same
     expect(demo.summary.totalDirectories).toBe(6);
     expect(city.tree.children).toHaveLength(6);
   });
@@ -90,7 +90,7 @@ describe("the caption over the built city (README.md:162)", () => {
   });
 
   it("names its own alarm count: one of six plots carries a critical finding", () => {
-    // README.md:162 quotes the map's sentence "▲ 1 of 6 plots carries a critical finding"
+    // README.md:167 quotes the map's sentence "▲ 1 of 6 plots carries a critical finding"
     const withCritical = city.tree.children.filter((d) => d.findingsBySeverity.P0 > 0);
     expect(withCritical).toHaveLength(1);
     expect(withCritical[0]!.name).toBe("backend");
@@ -129,7 +129,7 @@ describe("the finding cards the captions describe (README.md:166, CHANGELOG.md)"
     for (const [engine, ran] of Object.entries(provenance)) {
       expect(ran, `the demo claims ${engine} ran`).toBe(false);
     }
-    // README.md:37 "The demo uses sample files and findings; no scanner ran on that city."
+    // README.md:35 "The demo uses sample files and findings; no scanner ran on that city."
     expect(city.unverifiedEngines.length).toBeGreaterThan(0);
   });
 });

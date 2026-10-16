@@ -48,7 +48,7 @@ describe("the runtime the documents ask for (README.md:63, docs/GETTING_STARTED.
   });
 
   it("asks for npm 10 or newer", () => {
-    // README.md:28 "and **npm >= 10**", GETTING_STARTED.md:25 "≥ 10.0.0"
+    // README.md:26 "and **npm >= 10**", GETTING_STARTED.md:25 "≥ 10.0.0"
     expect(engines.npm).toBe(">=10.0.0");
   });
 
