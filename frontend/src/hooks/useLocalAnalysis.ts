@@ -1,10 +1,30 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useStore } from "../stores/useStore";
-import type { CityData, DroppedFiles } from "../city/types";
-import { configPayload, isExcludedPath, loadExcludes } from "../config/scanProfiles";
+import type { DroppedFiles } from "../city/types";
+import { isExcludedPath, loadExcludes } from "../config/scanProfiles";
 import { IgnoreMatcher } from "../config/gitignore";
-import { progressLine, stageEntries, type StageEntry } from "../config/scanStages";
+import { stageEntries, type StageEntry } from "../config/scanStages";
 import { formatCount, t, type Lang } from "../i18n";
+import {
+  isDirHandlePickerAvailable,
+  pickFolder as pickFolderFlow,
+  pickViaInputFallback as pickViaInputFallbackFlow,
+  type DirEntry,
+  type DirHandle,
+} from "./useLocalAnalysis/picker";
+import {
+  COUNTER_EVERY,
+  readAndUpload as readAndUploadFlow,
+  uploadAndAnalyze as uploadAndAnalyzeFlow,
+} from "./useLocalAnalysis/upload";
+import {
+  fetchCityData as fetchCityDataFlow,
+  pollStatus as pollStatusFlow,
+} from "./useLocalAnalysis/polling";
+import {
+  publishStage as publishStageFlow,
+  setReadingLine as setReadingLineFlow,
+} from "./useLocalAnalysis/progress";
 
 export type AnalysisState = "idle" | "picking" | "collecting" | "analyzing" | "success" | "error";
 
@@ -151,13 +171,8 @@ export const MAX_PATH_LEN = 512;
  * source files.
  */
 export const GIT_MAX_TOTAL_BYTES = 15 * 1024 * 1024;
-const GIT_MAX_FILE_BYTES = 8 * 1024 * 1024;
-const POLL_INTERVAL_MS = 2000;
-const POLL_TIMEOUT_MS = 20 * 60 * 1000;
-/** Files between two counter updates while reading */
-const COUNTER_EVERY = 25;
 
-interface LocalFile {
+export interface LocalFile {
   path: string;
   content: string;
   /** set for binary .git payloads (base64) — everything else is utf-8 text */
@@ -302,25 +317,6 @@ function emptyPlan(): FolderPlan {
   };
 }
 
-/** One entry a directory handle hands back: a file to read, or a folder to walk into. */
-type DirEntry = {
-  name: string;
-  kind: "file" | "directory";
-  getFile?: () => Promise<File>;
-};
-
-type DirHandle = {
-  name: string;
-  values: () => AsyncIterable<DirEntry>;
-};
-
-function isDirHandlePickerAvailable(): boolean {
-  return typeof (window as { showDirectoryPicker?: unknown }).showDirectoryPicker === "function";
-}
-
-/** Offer another picker after a wait; never expire a user's native dialog. */
-const PICKER_ALTERNATIVE_DELAY_MS = 4_000;
-
 // ── The sentences the waiting user is allowed to read ──────────────────────
 // All of them come from the dictionary: a German screen that catches an English
 // line mid-wait was one of the audited defects, and the server's own wording
@@ -351,7 +347,9 @@ const noSourceLine = (lang: Lang): string =>
  * until the city is ready. No GitHub, no clone — the code never leaves
  * the machine except to the local backend.
  *
- * What this flow owes the person waiting in front of it:
+ * The hook owns the state; the flow lives in `./useLocalAnalysis/` — the picker
+ * state machine, the upload, the polling and the progress line each in their
+ * module. What this flow owes the person waiting in front of it:
  * — an abort ends the run everywhere, server included, and no late answer can
  *   write to the screen any more;
  * — something counts while the folder is read, the same way in both pickers;
@@ -449,19 +447,15 @@ export function useLocalAnalysis() {
    * the server has closed the window. Both consumers print it as it is.
    */
   const publishStage = useCallback(() => {
-    const l = langRef.current;
-    // Nothing uploaded yet and no stage named: the reading counter owns the line
-    // (the landing block shows it), and "uploading" would be a lie.
-    if (stateRef.current === "picking") return;
-    if (!stageRef.current && stateRef.current === "collecting") return;
-    const base = stageRef.current
-      ? progressLine(l, stageRef.current)
-      : t(l, waitingRef.current ? "scan.waiting" : "scan.uploading");
-    const parts = [base, t(l, "scan.elapsed", { s: elapsedRef.current })];
-    if (budgetWaitRef.current > 0) {
-      parts.push(`${t(l, "limit.waiting")} · ${budgetWaitRef.current} s`);
-    }
-    setAnalysisStage(parts.join(" · "));
+    publishStageFlow({
+      langRef,
+      stateRef,
+      stageRef,
+      waitingRef,
+      budgetWaitRef,
+      elapsedRef,
+      setAnalysisStage,
+    });
   }, [setAnalysisStage]);
 
   /** Seconds since the run started, ticking while anything is in flight. */
@@ -488,244 +482,84 @@ export function useLocalAnalysis() {
   );
 
   const fetchCityData = useCallback(
-    async (id: string, run: number) => {
-      try {
-        const res = await fetch(`/api/result/${encodeURIComponent(id)}/city`, {
-          signal: abortRef.current?.signal,
-        });
-        if (runRef.current !== run) return;
-        if (!res.ok) {
-          // A link the server does not know is not a broken folder — it says so.
-          setErrorMessage(
-            res.status === 404
-              ? t(langRef.current, "app.permalinkError")
-              : t(langRef.current, "scan.cityLoadFailed"),
-          );
-          setErrorDetail(`HTTP ${res.status}`);
-          setState("error");
-          return;
-        }
-        const data = (await res.json()) as CityData & { error?: string };
-        if (data.error) {
-          setErrorMessage(t(langRef.current, "scan.cityLoadFailed"));
-          setErrorDetail(data.error);
-          setState("error");
-          return;
-        }
-        if (data.totalFiles === 0) {
-          setErrorMessage(noSourceLine(langRef.current));
-          setErrorDetail("the scan finished with no file in the city");
-          setState("error");
-          return;
-        }
-        setCityData(data);
-        setAnalysisId(id);
-        window.history.replaceState(null, "", `?city=${encodeURIComponent(id)}`);
-        // The scan's own counts win over the reader's: they include what only
-        // the server could see.
-        setDropped(data.dropped ?? null);
-        setState("success");
-      } catch (err) {
-        if (err instanceof Error && err.name === "AbortError") return;
-        if (runRef.current !== run) return;
-        setErrorMessage(t(langRef.current, "scan.cityLoadFailed"));
-        setErrorDetail(err instanceof Error ? err.message : String(err));
-        setState("error");
-      }
-    },
+    (id: string, run: number) =>
+      fetchCityDataFlow(
+        {
+          langRef,
+          abortRef,
+          runRef,
+          setErrorMessage,
+          setErrorDetail,
+          setState,
+          noSourceLine,
+          setCityData,
+          setAnalysisId,
+          setDropped,
+        },
+        id,
+        run,
+      ),
     [setAnalysisId, setCityData],
   );
 
   const pollStatus = useCallback(
-    (id: string, run: number) => {
-      const startedAt = Date.now();
-      let notFoundStreak = 0;
-      // One request at a time: the tick fires every POLL_INTERVAL_MS while the
-      // backend is busy scanning and slow to answer, so without this the queue
-      // grew by one pending fetch per tick and late answers wrote progress out
-      // of order.
-      let inFlight = false;
-      /** while the read budget is closed, ticks count down instead of fetching */
-      let budgetUntil = 0;
-      stopPolling();
-      pollTimerRef.current = setInterval(() => {
-        if (runRef.current !== run) {
-          stopPolling();
-          return;
-        }
-        const now = Date.now();
-        if (budgetUntil > now) {
-          // A closed budget is a wait with a number on it, not a frozen bar.
-          const left = Math.ceil((budgetUntil - now) / 1000);
-          if (left !== budgetWaitRef.current) {
-            budgetWaitRef.current = left;
-            setBudgetWaitSec(left);
-            publishStage();
-          }
-          return;
-        }
-        if (inFlight) return;
-        inFlight = true;
-        void (async () => {
-          try {
-            if (Date.now() - startedAt > POLL_TIMEOUT_MS) {
-              stopPolling();
-              setErrorMessage(t(langRef.current, "scan.timedOut"));
-              setErrorDetail(`no answer within ${Math.round(POLL_TIMEOUT_MS / 60000)} min`);
-              setState("error");
-              return;
-            }
-            const res = await fetch(`/api/status/${encodeURIComponent(id)}`, {
-              signal: abortRef.current?.signal,
-            });
-            if (runRef.current !== run) return;
-            if (res.status === 429) {
-              const body = (await res.json().catch(() => ({}))) as {
-                retryAfterSeconds?: number;
-              };
-              const header = Number(res.headers.get("RateLimit-Reset"));
-              const seconds =
-                body.retryAfterSeconds ??
-                (Number.isFinite(header) && header > 0 ? header : Math.ceil(15 * 60));
-              budgetUntil = Date.now() + seconds * 1000;
-              budgetWaitRef.current = seconds;
-              setBudgetWaitSec(seconds);
-              publishStage();
-              return;
-            }
-            if (!res.ok) {
-              // 404 = the job is gone (backend restarted) — not transient.
-              // Other codes get a short grace period before giving up.
-              notFoundStreak = res.status === 404 ? notFoundStreak + 1 : 0;
-              if (notFoundStreak >= 3) {
-                stopPolling();
-                setErrorMessage(t(langRef.current, "scan.jobGone"));
-                setErrorDetail("analysis job not found (404)");
-                setState("error");
-              }
-              return;
-            }
-            notFoundStreak = 0;
-            if (budgetWaitRef.current !== 0) {
-              budgetWaitRef.current = 0;
-              setBudgetWaitSec(0);
-            }
-            const data = (await res.json()) as {
-              status?: string;
-              progress?: number;
-              stage?: string;
-              error?: string;
-            };
-            if (typeof data.progress === "number") {
-              setAnalysisProgress(Math.min(100, Math.max(0, data.progress)));
-            }
-            if (typeof data.stage === "string" && data.stage) setStageOf(data.stage);
-            if (data.status === "complete") {
-              stopPolling();
-              setStageOf("Complete");
-              void fetchCityData(id, run);
-            } else if (data.status === "failed") {
-              stopPolling();
-              setErrorMessage(t(langRef.current, "scan.serverFailed"));
-              setErrorDetail(data.error ?? "the scan failed on the server");
-              setState("error");
-            }
-          } catch (err) {
-            if (err instanceof Error && err.name === "AbortError") return;
-            // network hiccup — retry on next tick
-          } finally {
-            inFlight = false;
-          }
-        })();
-      }, POLL_INTERVAL_MS);
-    },
+    (id: string, run: number) =>
+      pollStatusFlow(
+        {
+          langRef,
+          abortRef,
+          runRef,
+          pollTimerRef,
+          budgetWaitRef,
+          stopPolling,
+          setBudgetWaitSec,
+          publishStage,
+          setErrorMessage,
+          setErrorDetail,
+          setState,
+          setAnalysisProgress,
+          setStageOf,
+          fetchCityData,
+        },
+        id,
+        run,
+      ),
     [fetchCityData, publishStage, setAnalysisProgress, setStageOf, stopPolling],
   );
 
   const uploadAndAnalyze = useCallback(
-    async (name: string, files: LocalFile[], clientDropped: DroppedFiles, run: number) => {
-      const l = langRef.current;
-      setErrorMessage("");
-      setErrorDetail("");
-      setAnalysisProgress(0);
-      setStageOf(null);
-      setState("analyzing");
-      const controller = new AbortController();
-      abortRef.current = controller;
-      try {
-        const { scanProfile: profile, scanCategories, scanPacks } = useStore.getState();
-        const res = await fetch("/api/analyze-local", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            name,
-            files,
-            config: configPayload(profile, scanCategories, scanPacks, loadExcludes()),
-            // the reader's own accounting: only it knows how many paths it never
-            // opened, and the city total has to carry that number
-            dropped: clientDropped,
-          }),
-          signal: controller.signal,
-        });
-        if (runRef.current !== run) return;
-        const data = (await res.json().catch(() => ({}))) as {
-          id?: string;
-          error?: string;
-          code?: string;
-          found?: number;
-          max?: number;
-          retryAfterSeconds?: number;
-        };
-        if (!res.ok || typeof data.id !== "string") {
-          // The server's explanation goes to the detail line; what the user reads
-          // first is the dictionary's sentence, in their language.
-          setErrorDetail(data.error ?? `HTTP ${res.status}`);
-          if (res.status === 429 || data.code === "rate_limited") {
-            const header = Number(res.headers.get("RateLimit-Reset"));
-            const seconds =
-              data.retryAfterSeconds ??
-              (Number.isFinite(header) && header > 0 ? header : Math.ceil(15 * 60));
-            setErrorMessage(`${t(l, "limit.hit", { s: seconds })} — ${t(l, "cap.hint")}`);
-          } else if (data.code === "too_many_files") {
-            setErrorMessage(
-              `${capLine(l, data.found ?? files.length, data.max ?? MAX_FILES)} — ${t(l, "cap.hint")}`,
-            );
-          } else if (data.code === "no_source") {
-            setErrorMessage(noSourceLine(l));
-          } else if (res.status === 413) {
-            setErrorMessage(bytesLine(l, files.length, clientBytesOf(files)));
-          } else {
-            setErrorMessage(t(l, "scan.uploadHttpStatus", { status: res.status }));
-          }
-          setDropped(clientDropped);
-          setState("error");
-          return;
-        }
-        jobIdRef.current = data.id;
-        waitingRef.current = true;
-        pollStatus(data.id, run);
-      } catch (err) {
-        if (err instanceof Error && err.name === "AbortError") return; // cancelled
-        if (runRef.current !== run) return;
-        setErrorMessage(t(langRef.current, "scan.uploadFailed"));
-        setErrorDetail(err instanceof Error ? err.message : String(err));
-        setState("error");
-      }
-    },
+    (name: string, files: LocalFile[], clientDropped: DroppedFiles, run: number) =>
+      uploadAndAnalyzeFlow(
+        {
+          langRef,
+          setErrorMessage,
+          setErrorDetail,
+          setAnalysisProgress,
+          setStageOf,
+          setState,
+          setDropped,
+          abortRef,
+          runRef,
+          jobIdRef,
+          waitingRef,
+          pollStatus,
+          maxFiles: MAX_FILES,
+          capLine,
+          bytesLine,
+          noSourceLine,
+        },
+        name,
+        files,
+        clientDropped,
+        run,
+      ),
     [pollStatus, setAnalysisProgress, setStageOf],
   );
 
   /** The reading counter, in the display language: "150 Dateien gelesen · 150 von 312" */
   const setReadingLine = useCallback(
     (l: Lang, read: number, total: number): void => {
-      const parts = [
-        t(l, read === 1 ? "scan.readingOne" : "scan.reading", { n: formatCount(l, read) }),
-      ];
-      if (total > 0)
-        parts.push(
-          t(l, "scan.readingOf", { n: formatCount(l, read), total: formatCount(l, total) }),
-        );
-      setAnalysisStage(parts.join(" · "));
+      setReadingLineFlow({ l, read, total, setAnalysisStage });
     },
     [setAnalysisStage],
   );
@@ -736,70 +570,32 @@ export function useLocalAnalysis() {
    * the reader cannot open lands in a bucket that travels with the upload.
    */
   const readAndUpload = useCallback(
-    async (plan: FolderPlan, rootName: string, run: number) => {
-      const l = langRef.current;
-      const payload: LocalFile[] = [];
-      let accounting = plan.dropped;
-      let totalBytes = 0;
-      let gitBytes = 0;
-      const total = plan.candidates.length;
-      for (const { rel, file, git } of plan.candidates) {
-        if (cancelledRef.current || runRef.current !== run) return;
-        if (git) {
-          /**
-           * Two different reasons, two different numbers. A 9 MB pack file is
-           * genuinely too large; the 1,470th loose object is not — the history
-           * budget of 15 MB merely filled up. Reporting the second case as
-           * "too large or unreadable" tells the user their repository is
-           * unusual when it is the tool that stopped reading.
-           */
-          if (file.size > GIT_MAX_FILE_BYTES) {
-            accounting = addDropped(accounting, "tooLarge");
-            continue;
-          }
-          if (gitBytes + file.size > GIT_MAX_TOTAL_BYTES) {
-            accounting = addDropped(accounting, "gitBudget");
-            continue;
-          }
-        } else if (totalBytes + file.size > MAX_TOTAL_BYTES) {
-          setCollected({ files: payload.length, bytes: totalBytes, total });
-          setDropped(accounting);
-          setErrorMessage(bytesLine(l, payload.length, totalBytes));
-          setErrorDetail(
-            `over ${Math.round(MAX_TOTAL_BYTES / 1024 / 1024)} MB of source — ${t(l, "cap.excludeLabel")}`,
-          );
-          setState("error");
-          return;
-        }
-        try {
-          payload.push({ path: rel, ...(await readPayload(file, rel)) });
-        } catch {
-          accounting = addDropped(accounting, "unreadable");
-          continue;
-        }
-        if (git) gitBytes += file.size;
-        else totalBytes += file.size;
-        const read = payload.length;
-        if (read % COUNTER_EVERY === 0 || read === total) {
-          setCollected({ files: read, bytes: totalBytes, total });
-          setDropped(accounting);
-          setReadingLine(l, read, total);
-        }
-      }
-      if (cancelledRef.current || runRef.current !== run) return;
-      setCollected({ files: payload.length, bytes: totalBytes, total });
-      setFoundFiles(plan.found);
-      setDropped(accounting);
-      if (payload.length === 0) {
-        setErrorMessage(noSourceLine(l));
-        setErrorDetail(
-          `${accounting.pathTooLong} over ${MAX_PATH_LEN} chars, ${accounting.unreadable} unreadable`,
-        );
-        setState("error");
-        return;
-      }
-      await uploadAndAnalyze(rootName, payload, accounting, run);
-    },
+    (plan: FolderPlan, rootName: string, run: number) =>
+      readAndUploadFlow(
+        {
+          langRef,
+          cancelledRef,
+          runRef,
+          setCollected,
+          setDropped,
+          setFoundFiles,
+          setState,
+          setErrorMessage,
+          setErrorDetail,
+          setReadingLine,
+          uploadAndAnalyze,
+          addDropped,
+          bytesLine,
+          noSourceLine,
+          readPayload,
+          maxTotalBytes: MAX_TOTAL_BYTES,
+          maxPathLen: MAX_PATH_LEN,
+          gitMaxTotalBytes: GIT_MAX_TOTAL_BYTES,
+        },
+        plan,
+        rootName,
+        run,
+      ),
     [setReadingLine, uploadAndAnalyze],
   );
 
@@ -888,63 +684,21 @@ export function useLocalAnalysis() {
 
   /** Called synchronously from a user action, never from a timer or rejection. */
   const pickViaInputFallback = useCallback(
-    (run: number) => {
-      if (runRef.current !== run) return Promise.resolve();
-      return new Promise<void>((resolve) => {
-        const input = document.createElement("input");
-        input.type = "file";
-        input.setAttribute("webkitdirectory", "");
-        input.setAttribute("directory", "");
-        input.style.display = "none";
-        let active = true;
-        const detach = () => {
-          active = false;
-          input.onchange = null;
-          input.oncancel = null;
-          input.remove();
-          inputCleanupRef.current = null;
-        };
-        inputCleanupRef.current = () => {
-          detach();
-          resolve();
-        };
-        const cancelled = () => {
-          if (!active || runRef.current !== run) return;
-          detach();
-          runRef.current += 1;
-          finishPicker();
-          stateRef.current = "idle";
-          setState("idle");
-          resolve();
-        };
-        input.onchange = () => {
-          if (!active || runRef.current !== run) return;
-          const fileList = Array.from(input.files ?? []);
-          if (fileList.length === 0) {
-            cancelled();
-            return;
-          }
-          const rootName = fileList[0]?.webkitRelativePath?.split("/")[0] ?? "local folder";
-          detach();
-          finishPicker();
-          stateRef.current = "collecting";
-          setState("collecting");
-          startedAtRef.current = Date.now();
-          void collectFromFileList(fileList, rootName, run)
-            .catch((err: unknown) => failCollection(err, run))
-            .finally(resolve);
-        };
-        input.oncancel = cancelled;
-        document.body.appendChild(input);
-        try {
-          input.click();
-        } catch {
-          detach();
-          offerAlternativePicker(run, "scan.pickerUnavailable");
-          resolve();
-        }
-      });
-    },
+    (run: number) =>
+      pickViaInputFallbackFlow(
+        {
+          runRef,
+          inputCleanupRef,
+          stateRef,
+          startedAtRef,
+          finishPicker,
+          offerAlternativePicker,
+          setState,
+          collectFromFileList,
+          failCollection,
+        },
+        run,
+      ),
     [collectFromFileList, failCollection, finishPicker, offerAlternativePicker],
   );
 
@@ -1037,64 +791,35 @@ export function useLocalAnalysis() {
   );
 
   const pickFolder = useCallback(async () => {
-    if (["picking", "collecting", "analyzing"].includes(stateRef.current)) return;
-    const run = ++runRef.current;
-    finishPicker();
-    cancelledRef.current = false;
-    jobIdRef.current = null;
-    stageRef.current = null;
-    budgetWaitRef.current = 0;
-    elapsedRef.current = 0;
-    waitingRef.current = false;
-    setBudgetWaitSec(0);
-    setElapsedSec(0);
-    setNotice("");
-    setErrorMessage("");
-    setErrorDetail("");
-    setDropped(null);
-    setCollected({ files: 0, bytes: 0, total: 0 });
-    setFoundFiles(0);
-    startedAtRef.current = Date.now();
-    abortRef.current = new AbortController();
-    stateRef.current = "picking";
-    setState("picking");
-    setAnalysisStage("");
-    setStageOf(null);
-    if (!isDirHandlePickerAvailable()) {
-      await pickViaInputFallback(run);
-      return;
-    }
-    pickerTimerRef.current = setTimeout(() => {
-      if (runRef.current !== run) return;
-      pickerTimerRef.current = null;
-      offerAlternativePicker(run, "scan.pickerTimeout");
-    }, PICKER_ALTERNATIVE_DELAY_MS);
-    let picked: DirHandle;
-    try {
-      const picker = (
-        window as unknown as { showDirectoryPicker?: (opts?: unknown) => Promise<DirHandle> }
-      ).showDirectoryPicker;
-      if (!picker) throw new Error("unsupported");
-      picked = await picker.call(window, { mode: "read" });
-    } catch (err) {
-      if (runRef.current !== run) return;
-      finishPicker();
-      // DOMException need not inherit Error (including across realms).
-      if (err && typeof err === "object" && "name" in err && err.name === "AbortError") {
-        runRef.current += 1;
-        stateRef.current = "idle";
-        setState("idle");
-        return;
-      }
-      offerAlternativePicker(run, "scan.pickerUnavailable");
-      return;
-    }
-    if (runRef.current !== run) return;
-    finishPicker();
-    stateRef.current = "collecting";
-    setState("collecting");
-    startedAtRef.current = Date.now();
-    await collectFromDirectoryHandle(picked, run).catch((err: unknown) => failCollection(err, run));
+    await pickFolderFlow({
+      stateRef,
+      runRef,
+      cancelledRef,
+      jobIdRef,
+      stageRef,
+      budgetWaitRef,
+      elapsedRef,
+      waitingRef,
+      startedAtRef,
+      abortRef,
+      pickerTimerRef,
+      finishPicker,
+      offerAlternativePicker,
+      pickViaInputFallback,
+      collectFromDirectoryHandle,
+      failCollection,
+      setBudgetWaitSec,
+      setElapsedSec,
+      setNotice,
+      setErrorMessage,
+      setErrorDetail,
+      setDropped,
+      setCollected,
+      setFoundFiles,
+      setState,
+      setAnalysisStage,
+      setStageOf,
+    });
   }, [
     collectFromDirectoryHandle,
     failCollection,
@@ -1168,11 +893,4 @@ export function useLocalAnalysis() {
     isAnalyzing: state === "picking" || state === "collecting" || state === "analyzing",
     supportsDirectoryPicker: isDirHandlePickerAvailable(),
   };
-}
-
-/** Upper bound of the upload body in bytes, for the 413 sentence. */
-function clientBytesOf(files: LocalFile[]): number {
-  let bytes = 0;
-  for (const file of files) bytes += file.content.length;
-  return bytes;
 }

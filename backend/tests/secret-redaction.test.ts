@@ -12,8 +12,10 @@ import { sarifToIssues } from "../src/services/security/sarif-mapper.js";
 import { detectLanguage, isDataFile } from "../src/services/analyzer/metrics.js";
 import { isScannedPath } from "../src/services/analyzer/orchestrator.js";
 import { SecurityScanner } from "../src/services/security/scanner.js";
+import type { ScannerAdapter } from "../src/services/security/adapter.js";
 import { GitleaksAdapter } from "../src/services/security/adapters/gitleaks-adapter.js";
 import { RegexAdapter } from "../src/services/security/adapters/regex-adapter.js";
+import { SemgrepAdapter } from "../src/services/security/adapters/semgrep-adapter.js";
 import { resultToSarif } from "../src/utils/sarif.js";
 import type { AnalysisResult, FileAnalysis, SecurityIssue } from "../src/models/index.js";
 
@@ -67,7 +69,7 @@ describe("a secret finding does not repeat the secret", () => {
 
 describe("masking happens where the finding text is attached", () => {
   it("masks the code frame and the snippet of a secret finding", () => {
-    const issues = [
+    const issues: SecurityIssue[] = [
       {
         type: "HARDCODED_SECRET",
         severity: "P0",
@@ -75,7 +77,7 @@ describe("masking happens where the finding text is attached", () => {
         line: 2,
         code: `UPLOAD_SECRET_KEY = "${VALUE}"`,
         message: "Hardcoded secret detected",
-      } as unknown as SecurityIssue,
+      },
     ];
     enrichIssues(issues, `const a = 1;\nUPLOAD_SECRET_KEY = "${VALUE}"\n`);
     expect(issues[0]!.code).toContain("UPLOAD_SECRET_KEY");
@@ -86,7 +88,7 @@ describe("masking happens where the finding text is attached", () => {
 
   it("leaves the code frame of any other finding alone", () => {
     const line = 'db.query("SELECT * FROM users WHERE id = " + id)';
-    const issues = [
+    const issues: SecurityIssue[] = [
       {
         type: "SQL_INJECTION",
         severity: "P0",
@@ -94,7 +96,7 @@ describe("masking happens where the finding text is attached", () => {
         line: 1,
         code: line,
         message: "SQL built by concatenation",
-      } as unknown as SecurityIssue,
+      },
     ];
     enrichIssues(issues, line);
     expect(issues[0]!.code).toBe(line);
@@ -136,9 +138,9 @@ FEATURE_FLAGS=beta
     await fs.mkdir(path.join(dir, "config"), { recursive: true });
     await fs.writeFile(path.join(dir, "config", ".env"), envBody, "utf-8");
 
-    const scanner = new SecurityScanner();
-    (scanner as unknown as { gitleaksAdapter: unknown; semgrepAdapter: unknown }).gitleaksAdapter =
-      {
+    const scanner = new SecurityScanner(undefined, undefined, {
+      gitleaks: {
+        enableBatchMode: () => {},
         scanRepository: async () =>
           new Map([
             [
@@ -153,15 +155,15 @@ FEATURE_FLAGS=beta
                   message: "Hardcoded secret detected (generic-api-key) — gitleaks",
                   provenance: "gitleaks",
                   ruleId: "generic-api-key",
-                } as unknown as SecurityIssue,
+                },
               ],
             ],
           ]),
-        enableBatchMode: () => {},
-      };
-    (scanner as unknown as { semgrepAdapter: unknown }).semgrepAdapter = null;
+      },
+      semgrep: null,
+    });
 
-    const files = [
+    const files: FileAnalysis[] = [
       {
         path: "config/.env",
         language: "Env",
@@ -172,7 +174,7 @@ FEATURE_FLAGS=beta
         imports: [],
         exports: [],
         vulnerabilities: [],
-      } as unknown as FileAnalysis,
+      },
     ];
     await scanner.scanRepositoryBatch(dir, files);
     await fs.rm(dir, { recursive: true, force: true });
@@ -212,7 +214,7 @@ export { cfg };
   });
 
   it("masks the neighbour line of a non-secret finding in enrichIssues", () => {
-    const issues = [
+    const issues: SecurityIssue[] = [
       {
         type: "CONSOLE_USAGE",
         severity: "P2",
@@ -221,7 +223,7 @@ export { cfg };
         code: 'console.log("boot")',
         message: "console statement",
         provenance: "regex",
-      } as unknown as SecurityIssue,
+      },
     ];
     enrichIssues(issues, content);
     const frame = issues[0]!.snippet!;
@@ -241,19 +243,16 @@ export { cfg };
 describe("no adapter can hand a credential to the caller", () => {
   it("masks the line the no-binary fallback reads for itself", () => {
     const adapter = new GitleaksAdapter();
-    const fallback = (adapter as unknown as { fallbackScan: (c: string) => SecurityIssue[] })
-      .fallbackScan;
-    const issues = fallback.call(adapter, `DB_PASSWORD = "${VALUE}"\nconst x = 1;\n`);
+    const issues = adapter.fallbackScan(`DB_PASSWORD = "${VALUE}"\nconst x = 1;\n`);
     expect(issues.length, "the fallback must find the credential").toBeGreaterThan(0);
     expect(JSON.stringify(issues), "the value must not survive the fallback").not.toContain(VALUE);
     expect(JSON.stringify(issues)).toContain("DB_PASSWORD");
   });
 
   it("masks at the scanner boundary, whatever an adapter forgot", async () => {
-    const scanner = new SecurityScanner();
     // A finding whose text is a credential while the scanned file holds none —
     // only the adapter can have put it there, so only the boundary can clean it.
-    (scanner as unknown as { adapters: unknown[] }).adapters.push({
+    const rogueAdapter: ScannerAdapter = {
       id: "rogue",
       scanFile: async () => [
         {
@@ -264,9 +263,15 @@ describe("no adapter can hand a credential to the caller", () => {
           code: `DB_PASSWORD = "${VALUE}"`,
           message: "an adapter that forgot to mask",
           provenance: "gitleaks-fallback",
-        } as unknown as SecurityIssue,
+        },
       ],
-    });
+    };
+    const scanner = new SecurityScanner([
+      new RegexAdapter(),
+      new GitleaksAdapter(),
+      new SemgrepAdapter(),
+      rogueAdapter,
+    ]);
     const issues = await scanner.scanFile("src/db.ts", "const a = 1;\nconst b = 2;\n");
     const rogue = issues.find((i) => i.message.includes("forgot to mask"));
     expect(rogue, "the finding must survive, or the assertion below proves nothing").toBeTruthy();
@@ -334,8 +339,7 @@ describe("a credential shape is masked whatever the name beside it says", () => 
   });
 
   it("masks at the boundary for an adapter that only reports the value", async () => {
-    const scanner = new SecurityScanner();
-    (scanner as unknown as { adapters: unknown[] }).adapters.push({
+    const valueOnly: ScannerAdapter = {
       id: "value-only",
       scanFile: async () => [
         {
@@ -347,9 +351,15 @@ describe("a credential shape is masked whatever the name beside it says", () => 
           message: "an adapter that names nothing and hands over the value",
           provenance: "gitleaks",
           secretValue: PAT,
-        } as unknown as SecurityIssue,
+        },
       ],
-    });
+    };
+    const scanner = new SecurityScanner([
+      new RegexAdapter(),
+      new GitleaksAdapter(),
+      new SemgrepAdapter(),
+      valueOnly,
+    ]);
     const issues = await scanner.scanFile("tests/fixture.ts", "const a = 1;\n");
     const hit = issues.find((i) => i.message.includes("names nothing"));
     expect(hit, "the finding must survive, or the assertion below proves nothing").toBeTruthy();
@@ -607,9 +617,9 @@ describe("the 120-character display clip never cuts a credential in half", () =>
     await fs.mkdir(path.join(dir, "src"), { recursive: true });
     await fs.writeFile(path.join(dir, "src", "keys.ts"), `${LONG_LINE}\nconst a = 1;\n`, "utf-8");
 
-    const scanner = new SecurityScanner();
-    (scanner as unknown as { gitleaksAdapter: unknown; semgrepAdapter: unknown }).gitleaksAdapter =
-      {
+    const scanner = new SecurityScanner(undefined, undefined, {
+      gitleaks: {
+        enableBatchMode: () => {},
         scanRepository: async () =>
           new Map([
             [
@@ -625,15 +635,15 @@ describe("the 120-character display clip never cuts a credential in half", () =>
                   message: "Hardcoded secret detected (github-pat) — gitleaks",
                   provenance: "gitleaks",
                   ruleId: "github-pat",
-                } as unknown as SecurityIssue,
+                },
               ],
             ],
           ]),
-        enableBatchMode: () => {},
-      };
-    (scanner as unknown as { semgrepAdapter: unknown }).semgrepAdapter = null;
+      },
+      semgrep: null,
+    });
 
-    const files = [
+    const files: FileAnalysis[] = [
       {
         path: "src/keys.ts",
         language: "TypeScript",
@@ -644,7 +654,7 @@ describe("the 120-character display clip never cuts a credential in half", () =>
         imports: [],
         exports: [],
         vulnerabilities: [],
-      } as unknown as FileAnalysis,
+      },
     ];
     await scanner.scanRepositoryBatch(dir, files);
     await fs.rm(dir, { recursive: true, force: true });
@@ -660,9 +670,7 @@ describe("the 120-character display clip never cuts a credential in half", () =>
 
   it("masks the no-binary fallback before clipping it", () => {
     const adapter = new GitleaksAdapter();
-    const fallback = (adapter as unknown as { fallbackScan: (c: string) => SecurityIssue[] })
-      .fallbackScan;
-    const issues = fallback.call(adapter, `${LONG_LINE}\n`);
+    const issues = adapter.fallbackScan(`${LONG_LINE}\n`);
     expect(issues.length, "the fallback must find the pattern").toBeGreaterThan(0);
     for (const issue of issues) {
       expect(issue.code!.length).toBeLessThanOrEqual(120);

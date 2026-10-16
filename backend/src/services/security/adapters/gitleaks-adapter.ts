@@ -293,7 +293,12 @@ export class GitleaksAdapter implements ScannerAdapter {
     }
   }
 
-  private fallbackScan(content: string): SecurityIssue[] {
+  /**
+   * Entropy/keyword fallback without the binary — public because it is the
+   * offline half of this adapter's contract, and its masking is judged
+   * directly (`secret-redaction.test.ts`) without reaching into the class.
+   */
+  fallbackScan(content: string): SecurityIssue[] {
     const issues: SecurityIssue[] = [];
     const lines = content.split("\n");
     let m: RegExpExecArray | null;

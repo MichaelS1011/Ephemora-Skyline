@@ -287,9 +287,7 @@ describe("the tool toggles decide which engines run", () => {
 describe("allowlist matching", () => {
   const allows = (config: Parameters<typeof resolveConfig>[0], type: string): boolean => {
     const scanner = new SecurityScanner(undefined, resolveConfig(config).config);
-    return (
-      scanner as unknown as { configFilterAllows: (i: SecurityIssue) => boolean }
-    ).configFilterAllows(issue({ type, message: type }));
+    return scanner.configFilterAllows(issue({ type, message: type }));
   };
 
   /**

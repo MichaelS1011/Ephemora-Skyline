@@ -23,34 +23,120 @@ import { maskIssueFrames, maskSecretText } from "./redact.js";
 import { resolveConfig, type ResolvedScanConfig } from "./scan-config.js";
 import { semgrepRuleDirs } from "./rule-packs.js";
 
+/** What the scanner needs from the gitleaks engine — the shipped adapter satisfies it. */
+export interface GitleaksEngine {
+  enableBatchMode(): void;
+  scanRepository(
+    clonePath: string,
+    opts?: { gitHistory?: boolean },
+  ): Promise<Map<string, SecurityIssue[]> | null>;
+}
+
+/** What the scanner needs from the semgrep engine — the shipped adapter satisfies it. */
+export interface SemgrepEngine {
+  setRuleDirs(dirs: string[]): void;
+  lastBatchExecuted: boolean;
+  scanBatch(clonePath: string, contentByPath?: Map<string, string>): Promise<SecurityIssue[]>;
+}
+
+/** What the scanner needs from the npm-audit engine — the shipped adapter satisfies it. */
+export interface DependencyEngine {
+  scanRepository(
+    clonePath: string,
+  ): Promise<{ issuesByFile: Map<string, SecurityIssue[]>; executed: boolean }>;
+}
+
+/** What the scanner needs from the osv engine — the shipped adapter satisfies it. */
+export interface OsvEngine {
+  lastBatchExecuted: boolean;
+  lastRunner: string | null;
+  scanRepository(clonePath: string): Promise<Map<string, SecurityIssue[]>>;
+}
+
+/** What the scanner needs from the ruff engine — the shipped adapter satisfies it. */
+export interface RuffEngine {
+  lastBatchExecuted: boolean;
+  scanRepository(
+    clonePath: string,
+    opts?: { scope?: string },
+  ): Promise<Map<string, SecurityIssue[]>>;
+}
+
+/**
+ * The engine dependencies of a scan, injectable through the constructor.
+ * `null` reports an engine as absent from the machine (gitleaks/semgrep read
+ * it through `?.`); `undefined` or an omitted key means "use the shipped
+ * adapter". dependency/osv/ruff are called unconditionally whenever their
+ * tool toggle is on, so their keys take an engine, never null.
+ */
+export interface ScannerEngines {
+  gitleaks?: GitleaksEngine | null;
+  semgrep?: SemgrepEngine | null;
+  dependency?: DependencyEngine;
+  osv?: OsvEngine;
+  ruff?: RuffEngine;
+}
+
+/**
+ * A batch finding carries its file through `_filePath` — `sarifToIssues`
+ * attaches it so the merge can key by repo-relative path. It is an internal
+ * channel between the semgrep adapter and this merge, not part of the model.
+ */
+type BatchIssue = SecurityIssue & { _filePath?: string };
+
 export class SecurityScanner {
   private logger: pino.Logger;
   private adapters: ScannerAdapter[];
-  private gitleaksAdapter: GitleaksAdapter | null = null;
-  private dependencyAdapter: DependencyAdapter = new DependencyAdapter();
-  private osvAdapter: OsvAdapter = new OsvAdapter();
-  private ruffAdapter: RuffAdapter = new RuffAdapter();
+  private gitleaksAdapter: GitleaksEngine | null;
+  private dependencyAdapter: DependencyEngine;
+  private osvAdapter: OsvEngine;
+  private ruffAdapter: RuffEngine;
   private config: ResolvedScanConfig;
   /** One CVE question per scan: the batch phase and the dependency phase share it */
   /** osv brought an answer back — the dependency phase must not ask again. */
   private cveAnswered = false;
   /** osv was tried this scan, with or without an answer: asking twice is one trip too many. */
   private cveAsked = false;
-  semgrepAdapter: SemgrepAdapter | null = null;
+  private semgrepAdapter: SemgrepEngine | null;
 
-  constructor(adapters?: ScannerAdapter[], config?: ResolvedScanConfig) {
+  constructor(adapters?: ScannerAdapter[], config?: ResolvedScanConfig, engines?: ScannerEngines) {
     this.logger = pino({ name: "security-scanner" });
     this.config = config ?? resolveConfig().config;
     if (adapters) {
+      // An explicit per-file list owns the per-file loop; the engine fields
+      // stay separate and default to "absent" exactly as before.
       this.adapters = adapters;
+      this.gitleaksAdapter = engines?.gitleaks !== undefined ? engines.gitleaks : null;
+      this.semgrepAdapter = engines?.semgrep !== undefined ? engines.semgrep : null;
     } else {
+      // The default per-file list and the engine fields must be the SAME
+      // instances: enableBatchScans() flips batchMode on the field, and
+      // scanFile reads it back off the list entry.
+      const gitleaks = new GitleaksAdapter();
       const semgrep = new SemgrepAdapter();
-      this.semgrepAdapter = semgrep;
-      this.gitleaksAdapter = new GitleaksAdapter();
-      this.adapters = [new RegexAdapter(), this.gitleaksAdapter, semgrep];
+      this.gitleaksAdapter = engines?.gitleaks !== undefined ? engines.gitleaks : gitleaks;
+      this.semgrepAdapter = engines?.semgrep !== undefined ? engines.semgrep : semgrep;
+      this.adapters = [new RegexAdapter(), gitleaks, semgrep];
     }
+    this.dependencyAdapter =
+      engines?.dependency !== undefined ? engines.dependency : new DependencyAdapter();
+    this.osvAdapter = engines?.osv !== undefined ? engines.osv : new OsvAdapter();
+    this.ruffAdapter = engines?.ruff !== undefined ? engines.ruff : new RuffAdapter();
     this.applyCustomPatterns();
     this.applyRulePacks();
+  }
+
+  /**
+   * Replace the engine dependencies after construction — the same injection
+   * the constructor accepts. `null` reports gitleaks/semgrep as absent;
+   * `undefined` leaves the current engine alone.
+   */
+  setEngines(engines: ScannerEngines): void {
+    if (engines.gitleaks !== undefined) this.gitleaksAdapter = engines.gitleaks;
+    if (engines.semgrep !== undefined) this.semgrepAdapter = engines.semgrep;
+    if (engines.dependency !== undefined) this.dependencyAdapter = engines.dependency;
+    if (engines.osv !== undefined) this.osvAdapter = engines.osv;
+    if (engines.ruff !== undefined) this.ruffAdapter = engines.ruff;
   }
 
   /**
@@ -148,7 +234,7 @@ export class SecurityScanner {
           imports: [],
           exports: [],
           vulnerabilities: [],
-        } as unknown as FileAnalysis;
+        };
         fileAnalyses.push(target);
       }
       enrichIssues(issues, target.content);
@@ -223,8 +309,12 @@ export class SecurityScanner {
     return issues.filter((i) => this.configFilterAllows(i));
   }
 
-  /** Severity threshold + type allow/denylist from the scan config */
-  private configFilterAllows(issue: SecurityIssue): boolean {
+  /**
+   * Severity threshold + type allow/denylist from the scan config — the single
+   * judge every arrival path is filtered through. Public so the filter contract
+   * can be tested against an injected config without reaching into the class.
+   */
+  configFilterAllows(issue: SecurityIssue): boolean {
     const t = this.config.severityThreshold;
     if (t === "P0" && issue.severity !== "P0") return false;
     if (t === "P1" && issue.severity === "P2") return false;
@@ -494,7 +584,7 @@ export class SecurityScanner {
     const batchIssues = await this.semgrepAdapter.scanBatch(clonePath, contentByPath);
     const byFile = new Map<string, SecurityIssue[]>();
     for (const issue of batchIssues) {
-      const fp = (issue as unknown as Record<string, unknown>)._filePath as string | undefined;
+      const fp = (issue as BatchIssue)._filePath;
       if (!fp) continue;
       // normalize to repo-relative path
       const rel = fp.startsWith(clonePath + "/") ? fp.slice(clonePath.length + 1) : fp;

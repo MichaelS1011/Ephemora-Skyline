@@ -32,7 +32,15 @@
  * and it must not move the suite's file count.
  */
 import { RegexAdapter } from "../../src/services/security/adapters/regex-adapter.js";
-import type { SecurityScanner } from "../../src/services/security/scanner.js";
+import { SecurityScanner } from "../../src/services/security/scanner.js";
+import type {
+  DependencyEngine,
+  GitleaksEngine,
+  OsvEngine,
+  RuffEngine,
+  ScannerEngines,
+  SemgrepEngine,
+} from "../../src/services/security/scanner.js";
 import type { ResolvedScanConfig } from "../../src/services/security/scan-config.js";
 import type { FileAnalysis, SecurityIssue } from "../../src/models/index.js";
 
@@ -67,98 +75,86 @@ const NO_DEPENDENCY_AUDIT: DependencyAnswer = { executed: false, added: 0, runne
 const NO_STRUCTURE: StructureAnswer = { imports: [], exports: [] };
 
 /**
- * Per-adapter replacement for a real `SecurityScanner`.
+ * Per-adapter replacement for a real `SecurityScanner`, injected through the
+ * scanner's own engine interfaces (`ScannerEngines`, exported by scanner.ts) —
+ * no cast, no reaching into private fields.
  *
  * For the cases where a test checks one program's behaviour and not the whole
  * pipeline: it names the field, hands it a partial fake, and the fake answers
  * instead of the binary. `null` means "this engine is absent and reports itself
- * as never having run" — for gitleaks and semgrep that is literally a null field,
- * which the scanner already understands; for ruff, osv and the dependency audit a
- * null field would throw inside `scanRepositoryBatch`, so they get an inert stub.
+ * as never having run" — for gitleaks and semgrep that is literally a null
+ * engine, which the scanner already understands; for ruff, osv and the
+ * dependency audit a null engine would throw inside `scanRepositoryBatch`, so
+ * they get an inert stub.
  */
 export type AdapterStubs = {
-  gitleaks?: {
-    enableBatchMode?: () => void;
-    scanRepository?: (
-      clonePath: string,
-      opts?: { gitHistory?: boolean },
-    ) => Promise<Map<string, SecurityIssue[]> | null>;
-  } | null;
-  semgrep?: {
-    lastBatchExecuted?: boolean;
-    scanBatch?: (clonePath: string, contentByPath: Map<string, string>) => Promise<SecurityIssue[]>;
-    scanFile?: (filePath: string, content: string) => Promise<SecurityIssue[]>;
-  } | null;
-  ruff?: {
-    lastBatchExecuted?: boolean;
-    scanRepository?: (
-      clonePath: string,
-      opts?: { scope?: string },
-    ) => Promise<Map<string, SecurityIssue[]>>;
-  } | null;
-  osv?: {
-    lastBatchExecuted?: boolean;
-    lastRunner?: string | null;
-    scanRepository?: (clonePath: string) => Promise<Map<string, SecurityIssue[]>>;
-  } | null;
-  dependency?: {
-    scanRepository?: (
-      clonePath: string,
-    ) => Promise<{ issuesByFile: Map<string, SecurityIssue[]>; executed: boolean }>;
-  } | null;
+  gitleaks?: Partial<GitleaksEngine> | null;
+  semgrep?: Partial<SemgrepEngine> | null;
+  dependency?: Partial<DependencyEngine> | null;
+  osv?: Partial<OsvEngine> | null;
+  ruff?: Partial<RuffEngine> | null;
 };
 
-/** The private adapter fields `scanner.ts` reaches for, by name. */
-const FIELDS: Record<keyof AdapterStubs, string> = {
-  gitleaks: "gitleaksAdapter",
-  semgrep: "semgrepAdapter",
-  ruff: "ruffAdapter",
-  osv: "osvAdapter",
-  dependency: "dependencyAdapter",
+const GITLEAKS_DEFAULTS: GitleaksEngine = {
+  enableBatchMode: () => {},
+  scanRepository: async () => new Map(),
+};
+
+const SEMGREP_DEFAULTS: SemgrepEngine = {
+  setRuleDirs: () => {},
+  lastBatchExecuted: false,
+  scanBatch: async () => [],
+};
+
+const DEPENDENCY_DEFAULTS: DependencyEngine = {
+  scanRepository: async () => ({ issuesByFile: new Map(), executed: false }),
+};
+
+const OSV_DEFAULTS: OsvEngine = {
+  lastBatchExecuted: false,
+  lastRunner: null,
+  scanRepository: async () => new Map(),
+};
+
+const RUFF_DEFAULTS: RuffEngine = {
+  lastBatchExecuted: false,
+  scanRepository: async () => new Map(),
 };
 
 /**
- * Set the adapter fields of a real scanner so no engine can be reached. Returns
- * the same scanner, so a test can build it and pin it in one expression.
+ * Build the constructor's `engines` argument from per-adapter stubs. A missing
+ * key keeps the scanner's shipped engine; `null` reports gitleaks/semgrep as
+ * absent (they are read through `?.`); ruff, osv and the dependency audit are
+ * called unconditionally whenever their toggle is on, so a null there would
+ * throw inside `scanRepositoryBatch` — they get an inert stub instead.
+ */
+export function enginesFor(stubs: AdapterStubs): ScannerEngines {
+  const engines: ScannerEngines = {};
+  if (stubs.gitleaks !== undefined)
+    engines.gitleaks = stubs.gitleaks === null ? null : { ...GITLEAKS_DEFAULTS, ...stubs.gitleaks };
+  if (stubs.semgrep !== undefined)
+    engines.semgrep = stubs.semgrep === null ? null : { ...SEMGREP_DEFAULTS, ...stubs.semgrep };
+  if (stubs.dependency !== undefined)
+    engines.dependency =
+      stubs.dependency === null
+        ? DEPENDENCY_DEFAULTS
+        : { ...DEPENDENCY_DEFAULTS, ...stubs.dependency };
+  if (stubs.osv !== undefined)
+    engines.osv = stubs.osv === null ? OSV_DEFAULTS : { ...OSV_DEFAULTS, ...stubs.osv };
+  if (stubs.ruff !== undefined)
+    engines.ruff = stubs.ruff === null ? RUFF_DEFAULTS : { ...RUFF_DEFAULTS, ...stubs.ruff };
+  return engines;
+}
+
+/**
+ * Set the engine dependencies of a real scanner so no engine can be reached.
+ * The same injection the constructor accepts, through the typed
+ * `setEngines()` — never a cast into the private fields. Returns the same
+ * scanner, so a test can build it and pin it in one expression.
  */
 export function stubAdapters(scanner: SecurityScanner, stubs: AdapterStubs): SecurityScanner {
-  const target = scanner as unknown as Record<string, unknown>;
-  for (const key of Object.keys(FIELDS) as Array<keyof AdapterStubs>) {
-    if (!(key in stubs)) continue;
-    const stub = stubs[key];
-    target[FIELDS[key]] = stub === null ? absentEngine(key) : { ...defaultsFor(key), ...stub };
-  }
+  scanner.setEngines(enginesFor(stubs));
   return scanner;
-}
-
-/**
- * What "this engine is not on the machine" looks like in each field. gitleaks and
- * semgrep are read through `?.` by the scanner, so null is the honest answer;
- * ruff, osv and the dependency audit are called unconditionally whenever their
- * toggle is on — a null field there throws inside `scanRepositoryBatch` instead
- * of reporting the engine as not run, so they get an object that does nothing.
- */
-function absentEngine(key: keyof AdapterStubs): Record<string, unknown> | null {
-  return key === "gitleaks" || key === "semgrep" ? null : defaultsFor(key);
-}
-
-function defaultsFor(key: keyof AdapterStubs): Record<string, unknown> {
-  switch (key) {
-    case "gitleaks":
-      return { enableBatchMode: () => {}, scanRepository: async () => new Map() };
-    case "semgrep":
-      return { lastBatchExecuted: false, scanBatch: async () => [] as SecurityIssue[] };
-    case "ruff":
-      return { lastBatchExecuted: false, scanRepository: async () => new Map() };
-    case "osv":
-      return {
-        lastBatchExecuted: false,
-        lastRunner: null,
-        scanRepository: async () => new Map(),
-      };
-    case "dependency":
-      return { scanRepository: async () => ({ issuesByFile: new Map(), executed: false }) };
-  }
 }
 
 /** Overrides a single test needs on top of the quiet default. */
@@ -188,8 +184,21 @@ export type QuietOverrides = {
   countBySeverity?: (issues: SecurityIssue[]) => { P0: number; P1: number; P2: number };
 };
 
+/** Engines that answer "absent / never ran" — the construction half of quietScanner. */
+const QUIET_ENGINES: ScannerEngines = {
+  gitleaks: null,
+  semgrep: null,
+  dependency: DEPENDENCY_DEFAULTS,
+  osv: OSV_DEFAULTS,
+  ruff: RUFF_DEFAULTS,
+};
+
 /**
  * A `SecurityScanner` that never starts a process.
+ *
+ * Built as a real scanner whose engines are injected at construction as
+ * "absent / never ran", then each pipeline method is replaced with the quiet
+ * answer below — same defaults, same overrides, no cast into the class.
  *
  * Default: every method answers the way an empty scan answers — no findings, no
  * structure, `scanRepositoryBatch` reports all four engines as not run,
@@ -205,15 +214,37 @@ export type QuietOverrides = {
  */
 export function quietScanner(over: QuietOverrides = {}): SecurityScanner {
   const findings = over.regex ? regexBaseline() : null;
-  const quiet: Record<string, unknown> = {
+  const scanner = new SecurityScanner([], undefined, QUIET_ENGINES);
+  const overrides: Pick<
+    SecurityScanner,
+    | "setConfig"
+    | "enableBatchScans"
+    | "scanFile"
+    | "scanFileStructure"
+    | "scanRepositoryBatch"
+    | "scanDependencies"
+    | "countBySeverity"
+  > = {
     setConfig: over.setConfig ?? (() => {}),
     enableBatchScans: over.enableBatchScans ?? (() => {}),
-    scanFile:
-      over.scanFile ??
-      (async (filePath: string, content: string) => (findings ? findings(filePath, content) : [])),
+    scanFile: async (filePath: string, content: string) => {
+      if (over.scanFile) return await over.scanFile(filePath, content);
+      return findings ? findings(filePath, content) : [];
+    },
     scanFileStructure: over.scanFileStructure ?? (() => NO_STRUCTURE),
-    scanRepositoryBatch: over.scanRepositoryBatch ?? (async () => ({ ...NO_BATCH })),
-    scanDependencies: over.scanDependencies ?? (async () => ({ ...NO_DEPENDENCY_AUDIT })),
+    scanRepositoryBatch: async (
+      clonePath: string,
+      fileAnalyses: FileAnalysis[],
+      opts?: { gitHistory?: boolean },
+    ) => {
+      if (over.scanRepositoryBatch)
+        return await over.scanRepositoryBatch(clonePath, fileAnalyses, opts);
+      return { ...NO_BATCH };
+    },
+    scanDependencies: async (clonePath: string, fileAnalyses: FileAnalysis[]) => {
+      if (over.scanDependencies) return await over.scanDependencies(clonePath, fileAnalyses);
+      return { ...NO_DEPENDENCY_AUDIT };
+    },
     countBySeverity:
       over.countBySeverity ??
       ((issues: SecurityIssue[]) => ({
@@ -222,7 +253,8 @@ export function quietScanner(over: QuietOverrides = {}): SecurityScanner {
         P2: issues.filter((i) => i.severity === "P2").length,
       })),
   };
-  return quiet as unknown as SecurityScanner;
+  Object.assign(scanner, overrides);
+  return scanner;
 }
 
 /**
