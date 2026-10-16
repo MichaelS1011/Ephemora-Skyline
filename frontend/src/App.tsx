@@ -425,6 +425,21 @@ export default function App() {
 
   return (
     <div className={`app-shell ${selectedUnit ? "has-selection" : ""}`}>
+      {/* WCAG 2.4.1: the first tab stop is this skip link, not the 3D stage.
+          sr-only hides it visually without dropping it from the tab order
+          (display:none would); focus:not-sr-only pins it to the top-left with
+          a high-contrast chip and ring. */}
+      <a
+        href="#main-content"
+        className="skip-link sr-only focus:not-sr-only focus:absolute focus:top-3 focus:left-3
+                   focus:z-[100] focus:rounded focus:px-4 focus:py-2.5 focus:font-jetbrains
+                   focus:text-sm focus:bg-[#161614] focus:text-[#f2efe8]
+                   focus:shadow-[0_2px_14px_rgba(0,0,0,0.65)]
+                   focus:outline focus:outline-2 focus:outline-[#e8b23c] focus:outline-offset-2"
+      >
+        {t(lang, "a11y.skipLink")}
+      </a>
+
       <LoadingScreen isVisible={isLoading} />
 
       {/* 3D world — empty at first, city rises into it */}
@@ -492,7 +507,14 @@ export default function App() {
               </button>
             </div>
           )}
-          <Landing />
+          {/* The skip link's landing target: a plain wrapper (no box, so the
+              absolutely positioned landing shell inside keeps .app-shell as
+              its containing block) that can take focus and hold the content.
+              focus-visible:outline-none beats the global ring — the next tab
+              stop draws it where the content actually is. */}
+          <div id="main-content" tabIndex={-1} className="focus-visible:outline-none">
+            <Landing />
+          </div>
         </>
       )}
 
@@ -505,7 +527,10 @@ export default function App() {
             <HudOverlay apiStatus={apiStatus} />
 
             <div
-              className={`absolute inset-0 pointer-events-none construction-ui ${
+              id="main-content"
+              tabIndex={-1}
+              role="main"
+              className={`absolute inset-0 pointer-events-none construction-ui focus-visible:outline-none ${
                 buildPhase === "constructing" ? "construction-dim" : ""
               }`}
             >

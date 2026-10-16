@@ -198,6 +198,8 @@ export function finding(overrides: Partial<CityFinding> = {}): CityFinding {
     packageName: field(overrides, "packageName", undefined),
     packageVersion: field(overrides, "packageVersion", undefined),
     explanation: field(overrides, "explanation", undefined),
+    explanationDe: field(overrides, "explanationDe", undefined),
+    fixDe: field(overrides, "fixDe", undefined),
     cwe: field(overrides, "cwe", undefined),
     refUrl: field(overrides, "refUrl", undefined),
     snippet: field(overrides, "snippet", undefined),

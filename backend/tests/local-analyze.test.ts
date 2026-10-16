@@ -5,11 +5,13 @@ import {
   MAX_FILES,
   safeRelativePath,
   handleLocalAnalyze,
+  footprintSnapshot,
 } from "../src/server/routes/local-analyze.js";
 import {
   AnalysisOrchestrator,
   SUPPORTED_EXTENSIONS,
 } from "../src/services/analyzer/orchestrator.js";
+import { listPacks } from "../src/services/security/rule-packs.js";
 import { quietScanner } from "./helpers/scanners.js";
 import type { Request } from "express";
 import type { AnalysisResult } from "../src/models/index.js";
@@ -293,5 +295,43 @@ describe("handleLocalAnalyze", () => {
     }
     expect(given.map((g) => g.profile).sort()).toEqual(["quality-only", "quick"]);
     expect(new Set(given.map((g) => g.instance)).size).toBe(2);
+  });
+});
+
+describe("the footprint route contract (GET /api/footprint)", () => {
+  it("serves the snapshot shape the entry screen renders", async () => {
+    const snap = await footprintSnapshot();
+    expect(Object.keys(snap).sort()).toEqual([
+      "approx",
+      "bytes",
+      "copies",
+      "offline",
+      "root",
+      "stale",
+      "ttlHours",
+    ]);
+    expect(typeof snap.root).toBe("string");
+    expect(typeof snap.copies).toBe("number");
+    expect(typeof snap.bytes).toBe("number");
+    expect(typeof snap.stale).toBe("number");
+    expect(typeof snap.ttlHours).toBe("number");
+    expect(typeof snap.offline).toBe("boolean");
+    expect(typeof snap.approx).toBe("boolean");
+  });
+});
+
+describe("the rule-packs route contract (GET /api/rule-packs)", () => {
+  it("selects by id, never by path: every pack is public without its absolute dir", () => {
+    const packs = listPacks();
+    expect(packs.length).toBeGreaterThan(0);
+    for (const pack of packs) {
+      expect(path.isAbsolute(pack.dir)).toBe(true); // the route strips this field
+      const { dir: _dir, ...publicPack } = pack;
+      expect("dir" in publicPack).toBe(false);
+      expect(typeof publicPack.id).toBe("string");
+      expect(typeof publicPack.license).toBe("string");
+      expect(typeof publicPack.ruleCount).toBe("number");
+      expect(publicPack.origin === "shipped" || publicPack.origin === "fetched").toBe(true);
+    }
   });
 });

@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useRef, useEffect, useLayoutEffect } from "react";
-import { useFrame } from "@react-three/fiber";
+import { useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
 import type { CityFile, Severity } from "../city/types";
 import type { FocusTier } from "../city/focus";
@@ -302,6 +302,26 @@ function getGroundGlowTexture(): THREE.CanvasTexture {
 
 // ── Building ───────────────────────────────────────────────────────────────
 
+/**
+ * V3: the reveal pulse — one damped stroke on the beacon of the building that
+ * carries the worst real finding, armed by CityScene with the reveal flight.
+ * `k` walks 0→1 over this many ms; the envelope is a single cosine lobe
+ * `(1−cos(2πk))/2`, zero slope at both ends, so the stroke starts and ends
+ * damped (no snap, no loop — motion rules from 2026-10-16-motion.md).
+ */
+export const REVEAL_PULSE_MS = 1600;
+
+/**
+ * E2E observability (S-P3): how many times the pulse actually animated and how
+ * far its lobe rose. Written from the render loop only — never React state, so
+ * no subscriber hears it. The drive script reads it through the window.
+ * Activations count DISTINCT arming objects that animated, not component
+ * instances: a drill-in that remounts the building mid-pulse keeps the count
+ * at one — it is still one pulse.
+ */
+let revealPulseActivations = 0;
+const revealPulseSeen = new WeakSet<object>();
+
 export interface BuildingProps {
   file: CityFile;
   x: number;
@@ -376,6 +396,7 @@ export function Building({
   voxels = null,
   highlightLine = null,
 }: BuildingProps) {
+  const { camera, gl } = useThree();
   const selectBuilding = useStore((s) => s.selectBuilding);
   // Etappe L "free camera": the double-click gesture upgrades from the plain
   // fly-to to the orbit-inspect mode — focusBuilding selects, flies and sets
@@ -383,6 +404,9 @@ export function Building({
   const focusBuilding = useStore((s) => s.focusBuilding);
   const selectedUnit = useStore((s) => s.selectedUnit);
   const setHoveredId = useStore((s) => s.setHoveredId);
+  // V3: the reveal pulse, armed once per build by CityScene. Every building
+  // reads it; only the one whose file id matches animates.
+  const revealPulse = useStore((s) => s.revealPulse);
   // Granular selectors: only the CVD/gfxLite flags — other pref changes must
   // not re-render hundreds of buildings
   const colorblind = useStore((s) => s.prefs.colorblind);
@@ -788,6 +812,11 @@ export function Building({
   const groupRef = useRef<THREE.Group>(null);
   // Construction cinematic finished — stop touching scale every frame
   const buildDoneRef = useRef(false);
+  // V3: which pulse armings this building has consumed (each armed pulse runs
+  // exactly once per mounted instance).
+  const pulseConsumedRef = useRef<{ fileId: string; startAt: number } | null>(null);
+  // Scratch vector for the pulse's screen-position report (S-P3 measurement).
+  const pulseScreenVec = useMemo(() => new THREE.Vector3(), []);
   // Hover highlight: target 0/1, eased toward every frame (no React re-render)
   const hoverTargetRef = useRef(0);
   const hoverGlowRef = useRef(0);
@@ -877,9 +906,70 @@ export function Building({
           (baseline + next * 0.6 + (reduced ? 0 : Math.sin(t * 0.7 + seed) * 0.05)) * overallFactor;
       }
     }
+    // V3: while the reveal pulse runs, it modulates the building itself — the
+    // facade's lit windows swell in one damped stroke and the beacon follows,
+    // both multiplicatively on their idle values, so the stroke starts and
+    // settles with no snap. Under reduced motion the pulse is consumed without
+    // animating (stillness).
+    const armed =
+      revealPulse && revealPulse.fileId === file.id && pulseConsumedRef.current !== revealPulse
+        ? revealPulse
+        : null;
+    let pulseK = 0;
+    let pulseBump = 0;
+    if (armed) {
+      const k = (Date.now() - armed.startAt) / REVEAL_PULSE_MS;
+      if (k < 0) {
+        // the reveal flight is still running — the pulse waits for its end
+      } else if (k >= 1 || reduced) {
+        pulseConsumedRef.current = armed;
+      } else {
+        pulseK = Math.min(1, k);
+        pulseBump = (1 - Math.cos(pulseK * Math.PI * 2)) / 2;
+        if (!revealPulseSeen.has(armed)) {
+          revealPulseSeen.add(armed);
+          revealPulseActivations += 1;
+        }
+      }
+    }
+    if (pulseK > 0) {
+      // The facade flash: baseEmissive × overallFactor is the value the layout
+      // effect writes; the lobe multiplies it and lands back on it at k → 1,
+      // so the last per-frame write IS the resting value and nothing lingers.
+      for (const m of materials) {
+        if (m.userData.baseEmissive === undefined) continue;
+        const em = m as THREE.MeshStandardMaterial;
+        em.emissiveIntensity =
+          (m.userData.baseEmissive as number) * overallFactor * (1 + 1.1 * pulseBump);
+      }
+    }
     if (beaconRef.current) {
-      const s = 0.8 + Math.abs(Math.sin(t * 2.4 + seed)) * 0.6;
-      beaconRef.current.scale.setScalar(s);
+      const idle = 0.8 + Math.abs(Math.sin(t * 2.4 + seed)) * 0.6;
+      beaconRef.current.scale.setScalar(pulseK > 0 ? idle * (1 + 0.6 * pulseBump) : idle);
+      // S-P3 measurement channel: what actually ran, for the headless drive.
+      if (typeof window !== "undefined" && pulseK > 0) {
+        // The beacon's screen position at this frame, so the drive can crop
+        // the screenshot pair exactly to the pulsing building.
+        pulseScreenVec.set(0, roofY + barTop + 0.35, 0);
+        if (groupRef.current) groupRef.current.localToWorld(pulseScreenVec);
+        pulseScreenVec.project(camera);
+        const sx = ((pulseScreenVec.x + 1) / 2) * gl.domElement.clientWidth;
+        const sy = ((1 - pulseScreenVec.y) / 2) * gl.domElement.clientHeight;
+        const w = window as unknown as {
+          __revealPulse?: {
+            activations: number;
+            peak: number;
+            target: string;
+            screen: { x: number; y: number };
+          };
+        };
+        w.__revealPulse = {
+          activations: revealPulseActivations,
+          peak: Math.max(w.__revealPulse?.peak ?? 0, pulseBump),
+          target: file.id,
+          screen: { x: Math.round(sx), y: Math.round(sy) },
+        };
+      }
     }
     if (beamRef.current) {
       const bm = beamRef.current.material as THREE.MeshBasicMaterial;

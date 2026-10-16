@@ -49,7 +49,8 @@ backend/src/
 │       ├── update-check.ts  # GET /api/update/check (the one self-request)
 │       ├── demo.ts          # GET /api/demo, /api/cities/default
 │       ├── health.ts        # GET /api/health
-│       └── agent.ts         # GET /api/result/:id/handoff, POST /api/verify (docs/AGENTS.md)
+│       ├── agent.ts         # GET /api/result/:id/handoff, POST /api/verify (docs/AGENTS.md)
+│       └── verdicts.ts      # GET/PUT /api/result/:id/verdicts, POST /api/verdicts/reset — the machine-local verdict store
 ├── services/
 │   ├── analyzer/
 │   │   ├── orchestrator.ts  # the pipeline: enumerate → parse → scan → aggregate

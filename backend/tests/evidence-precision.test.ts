@@ -63,6 +63,39 @@ describe("review evidence precision", () => {
     expect(finding.line).toBe(3);
     expect(finding.category).toBe("dependencies");
   });
+  it("attaches the German twin to curated knowledge without touching the English line", () => {
+    const finding = issue({
+      type: "SQL_INJECTION",
+      fix: "Use parameterized queries or an ORM (e.g., Prisma, Drizzle)",
+    });
+    enrichIssues([finding]);
+    // The English fields are the byte-stable contract the handoff channel and
+    // the English card read — enrichment adds the German twin, it never edits.
+    expect(finding.explanation).toBe(
+      "A database query is built by string concatenation, so attacker-supplied text can change its meaning — read, modify or delete any data the query can touch.",
+    );
+    expect(finding.fix).toBe("Use parameterized queries or an ORM (e.g., Prisma, Drizzle)");
+    expect(finding.explanationDe).toBe(
+      "Eine Datenbankabfrage entsteht durch String-Verkettung, Angreifer-Text kann also ihre Bedeutung ändern — Daten lesen, ändern oder löschen, die die Abfrage erreicht.",
+    );
+    expect(finding.fixDe).toBe(
+      "Parameterisierte Abfragen oder einen ORM verwenden (z. B. Prisma, Drizzle)",
+    );
+  });
+
+  it("leaves the English fallback in place when a type has no curated entry", () => {
+    const finding = issue({ type: "SEMGREP_UNKNOWN_RULE", provenance: "semgrep" });
+    enrichIssues([finding]);
+    expect(finding.explanation).toBe(
+      "Scanner flagged this construct as a potential security or quality issue.",
+    );
+    expect(finding.explanationDe).toBe(
+      "Der Scanner hat dieses Konstrukt als mögliches Sicherheits- oder Qualitätsproblem markiert.",
+    );
+    // No curated fix exists for an unknown rule, so no German fix is invented.
+    expect(finding.fixDe).toBeUndefined();
+  });
+
   it("does not attach current source to historical evidence or merge different commits", () => {
     const old = issue({ provenance: "gitleaks-history", historyCommit: "abc123" });
     enrichIssues([old], "unrelated\ncurrent\ncode\n");

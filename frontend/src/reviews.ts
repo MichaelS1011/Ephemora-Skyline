@@ -173,6 +173,13 @@ export function identityIsGuessed(city?: { repo: { owner: string; name: string }
  * moves, the verdict stays behind, and nothing about it is visible — the panel
  * reads as if the person had never triaged. Reported so the panel can say it,
  * rather than letting the work look lost or the count look right.
+ *
+ * Resolution mirrors `reviewKeyFor`: a key matches when a finding carries the
+ * fingerprint (`fp:<fp>`) or, for payloads without fingerprints, when it is
+ * the positional key of a file (`<fileId>#<index>`) the city still holds. The
+ * first version counted every positional key as stranded, so a payload without
+ * fingerprints reported its own matched verdicts as orphans — the S-P4 tally
+ * would have counted the same verdict twice (once judged, once stranded).
  */
 export function countStrandedVerdicts(
   reviews: Record<string, ReviewStatus>,
@@ -191,15 +198,90 @@ export function countStrandedVerdicts(
     }
     const o = n as Record<string, unknown>;
     if (Array.isArray(o.findings)) {
-      for (const v of o.findings as { fingerprint?: string }[]) {
-        if (v?.fingerprint) getragen.add(v.fingerprint);
+      for (let i = 0; i < o.findings.length; i++) {
+        const v = o.findings[i] as { fingerprint?: string } | undefined;
+        if (typeof o.id === "string" && o.id) getragen.add(findingKey(o.id, i));
+        if (v?.fingerprint) getragen.add(`fp:${v.fingerprint}`);
       }
     }
     for (const v of Object.values(o)) stack.push(v);
   }
   let stranded = 0;
   for (const key of Object.keys(reviews)) {
-    if (key.startsWith("fp:") ? !getragen.has(key.slice(3)) : true) stranded++;
+    if (!getragen.has(key)) stranded++;
   }
   return stranded;
+}
+
+/* ── Machine-local copy ──────────────────────────────────────────────────────
+   The browser's own storage is one copy of the verdicts, and the one the
+   screen reads synchronously. The machine copy — one JSON file the local
+   backend owns, keyed by the SAME projectKey — is what makes a verdict survive
+   a backend restart and a re-scan even when this browser profile is gone, and
+   what gives the agent channel its read-only view. The key is derived here and
+   only here; the backend stores it opaquely. */
+
+const verdictsRoute = (analysisId: string): string =>
+  `/api/result/${encodeURIComponent(analysisId)}/verdicts`;
+
+/**
+ * The machine copy for a scan, asked by the project bucket this browser
+ * derived. `null` means the backend did not answer — the browser copy stands
+ * alone, exactly as before the route existed.
+ */
+export async function fetchBackendReviews(
+  analysisId: string,
+  project: string,
+): Promise<Record<string, ReviewStatus> | null> {
+  if (!analysisId || !project) return null;
+  try {
+    const res = await fetch(`${verdictsRoute(analysisId)}?project=${encodeURIComponent(project)}`, {
+      headers: { Accept: "application/json" },
+    });
+    if (!res.ok) return null;
+    const body = (await res.json()) as { reviews?: Record<string, ReviewStatus> };
+    return cleanReviews(body.reviews);
+  } catch {
+    return null;
+  }
+}
+
+function cleanReviews(raw: unknown): Record<string, ReviewStatus> {
+  const clean: Record<string, ReviewStatus> = {};
+  if (!raw || typeof raw !== "object") return clean;
+  for (const [k, v] of Object.entries(raw as Record<string, unknown>)) {
+    if (v === "reviewed" || v === "false-positive" || v === "to-fix") clean[k] = v;
+  }
+  return clean;
+}
+
+/**
+ * Write the full map through to the machine copy, serialized so two quick
+ * verdicts cannot land out of order. Failures are tolerated: the browser copy
+ * still holds the verdict, and the next load adopts and re-pushes it.
+ */
+let verdictWriteChain: Promise<void> = Promise.resolve();
+
+export function pushBackendReviews(
+  analysisId: string,
+  project: string,
+  reviews: Record<string, ReviewStatus>,
+): void {
+  if (!analysisId || !project) return;
+  const body = JSON.stringify({ project, reviews });
+  verdictWriteChain = verdictWriteChain
+    .then(() =>
+      fetch(verdictsRoute(analysisId), {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body,
+      }),
+    )
+    .then(() => undefined)
+    .catch(() => undefined);
+}
+
+/** The entry screen's "delete my verdicts" clears the machine copy too. */
+export function resetBackendVerdicts(): void {
+  fetch("/api/verdicts/reset", { method: "POST" }).catch(() => undefined);
 }

@@ -30,8 +30,10 @@ import { loadSavedPacks, savePacks, type RulePackInfo } from "../config/rulePack
 import {
   bucketKeyFor,
   countStrandedVerdicts,
+  fetchBackendReviews,
   findingKey,
   loadReviewsForCity,
+  pushBackendReviews,
   reviewKeyFor,
   saveReviews,
 } from "../reviews";
@@ -269,6 +271,24 @@ interface AppState {
   reviews: Record<string, ReviewStatus>;
   /** Verdicts sitting in a pre-fingerprint bucket this project cannot read. */
   orphanedReviews: number;
+  /**
+   * V3: the reveal pulse armed for the current build.
+   *
+   * Set exactly once per reveal by CityScene, together with the reveal flight
+   * it accompanies; `Building` runs it exactly once (a damped single lobe on
+   * the beacon of the worst REAL finding) and then leaves it. Null = nothing
+   * armed — a demo or a scan without findings never arms one. `startAt` is the
+   * epoch-ms when the pulse may begin (the reveal flight ends first).
+   */
+  revealPulse: { fileId: string; startAt: number } | null;
+  /**
+   * V1: the review key the FIRST verdict of this visit was set under.
+   *
+   * The panel confirms exactly that verdict with the persistence promise;
+   * null = no verdict has been set in this visit, so no confirmation. Reset
+   * when the visit is torn down — the promise is made once per visit.
+   */
+  firstVerdictKey: string | null;
   /**
    * A verdict could not be written to storage.
    *
@@ -531,8 +551,43 @@ export const useStore = create<AppState>((set, get) => {
       analysisProgress: 0,
       analysisStage: "",
       poseRequest: null,
+      // V3: no city, no pulse. V1: the next visit makes its own first-verdict
+      // promise — this visit's confirmation is spent.
+      revealPulse: null,
+      firstVerdictKey: null,
     });
     if (typeof window !== "undefined") clearVisitParams(push);
+  };
+
+  /**
+   * Adopt the machine copy of this project's verdicts into the city on screen.
+   *
+   * The browser copy is read synchronously above; the machine copy — one JSON
+   * file the local backend owns — is the one that survives a backend restart
+   * and a different browser profile. Asked by the same bucket key, merged with
+   * the browser copy winning on conflicts (the verdict on this screen is the
+   * one this person just made), then pushed back so the machine copy carries
+   * the merge and the scan registers itself for the agent's read-only route.
+   * A backend that does not answer leaves the browser copy standing alone —
+   * the behavior this app had before the route existed.
+   */
+  const adoptMachineVerdicts = async (
+    analysisId: string,
+    project: string,
+    local: Record<string, ReviewStatus>,
+  ): Promise<void> => {
+    const backend = await fetchBackendReviews(analysisId, project);
+    if (!backend) return;
+    const merged = { ...backend, ...local };
+    if (get().cityData?.analysisId !== analysisId) return; // a newer city arrived
+    if (Object.keys(merged).length !== Object.keys(local).length) {
+      saveReviews(project, merged);
+      set({
+        reviews: merged,
+        orphanedReviews: countStrandedVerdicts(merged, get().cityData),
+      });
+    }
+    pushBackendReviews(analysisId, project, merged);
   };
 
   return {
@@ -589,6 +644,9 @@ export const useStore = create<AppState>((set, get) => {
         reviews,
         orphanedReviews: countStrandedVerdicts(reviews, data),
         verdictsBlocked: false,
+        // V3: a city arrives unarmed — CityScene arms the pulse with the reveal
+        // flight of THIS build, and never with one from a previous city.
+        revealPulse: null,
         testRun: { status: "idle", stage: "" },
         testResults: {},
         buildPhase: data ? (seenBefore ? "built" : "constructing") : "empty",
@@ -611,6 +669,13 @@ export const useStore = create<AppState>((set, get) => {
       // this one": the sanctioned flight is the honest way to honour it, and a
       // selection the screen shows nowhere would be a half-restored visit.
       if (restored.file && !pose) get().navigateToFile(restored.file.id);
+      // The machine copy is the second home of the verdicts: adopt what the
+      // backend holds and register this scan, so a re-scan after a restart and
+      // the agent's read-only route both find the same bucket. Local scans
+      // only — the demo city has no verdict history to lose.
+      if (data && data.repo?.owner === "local" && data.analysisId) {
+        void adoptMachineVerdicts(data.analysisId, bucketKeyFor(data), reviews);
+      }
     },
 
     /** Tear the city down and return to the Landing screen ("start over"). */
@@ -878,6 +943,8 @@ export const useStore = create<AppState>((set, get) => {
     reviews: {},
     orphanedReviews: 0,
     verdictsBlocked: false,
+    revealPulse: null,
+    firstVerdictKey: null,
     setReview: (key, status) => {
       const { reviews, cityData } = get();
       const next = { ...reviews };
@@ -887,7 +954,20 @@ export const useStore = create<AppState>((set, get) => {
       // The storage call used to swallow that (`catch {}`) — say so on screen
       // rather than let a full day of triage look saved.
       const written = cityData ? saveReviews(bucketKeyFor(cityData), next) : true;
-      set({ reviews: next, verdictsBlocked: !written });
+      // Write through to the machine copy — the half that outlives this
+      // browser profile. A refusal there is tolerated: the browser copy still
+      // holds the verdict, and the next load adopts and re-pushes it.
+      if (cityData?.analysisId && cityData.repo?.owner === "local") {
+        pushBackendReviews(cityData.analysisId, bucketKeyFor(cityData), next);
+      }
+      set({
+        reviews: next,
+        verdictsBlocked: !written,
+        // V1: the FIRST verdict of the visit is the commitment the panel
+        // confirms. Clearing or re-marking later never moves the marker.
+        firstVerdictKey:
+          status !== null && get().firstVerdictKey === null ? key : get().firstVerdictKey,
+      });
     },
 
     prefs: loadPrefs(),

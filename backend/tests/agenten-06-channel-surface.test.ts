@@ -3,7 +3,7 @@ import { existsSync, readFileSync } from "fs";
 import path from "path";
 import type { Request, Response } from "express";
 import type { AnalysisResult, FileAnalysis } from "../src/models/index.js";
-import { buildHandoffLines, handleHandoff } from "../src/server/routes/agent.js";
+import { buildHandoffLines, handleHandoff, handleVerify } from "../src/server/routes/agent.js";
 import {
   expectedOrigins,
   isForeignBrowserRequest,
@@ -116,7 +116,7 @@ function strings(value: unknown): string[] {
 }
 
 /** The middleware list of one route registration, as it is written in the table. */
-function middlewareOf(method: "get" | "post", pathname: string): string {
+function middlewareOf(method: "get" | "post" | "put", pathname: string): string {
   const needle = `"${pathname}"`;
   let from = 0;
   for (;;) {
@@ -278,31 +278,51 @@ describe("the channel cannot write, and is guarded like the routes that can", ()
       "/api/analyze-local/:id/cancel",
       "/api/tests/:id/run",
       "/api/footprint/purge",
+      "/api/result/:id/verdicts",
+      "/api/verdicts/reset",
     ]) {
-      expect(middlewareOf("post", runs), `${runs} is a route that acts on the machine`).toContain(
-        "localOnlyRoute",
-      );
+      expect(
+        middlewareOf("post", runs) || middlewareOf("put", runs),
+        `${runs} is a route that acts on the machine`,
+      ).toContain("localOnlyRoute");
     }
     expect(middlewareOf("get", "/api/result/:id/handoff")).toContain("readLimiter");
+    expect(middlewareOf("get", "/api/result/:id/verdicts")).toContain("readLimiter");
     expect(flat).toContain("carries the same origin guard as the routes that run code");
   });
 
-  it("offers the agent no route that takes a verdict or a write", () => {
+  it("writes nothing an agent can reach: the verdict route is read-only, the writes are guarded", () => {
     const routes = [
       ...serverSource.matchAll(/app\.(get|post|put|patch|delete)\(\s*"([^"]+)"/g),
     ].map((m) => `${m[1]} ${m[2]}`);
-    expect(routes.filter((r) => /review|verdict|false-positive|to-fix/i.test(r))).toEqual([]);
+    expect(routes.filter((r) => /review|verdict|false-positive|to-fix/i.test(r))).toEqual([
+      "get /api/result/:id/verdicts",
+      "put /api/result/:id/verdicts",
+      "post /api/verdicts/reset",
+    ]);
     expect(routes.filter((r) => /handoff|verify/.test(r))).toEqual([
       "get /api/result/:id/handoff",
       "post /api/verify",
     ]);
+    // The write half of the verdict surface is the browser's door, guarded like
+    // the routes that run code; the read half is what the agent gets.
+    const verdictsSource = readFileSync(
+      path.join(REPO, "backend/src/server/routes/verdicts.ts"),
+      "utf-8",
+    );
+    expect(verdictsSource).toMatch(/CODECITY_VERDICTS_FILE/);
+    expect(verdictsSource).not.toMatch(/https?:\/\//);
   });
 
-  it("keeps the verdicts in the browser the document names", () => {
+  it("names the two homes of a verdict: this browser's storage and the machine's file", () => {
     const reviews = readFileSync(path.join(REPO, "frontend/src/reviews.ts"), "utf-8");
     expect(reviews).toContain("localStorage");
-    expect(flat).toContain("this browser's own storage");
-    expect(flat).toContain("no route accepts them");
+    expect(flat).toContain("Read the verdicts");
+    expect(flat).toContain("this channel names only the read");
+    expect(flat).toContain("one JSON file (`verdicts.json`)");
+    expect(flat).toContain("CODECITY_VERDICTS_FILE");
+    expect(flat).toContain("they survive a backend restart and a re-scan");
+    expect(flat).not.toContain("no route accepts them");
   });
 });
 
@@ -362,6 +382,7 @@ describe("the address the document tells a reader to call", () => {
     expect(vite).toMatch(/port: 3010/);
     expect(doc).toContain("http://127.0.0.1:4000/api/result/<analysisId>/handoff");
     expect(doc).toContain("http://127.0.0.1:4000/api/verify");
+    expect(doc).toContain("http://127.0.0.1:4000/api/result/<analysisId>/verdicts");
   });
 
   it("never names an Origin the process might not serve", () => {
@@ -440,5 +461,78 @@ describe("the address the document tells a reader to call", () => {
       if (previous === undefined) delete process.env.FRONTEND_ORIGIN;
       else process.env.FRONTEND_ORIGIN = previous;
     }
+  });
+});
+
+describe("the result and verify routes answer their contract", () => {
+  const store = {
+    get: (id: string): AnalysisResult | undefined => (id === result.id ? result : undefined),
+  };
+
+  const verifyRes = () => {
+    const capture: { status: number; body: unknown } = { status: 200, body: undefined };
+    const res = {
+      status(code: number) {
+        capture.status = code;
+        return this;
+      },
+      json(value: unknown) {
+        capture.body = value;
+        return this;
+      },
+    };
+    return { capture, res: res as unknown as Response };
+  };
+
+  it("POST /api/verify answers the report shape, 400 without both ids, 404 for an unknown scan", async () => {
+    const ok = verifyRes();
+    await handleVerify(
+      { body: { before: result.id, after: result.id } } as unknown as Request,
+      ok.res,
+      store,
+    );
+    expect(ok.capture.status).toBe(200);
+    expect(Object.keys(ok.capture.body as object).sort()).toEqual([
+      "after",
+      "before",
+      "checked",
+      "gone",
+      "moved",
+      "present",
+      "unknown",
+    ]);
+
+    const oneSided = verifyRes();
+    await handleVerify({ body: { before: result.id } } as unknown as Request, oneSided.res, store);
+    expect(oneSided.capture.status).toBe(400);
+
+    const unknown = verifyRes();
+    await handleVerify(
+      { body: { before: result.id, after: "missing" } } as unknown as Request,
+      unknown.res,
+      store,
+    );
+    expect(unknown.capture.status).toBe(404);
+  });
+
+  it("GET /api/result/:id(/city|/sarif) serves the stored result, its city and its SARIF, 404s when absent", () => {
+    expect(serverSource).toMatch(/app\.get\("\/api\/result\/:id", /);
+    expect(serverSource).toMatch(/app\.get\("\/api\/result\/:id\/city", /);
+    expect(serverSource).toMatch(/app\.get\("\/api\/result\/:id\/sarif", /);
+    expect(serverSource).toContain('res.status(404).json({ error: "Analysis not found" })');
+    expect(serverSource).toContain('res.status(400).json({ error: "Missing analysis ID" })');
+    expect(serverSource).toContain('"application/sarif+json"');
+
+    // The success forms are the same exports the handoff contract already keyed
+    // to the fingerprint: one stored result maps to a city and a SARIF export.
+    const city = mapResultToCityData(result);
+    expect(city.analysisId).toBe(result.id);
+    expect(city.totalFiles).toBe(result.files.length);
+    const sarif = resultToSarif(result);
+    expect(sarif.version).toBe("2.1.0");
+    expect(sarif.runs[0]!.automationDetails.id).toBe(result.id);
+    expect(sarif.runs[0]!.results).toHaveLength(
+      result.files.reduce((sum, f) => sum + f.vulnerabilities.length, 0),
+    );
   });
 });

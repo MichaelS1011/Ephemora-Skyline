@@ -77,17 +77,38 @@ a browser page from another website, and a client on this machine names no origi
 and is let through. Send one only when it is the origin this process serves — a
 configured `FRONTEND_ORIGIN` and a header that does not match it is a 403.
 
-## 3. What is not here yet, on purpose
+## 3. Read the verdicts
 
-| Missing                                 | Why it is missing                                                                                                                                                                                                                                                                                                                                                                                                                                    |
-| --------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Your verdicts (false positive / to fix) | they are written to this browser's own storage (`frontend/src/reviews.ts`) and no route accepts them, until review data has somewhere to be persisted                                                                                                                                                                                                                                                                                                |
-| A stable project id in the payload      | the scan id is a fresh uuid per scan; the project bucket exists as `projectKey` in `frontend/src/reviews.ts`, but it is not exported                                                                                                                                                                                                                                                                                                                 |
-| Absolute paths                          | the picker names paths relative to the folder you chose, and the backend refuses an absolute or climbing one — `safeRelativePath` in `backend/src/server/routes/local-analyze.ts`                                                                                                                                                                                                                                                                    |
-| An MCP server                           | the channel works without a protocol: the example packet is one line of 643 bytes and both endpoints are read-only. A server is worth it once verification and persistence exist. `semgrep/mcp` is the cautionary example: its README states the repository "has been deprecated, and further updates to the Semgrep MCP server will be made via the official `semgrep` binary" — [github.com/semgrep/mcp](https://github.com/semgrep/mcp), archived |
+```bash
+curl -s http://127.0.0.1:4000/api/result/<analysisId>/verdicts
+```
 
-## 4. The rule that survives all of this
+`{"project": "<bucket>", "reviews": {"fp:<fingerprint>": "false-positive" | "to-fix" | "reviewed"}}`.
+Read-only. The write doors — a `PUT` on the same path and `POST /api/verdicts/reset` —
+belong to the browser and carry the same origin guard as the routes that run code;
+this channel names only the read. `project` is the bucket `projectKey` in
+`frontend/src/reviews.ts` mints — the workspace root the person configured for the
+editor, otherwise the folder's top-level shape — derived in that one place and
+never shipped inside the handoff payload. It is `""` while nothing has been synced
+for that scan in the running process; a `?project=<bucket>` query reads a bucket
+directly, which is how a re-scan finds the verdicts a previous process wrote before
+anything was registered again. The verdicts live in one JSON file (`verdicts.json`)
+in `~/.ephemora-skyline` on this machine (`backend/src/server/routes/verdicts.ts`,
+override `CODECITY_VERDICTS_FILE`) — they survive a backend restart and a re-scan
+of the same folder, and nothing about them leaves the machine.
+
+## 4. What is not here yet, on purpose
+
+| Missing                            | Why it is missing                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| ---------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| A stable project id in the payload | the scan id is a fresh uuid per scan; the handoff line still carries no project bucket — the stable project id rides the verdict routes (`?project=` / the PUT body) and is minted in exactly one place, `projectKey` in `frontend/src/reviews.ts`                                                                                                                                                                                                                                                                          |
+| Verdicts on another machine        | nothing leaves this machine: `SHARE_LINK` stays empty, the verdict store writes one local JSON file only, and no route talks to the network. A verdict belongs to the machine that scanned the folder                                                                                                                                                                                                                                                                                                                       |
+| Absolute paths                     | the picker names paths relative to the folder you chose, and the backend refuses an absolute or climbing one — `safeRelativePath` in `backend/src/server/routes/local-analyze.ts`                                                                                                                                                                                                                                                                                                                                           |
+| An MCP server                      | the channel works without a protocol: the example packet is one line of 643 bytes and both endpoints are read-only. A server is worth it once verification and persistence exist — persistence now does, and the verdicts are read over the route above. `semgrep/mcp` is the cautionary example: its README states the repository "has been deprecated, and further updates to the Semgrep MCP server will be made via the official `semgrep` binary" — [github.com/semgrep/mcp](https://github.com/semgrep/mcp), archived |
+
+## 5. The rule that survives all of this
 
 The agent gets evidence and a way to check itself. It does not get write access
 to the city, the scan or the verdicts. A finding becomes "handled" when a human
-says so, and when a later scan says the code agrees.
+says so, and when a later scan says the code agrees. The verdicts now have a home
+that outlives the process; the agent still only reads them.

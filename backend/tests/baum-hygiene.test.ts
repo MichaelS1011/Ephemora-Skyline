@@ -375,8 +375,13 @@ describe("what is linked also ships", () => {
   }
 
   it("points only at files that exist and are in the commit set", () => {
+    // A runtime file the program itself writes (~/.ephemora-skyline/...) is
+    // not part of what a commit ships — but the privacy promise REQUIRES the
+    // docs to name it. That is a deliberate pointer, not a broken one.
+    const RUNTIME_PATHS = [/^\.ephemora-skyline\//];
     const broken: string[] = [];
     for (const [rel, docs] of referenced) {
+      if (RUNTIME_PATHS.some((re) => re.test(rel))) continue;
       if (!existsSync(path.join(REPO, rel)))
         broken.push(`${rel} — named by ${docs.join(", ")} (absent)`);
       else if (!DELIVERED_SET.has(rel))

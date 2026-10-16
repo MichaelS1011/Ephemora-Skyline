@@ -139,6 +139,25 @@ export function FindingsPanel() {
   // chip is active, otherwise it would advertise a filtered count.
   const severityTotal = severityGroups.reduce((sum, group) => sum + group.count, 0);
   /**
+   * V2: how many findings of the WHOLE scan carry a verdict. Counted over
+   * every file the scan holds (never the filtered list — a filter must not
+   * shrink the project's tally), resolved the way the triage resolves them
+   * (`reviewKeyFor`). Orphaned verdicts match no finding, so they never count
+   * here: "beurteilt" that pretends a renamed finding is decided would be the
+   * prettified count S-P4 forbids. They are stated separately, in the same
+   * line and in the note below.
+   */
+  const judgedTotal = useMemo(() => {
+    if (!cityData) return 0;
+    let judged = 0;
+    for (const { file } of allFiles(cityData)) {
+      file.findings.forEach((finding, index) => {
+        if (reviews[reviewKeyFor(file, index, finding)]) judged++;
+      });
+    }
+    return judged;
+  }, [cityData, reviews]);
+  /**
    * Findings the scan reported but this list cannot show because their file is
    * not drawn in the current view. Only stated unfiltered: under a severity or
    * rule filter the scan total has no comparable counterpart.
@@ -233,6 +252,23 @@ export function FindingsPanel() {
           <p className="panel-subtitle">
             {t(lang, summaryKey, { count: totalFindings, files: groups.length })}
           </p>
+          {/* V2: the project's own progress, permanent once the first verdict
+              exists — the return visit sees its earlier work at once. The
+              orphaned variant counts the stranded verdicts in the same line,
+              labelled apart, so the tally never silently loses them. */}
+          {Object.keys(reviews).length > 0 && (
+            <p className="panel-subtitle" data-judged-tally>
+              {t(
+                lang,
+                orphanedReviews > 0 ? "findings.judgedTallyOrphaned" : "findings.judgedTally",
+                {
+                  judged: judgedTotal,
+                  total: scanTotal,
+                  orphans: orphanedReviews,
+                },
+              )}
+            </p>
+          )}
           {undrawn > 0 && (
             <p className="panel-note">{t(lang, "findings.undrawn", { count: undrawn })}</p>
           )}

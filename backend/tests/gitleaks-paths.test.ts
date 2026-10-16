@@ -6,6 +6,7 @@ import path from "path";
 import { GitleaksAdapter } from "../src/services/security/adapters/gitleaks-adapter.js";
 import { relativeToClone } from "../src/services/security/adapter.js";
 import { leakPath } from "../src/services/security/adapters/gitleaks-adapter.js";
+import { GITLEAKS_SCAN_BUDGET_MS, GITLEAKS_HISTORY_BUDGET_MS } from "./helpers/budgets.js";
 
 /**
  * The key contract between a batch adapter and the merge in scanner.ts.
@@ -16,6 +17,12 @@ import { leakPath } from "../src/services/security/adapters/gitleaks-adapter.js"
  * secret finding vanished in the merge with no error anywhere to show it.
  * The batch-merge contract test could not catch that: it stubs
  * scanRepository and hands back an already-relative key.
+ *
+ * Deliberately real gitleaks, and not a `helpers/scanners.ts` candidate: the
+ * keying question (absolute working-tree path vs commit-relative history path)
+ * is only answered by the real binary. The two scans are `skipIf(!bin)`-guarded
+ * and carry their own `GITLEAKS_SCAN_BUDGET_MS` / `GITLEAKS_HISTORY_BUDGET_MS`
+ * budgets — the engine here is the subject.
  */
 
 // Same resolution order the adapter uses: PATH, then the usual prefixes.
@@ -90,7 +97,7 @@ describe("GitleaksAdapter.scanRepository keys", () => {
         await fs.rm(dir, { recursive: true, force: true });
       }
     },
-    60000,
+    GITLEAKS_SCAN_BUDGET_MS,
   );
 });
 
@@ -167,6 +174,6 @@ describe("a secret that only lives in git history", () => {
         await fs.rm(dir, { recursive: true, force: true });
       }
     },
-    90000,
+    GITLEAKS_HISTORY_BUDGET_MS,
   );
 });

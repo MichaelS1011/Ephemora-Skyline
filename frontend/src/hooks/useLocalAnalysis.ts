@@ -421,7 +421,10 @@ export function useLocalAnalysis() {
   }, [cleanupPicker]);
 
   const offerAlternativePicker = useCallback(
-    (run: number, key: "scan.pickerTimeout" | "scan.pickerUnavailable") => {
+    (
+      run: number,
+      key: "scan.pickerTimeout" | "scan.pickerUnavailable" | "scan.pickerNeverOpened",
+    ) => {
       if (runRef.current !== run) return;
       alternativeRunRef.current = run;
       setCanUseAlternativePicker(true);

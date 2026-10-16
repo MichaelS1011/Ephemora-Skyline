@@ -66,6 +66,25 @@ describe("review storage", () => {
     ).toBe(2);
   });
 
+  it("S-P4: a positional verdict that a fingerprint-less payload resolves is NOT stranded", () => {
+    // reviewKeyFor falls back to <fileId>#<index> when a finding carries no
+    // fingerprint — the orphan count must mirror that resolution, otherwise
+    // the project tally counts one verdict twice (judged AND stranded)
+    const stadt = { id: "f-db", findings: [{ line: 2 }, { line: 7 }] };
+    expect(countStrandedVerdicts({ "f-db#0": "reviewed" }, stadt)).toBe(0);
+    // the same key against a city whose file id no longer holds it IS stranded
+    expect(
+      countStrandedVerdicts({ "f-db#0": "reviewed" }, { id: "f-other", findings: [{ line: 2 }] }),
+    ).toBe(1);
+    // and a fingerprint verdict strands when the fingerprint is gone
+    expect(
+      countStrandedVerdicts(
+        { "fp:aaa": "reviewed" },
+        { id: "f-db", findings: [{ line: 2, fingerprint: "bbb" }] },
+      ),
+    ).toBe(1);
+  });
+
   it("reads garbage in storage as nothing rather than throwing", () => {
     localStorage.setItem("codecity-reviews:kaputt", "{not json");
     expect(loadReviews("kaputt")).toEqual({});

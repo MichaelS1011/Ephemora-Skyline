@@ -10,6 +10,9 @@ import {
   riskScore,
   landmarkFileId,
   tourStops,
+  revealPulseFileId,
+  armRevealPulse,
+  REVEAL_FLIGHT_MS,
 } from "../src/city/layout";
 import type { CityData, CityFile, Severity } from "../src/city/types";
 
@@ -374,5 +377,137 @@ describe("Voronoi layout mode", () => {
         setLayoutMode("grid");
       });
     }
+  });
+});
+
+/**
+ * V3 (S-P3): the reveal pulse must light exactly the building that carries the
+ * worst REAL finding of the level the reveal frames — and never a synthetic
+ * demo finding, because the demo is honest about being nobody's analysis.
+ */
+describe("the reveal pulse picks the worst real finding", () => {
+  it("targets the P0 file drawn on the level the reveal frames", () => {
+    const city = createMockCity();
+    // src plaza holds server.ts (P0) and utils.ts (P2) — the P0 wins
+    expect(revealPulseFileId(city, ["src"])).toBe("f1");
+  });
+
+  it("finds the worst finding through the district skyline, where most repos keep it", () => {
+    const city = createMockCity();
+    // the root overview frames districts: server.ts stands as a skyline tower
+    // of the src block — the pulse targets that tower, not nothing
+    expect(revealPulseFileId(city, [])).toBe("f1");
+  });
+
+  it("prefers severity over anything else: a P1 beats a P2 pair", () => {
+    const city = createMockCity();
+    const [server, utils] = city.tree.children[0]!.detailFiles as [CityFile, CityFile];
+    server.findings = [
+      {
+        type: "REGEX_DOS",
+        severity: "P2",
+        line: 10,
+        message: "Inefficient regex",
+      },
+    ];
+    utils.findings = [
+      {
+        type: "WEAK_HASH",
+        severity: "P1",
+        line: 3,
+        message: "Weak hash",
+      },
+    ];
+    expect(revealPulseFileId(city, ["src"])).toBe("f2");
+  });
+
+  it("stays dark when the worst finding is not drawn on the framed level", () => {
+    const city = createMockCity();
+    // demote the plaza files so the only P0 lives deep down
+    const [server, utils] = city.tree.children[0]!.detailFiles as [CityFile, CityFile];
+    server.findings = [
+      { type: "REGEX_DOS", severity: "P2", line: 10, message: "Inefficient regex" },
+    ];
+    utils.findings = [
+      { type: "REGEX_DOS", severity: "P2", line: 12, message: "Inefficient regex" },
+    ];
+    const deep: CityFile = {
+      id: "f-deep",
+      name: "deep.ts",
+      path: "src/deep/deep.ts",
+      language: "TypeScript",
+      linesOfCode: 40,
+      cyclomaticComplexity: 2,
+      threatLevel: "critical",
+      findings: [{ type: "EVAL_USAGE", severity: "P0", line: 1, message: "eval" }],
+    };
+    const drawn: CityFile = {
+      id: "f-drawn",
+      name: "drawn.ts",
+      path: "src/deep/drawn.ts",
+      language: "TypeScript",
+      linesOfCode: 20,
+      cyclomaticComplexity: 1,
+      threatLevel: "safe",
+      findings: [],
+    };
+    // the deep district's skyline names ONLY the clean file — deep.ts is
+    // neither plaza nor skyline on the src level, so nothing may pulse
+    city.tree.children[0]!.children = [
+      {
+        name: "deep",
+        path: "src/deep",
+        fileCount: 2,
+        linesOfCode: 60,
+        languages: { TypeScript: 60 },
+        findingsBySeverity: { P0: 1, P1: 0, P2: 0 },
+        threatScore: 10,
+        topFindings: deep.findings,
+        children: [],
+        detailFiles: [deep, drawn],
+        remainingFiles: 0,
+        districtFiles: [drawn],
+      },
+    ];
+    expect(revealPulseFileId(city, ["src"])).toBeNull();
+  });
+
+  it("never lights a demo finding — synthetic examples are not scan results", () => {
+    const city = createMockCity();
+    for (const f of city.tree.children[0]!.detailFiles) {
+      for (const finding of f.findings) finding.provenance = "demo";
+    }
+    expect(revealPulseFileId(city, ["src"])).toBeNull();
+    expect(revealPulseFileId(city, [])).toBeNull();
+    // the demo city DOES carry findings — the pulse must ignore them, not
+    // pretend the scan found nothing
+    expect(city.findingsBySeverity.P0).toBe(1);
+  });
+
+  it("stays dark for a scan without findings", () => {
+    const city = createMockCity();
+    for (const f of city.tree.children[0]!.detailFiles) f.findings = [];
+    expect(revealPulseFileId(city, ["src"])).toBeNull();
+  });
+});
+
+describe("the reveal pulse is armed with the reveal flight", () => {
+  it("begins when the flight ends, and at once under reduced motion", () => {
+    const city = createMockCity();
+    const at = 1000;
+    expect(REVEAL_FLIGHT_MS).toBe(2600);
+    // defaultOverviewPath is [] for a small city; the worst file stands on
+    // the src skyline, so the pulse targets its tower
+    expect(armRevealPulse(city, at, false)).toEqual({ fileId: "f1", startAt: at + 2600 });
+    expect(armRevealPulse(city, at, true)).toEqual({ fileId: "f1", startAt: at });
+  });
+
+  it("arms nothing for a city with no real finding", () => {
+    const city = createMockCity();
+    for (const f of city.tree.children[0]!.detailFiles) {
+      for (const finding of f.findings) finding.provenance = "demo";
+    }
+    expect(armRevealPulse(city, 1000, false)).toBeNull();
+    expect(armRevealPulse(null, 1000, false)).toBeNull();
   });
 });

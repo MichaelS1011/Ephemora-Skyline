@@ -38,8 +38,8 @@ describe("the API table (README.md:212-230)", () => {
    * to prevent. 2026-10-12: the two staged-copy routes were named in the
    * privacy section but had no row here; they have one now.
    */
-  it("names eighteen routes, as many as the table has rows", () => {
-    expect(rows.length).toBe(18);
+  it("names twenty routes, as many as the table has rows", () => {
+    expect(rows.length).toBe(20);
   });
 
   it("lists only routes the server actually registers", () => {

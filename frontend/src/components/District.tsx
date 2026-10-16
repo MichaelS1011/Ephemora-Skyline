@@ -151,7 +151,11 @@ export function District({ placement, appearAt, skylineAt, constructing }: Distr
           g.visible = false;
         } else {
           g.visible = true;
-          const k = Math.min(1, (now - appearAt) / 550);
+          // Same rise as the towers that stand on it (Building.tsx) and as the
+          // builders' RISE_MS (Pedestrians.tsx): one construction gesture, one
+          // duration — a plot that finished 150 ms before its own towers read
+          // as two different motions in the same cinematic.
+          const k = Math.min(1, (now - appearAt) / 700);
           const ease = 1 - Math.pow(1 - k, 3);
           g.scale.y = Math.max(0.001, ease);
         }

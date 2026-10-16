@@ -4,6 +4,12 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
 
+/**
+ * The subject is the shipped `scripts/audit-gate.mjs` gate itself: each case
+ * spawns that script with a fake `npm` on PATH that prints a canned report, so
+ * the real npm-audit network call is never made. The forked process is the
+ * thing under test, not a scanner engine — this stays real on purpose.
+ */
 function runAudit(report: unknown, status: number) {
   const dir = mkdtempSync(path.join(tmpdir(), "skyline-audit-test-"));
   try {

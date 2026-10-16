@@ -1,4 +1,6 @@
 import { describe, it, expect } from "vitest";
+import { readFileSync } from "fs";
+import path from "path";
 import {
   corsOptionsFor,
   expectedOrigins,
@@ -221,5 +223,24 @@ describe("the body limit answers as what it is", () => {
     handler(new Error("connect ECONNREFUSED"), {} as never, res as never);
     expect(seen.status).toBe(500);
     expect(JSON.stringify(seen.body)).not.toContain("ECONNREFUSED");
+  });
+});
+
+describe("every write route carries the origin guard", () => {
+  it("leaves no app.post unguarded, and /api/verify is in the guarded set", () => {
+    const source = readFileSync(
+      path.resolve(import.meta.dirname, "../src/server/index.ts"),
+      "utf-8",
+    );
+    const everyPost = [...source.matchAll(/app\.post\(\s*"([^"]+)"/g)].map((m) => m[1]!);
+    const guardedPost = [...source.matchAll(/app\.post\(\s*"([^"]+)",\s*localOnlyRoute/g)].map(
+      (m) => m[1]!,
+    );
+    expect(everyPost, "a POST without the guard is a route another website can drive").toEqual(
+      guardedPost,
+    );
+    // The one read-only POST: a body that names two scans still answers 403 to
+    // a foreign page, exactly like the routes that run code.
+    expect(guardedPost).toContain("/api/verify");
   });
 });

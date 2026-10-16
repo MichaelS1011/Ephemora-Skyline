@@ -34,6 +34,7 @@ import {
   uploadsRoot,
 } from "./routes/local-analyze.js";
 import { handleHandoff, handleVerify } from "./routes/agent.js";
+import { handleGetVerdicts, handlePutVerdicts, handleResetVerdicts } from "./routes/verdicts.js";
 import { handleSource } from "./routes/source.js";
 import { handleUpdateCheck } from "./routes/update-check.js";
 // Placed after the route imports: the tree-hygiene gate reads this file's import
@@ -331,8 +332,12 @@ app.get("/api/rule-packs", (_req: Request, res: Response): void => {
 // GET /api/footprint — what this program keeps on the machine it runs on, and
 // POST /api/footprint/purge to sweep the part of it that is past its TTL. The
 // entry screen renders its privacy note from here, so "nothing is kept forever"
-// can be read as a number and acted on without a terminal. The purge is a write
-// and goes through the same guard as the routes that run code.
+// can be read as a number and acted on without a terminal. The snapshot counts
+// the staged folder copies (footprintSnapshot); the machine's second home of
+// the human's triage is the verdict store at ~/.ephemora-skyline/verdicts.json
+// (CODECITY_VERDICTS_FILE overrides), cleared by POST /api/verdicts/reset — the
+// entry screen's reset button deletes the browser buckets and that file. The
+// purge is a write and goes through the same guard as the routes that run code.
 app.get("/api/footprint", readLimiter, async (_req: Request, res: Response): Promise<void> => {
   res.json(await footprintSnapshot());
 });
@@ -349,6 +354,19 @@ app.post(
 // the channel a coding agent reads; the 3D city is the channel a human reads.
 app.get("/api/result/:id/handoff", readLimiter, (req: Request, res: Response): void => {
   handleHandoff(req, res, analysisStore);
+});
+
+// The verdicts the human set for a project, stored machine-local so a re-scan
+// and a restart find them. GET is a read (an agent's only door); PUT and the
+// reset are writes and carry the same origin guard as the routes that run code.
+app.get("/api/result/:id/verdicts", readLimiter, (req: Request, res: Response): void => {
+  void handleGetVerdicts(req, res, analysisStore);
+});
+app.put("/api/result/:id/verdicts", localOnlyRoute, (req: Request, res: Response): void => {
+  void handlePutVerdicts(req, res, analysisStore);
+});
+app.post("/api/verdicts/reset", localOnlyRoute, (req: Request, res: Response): void => {
+  void handleResetVerdicts(req, res);
 });
 
 // POST /api/verify — did the findings of one scan survive a later one? A read of

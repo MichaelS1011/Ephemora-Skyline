@@ -46,6 +46,10 @@ export interface CityFinding {
   packageVersion?: string;
   /** Plain-language explanation of the finding class */
   explanation?: string;
+  /** German twin of `explanation` — the card picks it when the UI speaks German */
+  explanationDe?: string;
+  /** German one-line remediation, mirroring the EN `fix` the adapters ship */
+  fixDe?: string;
   /** Standard taxonomy reference, e.g. "CWE-89" */
   cwe?: string;
   /** Authoritative documentation link (OWASP/CWE/semgrep/advisory) */

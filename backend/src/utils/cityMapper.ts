@@ -74,6 +74,10 @@ export interface CityFinding {
   packageVersion?: string;
   /** Plain-language explanation of the finding class */
   explanation?: string;
+  /** German twin of `explanation` — the card picks it when the UI speaks German */
+  explanationDe?: string;
+  /** German one-line remediation, mirroring the EN `fix` the adapters ship */
+  fixDe?: string;
   /** Standard taxonomy reference, e.g. "CWE-89" */
   cwe?: string;
   /** Authoritative documentation link (OWASP/CWE/semgrep/advisory) */
@@ -406,6 +410,8 @@ function toCityFinding(
     provenance?: string;
     ruleId?: string;
     explanation?: string;
+    explanationDe?: string;
+    fixDe?: string;
     cwe?: string;
     refUrl?: string;
     snippet?: CityFinding["snippet"];
@@ -436,6 +442,8 @@ function toCityFinding(
     packageName: v.packageName,
     packageVersion: v.packageVersion,
     explanation: enriched.explanation,
+    explanationDe: enriched.explanationDe,
+    fixDe: enriched.fixDe,
     cwe: enriched.cwe,
     refUrl: enriched.refUrl,
     snippet: enriched.snippet,

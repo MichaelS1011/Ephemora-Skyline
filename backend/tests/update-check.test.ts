@@ -1,6 +1,11 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { isNewerVersion, currentVersion } from "../src/server/routes/update-check.js";
 
+/**
+ * Version comparison plus the update route with `fetch` stubbed: no child
+ * process and no network reach this file, so it stays as-is — nothing here
+ * can time out under foreign load.
+ */
 describe("isNewerVersion", () => {
   it("detects a higher minor/patch/major", () => {
     expect(isNewerVersion("0.2.0", "0.1.0")).toBe(true);

@@ -2,6 +2,9 @@
  * tests route — runner detection + jest-style JSON parsing.
  * (No npm install / actual test execution in unit tests — those paths are
  * exercised end-to-end against the real project.)
+ *
+ * Pure route helpers over parsed JSON and file paths: this file forks nothing
+ * and reaches no scanner engine, so it carries no suite load either way.
  */
 
 import { describe, expect, it } from "vitest";

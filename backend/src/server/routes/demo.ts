@@ -267,6 +267,8 @@ export function getDemoResult(): AnalysisResult {
           score: f.severity === "P0" ? 10 : f.severity === "P1" ? 7 : 3,
           provenance: "demo",
           explanation: knowledge.explain,
+          ...(knowledge.explainDe ? { explanationDe: knowledge.explainDe } : {}),
+          ...(knowledge.fixDe ? { fixDe: knowledge.fixDe } : {}),
           // The line the rule names, and nothing around it. A real scan reads
           // two lines either side out of the file (`buildSnippet`); no file was
           // read here, so the frame stays one line deep rather than inventing

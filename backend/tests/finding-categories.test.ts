@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { FINDING_KNOWLEDGE } from "../src/services/security/finding-knowledge.js";
-import { REGEX_PATTERNS } from "../src/services/security/adapters/regex-adapter.js";
+import { REGEX_PATTERNS, RegexAdapter } from "../src/services/security/adapters/regex-adapter.js";
 import {
   CATEGORY_IDS,
   FINDING_CATEGORIES,
@@ -16,6 +16,12 @@ import type { FileAnalysis, SecurityIssue } from "../src/models/index.js";
  * Before this table existed, the only grouping was the finding's own type
  * string — and that string is open (ruff invents QUALITY_<code> at runtime).
  * A user who wanted "the injection, not the hygiene" had nothing to click.
+ *
+ * The two scanner cases below judge the category axis on a regex finding
+ * (`SQL_INJECTION`), which is shipped in-process code. The scanner is therefore
+ * built real but with its per-file loop narrowed to the shipped `RegexAdapter`,
+ * so no `gitleaks version`/`gitleaks detect` is forked for an assertion the
+ * regex catalogue already answers. Same fixtures, same expect counts.
  */
 const RUFF_MAPPED = [
   "QUALITY_ASSERT",
@@ -71,7 +77,7 @@ describe("the category table covers what the scanner can emit", () => {
 
 describe("the category reaches the finding", () => {
   it("is attached by the scanner, not only by the table", async () => {
-    const scanner = new SecurityScanner(undefined, undefined);
+    const scanner = new SecurityScanner([new RegexAdapter()], undefined);
     const issues = await scanner.scanFile(
       "src/db.ts",
       'const q = "SELECT * FROM t WHERE id = " + req.params.id;\nexport default q;\n',
@@ -90,7 +96,7 @@ describe("the category axis is a scan decision", () => {
     });
     expect(errors).toEqual([]);
     expect(config.enabledCategories).toEqual(["injection"]);
-    const scanner = new SecurityScanner(undefined, config);
+    const scanner = new SecurityScanner([new RegexAdapter()], config);
     const issues = await scanner.scanFile(
       "src/app.ts",
       'const q = "SELECT * FROM t WHERE id = " + req.params.id;\nconsole.log(q);\neval(q);\n',

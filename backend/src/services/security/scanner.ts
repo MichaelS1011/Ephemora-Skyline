@@ -5,8 +5,6 @@
  * Ohne Binary/Docker: Graceful Fallback auf Regex/Gitleaks-Fallback, kein Crash.
  */
 
-import { promises as fs } from "fs";
-import path from "path";
 import pino from "pino";
 import type { SecurityIssue, FileAnalysis } from "../../models/index.js";
 import type { ScannerAdapter } from "./adapter.js";
@@ -19,9 +17,12 @@ import { RuffAdapter } from "./adapters/ruff-adapter.js";
 import { dedupIssues, SEVERITY_ORDER } from "./dedup.js";
 import { categoryOf } from "./categories.js";
 import { enrichIssues } from "./finding-knowledge.js";
-import { maskIssueFrames, maskSecretText } from "./redact.js";
+import { maskIssueFrames } from "./redact.js";
 import { resolveConfig, type ResolvedScanConfig } from "./scan-config.js";
+import { runRepositoryBatch, type RepositoryBatchResult } from "./batch-scan.js";
 import { semgrepRuleDirs } from "./rule-packs.js";
+import { scanFileStructure as parseFileStructure } from "../analyzer/file-structure.js";
+import type { FileStructure } from "../analyzer/file-structure.js";
 
 /** What the scanner needs from the gitleaks engine — the shipped adapter satisfies it. */
 export interface GitleaksEngine {
@@ -336,243 +337,43 @@ export class SecurityScanner {
     return true;
   }
 
-  /** Parse ESM + CJS + dynamic imports and exports from source */
-  scanFileStructure(
-    filePath: string,
-    content: string,
-  ): {
-    imports: Array<{ source: string; named: string[]; isExternal: boolean }>;
-    exports: Array<{ type: string; name: string }>;
-  } {
-    const imports: Array<{ source: string; named: string[]; isExternal: boolean }> = [];
-    const exports: Array<{ type: string; name: string }> = [];
-    const seen = new Set<string>();
-
-    const push = (source: string, named: string[]): void => {
-      if (seen.has(source)) return;
-      seen.add(source);
-      imports.push({
-        source,
-        named,
-        isExternal: !source.startsWith(".") && !source.startsWith("/"),
-      });
-    };
-
-    let match: RegExpExecArray | null;
-
-    // ── ESM: import { x } / import y / import type … from '…' ────────────
-    const esmRegex =
-      /import\s+(?:type\s+)?(?:(?:\{([^}]+)\})|(?:([\w$]+))|(?:[\w$]+\s+as\s+([\w$]+)))\s+from\s+['"]([^'"]+)['"]/g;
-    while ((match = esmRegex.exec(content)) !== null) {
-      const named =
-        match[1]
-          ?.split(",")
-          .map((s: string) => s.trim().split(" as ")[0]!.trim())
-          .filter(Boolean) ?? [];
-      const def = match[2] ?? match[3] ?? "";
-      push(match[4]!, def ? [...named, def] : named);
-    }
-
-    // ── ESM: import '…' (side-effect) ─────────────────────────────────────
-    const esmSideEffect = /import\s+['"]([^'"]+)['"]/g;
-    while ((match = esmSideEffect.exec(content)) !== null) {
-      push(match[1]!, []);
-    }
-
-    // ── CJS: const { a, b } = require('…') / const x = require('…') ───────
-    const cjsDestructured =
-      /(?:const|let|var)\s+\{([^}]+)\}\s*=\s*require\s*\(\s*['"]([^'"]+)['"]\s*\)/g;
-    while ((match = cjsDestructured.exec(content)) !== null) {
-      const named = match[1]!
-        .split(",")
-        .map((s: string) =>
-          s
-            .trim()
-            .split(/\s+as\s+/)[0]!
-            .trim(),
-        )
-        .filter(Boolean);
-      push(match[2]!, named);
-    }
-
-    const cjsSimple = /(?:const|let|var)\s+([\w$]+)\s*=\s*require\s*\(\s*['"]([^'"]+)['"]\s*\)/g;
-    while ((match = cjsSimple.exec(content)) !== null) {
-      push(match[2]!, [match[1]!]);
-    }
-
-    // ── CJS: bare require('…') — e.g. inside if-guards or middleware chains
-    const cjsBare = /require\s*\(\s*['"]([^'"]+)['"]\s*\)/g;
-    while ((match = cjsBare.exec(content)) !== null) {
-      push(match[1]!, []);
-    }
-
-    // ── Dynamic import: import('…') ────────────────────────────────────────
-    const dynImport = /import\s*\(\s*['"]([^'"]+)['"]\s*\)/g;
-    while ((match = dynImport.exec(content)) !== null) {
-      push(match[1]!, []);
-    }
-
-    // ── ESM exports ────────────────────────────────────────────────────────
-    const exportRegex =
-      /export\s+(?:default\s+)?(?:function|class|const|let|var|async\s+function)\s+([\w$]+)/g;
-    while ((match = exportRegex.exec(content)) !== null) {
-      exports.push({ type: "named", name: match[1]! });
-    }
-    const defaultExportRegex = /export\s+default\s+(?:function|class)\s+([\w$]+)/g;
-    while ((match = defaultExportRegex.exec(content)) !== null) {
-      exports.push({ type: "default", name: match[1]! });
-    }
-
-    // ── CJS exports: module.exports / exports.x ────────────────────────────
-    const cjsExportNamed = /exports\s*\.\s*([\w$]+)\s*=/g;
-    while ((match = cjsExportNamed.exec(content)) !== null) {
-      exports.push({ type: "named", name: match[1]! });
-    }
-    if (/module\.exports\s*=/.test(content)) {
-      exports.push({ type: "default", name: "default" });
-    }
-
-    return { imports, exports };
+  /** Parse ESM + CJS + dynamic imports and exports from source — delegated to the analyzer */
+  scanFileStructure(filePath: string, content: string): FileStructure {
+    return parseFileStructure(filePath, content);
   }
 
   /**
    * Whole-clone batch scan — gitleaks (one process for the entire repo) plus
    * semgrep (one run), merged per file and deduped against per-file findings
-   * already attached to the FileAnalysis objects.
+   * already attached to the FileAnalysis objects. The run itself lives in
+   * batch-scan.ts; this method only hands it the scanner's engine state.
    */
   async scanRepositoryBatch(
     clonePath: string,
     fileAnalyses: FileAnalysis[],
     opts?: { gitHistory?: boolean },
-  ): Promise<{
-    mergedCount: number;
-    gitleaksRan: boolean;
-    semgrepRan: boolean;
-    ruffRan: boolean;
-    osvRan: boolean;
-  }> {
-    // Read contents once, then run gitleaks + semgrep IN PARALLEL — both are
-    // independent processes and each can take a while on big repos
-    const contentByPath = new Map<string, string>();
-    for (const fa of fileAnalyses) {
-      const abs = path.join(clonePath, fa.path);
-      try {
-        contentByPath.set(fa.path, await fs.readFile(abs, "utf-8"));
-      } catch {
-        // ignore unreadable
-      }
-    }
-
-    const gitleaksTask = (async (): Promise<Map<string, SecurityIssue[]> | null> => {
-      if (!this.gitleaksAdapter || !this.config.tools.gitleaks) return null;
-      try {
-        return await this.gitleaksAdapter.scanRepository(clonePath, {
-          gitHistory: opts?.gitHistory,
-        });
-      } catch (e) {
-        this.logger.warn({ e }, "Gitleaks batch scan failed — secrets only via fallback");
-        return null;
-      }
-    })();
-
-    const semgrepTask = (async (): Promise<Map<string, SecurityIssue[]>> => {
-      if (!this.semgrepAdapter || !this.config.tools.semgrep) return new Map();
-      try {
-        return await this.scanBatch(clonePath, contentByPath);
-      } catch (e) {
-        this.logger.warn({ e }, "Semgrep batch scan failed — continuing with regex results");
-        return new Map();
-      }
-    })();
-
-    // ruff: Python quality/security lint (parallel, batch-only)
-    const ruffTask = (async (): Promise<Map<string, SecurityIssue[]>> => {
-      if (!this.config.tools.ruff) return new Map();
-      try {
-        return await this.ruffAdapter.scanRepository(clonePath, {
-          scope:
-            this.config.profile === "deep" || this.config.profile === "quality-only"
-              ? "full"
-              : "security",
-        });
-      } catch (e) {
-        this.logger.warn({ e }, "ruff batch scan failed — Python lint skipped");
-        return new Map();
-      }
-    })();
-
-    const osvTask = (async (): Promise<Map<string, SecurityIssue[]>> => {
-      if (!this.config.tools.osv) return new Map();
-      this.cveAsked = true;
-      try {
-        const found = await this.osvAdapter.scanRepository(clonePath);
-        // "answered" means an answer came back. A scan that never ran leaves the
-        // question open for the dependency phase's fallback, and reporting it as
-        // answered is how `dependencies: true` reached a payload with no
-        // dependency engine on the machine.
-        this.cveAnswered = this.osvAdapter.lastBatchExecuted;
-        return found;
-      } catch (e) {
-        this.logger.warn({ e }, "osv batch scan failed — CVEs skipped");
-        this.cveAnswered = false;
-        return new Map();
-      }
-    })();
-
-    const [secretsByFile, semgrepByFile, ruffByFile, osvByFile] = await Promise.all([
-      gitleaksTask,
-      semgrepTask,
-      ruffTask,
-      osvTask,
-    ]);
-
-    let mergedCount = 0;
-    for (const fa of fileAnalyses) {
-      const extras: SecurityIssue[] = [
-        ...(secretsByFile?.get(fa.path) ?? []),
-        ...(semgrepByFile.get(fa.path) ?? []),
-        ...(ruffByFile.get(fa.path) ?? []),
-        ...(osvByFile.get(fa.path) ?? []),
-      ];
-      if (extras.length === 0) continue;
-      const allowed = this.filterForPath(extras, fa.path);
-      if (allowed.length === 0) continue;
-
-      // gitleaks names the file and line only, so the line the report shows has
-      // to be read from disk here — BEFORE enrichment, because enrichment
-      // consumes the matched value, and masking a line that was already clipped
-      // at 120 characters can leave the back half of a credential behind.
-      for (const iss of allowed) {
-        if (
-          !iss.code &&
-          iss.provenance?.startsWith("gitleaks") &&
-          iss.provenance !== "gitleaks-history"
-        ) {
-          const raw = contentByPath.get(fa.path)?.split("\n")[iss.line - 1]?.trim();
-          const masked = raw ? maskSecretText(raw, iss.secretValue ?? []) : undefined;
-          if (masked) iss.code = masked.slice(0, 120);
-        }
-      }
-
-      // Batch findings arrive without content — enrich with knowledge + code
-      // frame against the on-disk content read above
-      enrichIssues(allowed, contentByPath.get(fa.path));
-
-      const merged = dedupIssues([...fa.vulnerabilities, ...allowed]);
-      mergedCount += merged.length - fa.vulnerabilities.length;
-      merged.sort(
-        (a, b) => SEVERITY_ORDER[a.severity] - SEVERITY_ORDER[b.severity] || a.line - b.line,
-      );
-      fa.vulnerabilities = merged;
-    }
-
-    return {
-      mergedCount,
-      gitleaksRan: secretsByFile !== null,
-      semgrepRan: this.semgrepAdapter?.lastBatchExecuted ?? false,
-      ruffRan: this.ruffAdapter.lastBatchExecuted,
-      osvRan: this.osvAdapter.lastBatchExecuted,
-    };
+  ): Promise<RepositoryBatchResult> {
+    return runRepositoryBatch(
+      {
+        logger: this.logger,
+        config: this.config,
+        gitleaks: this.gitleaksAdapter,
+        semgrep: this.semgrepAdapter,
+        ruff: this.ruffAdapter,
+        osv: this.osvAdapter,
+        filterForPath: (issues, filePath) => this.filterForPath(issues, filePath),
+        scanBatch: (c, m) => this.scanBatch(c, m),
+        markCveAsked: () => {
+          this.cveAsked = true;
+        },
+        setCveAnswered: (value) => {
+          this.cveAnswered = value;
+        },
+      },
+      clonePath,
+      fileAnalyses,
+      opts,
+    );
   }
 
   /** Batch SARIF-aware scan — invoked by orchestrator on clonePath (optional, not per-file) */

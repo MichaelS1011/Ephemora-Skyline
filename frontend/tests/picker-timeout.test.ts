@@ -370,14 +370,57 @@ describe("cancel and immediate rejection", () => {
     expect(vi.getTimerCount()).toBe(0);
   });
 
-  it.each([true, false])("AbortError (synchronous=%s) cancels without fallback", async (sync) => {
-    const error = new DOMException("cancelled", "AbortError");
-    vi.stubGlobal("showDirectoryPicker", () => {
-      if (sync) throw error;
-      return Promise.reject(error);
-    });
+  it.each([true, false])(
+    "AbortError (synchronous=%s) inside the grace window offers the alternative, not silence",
+    async (sync) => {
+      const error = new DOMException("cancelled", "AbortError");
+      vi.stubGlobal("showDirectoryPicker", () => {
+        if (sync) throw error;
+        return Promise.reject(error);
+      });
+      await start();
+      expect(latest.state).toBe("picking");
+      expect(latest.notice).toBe(t("en", "scan.pickerNeverOpened"));
+      expect(latest.canUseAlternativePicker).toBe(true);
+      expect(inputClicks).not.toHaveBeenCalled();
+      // The offer is a fresh click, never an automatic dialog.
+      await act(async () => {
+        void latest.openAlternativePicker();
+      });
+      expect(inputClicks).toHaveBeenCalledOnce();
+      await chooseFallback();
+      expect(uploads).toHaveLength(1);
+    },
+  );
+
+  it.each([800, 801])(
+    "an AbortError after %i ms is a real cancellation and stays silent",
+    async (ms) => {
+      const native = deferred();
+      vi.stubGlobal("showDirectoryPicker", () => native.promise);
+      await start();
+      await advance(ms);
+      expect(latest.canUseAlternativePicker).toBe(false);
+      await act(async () => {
+        native.reject(new DOMException("cancelled", "AbortError"));
+      });
+      expect(latest.state).toBe("idle");
+      expect(latest.notice).toBe("");
+      expect(latest.canUseAlternativePicker).toBe(false);
+      expect(inputClicks).not.toHaveBeenCalled();
+      expect(vi.getTimerCount()).toBe(0);
+    },
+  );
+
+  it("a human-timed AbortError between the grace window and the offer stays silent", async () => {
+    const native = deferred();
+    vi.stubGlobal("showDirectoryPicker", () => native.promise);
     await start();
-    await advance(10_000);
+    await advance(2_000);
+    expect(latest.canUseAlternativePicker).toBe(false);
+    await act(async () => {
+      native.reject(new DOMException("cancelled", "AbortError"));
+    });
     expect(latest.state).toBe("idle");
     expect(latest.notice).toBe("");
     expect(latest.canUseAlternativePicker).toBe(false);

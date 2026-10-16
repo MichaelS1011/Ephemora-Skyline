@@ -215,3 +215,71 @@ describe("the basis only speaks when the whole chip stands on notes", () => {
     expect(text()).not.toContain("no security rule matched");
   });
 });
+
+describe("the finding card speaks both languages (LOKAL: explanationDe/fixDe)", () => {
+  const cryptoFinding = (over: Partial<CityFinding> = {}): CityFinding =>
+    finding({
+      type: "WEAK_CRYPTO",
+      severity: "P1",
+      line: 12,
+      message: "Weak hash algorithm detected",
+      ruleId: "regex:WEAK_CRYPTO",
+      category: "crypto",
+      explanation:
+        "A weak hash (md5/sha1) is used where collision resistance matters. Attackers can forge signatures or passwords — use SHA-256 or better (bcrypt/argon2 for passwords).",
+      explanationDe:
+        "Ein schwacher Hash (md5/sha1) steht dort, wo Kollisionsresistenz zählt. Angreifer können Signaturen oder Passwörter fälschen — SHA-256 oder besser verwenden (bcrypt/argon2 für Passwörter).",
+      fix: "Use SHA-256 or better (bcrypt/argon2 for passwords)",
+      fixDe: "SHA-256 oder besser verwenden (bcrypt/argon2 für Passwörter)",
+      ...over,
+    });
+
+  async function expand(lang: Lang): Promise<void> {
+    const btn = [...container.querySelectorAll("button")].find(
+      (b) => b.getAttribute("aria-label") === t(lang, "panel.detailsExpandAria"),
+    );
+    expect(btn, `no expand control for ${lang}`).toBeTruthy();
+    await act(async () => (btn as HTMLButtonElement).click());
+  }
+
+  it("zeigt auf der deutschen Karte die kuratierten deutschen Texte", async () => {
+    const f = file("src/hash.js", [cryptoFinding()]);
+    await show(createElement(InfoPanel), city([f]), "de");
+    await select(f);
+    await expand("de");
+    const s = text();
+    expect(s).toContain("WARUM DAS ZÄHLT");
+    expect(s).toContain("Ein schwacher Hash (md5/sha1) steht dort, wo Kollisionsresistenz zählt");
+    expect(s).not.toContain("where collision resistance matters");
+    expect(s).toContain("FIX-VORSCHLAG ▸ Vorgeschlagener Fix");
+    expect(s).toContain("SHA-256 oder besser verwenden (bcrypt/argon2 für Passwörter)");
+  });
+
+  it("keeps the English card exactly as it was", async () => {
+    const f = file("src/hash.js", [cryptoFinding()]);
+    await show(createElement(InfoPanel), city([f]), "en");
+    await select(f);
+    await expand("en");
+    const s = text();
+    expect(s).toContain("WHY IT MATTERS");
+    expect(s).toContain("A weak hash (md5/sha1) is used where collision resistance matters");
+    expect(s).not.toContain("Kollisionsresistenz");
+    expect(s).toContain("Suggested fix");
+    expect(s).toContain("Use SHA-256 or better (bcrypt/argon2 for passwords)");
+  });
+
+  it("fällt auf die englische Zeile zurück, wenn der Payload kein De-Feld trägt", async () => {
+    const f = file("src/hash.js", [
+      cryptoFinding({
+        explanationDe: undefined,
+        fixDe: undefined,
+      } as Partial<CityFinding>),
+    ]);
+    await show(createElement(InfoPanel), city([f]), "de");
+    await select(f);
+    await expand("de");
+    const s = text();
+    expect(s).toContain("where collision resistance matters");
+    expect(s).toContain("Use SHA-256 or better (bcrypt/argon2 for passwords)");
+  });
+});

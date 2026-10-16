@@ -33,6 +33,8 @@ export const DICT = {
     de: "Historischer Fund. Prüfe diese Revision; die aktuelle Datei ist nicht der Beleg.",
   },
   "panel.sourceSeverity": { en: "Advisory severity:", de: "Schwere laut Advisory:" },
+  // ── Skip link (WCAG 2.4.1) ───────────────────────────────────────────────
+  "a11y.skipLink": { en: "Skip to content", de: "Zum Inhalt springen" },
   // ── Landing ───────────────────────────────────────────────────────────────
   "landing.homeAria": {
     en: "Ephemora Skyline home",
@@ -982,6 +984,26 @@ export const DICT = {
     en: "Verdicts are not being saved — each one lives only as long as this tab stays open",
     de: "Urteile werden nicht gespeichert — jedes lebt nur, solange dieser Tab offen bleibt",
   },
+  /**
+   * V1 — the first verdict of a visit is the commitment the panel confirms.
+   * The sentence says exactly what the storage delivers (reviews.ts): a
+   * re-scan of the same folder reads the verdict back as long as the browser
+   * keeps its localStorage. No "forever", no cloud — and it is only shown
+   * when the write actually succeeded (`verdictsBlocked` would be a lie).
+   */
+  "panel.firstVerdictSaved": {
+    en: "Saved. Your verdict survives a new scan of this folder — as long as the browser keeps its storage.",
+    de: "Gespeichert. Dein Urteil überlebt einen neuen Scan dieses Ordners — solange der Browser den Speicher behält.",
+  },
+  /**
+   * The demo city has no folder and nothing is written anywhere, so the saved
+   * promise would be a lie there — the Erstnutzerin saw it. The demo sentence
+   * says what the demo actually keeps: the verdict for this page visit only.
+   */
+  "panel.firstVerdictSavedDemo": {
+    en: "Demo city — nothing is saved. This verdict lives only while this page is open.",
+    de: "Demo-Stadt — nichts wird gespeichert. Dieses Urteil lebt nur, solange diese Seite offen ist.",
+  },
   "panel.codeAroundAria": {
     en: "Code around line {line}",
     de: "Code um Zeile {line}",
@@ -1353,6 +1375,21 @@ export const DICT = {
     en: "Recorded verdicts with no matching finding here: {count} — a renamed file or a rewritten line moves a finding",
     de: "Gespeicherte Bewertungen ohne passenden Fund in dieser Stadt: {count} — eine umbenannte Datei oder eine umgeschriebene Zeile verschiebt einen Fund",
   },
+  /**
+   * V2 — the project-wide tally in the findings header. `judged` counts only
+   * verdicts that match a finding of the CURRENT scan; an orphaned verdict is
+   * never folded into it (that would claim a finding is decided that is not).
+   * The orphaned variant says the orphans in the same line, labelled apart —
+   * counted along, honestly, not prettified.
+   */
+  "findings.judgedTally": {
+    en: "Reviewed {judged} / {total}",
+    de: "Beurteilt {judged} / {total}",
+  },
+  "findings.judgedTallyOrphaned": {
+    en: "Reviewed {judged} / {total} · {orphans} orphaned",
+    de: "Beurteilt {judged} / {total} · {orphans} verwaist",
+  },
   "findings.moreRules": {
     en: "+{count} rules",
     de: "+{count} Regeln",
@@ -1696,6 +1733,16 @@ export const DICT = {
   "scan.pickerUnavailable": {
     en: "The folder dialog could not open. You can try the alternative folder dialog.",
     de: "Der Ordnerdialog konnte nicht geöffnet werden. Du kannst den alternativen Ordnerdialog versuchen.",
+  },
+  /**
+   * The AbortError inside the grace window (`PICKER_ABORT_GRACE_MS` in
+   * picker.ts): no human cancelled, the dialog never appeared. Silence here is
+   * the first-run dead end the Erstnutzerin found — this says what happened
+   * and names the way out.
+   */
+  "scan.pickerNeverOpened": {
+    en: "The folder dialog never opened — this browser refused it. You can use the alternative folder dialog.",
+    de: "Der Ordnerdialog hat sich nie geöffnet — dieser Browser hat ihn verweigert. Du kannst den alternativen Ordnerdialog verwenden.",
   },
   "scan.pickerReadFailed": {
     en: "The selected folder could not be read. Choose another folder.",

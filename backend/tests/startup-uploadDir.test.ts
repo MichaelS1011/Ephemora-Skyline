@@ -32,6 +32,10 @@ import {
  * at all, the start goes ahead and says so in the log, because "unknown" is not
  * "covered" and refusing on unknown would stop every machine that has no
  * repository tool installed.
+ *
+ * The process this file forks is `git` (init/check-ignore) — the subject of the
+ * check, not a scanner engine — and the failure paths are tested through an
+ * injected runner. It stays real on purpose and carries no scanner load.
  */
 
 const repos: string[] = [];

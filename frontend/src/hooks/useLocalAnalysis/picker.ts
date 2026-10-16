@@ -31,6 +31,14 @@ export function isDirHandlePickerAvailable(): boolean {
 /** Offer another picker after a wait; never expire a user's native dialog. */
 const PICKER_ALTERNATIVE_DELAY_MS = 4_000;
 
+/**
+ * An AbortError this soon after the call is not a cancellation: no human could
+ * have opened and dismissed a dialog inside this window, so the dialog never
+ * appeared at all (a browser whose picker exists but aborts immediately). That
+ * is an unavailable dialog — answer visibly — not a refusal to stay silent for.
+ */
+const PICKER_ABORT_GRACE_MS = 800;
+
 export interface PickViaInputFallbackDeps {
   runRef: Ref<number>;
   inputCleanupRef: Ref<(() => void) | null>;
@@ -39,7 +47,7 @@ export interface PickViaInputFallbackDeps {
   finishPicker: () => void;
   offerAlternativePicker: (
     run: number,
-    key: "scan.pickerTimeout" | "scan.pickerUnavailable",
+    key: "scan.pickerTimeout" | "scan.pickerUnavailable" | "scan.pickerNeverOpened",
   ) => void;
   setState: (state: AnalysisState) => void;
   collectFromFileList: (fileList: File[], rootName: string, run: number) => Promise<void>;
@@ -121,7 +129,7 @@ export interface PickFolderDeps {
   finishPicker: () => void;
   offerAlternativePicker: (
     run: number,
-    key: "scan.pickerTimeout" | "scan.pickerUnavailable",
+    key: "scan.pickerTimeout" | "scan.pickerUnavailable" | "scan.pickerNeverOpened",
   ) => void;
   pickViaInputFallback: (run: number) => Promise<void>;
   collectFromDirectoryHandle: (dir: DirHandle, run: number) => Promise<void>;
@@ -189,6 +197,13 @@ export async function pickFolder(deps: PickFolderDeps): Promise<void> {
     deps.finishPicker();
     // DOMException need not inherit Error (including across realms).
     if (err && typeof err === "object" && "name" in err && err.name === "AbortError") {
+      // Inside the grace window no human has interacted: the dialog never
+      // opened, so this is an unavailable picker and the person must see the
+      // way out. A later AbortError is a real cancellation and stays silent.
+      if (Date.now() - deps.startedAtRef.current < PICKER_ABORT_GRACE_MS) {
+        deps.offerAlternativePicker(run, "scan.pickerNeverOpened");
+        return;
+      }
       deps.runRef.current += 1;
       deps.stateRef.current = "idle";
       deps.setState("idle");

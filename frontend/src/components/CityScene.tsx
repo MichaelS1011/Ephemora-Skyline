@@ -5,7 +5,8 @@ import { useThree } from "@react-three/fiber";
 import type { PerspectiveCamera } from "three";
 import { useStore } from "../stores/useStore";
 import { defaultOverviewPath } from "../city/overview";
-import { getDirLayout, overviewShot } from "../city/layout";
+import { armRevealPulse, getDirLayout, overviewShot, REVEAL_FLIGHT_MS } from "../city/layout";
+import { prefersReducedMotion } from "../city/motion";
 import { OPEN_WORLD_DIRECT_STEP, buildOpenWorld } from "../city/openWorldStreets";
 import { ENV } from "../city/palette";
 import { FLAT_SURFACE, surfaceForLayout } from "../city/worldSurface";
@@ -169,8 +170,14 @@ export function CityScene() {
       distance: shot.dist,
       targetY: shot.targetY,
       overview: true,
-      duration: 2.6,
+      duration: REVEAL_FLIGHT_MS / 1000,
     });
+    // V3: the same moment arms the reveal pulse — the flight's destination is
+    // the building that carries the worst real finding. Armed exactly once:
+    // this effect runs once per build (overviewRef), and a city with no real
+    // finding (demo included) arms nothing.
+    const pulse = armRevealPulse(cityData, Date.now(), prefersReducedMotion());
+    if (pulse) useStore.setState({ revealPulse: pulse });
   }, [cityData, buildPhase, buildStartedAt, requestFly, poseRequest]);
 
   const frame = useMemo(() => {

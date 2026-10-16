@@ -163,3 +163,72 @@ describe("the findings tally", () => {
     expect(container.textContent).toContain("fewer rules");
   });
 });
+
+/**
+ * V2 (S-P4): the project tally. It must be right in both languages, count
+ * verdicts against the CURRENT scan, and carry orphaned verdicts along
+ * honestly — labelled apart, never folded into the judged count (a verdict
+ * whose finding is gone must not claim that finding is decided).
+ */
+describe("the project tally (Beurteilt X / Y)", () => {
+  const three = () =>
+    city(
+      [file("a.ts", [finding("rule_a"), finding("rule_b")]), file("b.ts", [finding("rule_c")])],
+      { P0: 0, P1: 0, P2: 3 },
+    );
+  const tally = () => container.querySelector<HTMLElement>("[data-judged-tally]");
+
+  it("stays out until the first verdict exists", async () => {
+    await show(<FindingsPanel />, three());
+    expect(tally()).toBeNull();
+  });
+
+  it("reads 1 / 3 after the first verdict — in English", async () => {
+    await show(<FindingsPanel />, three(), { reviews: { "a.ts#0": "reviewed" } });
+    expect(tally()?.textContent).toContain("Reviewed 1 / 3");
+  });
+
+  it("reads 1 / 3 after the first verdict — in German", async () => {
+    await show(<FindingsPanel />, three(), {
+      reviews: { "a.ts#0": "reviewed" },
+      prefs: { ...useStore.getInitialState().prefs, lang: "de" },
+    });
+    expect(tally()?.textContent).toContain("Beurteilt 1 / 3");
+  });
+
+  it("counts the full round in both languages", async () => {
+    const reviews = { "a.ts#0": "reviewed", "a.ts#1": "to-fix", "b.ts#0": "false-positive" };
+    await show(<FindingsPanel />, three(), { reviews });
+    expect(tally()?.textContent).toContain("Reviewed 3 / 3");
+    await act(async () => root.unmount());
+    container.remove();
+    await show(<FindingsPanel />, three(), {
+      reviews,
+      prefs: { ...useStore.getInitialState().prefs, lang: "de" },
+    });
+    expect(tally()?.textContent).toContain("Beurteilt 3 / 3");
+  });
+
+  it("counts orphaned verdicts along, labelled apart, never as judged findings", async () => {
+    // one verdict matches (a.ts#0), one is stranded in the project bucket —
+    // the tally must read 1 / 3, and name the stranded one in the same line
+    await show(<FindingsPanel />, three(), {
+      reviews: { "a.ts#0": "reviewed" },
+      orphanedReviews: 1,
+    });
+    expect(tally()?.textContent).toContain("Reviewed 1 / 3 · 1 orphaned");
+    expect(container.textContent).toContain("Recorded verdicts with no matching finding here: 1");
+
+    await act(async () => root.unmount());
+    container.remove();
+    await show(<FindingsPanel />, three(), {
+      reviews: { "a.ts#0": "reviewed" },
+      orphanedReviews: 2,
+      prefs: { ...useStore.getInitialState().prefs, lang: "de" },
+    });
+    expect(tally()?.textContent).toContain("Beurteilt 1 / 3 · 2 verwaist");
+    expect(container.textContent).toContain(
+      "Gespeicherte Bewertungen ohne passenden Fund in dieser Stadt: 2",
+    );
+  });
+});

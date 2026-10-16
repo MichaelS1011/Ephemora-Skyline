@@ -215,4 +215,11 @@ describe("every emitted finding type explains itself", () => {
     const undocumented = REGEX_PATTERNS.map((p) => p.type).filter((t) => !FINDING_KNOWLEDGE[t]);
     expect(undocumented).toEqual([]);
   });
+
+  it("carries a German explanation and fix for every curated type", () => {
+    const untranslated = Object.entries(FINDING_KNOWLEDGE)
+      .filter(([, k]) => !k.explainDe?.trim() || !k.fixDe?.trim())
+      .map(([type]) => type);
+    expect(untranslated).toEqual([]);
+  });
 });

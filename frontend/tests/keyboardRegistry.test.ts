@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import type { CityData } from "../src/city/types";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
+import { DICT } from "../src/i18n/dict";
 import {
   GROUP_LABELS,
   ROWS,
@@ -383,5 +384,48 @@ describe("stepping a level without a mouse", () => {
     // A level with buildings does not answer with a district, even when one is
     // marked — otherwise the mark and the step would disagree.
     expect(step(["frontend"], null, true, "backend").kind).toBe("file");
+  });
+});
+
+/**
+ * WCAG 2.4.1: the first tab stop of the app must be the skip link, not the 3D
+ * stage — a measured walk reached "3D city visualization. Arrow keys turn the
+ * camera" before any content. jsdom cannot render App (the R3F canvas has no
+ * WebGL), so these guard the source contract the tab order is made of; the
+ * live behaviour is proven in a real browser run.
+ */
+describe("the skip link (WCAG 2.4.1)", () => {
+  const app = readFileSync(SRC + "App.tsx", "utf8");
+
+  it("is the first focusable node of the app shell", () => {
+    const skip = app.indexOf('className="skip-link');
+    expect(skip, "no skip link in App.tsx").toBeGreaterThan(-1);
+    // The only JSX before it may be the shell opening and the loading screen
+    // (which renders no focusable element); the next real stop is the canvas.
+    expect(skip).toBeLessThan(app.indexOf("<LoadingScreen"));
+    expect(skip).toBeLessThan(app.indexOf("tabIndex={inCity ? 0 : -1}"));
+  });
+
+  it("lands focus on the main content, not into the void", () => {
+    expect(app).toContain('href="#main-content"');
+    const targets = [...app.matchAll(/id="main-content"/g)];
+    expect(targets, "one target per world: the landing wrapper and the city HUD").toHaveLength(2);
+    for (const hit of targets) {
+      const around = app.slice(Math.max(0, hit.index! - 40), hit.index! + 240);
+      expect(around, `target at ${hit.index} cannot take focus`).toContain("tabIndex={-1}");
+    }
+  });
+
+  it("is hidden visually only — display:none would drop the stop from the tab order", () => {
+    const tag = /<a\b[\s\S]*?className="skip-link[^"]*"[\s\S]*?>/.exec(app)?.[0] ?? "";
+    expect(tag).toContain("sr-only");
+    expect(tag).toContain("focus:not-sr-only");
+    expect(tag).toContain("focus:outline-2");
+  });
+
+  it("reads both languages from the dictionary", () => {
+    expect(DICT["a11y.skipLink"]?.en.trim().length).toBeGreaterThan(0);
+    expect(DICT["a11y.skipLink"]?.de.trim().length).toBeGreaterThan(0);
+    expect(app).toContain('t(lang, "a11y.skipLink")');
   });
 });

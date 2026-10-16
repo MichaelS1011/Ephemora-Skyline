@@ -20,6 +20,7 @@
 import type { CityData, CityDir, CityFile, CityFinding, Severity } from "./types";
 import { t, type Lang } from "../i18n";
 import { languageColor, threatRank } from "./palette";
+import { defaultOverviewPath } from "./overview";
 import {
   blockFootprint as blockFootprintOf,
   buildingHeight as heightOf,
@@ -1309,4 +1310,60 @@ export function searchFindings(city: CityData, query: string, limit = 5): Findin
     });
   }
   return hits.sort(compareFindingHits).slice(0, limit);
+}
+
+/**
+ * V3 (reveal pulse): the file whose building on the level the reveal frames
+ * carries the worst REAL finding of the city — or null when there is none.
+ *
+ * A demo finding (`provenance: "demo"`) is a synthetic example, not a scan
+ * result: it must never light up as the city's worst finding (the demo is
+ * honest about being nobody's analysis). Only a file that is actually drawn on
+ * the framed level may pulse — a plaza building or a district's skyline tower
+ * (most repos keep their files inside districts, and the skyline tower IS the
+ * building that represents the file on the overview). A pulse on something not
+ * on screen would be decoration, not information. The ordering is the triage
+ * order: severity first (P0 < P1 < P2), then file risk, then message/path, so
+ * the choice is deterministic and matches what the queue would present first.
+ */
+export function revealPulseFileId(city: CityData, focusPath: string[]): string | null {
+  let best: FindingHit | null = null;
+  for (const hit of allFiles(city)) {
+    for (let index = 0; index < hit.file.findings.length; index++) {
+      const finding = hit.file.findings[index]!;
+      if (finding.provenance === "demo") continue;
+      const candidate = { file: hit.file, finding, index };
+      if (!best || compareFindingHits(candidate, best) < 0) best = candidate;
+    }
+  }
+  if (!best) return null;
+  const layout = getDirLayout(city, focusPath);
+  const onPlaza = layout.buildings.some((b) => b.file.id === best!.file.id);
+  const onSkyline = layout.blocks.some((blk) =>
+    blk.skyline.some((t) => t.file.id === best!.file.id),
+  );
+  return onPlaza || onSkyline ? best.file.id : null;
+}
+
+/** Duration of the reveal flight out to the overview — the same number the
+ *  camera tween in CityScene is asked for and the moment the reveal pulse may
+ *  begin (the pulse starts when the flight ends). */
+export const REVEAL_FLIGHT_MS = 2600;
+
+/**
+ * V3: the reveal pulse arming decision — one damped pulse on the beacon of the
+ * building that carries the worst REAL finding, timed to begin when the reveal
+ * flight ends. Reduced motion collapses the flight to an instant write, so the
+ * pulse begins at once there (Building then consumes it without animating). A
+ * city whose findings are synthetic (demo) or that has no findings at all arms
+ * nothing — the pulse is evidence, never decoration.
+ */
+export function armRevealPulse(
+  cityData: CityData | null,
+  now: number,
+  reduced: boolean,
+): { fileId: string; startAt: number } | null {
+  const fileId = cityData ? revealPulseFileId(cityData, defaultOverviewPath(cityData)) : null;
+  if (!fileId) return null;
+  return { fileId, startAt: now + (reduced ? 0 : REVEAL_FLIGHT_MS) };
 }

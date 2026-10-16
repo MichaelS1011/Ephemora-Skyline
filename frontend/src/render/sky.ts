@@ -30,7 +30,7 @@ import { ENV } from "../city/palette";
  */
 export const SKY_RADIUS = 1200;
 
-/** Sphere tessellation — 16 x 8 rings is ~250 triangles for the whole sky. */
+/** Sphere tessellation — 24 x 12 rings is 576 triangles for the whole sky. */
 export const SKY_SEGMENTS: readonly [number, number] = [24, 12];
 
 /**

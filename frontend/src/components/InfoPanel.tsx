@@ -226,13 +226,15 @@ export function SevChip({ severity }: { severity: "P0" | "P1" | "P2" }) {
 
 /* ── Bilingual finding text ──────────────────────────────────────────────
  * The scanner speaks English: `message` comes from the adapters
- * ("Hardcoded secret detected (generic-api-key) — gitleaks") and no `de`
- * field exists in the payload yet. A German UI that stops at the second
- * language exactly where the work is described is the seam the audit counted
- * (Befund 7). Until Lane LOKAL ships `messageDe`, the line under the original
- * is the curated sentence this product already owns for that finding class —
- * and when the payload carries no class, nothing is shown. A guessed
- * translation would be worse than the English line it replaced.
+ * ("Hardcoded secret detected (generic-api-key) — gitleaks") and no
+ * `messageDe` field exists in the payload yet, so the line under the original
+ * is the curated category sentence this product owns for that finding class.
+ * The knowledge layer is bilingual since Lane LOKAL shipped `explanationDe`
+ * and `fixDe` (backend `finding-knowledge.ts` → `cityMapper`): the "Why it
+ * matters" paragraph and the one-line fix choose by `prefs.lang` in
+ * FindingRow, with the English field as the fallback for payloads that
+ * predate the fields. A guessed translation would be worse than the English
+ * line it replaced.
  */
 
 /** What the backend will send once LOKAL delivers it (`city/types.ts` has no field yet). */
@@ -365,16 +367,17 @@ function CodeFrame({ snippet }: { snippet: NonNullable<CityFinding["snippet"]> }
 function SuggestedFixBlock({
   suggestion,
   fallbackFix,
+  hint,
 }: {
   suggestion: FixSuggestion | null;
   fallbackFix?: string;
+  /** The finding's own one-line fix — shown under the title when it exists. */
+  hint?: string;
 }) {
   const lang = useStore((s) => s.prefs.lang);
   const [copied, setCopied] = useState(false);
   const title = suggestion?.title ?? t(lang, "panel.suggestedFixFallback");
   const steps = suggestion ? suggestion.steps : fallbackFix ? [fallbackFix] : [];
-  // The finding's own one-line fix complements the recipe steps when both exist
-  const hint = suggestion && fallbackFix ? fallbackFix : undefined;
 
   const copy = async (): Promise<void> => {
     const text = [
@@ -450,6 +453,7 @@ function FindingRow({
   reviewKey,
   review,
   focused,
+  demo,
 }: {
   finding: CityFinding;
   index: number;
@@ -459,17 +463,33 @@ function FindingRow({
   review: ReviewStatus | null;
   /** True while the triage queue targets this finding. */
   focused: boolean;
+  /** The demo city (`analysisId === "demo-001"`): nothing is saved anywhere. */
+  demo: boolean;
 }) {
   const [expanded, setExpanded] = useState(false);
   const [copied, setCopied] = useState(false);
   const lang = useStore((s) => s.prefs.lang);
   const colorblind = useStore((s) => s.prefs.colorblind);
   const setReview = useStore((s) => s.setReview);
+  // V1: exactly the row of the FIRST verdict of this visit carries the
+  // persistence confirmation — and only while the write actually succeeded.
+  const firstVerdictKey = useStore((s) => s.firstVerdictKey);
+  const verdictsBlocked = useStore((s) => s.verdictsBlocked);
   const rowRef = useRef<HTMLDivElement>(null);
   const color = severityColor(finding.severity, colorblind);
   // The triage focus wins over the review status, which wins over severity
   const leftColor = focused ? FOCUS_COLOR : review ? REVIEW_COLOR[review] : color;
   const suggestion = fixFor(finding, lang);
+  // German mode reads the curated German line, English mode the original; a
+  // payload without the `*De` fields renders exactly what it rendered before.
+  const explanation =
+    lang === "de" ? (finding.explanationDe ?? finding.explanation) : finding.explanation;
+  const fixLine = lang === "de" ? (finding.fixDe ?? finding.fix) : finding.fix;
+  // The scanner's own one-liner stays visible as the hint when a recipe or the
+  // German class line replaces it — a dynamic fix like "Update lodash to
+  // 4.17.21" must not disappear behind generic advice. English mode is
+  // unchanged: the hint exists exactly when a recipe and a fix both do.
+  const fixHint = suggestion || (lang === "de" && finding.fixDe) ? finding.fix : undefined;
   const detailsId = `finding-details-${filePath.replace(/[^a-z0-9]/gi, "-")}-${index}`;
 
   // When the triage queue jumps to this finding, bring it into view —
@@ -630,6 +650,24 @@ function FindingRow({
         })}
       </div>
 
+      {/* V1: the first verdict of the visit, confirmed with the promise the
+          storage actually keeps. A status note, not an alert — and it is
+          never shown when the write failed, because "Saved" would be a lie
+          next to the blocked-storage warning. The demo city has no folder
+          and saves nothing, so it gets its own honest sentence without the
+          saved-check. */}
+      {review && firstVerdictKey === reviewKey && !verdictsBlocked && (
+        <p
+          role="status"
+          data-first-verdict
+          className="font-jetbrains text-[11px] leading-relaxed mt-1.5"
+          style={{ color: demo ? "#8f8b82" : "#29d398" }}
+        >
+          {demo ? "" : "✓ "}
+          {t(lang, demo ? "panel.firstVerdictSavedDemo" : "panel.firstVerdictSaved")}
+        </p>
+      )}
+
       {/* Expanded: what it means, where it is, how to fix, where to read more */}
       {expanded && (
         <div
@@ -638,7 +676,7 @@ function FindingRow({
           aria-label={t(lang, "panel.detailsRegionAria")}
           className="mt-2 space-y-2 animate-fade-up"
         >
-          {finding.explanation && (
+          {explanation && (
             <div
               className="font-jetbrains text-[11px] leading-relaxed px-2 py-1.5 rounded-sm"
               style={{
@@ -650,14 +688,14 @@ function FindingRow({
               <span style={{ color: "#d8c9a3", opacity: 0.9 }}>
                 {t(lang, "panel.whyItMatters")}
               </span>
-              {finding.explanation}
+              {explanation}
             </div>
           )}
 
           {finding.snippet && <CodeFrame snippet={finding.snippet} />}
 
-          {(suggestion || finding.fix) && (
-            <SuggestedFixBlock suggestion={suggestion} fallbackFix={finding.fix} />
+          {(suggestion || fixLine) && (
+            <SuggestedFixBlock suggestion={suggestion} fallbackFix={fixLine} hint={fixHint} />
           )}
 
           {refUrl && (
@@ -1103,6 +1141,7 @@ export function InfoPanel() {
                   filePath={file.path}
                   reviewKey={key}
                   review={reviews[key] ?? null}
+                  demo={cityData.analysisId === "demo-001"}
                   // The focus channel is positional and stays that way: every
                   // writer (triage, search, findings list) names the entry as
                   // `${fileId}#${index}`. A verdict is keyed by fingerprint.

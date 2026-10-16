@@ -14,6 +14,7 @@ import { resolveConfig } from "../src/services/security/scan-config.js";
 import { SemgrepAdapter } from "../src/services/security/adapters/semgrep-adapter.js";
 import { categoryOf } from "../src/services/security/categories.js";
 import { existsSync, mkdirSync, writeFileSync } from "fs";
+import { SEMGREP_RUN_BUDGET_MS, SEMGREP_CONCURRENT_BUDGET_MS } from "./helpers/budgets.js";
 
 /**
  * #41 — Regel-Packs.
@@ -31,8 +32,9 @@ import { existsSync, mkdirSync, writeFileSync } from "fs";
  * `tests/helpers/scanners.ts`: which rules a pack contributes is a question only the
  * engine answers. A stub can restate a config string, it cannot show that `semgrep
  * --rule-dirs <pack>` reads the pack's yaml and finds the pattern in a file. That is
- * why this file probes the binary, carries 180 s / 300 s budgets and pays for a real
- * run — the load here is the subject, not a side effect.
+ * why this file probes the binary, carries `SEMGREP_RUN_BUDGET_MS` /
+ * `SEMGREP_CONCURRENT_BUDGET_MS` budgets and pays for a real run — the load here
+ * is the subject, not a side effect.
  */
 
 /**
@@ -42,7 +44,8 @@ import { existsSync, mkdirSync, writeFileSync } from "fs";
  * probe said "not installed" three times over and the suite went out green with
  * its three deep-scan cases skipped. Absence is now read off `which`, and a
  * present binary always runs the assertions — the per-test timeouts below
- * (180 s / 300 s) are what a slow engine needs.
+ * (`SEMGREP_RUN_BUDGET_MS` / `SEMGREP_CONCURRENT_BUDGET_MS`) are what a slow
+ * engine needs.
  */
 function locateSemgrep(): string | null {
   for (const candidate of ["semgrep", "/opt/homebrew/bin/semgrep", "/usr/local/bin/semgrep"]) {
@@ -241,7 +244,7 @@ describe("der Scan läuft ohne Netz gegen das lokale Pack", () => {
       // Die Negativbeispiele dürfen nicht schlagen
       expect(normal.filter((x) => x === "ephemora-node-command-injection").length).toBe(3);
     },
-    180000,
+    SEMGREP_RUN_BUDGET_MS,
   );
 
   it.skipIf(!SEMGREP_BIN)(
@@ -262,7 +265,7 @@ describe("der Scan läuft ohne Netz gegen das lokale Pack", () => {
       expect(Math.min(...counts)).toBe(Math.max(...counts));
       expect(counts[0]).toBeGreaterThanOrEqual(11);
     },
-    300000,
+    SEMGREP_CONCURRENT_BUDGET_MS,
   );
 
   it.skipIf(!SEMGREP_BIN)(
@@ -281,6 +284,6 @@ describe("der Scan läuft ohne Netz gegen das lokale Pack", () => {
       expect(byRule.get("ephemora-node-command-injection")).toMatch(/^CWE-78/);
       expect(byRule.get("ephemora-python-sql-injection")).toMatch(/^CWE-89/);
     },
-    180000,
+    SEMGREP_RUN_BUDGET_MS,
   );
 });

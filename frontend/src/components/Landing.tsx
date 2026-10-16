@@ -8,6 +8,7 @@ import { t, type Lang } from "../i18n";
 import { ts, tsCount } from "./startCopy";
 import type { CityData } from "../city/types";
 import { recentCities, type RecentCity } from "../recentCities";
+import { resetBackendVerdicts } from "../reviews";
 import { ScanExcludes } from "./ScanExcludes";
 import "../design/start.css";
 
@@ -617,6 +618,11 @@ export function Landing() {
   const resetVerdicts = (): void => {
     const keys = Object.keys(localStorage).filter((k) => k.startsWith("codecity-reviews:"));
     for (const k of keys) localStorage.removeItem(k);
+    // The machine copy is the second home of the same verdicts: deleting only
+    // the browser buckets would let the next scan resurrect what the person
+    // just deleted. The button's label names the browser buckets it removed —
+    // it does more than it says, never less.
+    resetBackendVerdicts();
     setFootNote(ts(lang, "landing.footprintResetDone", { n: keys.length }));
   };
 

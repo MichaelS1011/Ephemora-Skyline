@@ -4,6 +4,14 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { SemgrepAdapter } from "../src/services/security/adapters/semgrep-adapter.js";
 
+/**
+ * Deliberately real, and not a `helpers/scanners.ts` candidate: the claim IS
+ * the adapter's process decision — when it reaches for a binary, when for
+ * Docker, and when neither. Every case below forces the unavailable states or
+ * installs a fake `docker` on PATH that leaves a marker, so no real semgrep
+ * binary ever runs; the probe is the subject, not the engine. The machine's
+ * semgrep therefore never takes this file's load.
+ */
 describe("SemgrepAdapter", () => {
   it("falls back to empty when binary and docker unavailable", async () => {
     const adapter = new SemgrepAdapter();

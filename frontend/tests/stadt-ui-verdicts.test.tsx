@@ -389,3 +389,126 @@ describe("Schweregrade tragen nicht nur ihre Farbe", () => {
     expect(read(), "the churn chip ignores the colour-blind switch").not.toBe(plain);
   });
 });
+
+/**
+ * V1: the FIRST verdict of a visit is the commitment the panel confirms — with
+ * the promise the storage actually keeps, in the panel's own language, and only
+ * when the write succeeded. A "Saved" next to the blocked-storage warning would
+ * be a lie, so the confirmation never appears there.
+ */
+describe("der erste Verdict bekommt sein ehrliches Versprechen", () => {
+  const hit = () => file("src/config.js", [secret(), secret({ line: 9 })]);
+  const segmentButtons = () =>
+    [...container.querySelectorAll("button")].filter(
+      (b) => b.textContent?.trim() === t("de", "panel.reviewReviewed"),
+    );
+  const confirmation = () => container.querySelector("[data-first-verdict]");
+
+  it("bestätigt genau die Zeile des ersten Urteils", async () => {
+    await show(createElement(InfoPanel), city([hit()]));
+    await act(async () =>
+      useStore.getState().setSelectedUnit({ kind: "file", id: "f-src/config.js" }),
+    );
+    expect(confirmation()).toBeNull();
+
+    await act(async () => segmentButtons()[0]!.click());
+    const one = container.querySelectorAll("[data-first-verdict]");
+    expect(one.length).toBe(1);
+    expect(one[0]!.textContent).toContain(t("de", "panel.firstVerdictSaved"));
+
+    // the SECOND verdict elsewhere is not re-confirmed — the promise is for
+    // the first commitment, not a nag on every click
+    await act(async () => segmentButtons()[1]!.click());
+    expect(container.querySelectorAll("[data-first-verdict]").length).toBe(1);
+  });
+
+  it("sagt es auf Englisch, wenn das Panel Englisch spricht", async () => {
+    await show(createElement(InfoPanel), city([hit()]), "en");
+    await act(async () =>
+      useStore.getState().setSelectedUnit({ kind: "file", id: "f-src/config.js" }),
+    );
+    const reviewed = [...container.querySelectorAll("button")].filter(
+      (b) => b.textContent?.trim() === t("en", "panel.reviewReviewed"),
+    );
+    await act(async () => reviewed[0]!.click());
+    expect(confirmation()!.textContent).toContain(t("en", "panel.firstVerdictSaved"));
+    expect(confirmation()!.textContent).not.toContain("Urteil");
+  });
+
+  it("lügt nie neben der Blockade-Warnung: kein „Gespeichert“ bei vollem Speicher", async () => {
+    await show(createElement(InfoPanel), city([hit()]));
+    await act(async () =>
+      useStore.getState().setSelectedUnit({ kind: "file", id: "f-src/config.js" }),
+    );
+    const setItem = vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
+      throw new DOMException("QuotaExceededError");
+    });
+    await act(async () => segmentButtons()[0]!.click());
+    setItem.mockRestore();
+    expect(confirmation()).toBeNull();
+    expect(container.querySelector("[data-verdicts-blocked]")).toBeTruthy();
+    expect(text()).toContain(t("de", "panel.verdictsBlocked"));
+  });
+
+  it("kommt für den ersten Verdict des nächsten Besuchs zurück", async () => {
+    await show(createElement(InfoPanel), city([hit()]));
+    await act(async () =>
+      useStore.getState().setSelectedUnit({ kind: "file", id: "f-src/config.js" }),
+    );
+    await act(async () => segmentButtons()[0]!.click());
+    expect(confirmation()).toBeTruthy();
+
+    // teardown (Back to landing) spends the visit's confirmation
+    await act(async () => useStore.getState().resetToLanding());
+    expect(useStore.getState().firstVerdictKey).toBeNull();
+    // the next visit reads the old verdict back from storage — the OLD verdict
+    // is not re-confirmed (it is not a new commitment), but the first verdict
+    // actually set in this visit gets its promise
+    await act(async () => useStore.getState().setCityData(city([hit()])));
+    await act(async () =>
+      useStore.getState().setSelectedUnit({ kind: "file", id: "f-src/config.js" }),
+    );
+    expect(confirmation()).toBeNull();
+    await act(async () => segmentButtons()[1]!.click());
+    expect(confirmation()).toBeTruthy();
+    expect(container.querySelectorAll("[data-first-verdict]").length).toBe(1);
+  });
+
+  /**
+   * The demo city (`analysisId === "demo-001"`, the same flag share/captions.ts
+   * uses) has no folder and saves nothing anywhere — the saved promise would be
+   * a lie there, which is exactly what the Erstnutzerin saw. The demo gets its
+   * own honest sentence, in the panel's language and without the saved-check.
+   */
+  it.each(["de", "en"] as const)(
+    "sagt in der Demo-Stadt die Wahrheit (%s): nichts wird gespeichert",
+    async (lang) => {
+      await show(
+        createElement(InfoPanel),
+        cityOf({
+          analysisId: "demo-001",
+          repo: { owner: "codecity", name: "demo-city", branch: "main" },
+          languages: { JavaScript: 100 },
+          scanProvenance: provenance({ gitleaks: true }),
+          tree: dir({ path: "", detailFiles: [hit()] }),
+        }),
+        lang,
+      );
+      await act(async () =>
+        useStore.getState().setSelectedUnit({ kind: "file", id: "f-src/config.js" }),
+      );
+      expect(confirmation()).toBeNull();
+      const label = t(lang, "panel.reviewReviewed");
+      const reviewed = [...container.querySelectorAll("button")].find(
+        (b) => b.textContent?.trim() === label,
+      );
+      await act(async () => reviewed!.click());
+      const note = confirmation()!;
+      expect(note).toBeTruthy();
+      expect(note.textContent).toContain(t(lang, "panel.firstVerdictSavedDemo"));
+      expect(note.textContent).not.toContain(t(lang, "panel.firstVerdictSaved"));
+      // no saved-check on a sentence that says nothing was saved
+      expect(note.textContent?.trim().startsWith("✓")).toBe(false);
+    },
+  );
+});

@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { SecurityScanner } from "../src/services/security/scanner.js";
+import { RegexAdapter } from "../src/services/security/adapters/regex-adapter.js";
 import { resolveConfig, type CustomPattern } from "../src/services/security/scan-config.js";
 
 /**
@@ -7,6 +8,17 @@ import { resolveConfig, type CustomPattern } from "../src/services/security/scan
  * config and then never read again: the RegexAdapter was built with the built-in
  * catalogue only. A user who added a rule got a clean scan back and no way to
  * tell that their rule had never run.
+ *
+ * The claim is the scanner's regex half — a custom rule joins the catalogue on
+ * construction and again on `setConfig`, respects the language/extension/type
+ * gates, and is filtered by the same config as a built-in rule. That is shipped
+ * code running in-process, so this file builds the real scanner but narrows the
+ * per-file loop to the shipped `RegexAdapter` (`new SecurityScanner([new
+ * RegexAdapter()], config)`). The default loop would also carry the real
+ * GitleaksAdapter, whose `scanFile` forks `gitleaks version` then one `gitleaks
+ * detect` per call — an engine whose answer is never an assertion here. The
+ * custom-pattern finding comes from the regex catalogue alone, and the narrowing
+ * costs no case and no expect: same fixtures, same counts, no child process.
  */
 const rule = (over: Partial<CustomPattern> = {}): CustomPattern => ({
   id: "CUSTOM_NO_MOMENT",
@@ -17,7 +29,7 @@ const rule = (over: Partial<CustomPattern> = {}): CustomPattern => ({
 });
 
 async function scanWith(config: unknown, filePath: string, content: string) {
-  const scanner = new SecurityScanner(undefined, resolveConfig(config).config);
+  const scanner = new SecurityScanner([new RegexAdapter()], resolveConfig(config).config);
   return scanner.scanFile(filePath, content);
 }
 
@@ -92,7 +104,10 @@ describe("a custom rule runs like a built-in one", () => {
 
   /** The scanner is reused between scans, so a config change must take effect */
   it("follows setConfig instead of staying built with the first catalogue", async () => {
-    const scanner = new SecurityScanner(undefined, resolveConfig({ profile: "standard" }).config);
+    const scanner = new SecurityScanner(
+      [new RegexAdapter()],
+      resolveConfig({ profile: "standard" }).config,
+    );
     expect((await scanner.scanFile("src/a.ts", src)).map((i) => i.type)).not.toContain(
       "CUSTOM_NO_MOMENT",
     );

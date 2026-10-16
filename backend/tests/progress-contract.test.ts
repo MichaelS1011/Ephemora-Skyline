@@ -4,7 +4,12 @@ import { promises as fs } from "fs";
 import os from "os";
 import path from "path";
 import { handleStatus } from "../src/server/routes/status.js";
-import { handleLocalAnalyze, pruneStaleUploadDirs } from "../src/server/routes/local-analyze.js";
+import { handleTestRun, handleTestStatus } from "../src/server/routes/tests.js";
+import {
+  handleLocalAnalyze,
+  pruneStaleUploadDirs,
+  registerUploadDir,
+} from "../src/server/routes/local-analyze.js";
 import {
   makeSkeleton,
   makeProgressWriter,
@@ -181,5 +186,56 @@ describe("progress contract over HTTP — fed by real orchestrator events", () =
     const demo = getDemoResult();
     expect(callStatus(store, demo.id).statusCode).toBe(404);
     expect(callStatus(store, "demo-001").statusCode).toBe(404);
+  });
+});
+
+describe("the test-run polling contract (GET /api/tests/run/:runId)", () => {
+  it("answers a started run with {status, stage, result, error} and 404s for an unknown run", async () => {
+    // The run route's only precondition is a staged copy; the poll reads the run
+    // table the run route seeded, so the success form is driven for real.
+    registerUploadDir("run-analysis", path.join(STAGING.root, "run-analysis"));
+    const started = makeRes();
+    await handleTestRun(
+      { params: { id: "run-analysis" }, body: {} } as unknown as Request,
+      started as unknown as Response,
+    );
+    expect(started.statusCode).toBe(202);
+    const { runId, statusUrl } = started.body as { runId: string; statusUrl: string };
+    expect(statusUrl).toBe(`/api/tests/run/${runId}`);
+
+    const poll = makeRes();
+    handleTestStatus({ params: { runId } } as unknown as Request, poll as unknown as Response);
+    expect(poll.statusCode).toBe(200);
+    const body = poll.body as { status: string; stage: string; result?: unknown; error?: unknown };
+    expect(Object.keys(body).sort()).toEqual(["error", "result", "stage", "status"]);
+    expect(["installing", "running", "complete", "failed"]).toContain(body.status);
+    expect(typeof body.stage).toBe("string");
+
+    const missing = makeRes();
+    handleTestStatus(
+      { params: { runId: "no-such-run" } } as unknown as Request,
+      missing as unknown as Response,
+    );
+    expect(missing.statusCode).toBe(404);
+    expect((missing.body as { error: string }).error).toBe("Unknown test run");
+  });
+});
+
+describe("the demo route contract (GET /api/demo)", () => {
+  it("serves the hardcoded demo dataset with no analyzer claims", () => {
+    const demo = getDemoResult();
+    expect(demo.id).toBe("demo-001");
+    expect(demo.status).toBe("complete");
+    expect(demo.files.length).toBeGreaterThan(0);
+    expect(demo.summary.totalVulnerabilities).toBeGreaterThan(0);
+    // A demo must never arrive carrying an analyzer's claims: every finding
+    // says provenance "demo" and every engine is declared off.
+    for (const f of demo.files) {
+      for (const v of f.vulnerabilities) {
+        expect(v.provenance).toBe("demo");
+      }
+    }
+    expect(demo.summary.scanProvenance?.regex).toBe(false);
+    expect(demo.summary.scanProvenance?.semgrep).toBe(false);
   });
 });
