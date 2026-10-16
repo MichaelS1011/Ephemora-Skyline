@@ -109,8 +109,20 @@ const RUNNER_LABELS: Record<string, string> = {
 };
 
 export function engineLabel(spec: EngineSpec, provenance: ScanProvenance | undefined): string {
-  if (spec.key === "dependencies" && provenance?.dependencyRunner)
-    return RUNNER_LABELS[provenance.dependencyRunner] ?? provenance.dependencyRunner;
+  // both manifest rows answer to the same runner: osv-scanner may have replied
+  // with pip-audit, and a card that names the wrapper instead of the program
+  // that ran is the error this function exists to stop
+  const runner = provenance?.dependencyRunner;
+  if (!runner) return spec.label;
+  // the `dependencies` row is whichever program answered the CVE question; the
+  // `osv` row is that program only when it was an osv-family runner — naming a
+  // row after a program that is not it is the error this resolves
+  if (spec.key === "dependencies") return RUNNER_LABELS[runner] ?? runner;
+  if (
+    spec.key === "osv" &&
+    (runner === "osv" || runner === "pip-audit" || runner === "osv-scanner")
+  )
+    return RUNNER_LABELS[runner] ?? runner;
   return spec.label;
 }
 

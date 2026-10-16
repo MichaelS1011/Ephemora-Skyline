@@ -214,4 +214,18 @@ describe("the dependency row names the engine that actually answered", () => {
       "osv-scanner",
     ]);
   });
+
+  it("names pip-audit when pip-audit answered, not the wrapper that called it", () => {
+    const p: ScanProvenance = {
+      regex: true,
+      gitleaks: true,
+      semgrep: true,
+      dependencies: true,
+      dependencyRunner: "pip-audit",
+      osv: true,
+    };
+    const cov = fileCoverage({ path: "requirements.txt", language: "Text" }, p)!;
+    expect(cov.examined).not.toContain("osv-scanner");
+    expect(cov.examined).toContain("pip-audit");
+  });
 });
