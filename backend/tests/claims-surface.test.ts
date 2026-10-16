@@ -474,8 +474,10 @@ describe("the claims lane of 2026-10-14 (S1: no public number breaks)", () => {
 
   it("J — GETTING_STARTED names the real demo label and pastes the real proxy lines", () => {
     const guide = read("docs/GETTING_STARTED.md");
-    expect(guide, "the only demo CTA is the string i18n.ts carries").toContain(
-      read("frontend/src/i18n.ts").match(/en: "(Explore demo)"/)![1]!,
+    // the string the dictionary carries: since the i18n split it lives in the
+    // data module, and the guard pins where the tree keeps it, not where it used to
+    expect(guide, "the only demo CTA is the string the dictionary carries").toContain(
+      read("frontend/src/i18n/dict.ts").match(/en: "(Explore demo)"/)![1]!,
     );
     expect(guide).not.toMatch(/explore a demo city first/i);
     expect(guide, "the proxy snippet must be the shipped one — 127.0.0.1 and BACKEND_PORT").toMatch(
