@@ -342,6 +342,31 @@ const noSourceLine = (lang: Lang): string =>
   });
 
 /**
+ * True when the per-file size wall is the ONLY reason nothing was read. A
+ * folder that also dropped unsupported or excluded paths is not "one big file
+ * away from a scan", so it keeps the generic sentence.
+ */
+export function onlyTooLarge(dropped: DroppedFiles): boolean {
+  return (
+    dropped.tooLarge > 0 &&
+    dropped.pathTooLong === 0 &&
+    dropped.unsafePath === 0 &&
+    dropped.unreadable === 0 &&
+    dropped.excluded === 0 &&
+    dropped.gitIgnored === 0 &&
+    dropped.gitBudget === 0 &&
+    dropped.unsupportedFormat === 0
+  );
+}
+
+/** The per-file wall as the reason there is nothing to scan — the count is named. */
+export function noSourceTooLargeLine(lang: Lang, n: number): string {
+  return t(lang, n === 1 ? "scan.noSourceTooLargeOne" : "scan.noSourceTooLarge", {
+    n: formatCount(lang, n),
+  });
+}
+
+/**
  * Local-folder analysis flow: pick a folder in the browser, collect its
  * source files client-side, upload them once, then poll the backend job
  * until the city is ready. No GitHub, no clone — the code never leaves
@@ -622,7 +647,9 @@ export function useLocalAnalysis() {
   /** The folder held nothing the scan can read — said as a count, not a shrug. */
   const nothingFound = useCallback((plan: FolderPlan): void => {
     const l = langRef.current;
-    setErrorMessage(noSourceLine(l));
+    setErrorMessage(
+      onlyTooLarge(plan.dropped) ? noSourceTooLargeLine(l, plan.dropped.tooLarge) : noSourceLine(l),
+    );
     setErrorDetail(
       `${plan.dropped.excluded} excluded, ${plan.dropped.pathTooLong} over ${MAX_PATH_LEN} chars, ${plan.dropped.tooLarge} oversized`,
     );

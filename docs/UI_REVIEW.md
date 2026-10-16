@@ -65,12 +65,12 @@ The set came out of the first pass with three captions the frames did not
 support, found by measuring the pictures rather than by looking at them:
 
 - “Security mode: the city darkens” — the buildings drop, and one control moves
-  with them. Between the two shipped frames 1.70 % of the 1,600,000 pixels differ
+  with them. Between the two shipped frames 1.33 % of the 1,600,000 pixels differ
   with no tolerance and no region mask: 17,293 of them are city pixels going
   darker (median colour sum 384 → 235) and 4,842 sit inside the mode bar's
   284 × 28 px chip field, where the highlight moves from Structure to Security
   (2,484 of those brighter, 2,358 darker). The median over all differing pixels
-  goes 372 → 271. Streets, kerbs, trees, sky and nameplates are pixel-identical.
+  goes 366 → 250. Streets, kerbs, trees, sky and nameplates are pixel-identical.
   Two notes on re-measuring this pair: the field was named 166 × 28 px before,
   which cannot hold the 4,794 differing pixels that paragraph counted, so the
   box is now the one the three chips actually occupy; and “the same screen shot
@@ -79,7 +79,7 @@ support, found by measuring the pictures rather than by looking at them:
   shipped it is 7,263 (0,454 %), because the street fleet drives and the alarm
   windows pulse. The caption names both channels; this names both states.
 - The poster beside the clip link is its own frame, not a frame of the clip:
-  1280 × 800 and 355 KB, shot after the visit had returned to the overview,
+  1280 × 800 and 364 KB, shot after the visit had returned to the overview,
   while the clip ends on a close-up. The README therefore gives the poster no
   clip numbers and the clip no poster numbers.
 - “The finding card: … the code frame” — the demo city had none. 0 of its 7
@@ -213,7 +213,7 @@ up to 0,1193 s. Nothing is re-timed, and nothing is dropped forward. The file is
 states those numbers and `backend/tests/beleg-04-demo-clip.test.ts` now reads
 them out of that sentence instead of repeating them, so the document and the
 bytes cannot drift.
-The poster beside it is 1280 × 800 and 355 KB.
+The poster beside it is 1280 × 800 and 364 KB.
 
 ### What measuring the frames found in the layout
 

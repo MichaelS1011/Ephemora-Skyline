@@ -1,4 +1,4 @@
-import { describe, it, expect, afterAll } from "vitest";
+import { describe, it, expect, afterAll, vi } from "vitest";
 import { promises as fs } from "fs";
 import path from "path";
 import {
@@ -11,6 +11,7 @@ import {
   AnalysisOrchestrator,
   SUPPORTED_EXTENSIONS,
 } from "../src/services/analyzer/orchestrator.js";
+import { AnalysisStore } from "../src/server/analysis-store.js";
 import { listPacks } from "../src/services/security/rule-packs.js";
 import { quietScanner } from "./helpers/scanners.js";
 import type { Request } from "express";
@@ -333,5 +334,50 @@ describe("the rule-packs route contract (GET /api/rule-packs)", () => {
       expect(typeof publicPack.ruleCount).toBe("number");
       expect(publicPack.origin === "shipped" || publicPack.origin === "fetched").toBe(true);
     }
+  });
+});
+
+describe("the store TTL is enforced on read, not renewed by it", () => {
+  /** edge-state 4c: an expired city stayed readable because get() never checked
+   *  the stamp and re-stamped on every read. The fix checks at the door and a
+   *  read no longer renews — `now` is injectable so the clock can be driven. */
+  const result = (id: string): AnalysisResult =>
+    ({ id, status: "complete" }) as unknown as AnalysisResult;
+
+  const store = (): AnalysisStore => {
+    vi.stubEnv("ANALYSIS_TTL_MS", "1000");
+    vi.stubEnv("ANALYSIS_MAX_ENTRIES", "20");
+    return new AnalysisStore();
+  };
+
+  it("serves a result while its stamp is fresh", () => {
+    const s = store();
+    s.set("a", result("a"), 0);
+    expect(s.get("a", 999)).toBeDefined();
+    expect(s.get("a", 500)).toBeDefined();
+  });
+
+  it("stops serving a result the moment its stamp expires, without a write", () => {
+    const s = store();
+    s.set("a", result("a"), 0);
+    expect(s.get("a", 1001)).toBeUndefined();
+    // gone for good — a later read cannot resurrect it
+    expect(s.get("a", 2000)).toBeUndefined();
+  });
+
+  it("does not renew the stamp on read: a browsed result still expires at set+ttl", () => {
+    const s = store();
+    s.set("a", result("a"), 0);
+    s.get("a", 400); // a read is not a renewal
+    s.get("a", 900); // two reads, both before the wall
+    expect(s.get("a", 1001)).toBeUndefined();
+  });
+
+  it("still evicts past-TTL entries when a new one is written", () => {
+    const s = store();
+    s.set("old", result("old"), 0);
+    s.set("new", result("new"), 2000);
+    expect(s.get("old", 2001)).toBeUndefined();
+    expect(s.get("new", 2001)).toBeDefined();
   });
 });

@@ -15,8 +15,8 @@ import dotenv from "dotenv";
 import http from "http";
 import pino from "pino";
 
-import type { AnalysisResult } from "../models/index.js";
 import type { ResolvedScanConfig } from "../services/security/scan-config.js";
+import { AnalysisStore } from "./analysis-store.js";
 import { AnalysisOrchestrator } from "../services/analyzer/orchestrator.js";
 import { corsOptionsFor, localOnlyRoute, uploadLimitAwareErrorHandler } from "./local-only.js";
 import { SecurityScanner } from "../services/security/scanner.js";
@@ -54,65 +54,6 @@ const app = express();
 const server = http.createServer(app);
 
 // ── Single source of truth for all analysis results ───────────────────────
-/**
- * Bounded in-memory store for analysis results (LRU + TTL).
- * Without bounds, every analysis accumulates in RAM until restart.
- */
-class AnalysisStore {
-  private map = new Map<string, AnalysisResult>();
-  private stamps = new Map<string, number>();
-  /** Read with a getter, not stored as a copy: the address-lifetime line asks
-   *  the running process what its bounds are, so an operator's environment
-   *  cannot be contradicted by a number quoted elsewhere. */
-  readonly maxEntries: number;
-  readonly ttlMs: number;
-
-  constructor() {
-    this.maxEntries = parseInt(process.env.ANALYSIS_MAX_ENTRIES || "20", 10);
-    this.ttlMs = parseInt(process.env.ANALYSIS_TTL_MS || String(24 * 60 * 60 * 1000), 10);
-  }
-
-  get(id: string): AnalysisResult | undefined {
-    const result = this.map.get(id);
-    if (!result) return undefined;
-    // LRU touch: re-insert to move to the back of eviction order and
-    // refresh the TTL stamp — actively browsed results must not expire
-    this.map.delete(id);
-    this.map.set(id, result);
-    if (this.stamps.has(id)) this.stamps.set(id, Date.now());
-    return result;
-  }
-
-  set(id: string, result: AnalysisResult): void {
-    this.map.delete(id);
-    this.stamps.delete(id);
-    this.map.set(id, result);
-    this.stamps.set(id, Date.now());
-    this.evict();
-  }
-
-  delete(id: string): void {
-    this.map.delete(id);
-    this.stamps.delete(id);
-  }
-
-  private evict(): void {
-    const now = Date.now();
-    for (const [id, stamp] of this.stamps) {
-      if (now - stamp > this.ttlMs) {
-        this.map.delete(id);
-        this.stamps.delete(id);
-      }
-    }
-    while (this.map.size > this.maxEntries) {
-      const oldest = this.map.keys().next().value;
-      if (oldest === undefined) break;
-      this.map.delete(oldest);
-      this.stamps.delete(oldest);
-    }
-  }
-}
-
 const analysisStore = new AnalysisStore();
 
 // ── Service instances ─────────────────────────────────────────────────────
@@ -208,8 +149,9 @@ app.get("/api/health", async (_req: Request, res: Response): Promise<void> => {
   });
 });
 
-// GET /api/demo — hardcoded demo dataset
-app.get("/api/demo", (_req: Request, res: Response): void => {
+// GET /api/demo — hardcoded demo dataset. A read, but one a foreign page has no
+// business receiving: it carries the same origin guard as the routes that run.
+app.get("/api/demo", localOnlyRoute, (_req: Request, res: Response): void => {
   try {
     res.json(getDemoResult());
   } catch {
@@ -322,7 +264,7 @@ app.get("/api/update/check", readLimiter, (req: Request, res: Response): void =>
 // under what license. The UI cannot offer a pack it has not seen here, and a
 // pack whose manifest lies about its rule count is not in this list. The
 // absolute directory stays server-side: the client selects by id, never by path.
-app.get("/api/rule-packs", (_req: Request, res: Response): void => {
+app.get("/api/rule-packs", localOnlyRoute, (_req: Request, res: Response): void => {
   res.json({
     offline: isOffline(),
     packs: listPacks().map(({ dir: _dir, ...publicPack }) => publicPack),
@@ -336,11 +278,17 @@ app.get("/api/rule-packs", (_req: Request, res: Response): void => {
 // the staged folder copies (footprintSnapshot); the machine's second home of
 // the human's triage is the verdict store at ~/.ephemora-skyline/verdicts.json
 // (CODECITY_VERDICTS_FILE overrides), cleared by POST /api/verdicts/reset — the
-// entry screen's reset button deletes the browser buckets and that file. The
-// purge is a write and goes through the same guard as the routes that run code.
-app.get("/api/footprint", readLimiter, async (_req: Request, res: Response): Promise<void> => {
-  res.json(await footprintSnapshot());
-});
+// entry screen's reset button deletes the browser buckets and that file. Both
+// halves carry the origin guard — the GET names what is kept on disk, the
+// purge is a write and deletes it, and neither is drivable from another website.
+app.get(
+  "/api/footprint",
+  localOnlyRoute,
+  readLimiter,
+  async (_req: Request, res: Response): Promise<void> => {
+    res.json(await footprintSnapshot());
+  },
+);
 app.post(
   "/api/footprint/purge",
   localOnlyRoute,

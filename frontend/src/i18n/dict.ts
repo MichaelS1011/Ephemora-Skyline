@@ -1726,6 +1726,20 @@ export const DICT = {
     en: "No analyzable source files in this folder (supported: {exts})",
     de: "In diesem Ordner liegen keine analysierbaren Quelldateien (unterstützt: {exts})",
   },
+  /**
+   * The folder held source files, but every one was past the per-file wall —
+   * that is a fact about the files, not "no source here". Said with the count
+   * that left and the 2 MB limit, so a single 3 MB file is never described as
+   * an empty folder (edge-state 1c).
+   */
+  "scan.noSourceTooLarge": {
+    en: "{n} files in this folder are over the 2 MB per-file limit — nothing left to analyze",
+    de: "{n} Dateien in diesem Ordner liegen über der 2-MB-Grenze je Datei — nichts mehr zu analysieren",
+  },
+  "scan.noSourceTooLargeOne": {
+    en: "{n} file in this folder is over the 2 MB per-file limit — nothing left to analyze",
+    de: "{n} Datei in diesem Ordner liegt über der 2-MB-Grenze je Datei — nichts mehr zu analysieren",
+  },
   "scan.pickerTimeout": {
     en: "Still choosing? Take your time. If no dialog opened, you can open an alternative; this replaces the first selection.",
     de: "Noch bei der Auswahl? Lass dir Zeit. Falls kein Dialog geöffnet wurde, kannst du einen alternativen öffnen; dieser ersetzt die erste Auswahl.",

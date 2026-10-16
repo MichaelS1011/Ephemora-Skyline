@@ -199,6 +199,8 @@ describe("the boundary states speak the screen's language", () => {
     ],
     [t("en", "cap.filesFound", { found: "10,300", max: "10,000" }), "exceeds", 10300, "cap"],
     [t("de", "cap.filesFound", { found: "0", max: "10.000" }), "", 0, "no-source"],
+    [t("de", "scan.noSourceTooLargeOne", { n: "1" }), "", 0, "no-source"],
+    [t("en", "scan.noSourceTooLarge", { n: "3" }), "", 0, "no-source"],
     ["Der lokale Server bittet um eine Pause — weiter in 192 s", "HTTP 429", 12, "rate-limit"],
     ["Die Demo konnte nicht geladen werden.", "Failed to fetch", 4, "server-down"],
     ["Der lokale Server antwortet nicht auf Port 4000.", "no answer within 20 min", 4, "timeout"],

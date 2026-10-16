@@ -332,7 +332,12 @@ export function classifyStartError(
   if (/failed to fetch|econnrefused|networkerror|fetch failed/.test(d)) return "server-down";
   if (/429|too many/.test(d) || says(message, "limit.hit")) return "rate-limit";
   if (/413|too large for one upload/.test(d)) return "upload-too-large";
-  if (says(message, "scan.noSource")) return "no-source";
+  if (
+    says(message, "scan.noSource") ||
+    says(message, "scan.noSourceTooLarge") ||
+    says(message, "scan.noSourceTooLargeOne")
+  )
+    return "no-source";
   if (says(message, "cap.filesFound") || says(message, "cap.hint"))
     return foundFiles === 0 ? "no-source" : "cap";
   return "failed";

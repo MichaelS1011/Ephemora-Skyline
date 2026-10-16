@@ -244,3 +244,35 @@ describe("every write route carries the origin guard", () => {
     expect(guardedPost).toContain("/api/verify");
   });
 });
+
+describe("the three machine-describing GET routes carry the origin guard", () => {
+  /**
+   * edge-state Welle 2: /api/demo, /api/rule-packs and /api/footprint answered a
+   * foreign page with no guard at all. CORS already stops the read, but "top"
+   * means no exception without a reason — the guard answers a browser page from
+   * elsewhere and still lets a no-Origin client through (the CLI contract in
+   * docs/AGENTS.md, pinned above by `isForeignBrowserRequest({}, ...)`).
+   */
+  const source = readFileSync(path.resolve(import.meta.dirname, "../src/server/index.ts"), "utf-8");
+
+  const guardedGet = (pathname: string): boolean => {
+    const needle = `"${pathname}"`;
+    let from = 0;
+    for (;;) {
+      const routeAt = source.indexOf("app.get(", from);
+      if (routeAt === -1) return false;
+      const pathAt = source.indexOf(needle, routeAt);
+      if (pathAt !== -1 && pathAt - routeAt < 60) {
+        const bodyStart = source.indexOf("{", pathAt + needle.length);
+        return source.slice(pathAt + needle.length, bodyStart).includes("localOnlyRoute");
+      }
+      from = routeAt + 8;
+    }
+  };
+
+  it("guards /api/demo, /api/rule-packs and /api/footprint", () => {
+    for (const route of ["/api/demo", "/api/rule-packs", "/api/footprint"]) {
+      expect(guardedGet(route), `${route} must carry localOnlyRoute`).toBe(true);
+    }
+  });
+});

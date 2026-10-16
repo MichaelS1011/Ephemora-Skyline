@@ -3,6 +3,8 @@ import {
   MAX_FILE_BYTES,
   classifyCandidate,
   isSourceShaped,
+  noSourceTooLargeLine,
+  onlyTooLarge,
   type FolderPlan,
 } from "../src/hooks/useLocalAnalysis";
 import { readFileSync } from "fs";
@@ -78,5 +80,35 @@ describe("the picker's per-file wall is the one the docs sell", () => {
     classifyCandidate("src/at-wall.ts", file("at-wall.ts", 2 * 1024 * 1024), [], plan, null);
     expect(plan.found).toBe(1);
     expect(plan.dropped.tooLarge).toBe(0);
+  });
+
+  /**
+   * edge-state 1c: a folder whose only source file is over the wall used to read
+   * "no analyzable source files" — the file existed, it was only too large. The
+   * honest sentence names the count, and only fires when the size wall is the
+   * sole reason nothing was read.
+   */
+  it("says one oversized file is the size wall, not an empty folder", () => {
+    const plan = emptyPlan();
+    classifyCandidate("src/oversize.ts", file("oversize.ts", 2 * 1024 * 1024 + 1), [], plan, null);
+    expect(onlyTooLarge(plan.dropped)).toBe(true);
+    expect(noSourceTooLargeLine("de", plan.dropped.tooLarge)).toContain("1 Datei");
+    expect(noSourceTooLargeLine("de", plan.dropped.tooLarge)).toContain("2-MB-Grenze");
+    expect(noSourceTooLargeLine("en", plan.dropped.tooLarge)).toContain("1 file");
+    expect(noSourceTooLargeLine("en", plan.dropped.tooLarge)).toContain("2 MB per-file limit");
+  });
+
+  it("names several oversized files with the plural", () => {
+    expect(noSourceTooLargeLine("en", 3)).toContain("3 files");
+    expect(noSourceTooLargeLine("de", 3)).toContain("3 Dateien");
+  });
+
+  it("keeps the generic sentence when another drop reason joined the size wall", () => {
+    const plan = emptyPlan();
+    plan.dropped.tooLarge = 1;
+    plan.dropped.unsupportedFormat = 2;
+    expect(onlyTooLarge(plan.dropped)).toBe(false);
+    const allZero = { ...plan.dropped, unsupportedFormat: 0 };
+    expect(onlyTooLarge(allZero)).toBe(true);
   });
 });
