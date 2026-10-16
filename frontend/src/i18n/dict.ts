@@ -242,8 +242,8 @@ export const DICT = {
     de: "Scan-Einstellungen",
   },
   "landing.scanSettingsHint": {
-    en: "— open to change scan depth",
-    de: "— öffnen, um die Scan-Tiefe zu ändern",
+    en: "— choose the scan profile and depth here",
+    de: "— hier Profil und Scan-Tiefe wählen",
   },
   "landing.scanDepth": {
     en: "Choose the depth of your scan.",
@@ -434,10 +434,18 @@ export const DICT = {
     en: "Start triage",
     de: "Triage starten",
   },
-  /** The queue walks findings WITHOUT a verdict; this says how many are left. */
+  /**
+   * The word the dock puts after the triage's count. The dock shows the triage
+   * count and the findings button side by side, so both name the counted thing
+   * with the same term — findings/Funde, never two words for one object.
+   */
   "actions.triageOpenWord": {
-    en: "open",
-    de: "offen",
+    en: "findings",
+    de: "Funde",
+  },
+  "actions.triageOpenWordOne": {
+    en: "finding",
+    de: "Fund",
   },
   "actions.triageOpenTitle": {
     en: "{open} findings in this queue still need a verdict",

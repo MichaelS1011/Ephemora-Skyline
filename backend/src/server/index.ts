@@ -159,8 +159,9 @@ app.get("/api/demo", localOnlyRoute, (_req: Request, res: Response): void => {
   }
 });
 
-// GET /api/cities/default — city-mapped demo data consumed by the frontend
-app.get("/api/cities/default", (_req: Request, res: Response): void => {
+// GET /api/cities/default — city-mapped demo data consumed by the frontend.
+// A read like /api/demo: a foreign page has no business receiving it either.
+app.get("/api/cities/default", localOnlyRoute, (_req: Request, res: Response): void => {
   try {
     const demo = getDemoResult();
     // Register it under its own id, so `?city=demo-001` resolves like any other

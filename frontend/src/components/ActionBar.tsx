@@ -346,7 +346,11 @@ export function ActionBar() {
               {triageCursor + 1} / {triageTotal}
               {queue && queue.total > 0 && (
                 <span className="ml-1.5" style={{ color: queue.open > 0 ? "#e8b23c" : "#29d398" }}>
-                  · {queue.open} {t(lang, "actions.triageOpenWord")}
+                  · {queue.open}{" "}
+                  {t(
+                    lang,
+                    queue.open === 1 ? "actions.triageOpenWordOne" : "actions.triageOpenWord",
+                  )}
                 </span>
               )}
             </span>
@@ -402,7 +406,8 @@ export function ActionBar() {
                 className="font-mono text-xs tabular-nums"
                 style={{ color: queue.open > 0 ? "#e8b23c" : "#29d398" }}
               >
-                {queue.open} {t(lang, "actions.triageOpenWord")}
+                {queue.open}{" "}
+                {t(lang, queue.open === 1 ? "actions.triageOpenWordOne" : "actions.triageOpenWord")}
               </span>
             )}
             <span aria-hidden="true">▶</span>

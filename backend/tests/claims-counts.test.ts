@@ -363,16 +363,16 @@ describe("the claims lane of 2026-10-14 (S1: no public number breaks)", () => {
       `${files.toLocaleString("en-US")} files / ${Math.round(total / 1024 / 1024)} MB`,
     );
     expect(sec).not.toMatch(/3000 files|3,000 files|40 MB/);
-    // ten registrations, and both documents say ten
+    // eleven registrations, and both documents say eleven
     const registrations = read("backend/src/server/index.ts")
       .split("\n")
       .filter((l) => /localOnlyRoute[,)"]/.test(l) && !l.trim().startsWith("import")).length;
-    expect(registrations, "the guard is wired where the docs say").toBe(10);
-    expect(sec, "SECURITY undersells the guard — ten routes refuse a foreign page").toMatch(
-      /[Tt]en routes/,
+    expect(registrations, "the guard is wired where the docs say").toBe(11);
+    expect(sec, "SECURITY undersells the guard — eleven routes refuse a foreign page").toMatch(
+      /[Ee]leven routes/,
     );
     expect(sec).not.toMatch(/two routes that execute/i);
-    expect(read("README.md")).toContain("ten routes");
+    expect(read("README.md")).toContain("eleven routes");
     // every shipped adapter is named by the security policy
     const adapters = readdirSync(path.join(REPO, "backend/src/services/security/adapters"))
       .join("\n")
