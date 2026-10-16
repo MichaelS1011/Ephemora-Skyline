@@ -145,6 +145,10 @@ describe("the dependency row names the engine that actually answered", () => {
     expect(scanVerdict(p, 0, JS, ["package.json", "package-lock.json"])).toEqual({
       kind: "clear",
     });
+    // …and the card that credits the same answer names the program, not the row
+    const examined = fileCoverage({ path: "package-lock.json", language: "JSON" }, p)!.examined;
+    expect(examined.filter((n) => n === "osv-scanner")).toHaveLength(1);
+    expect(examined).not.toContain("npm audit");
   });
 
   it("still names npm audit when npm audit is the engine that ran", () => {

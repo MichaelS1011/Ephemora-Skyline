@@ -3,7 +3,7 @@ import { mkdtemp, mkdir, writeFile, rm } from "fs/promises";
 import { tmpdir } from "os";
 import path from "path";
 import { AnalysisOrchestrator } from "../src/services/analyzer/orchestrator.js";
-import type { SecurityScanner } from "../src/services/security/scanner.js";
+import { quietScanner } from "./helpers/scanners.js";
 import type { GitHubRepo } from "../src/models/index.js";
 
 /**
@@ -15,24 +15,6 @@ import type { GitHubRepo } from "../src/models/index.js";
  * The selection decision at orchestrator.ts:244 already had five counted reasons
  * and this was the sixth.
  */
-
-/** No engine runs here: this test is about which paths join the scan. */
-function countingScanner(): SecurityScanner {
-  return {
-    setConfig: () => {},
-    enableBatchScans: () => {},
-    scanFile: () => [],
-    scanFileStructure: () => ({ imports: [], exports: [] }),
-    scanRepositoryBatch: async () => ({
-      gitleaksRan: false,
-      semgrepRan: false,
-      ruffRan: false,
-      osvRan: false,
-    }),
-    scanDependencies: async () => ({ issuesByFile: new Map(), executed: false }),
-    countBySeverity: () => ({ P0: 0, P1: 0, P2: 0 }),
-  } as unknown as SecurityScanner;
-}
 
 const repo = (name: string): GitHubRepo => ({
   owner: "local",
@@ -66,7 +48,7 @@ describe("a file the scan's own format list excludes is counted, not assumed awa
   });
 
   it("names the four unread files of a five-file folder", async () => {
-    const orchestrator = new AnalysisOrchestrator(countingScanner());
+    const orchestrator = new AnalysisOrchestrator(quietScanner());
     const result = await orchestrator.analyzeDirectory("drop-formats", dir, repo("drop-formats"));
 
     expect(result.summary.totalFiles).toBe(1);
@@ -80,7 +62,7 @@ describe("a file the scan's own format list excludes is counted, not assumed awa
   });
 
   it("keeps the other reasons counting what they always counted", async () => {
-    const orchestrator = new AnalysisOrchestrator(countingScanner());
+    const orchestrator = new AnalysisOrchestrator(quietScanner());
     const result = await orchestrator.analyzeDirectory("drop-formats", dir, repo("drop-formats"));
     const dropped = result.summary.dropped;
     expect(dropped).toMatchObject({
