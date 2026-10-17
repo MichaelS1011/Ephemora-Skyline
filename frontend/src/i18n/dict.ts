@@ -2638,22 +2638,6 @@ export const DICT = {
     en: "standard + git-history secret scan",
     de: "Standard + Secret-Scan der Git-Historie",
   },
-  "profile.security": {
-    en: "Security",
-    de: "Sicherheit",
-  },
-  "profile.securitySummary": {
-    en: "only security findings, no style noise",
-    de: "nur Sicherheitsfunde, kein Stil-Rauschen",
-  },
-  "profile.quality": {
-    en: "Quality",
-    de: "Qualität",
-  },
-  "profile.qualitySummary": {
-    en: "dead code & hygiene only",
-    de: "nur toter Code und Hygiene",
-  },
   "profile.custom": {
     en: "Custom",
     de: "Eigene",
@@ -2675,14 +2659,6 @@ export const DICT = {
   "scope.deep": {
     en: "shows all findings P0 to P2, including historical secrets",
     de: "zeigt alle Funde P0 bis P2, inklusive Secrets aus der Historie",
-  },
-  "scope.securityOnly": {
-    en: "shows all findings, minus style-noise categories",
-    de: "zeigt alle Funde ohne die Stil-Rauschen-Arten",
-  },
-  "scope.qualityOnly": {
-    en: "shows only hygiene findings (dead code, console, style)",
-    de: "zeigt nur Hygiene-Funde (toter Code, console, Stil)",
   },
   "scope.custom": {
     en: "shows all findings, P0 to P2",

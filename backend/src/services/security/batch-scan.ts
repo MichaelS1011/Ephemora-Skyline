@@ -94,10 +94,7 @@ export async function runRepositoryBatch(
     if (!ctx.config.tools.ruff) return new Map();
     try {
       return await ctx.ruff.scanRepository(clonePath, {
-        scope:
-          ctx.config.profile === "deep" || ctx.config.profile === "quality-only"
-            ? "full"
-            : "security",
+        scope: ctx.config.profile === "deep" ? "full" : "security",
       });
     } catch (e) {
       ctx.logger.warn({ e }, "ruff batch scan failed — Python lint skipped");

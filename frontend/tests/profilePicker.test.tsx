@@ -9,7 +9,7 @@ import { ProfileChips } from "../src/components/ProfileChips";
 import { t as tDict } from "../src/i18n";
 const tEn = (key: string, vars?: Record<string, string | number>) =>
   tDict("en", key as never, vars);
-import { SCAN_PROFILES, configPayload } from "../src/config/scanProfiles";
+import { SCAN_PROFILES } from "../src/config/scanProfiles";
 import type { RulePackInfo } from "../src/config/rulePacks";
 import { useStore } from "../src/stores/useStore";
 
@@ -236,32 +236,5 @@ describe("honest, reversible choices", () => {
     expect(off.disabled).toBe(false);
     await act(async () => off.click());
     expect(useStore.getState().scanCategories).toHaveLength(2);
-  });
-});
-
-describe("profile and category scope agree", () => {
-  it("a previous secrets-only choice cannot silence a quality scan", () => {
-    expect(configPayload("quality-only", ["secrets"]).enabledCategories).toEqual(["hygiene"]);
-  });
-  it("offers only hygiene for Quality and keeps that scope visible", async () => {
-    useStore.getState().setScanProfile("quality-only");
-    await render("analyze-panel");
-    const buttons = [...container.querySelectorAll<HTMLButtonElement>(".category-options button")];
-    expect(buttons).toHaveLength(1);
-    expect(buttons[0]!.getAttribute("aria-pressed")).toBe("true");
-    expect(buttons[0]!.disabled).toBe(true);
-    expect(useStore.getState().scanCategories).toEqual(["hygiene"]);
-  });
-  it("offers security categories when moving from Quality to Security", async () => {
-    useStore.getState().setScanProfile("quality-only");
-    useStore.getState().setScanProfile("security-only");
-    await render("analyze-panel");
-    const labels = [
-      ...container.querySelectorAll<HTMLButtonElement>(".category-options button"),
-    ].map((b) => b.textContent);
-    expect(labels.some((s) => s?.includes("hygiene"))).toBe(false);
-    expect(useStore.getState().scanCategories).not.toContain("hygiene");
-    expect(useStore.getState().scanCategories).toContain("secrets");
-    expect(configPayload("security-only", ["hygiene"]).enabledCategories).not.toContain("hygiene");
   });
 });

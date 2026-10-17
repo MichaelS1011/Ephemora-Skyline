@@ -3,12 +3,11 @@
  * Mirrors the backend scan-config presets (resolveConfig applies them).
  */
 
-import { enabledCategoriesPayload, CATEGORY_IDS } from "./findingCategories";
+import { enabledCategoriesPayload } from "./findingCategories";
 import type { FindingCategory } from "../city/types";
 import type { DictKey } from "../i18n";
 
-export type ScanProfile =
-  "quick" | "standard" | "deep" | "security-only" | "quality-only" | "custom";
+export type ScanProfile = "quick" | "standard" | "deep" | "custom";
 
 export interface ScanProfileMeta {
   id: ScanProfile;
@@ -34,18 +33,6 @@ export const SCAN_PROFILES: ScanProfileMeta[] = [
     summary: "profile.standardSummary",
   },
   { id: "deep", icon: "🔬", label: "profile.deep", summary: "profile.deepSummary" },
-  {
-    id: "security-only",
-    icon: "🛡",
-    label: "profile.security",
-    summary: "profile.securitySummary",
-  },
-  {
-    id: "quality-only",
-    icon: "🧹",
-    label: "profile.quality",
-    summary: "profile.qualitySummary",
-  },
 ];
 
 /**
@@ -170,19 +157,6 @@ export const PROFILE_ENGINES: Record<ScanProfile, EngineId[]> = {
     "blame",
     "secretsHistory",
   ],
-  "security-only": [
-    "heuristics",
-    "secrets",
-    "ast",
-    "deps",
-    "osv",
-    "ruff",
-    "duplicates",
-    "cycles",
-    "coverage",
-    "blame",
-  ],
-  "quality-only": ["heuristics", "ruff", "duplicates", "cycles"],
   custom: [
     "heuristics",
     "secrets",
@@ -202,8 +176,6 @@ export const PROFILE_SCOPE: Record<ScanProfile, DictKey> = {
   quick: "scope.quick",
   standard: "scope.standard",
   deep: "scope.deep",
-  "security-only": "scope.securityOnly",
-  "quality-only": "scope.qualityOnly",
   custom: "scope.custom",
 };
 
@@ -246,11 +218,6 @@ export function categoriesForProfile(
   profile: ScanProfile,
   categories: FindingCategory[],
 ): FindingCategory[] {
-  if (profile === "quality-only") return ["hygiene"];
-  if (profile === "security-only") {
-    const security = categories.filter((category) => category !== "hygiene");
-    return security.length ? security : CATEGORY_IDS.filter((category) => category !== "hygiene");
-  }
   return categories;
 }
 

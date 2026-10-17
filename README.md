@@ -132,8 +132,6 @@ Pick a profile, or configure your own:
 | **Quick**    | Heuristics, secrets and dependency advisories, critical findings only — no AST scan, no OSV, no Python lint |
 | **Standard** | Every check: regex heuristics, `gitleaks`, `semgrep`, dependency audit, OSV, `ruff`                         |
 | **Deep**     | Standard plus a secret scan of the git history                                                              |
-| **Security** | Security findings without the style noise                                                                   |
-| **Quality**  | Dead code, clones and hygiene only — no security engines                                                    |
 | **Custom**   | The same checks, chosen by you: categories, engines and rule pack                                           |
 
 Findings are grouped into nine categories that can be switched per scan, inside a city — injection and execution, secrets, cryptography, transport and certificates, data exposure, dependencies and supply chain, permissions and destructive actions, code hygiene, and a bucket for findings whose rule carries no CWE the taxonomy knows.

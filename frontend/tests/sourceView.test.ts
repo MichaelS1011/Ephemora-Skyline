@@ -113,7 +113,9 @@ describe("highlightSourceLines", () => {
   it("is deterministic — same input, same output, twice", () => {
     const lines = ["a", "b", "c"];
     const findings = [finding(1), finding(3)];
-    expect(highlightSourceLines(lines, findings)).toEqual(highlightSourceLines(lines, findings));
+    const first = highlightSourceLines(lines, findings);
+    const second = highlightSourceLines(lines, findings);
+    expect(first).toEqual(second);
   });
 });
 

@@ -131,7 +131,9 @@ describe("slabSegments", () => {
 
 describe("voxelShade", () => {
   it("is deterministic — same index+seed, same shade", () => {
-    expect(voxelShade(42, 7)).toBe(voxelShade(42, 7));
+    const first = voxelShade(42, 7);
+    const second = voxelShade(42, 7);
+    expect(first).toBe(second);
   });
 
   it("stays inside the grain band [0.88, 1.12] across a wide sweep", () => {

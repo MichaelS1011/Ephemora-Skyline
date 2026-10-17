@@ -289,12 +289,12 @@ describe("handleLocalAnalyze", () => {
       });
     await Promise.all([
       handleLocalAnalyze(req("quick"), makeRes() as never, factory, store),
-      handleLocalAnalyze(req("quality-only"), makeRes() as never, factory, store),
+      handleLocalAnalyze(req("deep"), makeRes() as never, factory, store),
     ]);
     for (let i = 0; i < 40 && given.length < 2; i++) {
       await new Promise((r) => setTimeout(r, 100));
     }
-    expect(given.map((g) => g.profile).sort()).toEqual(["quality-only", "quick"]);
+    expect(given.map((g) => g.profile).sort()).toEqual(["deep", "quick"]);
     expect(new Set(given.map((g) => g.instance)).size).toBe(2);
   });
 });

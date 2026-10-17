@@ -82,7 +82,7 @@ describe("nine categories a scan can be switched by (README.md:135)", () => {
   });
 
   it("keeps the last bucket for the rule that cites no CWE the taxonomy knows", () => {
-    // README.md:139 "a bucket for findings whose rule carries no CWE the taxonomy knows"
+    // README.md:137 "a bucket for findings whose rule carries no CWE the taxonomy knows"
     expect(categoryOf("MYSTERY_RULE")).toBe("unclassified");
     expect(categoryOf("MYSTERY_RULE", "CWE-999999")).toBe("unclassified");
     expect(categoryInfo("unclassified").meaning).toContain("no CWE");
@@ -105,8 +105,8 @@ describe("nine categories a scan can be switched by (README.md:135)", () => {
 describe("the profile table (README.md:126-128)", () => {
   const base = defaultScanConfig();
 
-  it("offers the six profiles the table has rows for", () => {
-    const ids = ["quick", "standard", "deep", "security-only", "quality-only", "custom"] as const;
+  it("offers the four profiles the table has rows for", () => {
+    const ids = ["quick", "standard", "deep", "custom"] as const;
     for (const id of ids) expect(profilePreset(id)).toBeDefined();
     expect(resolveConfig({ profile: "custom" }).errors).toEqual([]);
   });
@@ -140,25 +140,6 @@ describe("the profile table (README.md:126-128)", () => {
     for (const engine of ["gitleaks", "semgrep", "dependencies", "osv", "ruff"] as const) {
       expect(preset.tools![engine], `deep switched ${engine} off`).toBe(base.tools[engine]);
     }
-  });
-
-  it("security: the style noise switched off, the engines left alone", () => {
-    const preset = profilePreset("security-only")!;
-    expect(preset.tools).toBeUndefined();
-    expect(preset.disabledFindingTypes).toEqual(
-      expect.arrayContaining(["CONSOLE_USAGE", "LOOSE_EQUALITY", "LOCALSTORAGE_USAGE"]),
-    );
-  });
-
-  it("quality: hygiene only, and no security engine runs", () => {
-    const preset = profilePreset("quality-only")!;
-    expect(preset.enabledFindingTypes).toContain("QUALITY");
-    expect(preset.tools).toMatchObject({
-      gitleaks: false,
-      semgrep: false,
-      dependencies: false,
-      osv: false,
-    });
   });
 });
 
@@ -196,7 +177,7 @@ describe("your own patterns (README.md:137)", () => {
   });
 
   it("stops at the twenty-five the sentence names", () => {
-    // README.md:141 "up to 25 regular expressions"; backend/tests/scan-config.test.ts:74
+    // README.md:139 "up to 25 regular expressions"; backend/tests/scan-config.test.ts:74
     // already shows a longer list being cut, this pins the number itself.
     expect(MAX_CUSTOM_PATTERNS).toBe(25);
     const many = Array.from({ length: 26 }, (_, i) => ({
@@ -210,8 +191,8 @@ describe("your own patterns (README.md:137)", () => {
     expect(errors.join(" ")).toContain(`truncated to ${MAX_CUSTOM_PATTERNS}`);
   });
 
-  it("runs the ReDoS canary before a pattern is ever run (README.md:141)", () => {
-    // README.md:141 "Each one is validated against a ReDoS canary before it is ever run."
+  it("runs the ReDoS canary before a pattern is ever run (README.md:139)", () => {
+    // README.md:139 "Each one is validated against a ReDoS canary before it is ever run."
     const rejected = resolveConfig({
       customPatterns: [{ id: "BLOWUP", regex: "(a|aa)*b", severity: "P1", message: "x" }],
     });

@@ -67,6 +67,10 @@ export interface FlyRequest {
   targetY?: number;
   /** Frame the level's data geometry in the live camera frustum. */
   overview?: boolean;
+  /** Camera elevation angle in radians. When omitted the rig preserves the
+   *  current viewing angle — fine for user-driven flights, but building/tour
+   *  shots must pass an explicit value or the angle drifts steeper per hop. */
+  elevation?: number;
   nonce: number;
 }
 
@@ -378,6 +382,7 @@ function flyToDirOverview(
       z: layout.centre.z,
       distance: shot.dist,
       targetY: shot.targetY,
+      elevation: shot.elevation,
       overview: true,
       nonce: ++flyNonce,
     },
@@ -390,12 +395,21 @@ function flyToDirOverview(
  * heat-grid band allows is framed at the band's edge with the eye line lifted
  * — the alternative is flying to a district that renders as flat tiles.
  */
-function buildingShot(layoutBounds: number, h: number): { dist: number; targetY: number } {
+function buildingShot(
+  layoutBounds: number,
+  h: number,
+): { dist: number; targetY: number; elevation: number } {
   const wanted = Math.max(14, h * 2.6 + 12);
   const drawn = farLodExitDistance(layoutBounds) * FAR_LOD_SAFE_RATIO;
+  const dist = Math.min(wanted, Math.max(14, drawn, h * 1.35));
+  // Frontal building view: the camera sits at a gentle ~16° angle, looking
+  // slightly up at the tower rather than down on it. This reads as "a person
+  // standing across the street", not "a drone surveying rooftops".
+  const elevation = 0.28;
   return {
-    dist: Math.min(wanted, Math.max(14, drawn, h * 1.35)),
+    dist,
     targetY: Math.max(1.5, h * 0.45),
+    elevation,
   };
 }
 
@@ -753,6 +767,7 @@ export const useStore = create<AppState>((set, get) => {
             z: placement.z,
             distance: shot.dist,
             targetY: shot.targetY,
+            elevation: shot.elevation,
             nonce: ++flyNonce,
           },
         });
@@ -795,6 +810,7 @@ export const useStore = create<AppState>((set, get) => {
             z: placement.z,
             distance: shot.dist,
             targetY: shot.targetY,
+            elevation: shot.elevation,
             nonce: ++flyNonce,
           },
         });

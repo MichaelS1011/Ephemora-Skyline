@@ -237,7 +237,7 @@ export function clampToCity(
 
 /** The crane's eye line: 21° below the horizon — the angle at which a plot and
  *  the crown rising out of it both fit the same frame. */
-export const CRANE_ELEVATION = 0.36;
+export const CRANE_ELEVATION = 0.42;
 /** Per-second exponential closure toward the shot: quick enough to keep up
  *  with a 20 s build, slow enough that the pull-back reads as one move. */
 const CRANE_FOLLOW_RATE = 2.2;
@@ -435,6 +435,9 @@ export function CameraRig() {
   // starts (never from stale state), so mode switches never jump.
   const look = useRef({ yaw: 0, pitch: 0 });
   const dragging = useRef(false);
+  const reducedMotionRef = useRef(
+    typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches,
+  );
   const lastPointer = useRef({ x: 0, y: 0 });
   // Mirrors cameraMode for the frame loop / listeners (no stale closures).
   const modeRef = useRef<"free" | "orbit">(cameraMode);
@@ -617,6 +620,7 @@ export function CameraRig() {
       anchor,
       { x: toTarget.x, y: toTarget.y, z: toTarget.z },
       distance,
+      flyRequest.elevation,
     );
     let toPos = new THREE.Vector3(pos.x, pos.y, pos.z);
     const frame = boundsRef.current;
@@ -809,6 +813,34 @@ export function CameraRig() {
         controls.update();
       }
       if (tween.t >= 1) tweenRef.current = null;
+    }
+
+    // Idle drift: after 4 s of no input in orbit mode, the camera slowly
+    // orbits around the city centre. Any pointer/key/wheel/tween/crane input
+    // kills it within the same frame. Respects prefers-reduced-motion.
+    const idleThreshold = 4;
+    const idleSpeed = 0.06;
+    const manualAt = useStore.getState().cameraManualAt;
+    const now = Date.now();
+    const idleEligible =
+      !free &&
+      !tween &&
+      !crane &&
+      keys.size === 0 &&
+      !dragging.current &&
+      frame !== undefined &&
+      now - manualAt > idleThreshold * 1000 &&
+      !reducedMotionRef.current;
+    if (idleEligible) {
+      const angle = idleSpeed * delta;
+      const dx = camera.position.x - centre.x;
+      const dz = camera.position.z - centre.z;
+      const cos = Math.cos(angle);
+      const sin = Math.sin(angle);
+      camera.position.x = centre.x + dx * cos - dz * sin;
+      camera.position.z = centre.z + dx * sin + dz * cos;
+      controls.target.set(centre.x, controls.target.y, centre.z);
+      controls.update();
     }
 
     // The bracket pair's mark on a district plot. Read every frame rather than

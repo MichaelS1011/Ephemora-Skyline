@@ -269,10 +269,6 @@ describe("Englisch bleibt, was vor der Übersetzung im DOM stand", () => {
     "all scanners — secrets, AST, CVEs, heuristics",
     "Deep",
     "standard + git-history secret scan",
-    "Security",
-    "only security findings, no style noise",
-    "Quality",
-    "dead code & hygiene only",
     "Custom",
     "your own configuration (coming soon)",
     // Engines
@@ -448,7 +444,7 @@ describe("die Panels antworten in der gewählten Sprache", () => {
     const labels = [...(chips?.querySelectorAll("button") ?? [])].map((b) =>
       (b.textContent ?? "").replace("✓ ", "").trim(),
     );
-    expect(labels).toEqual(["Schnell", "Standard", "Tief", "Sicherheit", "Qualität"]);
+    expect(labels).toEqual(["Schnell", "Standard", "Tief"]);
     const categoryLabels = [
       ...(host.querySelectorAll(".category-options button") as NodeListOf<HTMLButtonElement>),
     ].map((b) => (b.textContent ?? "").replace("✓ ", "").trim());
@@ -480,7 +476,7 @@ describe("die Panels antworten in der gewählten Sprache", () => {
     const labels = [...(chips?.querySelectorAll("button") ?? [])].map((b) =>
       (b.textContent ?? "").replace("✓ ", "").trim(),
     );
-    expect(labels).toEqual(["Quick", "Standard", "Deep", "Security", "Quality"]);
+    expect(labels).toEqual(["Quick", "Standard", "Deep"]);
     const categoryLabels = [
       ...(host.querySelectorAll(".category-options button") as NodeListOf<HTMLButtonElement>),
     ].map((b) => (b.textContent ?? "").replace("✓ ", "").trim());

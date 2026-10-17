@@ -233,7 +233,7 @@ describe("builtExtent and craneShot", () => {
       if (i > 0) expect(d).toBeGreaterThanOrEqual(dists[i - 1]!);
     });
     expect(dists[0]).toBe(26); // the street shot: the centre fills the frame
-    expect(dists[dists.length - 1]).toBeCloseTo(29.41 * OVERVIEW_FACTOR, 1);
+    expect(dists[dists.length - 1]).toBeCloseTo(29.41 * 2.2 + 12, 1);
   });
 
   it("counts nothing that has not started rising yet", () => {
@@ -243,7 +243,7 @@ describe("builtExtent and craneShot", () => {
 
   it("sizes the frame to width and crown, with a legibility floor", () => {
     expect(craneShot(0, 0)).toEqual({ dist: 26, targetY: 1.5, x: 0, z: 0 });
-    expect(craneShot(40, 0).dist).toBeCloseTo(40 * OVERVIEW_FACTOR, 6);
+    expect(craneShot(40, 0).dist).toBeCloseTo(40 * 2.2 + 12, 6);
     expect(craneShot(1, 20).dist).toBe(31); // 20 × 1.55 outranks everything else
     expect(craneShot(10, 20).targetY).toBe(7); // eye line follows the tallest
     expect(craneShot(10, 0.3).targetY).toBe(1.5); // never aim under the street

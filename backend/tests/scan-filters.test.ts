@@ -149,12 +149,6 @@ describe("the tool toggles decide which engines run", () => {
 
   const files = () => [makeFile({ path: "app.ts" })];
 
-  it("does not run gitleaks when the profile turned it off", async () => {
-    const { scanner, calls } = fakes({ profile: "quality-only" });
-    await scanner.scanRepositoryBatch("/tmp/none", files());
-    expect(calls.gitleaks).toBe(0);
-  });
-
   it("still runs gitleaks when the profile asks for it", async () => {
     const { scanner, calls } = fakes({ profile: "standard" });
     await scanner.scanRepositoryBatch("/tmp/none", files());
@@ -288,27 +282,5 @@ describe("allowlist matching", () => {
     expect(allows({ enabledFindingTypes: ["QUALITY"] }, "QUALITY_F401")).toBe(true);
     expect(allows({ enabledFindingTypes: ["QUALITY"] }, "SQL_INJECTION")).toBe(false);
     expect(allows({ enabledFindingTypes: ["SQL_INJECTION"] }, "SQL_INJECTION")).toBe(true);
-  });
-
-  it("applies the profile's own allowlist, which the presets already promised", () => {
-    const quality = resolveConfig({ profile: "quality-only" }).config;
-    expect(quality.enabledFindingTypes.length).toBeGreaterThan(0);
-    expect(allows(quality, "CONSOLE_USAGE")).toBe(true);
-    expect(allows(quality, "QUALITY_F401")).toBe(true);
-    expect(allows(quality, "SQL_INJECTION")).toBe(false);
-  });
-
-  it("security-only drops the complete Python hygiene family", () => {
-    expect(allows({ profile: "security-only" }, "QUALITY_F401")).toBe(false);
-    expect(allows({ profile: "security-only" }, "QUALITY_E501")).toBe(false);
-    expect(allows({ profile: "security-only" }, "SQL_INJECTION")).toBe(true);
-  });
-
-  it("lets an explicit user list replace the profile's list, not widen it", () => {
-    const merged = resolveConfig({
-      profile: "quality-only",
-      enabledFindingTypes: ["SQL_INJECTION"],
-    }).config;
-    expect(merged.enabledFindingTypes).toEqual(["SQL_INJECTION"]);
   });
 });

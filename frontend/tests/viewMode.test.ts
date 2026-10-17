@@ -29,7 +29,9 @@ describe("modeFactor", () => {
   it("is deterministic — same inputs always yield the same factor", () => {
     for (const mode of MODES) {
       for (const alarm of [false, true]) {
-        expect(modeFactor(mode, alarm)).toBe(modeFactor(mode, alarm));
+        const first = modeFactor(mode, alarm);
+        const second = modeFactor(mode, alarm);
+        expect(first).toBe(second);
       }
     }
   });

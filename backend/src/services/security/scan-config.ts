@@ -64,8 +64,7 @@ export interface ScanConfig {
   tools: ToolToggles;
 }
 
-export type ScanProfile =
-  "quick" | "standard" | "deep" | "security-only" | "quality-only" | "custom";
+export type ScanProfile = "quick" | "standard" | "deep" | "custom";
 
 export const MAX_CUSTOM_PATTERNS = 25;
 export const MAX_EXCLUDE_PATHS = 50;
@@ -95,16 +94,6 @@ const PROFILE_PRESETS: Record<ScanProfile, Partial<ScanConfig>> = {
   // Everything, including git-history secrets
   deep: {
     tools: { ...ALL_TOOLS_ON, gitleaksHistory: true },
-  },
-  "security-only": {
-    disabledFindingTypes: ["CONSOLE_USAGE", "LOOSE_EQUALITY", "LOCALSTORAGE_USAGE"],
-  },
-  "quality-only": {
-    // The UI promises "dead code, console, style", so this is the hygiene
-    // family: the three hand-written ones plus every QUALITY_<code> a linter
-    // contributes — ruff alone has 15 of them, which no fixed list could track.
-    enabledFindingTypes: ["CONSOLE_USAGE", "LOOSE_EQUALITY", "LOCALSTORAGE_USAGE", "QUALITY"],
-    tools: { ...ALL_TOOLS_ON, gitleaks: false, semgrep: false, dependencies: false, osv: false },
   },
   custom: {},
 };

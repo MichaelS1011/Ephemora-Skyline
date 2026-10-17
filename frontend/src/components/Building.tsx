@@ -419,6 +419,8 @@ export interface BuildingProps {
    * when no voxel layout is present or the stage is not active.
    */
   highlightLine?: number | null;
+  /** True when a triage finding points at this file (focusedFindingKey matches). */
+  findingFocus?: boolean;
 }
 
 export function Building({
@@ -439,6 +441,7 @@ export function Building({
   fullyReviewed = false,
   voxels = null,
   highlightLine = null,
+  findingFocus = false,
 }: BuildingProps) {
   const { camera, gl } = useThree();
   const selectBuilding = useStore((s) => s.selectBuilding);
@@ -872,10 +875,12 @@ export function Building({
   const beamRef = useRef<THREE.Mesh>(null);
   const ringRef = useRef<THREE.Mesh>(null);
   const glowRef = useRef<THREE.Mesh>(null);
+  const findingGlowRef = useRef<THREE.Mesh>(null);
   const cycleRef = useRef<THREE.Mesh>(null);
   const groupRef = useRef<THREE.Group>(null);
   // Construction cinematic finished — stop touching scale every frame
   const buildDoneRef = useRef(false);
+  const settleStartRef = useRef<number | null>(null);
   // V3: which pulse armings this building has consumed (each armed pulse runs
   // exactly once per mounted instance).
   const pulseConsumedRef = useRef<{ fileId: string; startAt: number } | null>(null);
@@ -933,8 +938,25 @@ export function Building({
           const k = Math.min(1, (now - appearAt) / 700);
           const ease = 1 - Math.pow(1 - k, 3);
           g.scale.y = Math.max(0.001, ease);
-          if (k >= 1) buildDoneRef.current = true;
+          if (k >= 1) {
+            buildDoneRef.current = true;
+            settleStartRef.current = now;
+          }
         }
+      }
+    }
+
+    // Post-construction settle: a damped elastic overshoot (1.03 → 1.0) over
+    // 500 ms after the rise completes. Gives the city a physical "landing" feel
+    // without adding draw calls — one scale write per building, gated by a ref.
+    if (g && buildDoneRef.current && settleStartRef.current !== null && !reduced) {
+      const sk = Math.min(1, (Date.now() - settleStartRef.current) / 500);
+      if (sk >= 1) {
+        g.scale.y = 1;
+        settleStartRef.current = null;
+      } else {
+        const bounce = Math.sin(sk * Math.PI * 2.5) * (1 - sk) * 0.03;
+        g.scale.y = 1 + bounce;
       }
     }
 
@@ -1048,6 +1070,10 @@ export function Building({
     if (glowRef.current) {
       const gm = glowRef.current.material as THREE.MeshBasicMaterial;
       gm.opacity = 0.34 + Math.sin(t * 2.2) * 0.14;
+    }
+    if (findingGlowRef.current) {
+      const fm = findingGlowRef.current.material as THREE.MeshBasicMaterial;
+      fm.opacity = 0.55 + Math.sin(t * 4) * 0.2;
     }
   });
 
@@ -1538,6 +1564,21 @@ export function Building({
             />
           </mesh>
         </>
+      )}
+
+      {/* Finding-focus glow: a pulsing ring when a triage finding targets this
+          file but the building is not selected (selection has its own ring). */}
+      {findingFocus && !selected && (
+        <mesh ref={findingGlowRef} position={[0, 0.08, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+          <ringGeometry args={[Math.max(w, d) * 0.65, Math.max(w, d) * 0.88, 40]} />
+          <meshBasicMaterial
+            color={ENV.selection}
+            transparent
+            opacity={0.55}
+            side={THREE.DoubleSide}
+            depthWrite={false}
+          />
+        </mesh>
       )}
     </group>
   );

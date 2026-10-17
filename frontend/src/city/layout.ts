@@ -926,6 +926,7 @@ export function farLodExitDistance(bounds: number): number {
 export interface OverviewShot {
   dist: number;
   targetY: number;
+  elevation?: number;
 }
 
 /**
@@ -958,6 +959,7 @@ export function overviewShot(bounds: number, tallest: number): OverviewShot {
   return {
     dist: Math.min(fits, drawn),
     targetY: Math.max(1.5, tallest * 0.4),
+    elevation: 0.32,
   };
 }
 
@@ -994,8 +996,11 @@ export function craneShot(
   top: number,
   centre: { x: number; z: number } = { x: 0, z: 0 },
 ): CraneShot {
+  // The crane pulls back smoothly as the city grows. The distance scales with
+  // the built radius so the user sees a continuous zoom-out from street level
+  // to the presentation view — the pull-back IS the reveal, no separate flight.
   return {
-    dist: Math.max(CRANE_MIN_DIST, radius * OVERVIEW_FACTOR, top * CROWN_FACTOR),
+    dist: Math.max(CRANE_MIN_DIST, radius * 2.2 + 12, top * CROWN_FACTOR),
     targetY: Math.max(1.5, top * 0.35),
     x: centre.x,
     z: centre.z,
@@ -1348,7 +1353,7 @@ export function revealPulseFileId(city: CityData, focusPath: string[]): string |
 /** Duration of the reveal flight out to the overview — the same number the
  *  camera tween in CityScene is asked for and the moment the reveal pulse may
  *  begin (the pulse starts when the flight ends). */
-export const REVEAL_FLIGHT_MS = 2600;
+export const REVEAL_FLIGHT_MS = 1400;
 
 /**
  * V3: the reveal pulse arming decision — one damped pulse on the beacon of the

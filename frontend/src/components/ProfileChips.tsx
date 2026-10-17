@@ -84,8 +84,6 @@ export function ProfileChips({ variant }: { variant: "landing" | "analyze-panel"
           <p className="category-caption">{t(lang, "profile.lookFor")}</p>
           <div className="profile-options category-options" aria-label={t(lang, "profile.lookFor")}>
             {FINDING_CATEGORIES.map((category) => {
-              if (active === "quality-only" && category.id !== "hygiene") return null;
-              if (active === "security-only" && category.id === "hygiene") return null;
               const on = effectiveCategories.includes(category.id);
               return (
                 <button

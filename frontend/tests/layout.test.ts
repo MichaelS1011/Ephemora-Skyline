@@ -495,10 +495,10 @@ describe("the reveal pulse is armed with the reveal flight", () => {
   it("begins when the flight ends, and at once under reduced motion", () => {
     const city = createMockCity();
     const at = 1000;
-    expect(REVEAL_FLIGHT_MS).toBe(2600);
+    expect(REVEAL_FLIGHT_MS).toBe(1400);
     // defaultOverviewPath is [] for a small city; the worst file stands on
     // the src skyline, so the pulse targets its tower
-    expect(armRevealPulse(city, at, false)).toEqual({ fileId: "f1", startAt: at + 2600 });
+    expect(armRevealPulse(city, at, false)).toEqual({ fileId: "f1", startAt: at + 1400 });
     expect(armRevealPulse(city, at, true)).toEqual({ fileId: "f1", startAt: at });
   });
 

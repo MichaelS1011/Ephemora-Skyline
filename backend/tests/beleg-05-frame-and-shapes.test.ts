@@ -60,7 +60,7 @@ describe("the frame around the line the rule matched (README.md:70)", () => {
   });
 
   it("hands back nothing when there is no file to read", () => {
-    // README.md:172: "on the demo it is the one line, because nothing was read"
+    // README.md:170: "on the demo it is the one line, because nothing was read"
     expect(buildSnippet(undefined, 4)).toBeUndefined();
   });
 

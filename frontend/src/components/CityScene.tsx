@@ -125,8 +125,12 @@ export function CityScene() {
       if (craneBuildRef.current !== buildStartedAt) {
         craneBuildRef.current = buildStartedAt;
         const { centre } = getDirLayout(cityData, defaultOverviewPath(cityData));
-        camera.position.set(centre.x + 14, 2.2, centre.z + 26);
-        camera.lookAt(centre.x, 1.5, centre.z);
+        // Frontal establishing shot: the camera starts close and low, looking
+        // straight at the construction from a human eye-line. As buildings rise,
+        // the crane pulls back smoothly to the presentation distance — the zoom
+        // out IS the reveal, not a separate flight after it.
+        camera.position.set(centre.x + 14, 6, centre.z + 18);
+        camera.lookAt(centre.x, 2.5, centre.z);
       }
       return;
     }
@@ -136,28 +140,15 @@ export function CityScene() {
     camera.lookAt(0, 1, 0);
   }, [cityData, buildStartedAt, camera, requestFly]);
 
-  // City stands → rise out to the overview the user came for.
+  // City stands → fly to the presentation view. The crane pulled back during
+  // construction; this final flight settles the camera into the frontal
+  // overview position the user sees when interacting with the finished city.
   useEffect(() => {
     if (!cityData || buildPhase !== "built") return;
-    // only for the build this crane is armed for, and only once
     if (craneBuildRef.current !== buildStartedAt || overviewRef.current === buildStartedAt) return;
     overviewRef.current = buildStartedAt;
-    // A returning pilot asked for a view; the reveal would take a different one.
-    // The skip the camera end already asks for only reaches a tween — under
-    // reduced motion a flight is one instant write with nothing to cancel, and it
-    // threw the pilot out of the view they came back to (measured: 3 of 4 reloads,
-    // 8,577–185,254 units off at t ≈ 2,5 s, long after the 320 ms hold expired).
-    // Not asking is the same decision a frame earlier, and it holds in both modes.
     if (poseRequest) return;
     const layout = getDirLayout(cityData, defaultOverviewPath(cityData));
-    // The shot the store's own "Overview" flight uses — not a distance floor of
-    // its own. `bounds × 1.6` sized to the level's half-extent is right for a
-    // city that fills its square; for the two-file repo the audit photographed
-    // it put the whole town in a handful of pixels, because `bounds` carries a
-    // 12-unit street margin per side and a 130-unit floor on top of that.
-    // `overviewShot` sizes the frame to what actually stands: the footprint,
-    // the crown, and the distance beyond which the renderer would swap the
-    // city for its heat grid.
     const tallest = Math.max(
       0,
       ...layout.blocks.flatMap((b) => b.skyline.map((s) => s.h)),
@@ -167,15 +158,11 @@ export function CityScene() {
     requestFly({
       x: layout.centre.x,
       z: layout.centre.z,
-      distance: shot.dist,
+      distance: Math.min(shot.dist, 85),
       targetY: shot.targetY,
-      overview: true,
+      elevation: 0.28,
       duration: REVEAL_FLIGHT_MS / 1000,
     });
-    // V3: the same moment arms the reveal pulse — the flight's destination is
-    // the building that carries the worst real finding. Armed exactly once:
-    // this effect runs once per build (overviewRef), and a city with no real
-    // finding (demo included) arms nothing.
     const pulse = armRevealPulse(cityData, Date.now(), prefersReducedMotion());
     if (pulse) useStore.setState({ revealPulse: pulse });
   }, [cityData, buildPhase, buildStartedAt, requestFly, poseRequest]);

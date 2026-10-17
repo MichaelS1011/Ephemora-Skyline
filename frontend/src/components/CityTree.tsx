@@ -361,6 +361,7 @@ export function CityTree() {
               h={b.h}
               voxels={b.voxels}
               highlightLine={voxelHighlight?.fileId === b.file.id ? voxelHighlight.line : null}
+              findingFocus={voxelHighlight?.fileId === b.file.id}
               isLandmark={b.file.id === landmarkId}
               dimmed={fileDimmed(b)}
               focusTier={tiers.get(b.file.id) ?? null}
