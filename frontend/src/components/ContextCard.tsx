@@ -31,6 +31,16 @@ export function ContextCard() {
     setLegendOpen(false);
   }, [cityData]);
 
+  // The city keeps its stage: the triage list on the right and this card on
+  // the left never stand at once. Opening the list folds the card to its
+  // reopen button; closing the list does not unfold it — the user left it
+  // that way, and a panel that returns unasked covers the city again.
+  // The card watches the findings panel through one one-way effect below.
+  const showFindings = useStore((s) => s.showFindings);
+  useEffect(() => {
+    if (showFindings) setCollapsed(true);
+  }, [showFindings]);
+
   if (!cityData || buildPhase === "constructing") return null;
 
   if (collapsed) {

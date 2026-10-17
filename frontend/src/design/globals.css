@@ -1158,7 +1158,7 @@ button:disabled {
   top: 130px !important;
   bottom: 94px !important;
   right: 22px !important;
-  width: 350px !important;
+  width: 310px !important;
   max-height: calc(100dvh - 224px);
 }
 .city-minimap {
