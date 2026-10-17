@@ -46,6 +46,17 @@ interface FacadeTextures {
 const facadeCache = new Map<string, FacadeTextures>();
 const FACADE_CACHE_MAX = 2000;
 
+const FACADE_STYLES = ["modern", "brick", "classic", "glass"] as const;
+export type FacadeStyle = (typeof FACADE_STYLES)[number];
+
+/**
+ * The style a seed renders as — exported so the pixel test can state which
+ * pattern each style must produce. Deterministic: same seed, same style.
+ */
+export function facadeStyleForSeed(seed: number): FacadeStyle {
+  return FACADE_STYLES[Math.abs(Math.trunc(seed)) % FACADE_STYLES.length]!;
+}
+
 function mulberry32(seed: number): () => number {
   let a = seed >>> 0;
   return () => {
@@ -72,6 +83,39 @@ export function facadeCacheKey(
   tones: AlarmWindowTones,
 ): string {
   return `v4|${color}|${Math.round(w * 4)}|${Math.round(h * 4)}|${alarm ? 1 : 0}|${seed % 9}|${tones.lit}${tones.pale}`;
+}
+
+/** Test seam: the pixel-pattern guard renders through the same painter. */
+export function getFacadeTexturesForTest(
+  color: string,
+  w: number,
+  h: number,
+  alarm: boolean,
+  seed: number,
+  tones: AlarmWindowTones,
+): FacadeTextures {
+  return getFacadeTextures(color, w, h, alarm, seed, tones);
+}
+
+/**
+ * The surface a style is made of (Materiality): a brick face reads matte and
+ * dry, a curtain wall reads smooth and faintly metallic. Erosion shifts the
+ * same pair in its own direction; the style sets where that shift starts.
+ */
+export function facadeSurfaceForStyle(style: FacadeStyle): {
+  roughness: number;
+  metalness: number;
+} {
+  switch (style) {
+    case "brick":
+      return { roughness: 0.86, metalness: 0.04 };
+    case "classic":
+      return { roughness: 0.72, metalness: 0.08 };
+    case "glass":
+      return { roughness: 0.22, metalness: 0.5 };
+    default:
+      return { roughness: 0.54, metalness: 0.3 };
+  }
 }
 
 function getFacadeTextures(
@@ -119,6 +163,10 @@ function getFacadeTextures(
 
   const rng = mulberry32(seed * 7919 + Math.round(w * 8) + Math.round(h * 3));
 
+  // Pick a facade style from the seed — gives visual variety across buildings
+  // while keeping the same file always looking the same (deterministic).
+  const style = facadeStyleForSeed(seed);
+
   const albedo = document.createElement("canvas");
   albedo.width = W;
   albedo.height = H;
@@ -133,17 +181,63 @@ function getFacadeTextures(
   eCtx.fillStyle = "#000000";
   eCtx.fillRect(0, 0, W, H);
 
-  const cols = 6; // vertical bays — the raster the eye reads from afar
-  // Row 0 = windowless parapet / roof line, rows 1..8 = floors,
-  // row 9 = ground floor (storefront zone) — reads as a real base.
+  const cols = 6;
   const rows = 10;
   const cellW = W / cols;
   const cellH = H / rows;
 
-  // Horizontal floor seams — barely there
-  aCtx.fillStyle = floorSeam;
-  for (let r = 1; r < rows; r++) {
-    aCtx.fillRect(0, Math.round(r * cellH) - 1, W, 2);
+  if (style === "brick") {
+    // Dense brick pattern with offset courses
+    const brickH = 8;
+    const brickW = 22;
+    const accent = `#${tint.clone().multiplyScalar(0.7).getHexString()}`;
+    for (let y = 0; y < H; y += brickH) {
+      const offset = ((y / brickH) % 2) * (brickW * 0.5);
+      for (let x = -brickW; x < W + brickW; x += brickW) {
+        aCtx.fillStyle =
+          (x + y) % 7 === 0
+            ? `#${tint.clone().lerp(new THREE.Color("#fff"), 0.15).getHexString()}`
+            : tintHex;
+        aCtx.fillRect(x + offset, y, brickW - 1, brickH - 1);
+        aCtx.strokeStyle = `${accent}aa`;
+        aCtx.lineWidth = 0.6;
+        aCtx.strokeRect(x + offset + 0.5, y + 0.5, brickW - 1, brickH - 1);
+      }
+    }
+  } else if (style === "classic") {
+    // Pilaster columns between window bays
+    aCtx.fillStyle = tintHex;
+    aCtx.fillRect(0, 0, W, H);
+    const pilW = cellW * 0.18;
+    const accentHex = `#${tint.clone().multiplyScalar(0.75).getHexString()}`;
+    for (let c = 0; c <= cols; c++) {
+      const x = c * cellW - pilW * 0.5;
+      const grad = aCtx.createLinearGradient(x, 0, x + pilW, 0);
+      grad.addColorStop(0, accentHex);
+      grad.addColorStop(0.5, `#${tint.clone().lerp(new THREE.Color("#fff"), 0.3).getHexString()}`);
+      grad.addColorStop(1, accentHex);
+      aCtx.fillStyle = grad;
+      aCtx.fillRect(x, 0, pilW, H);
+    }
+  } else if (style === "glass") {
+    // Horizontal band glazing — full-width glass strips per floor
+    aCtx.fillStyle = `#${tint.clone().multiplyScalar(0.6).getHexString()}`;
+    aCtx.fillRect(0, 0, W, H);
+    for (let r = 1; r < rows; r++) {
+      const y = r * cellH;
+      const grad = aCtx.createLinearGradient(0, y, 0, y + cellH);
+      grad.addColorStop(0, `#${tint.clone().lerp(new THREE.Color("#aaddff"), 0.4).getHexString()}`);
+      grad.addColorStop(0.5, glass);
+      grad.addColorStop(1, `#${tint.clone().lerp(new THREE.Color("#aaddff"), 0.2).getHexString()}`);
+      aCtx.fillStyle = grad;
+      aCtx.fillRect(2, y + 2, W - 4, cellH - 4);
+    }
+  } else {
+    // Modern: existing subtle vertical mullion style
+    aCtx.fillStyle = floorSeam;
+    for (let r = 1; r < rows; r++) {
+      aCtx.fillRect(0, Math.round(r * cellH) - 1, W, 2);
+    }
   }
 
   // Occasional fully dark floors (offices with the lights off)
@@ -153,15 +247,34 @@ function getFacadeTextures(
   for (let r = 1; r <= 9; r++) {
     const ground = r === 9;
     for (let c = 0; c < cols; c++) {
-      // Narrow tall slots keep the vertical rhythm without breaking the
-      // silhouette into a window grid
-      const x = c * cellW + cellW * 0.36;
-      const y = r * cellH + cellH * 0.2;
-      const ww = cellW * 0.28;
-      const wh = ground ? cellH * 0.5 : cellH * 0.58;
+      let x: number, y: number, ww: number, wh: number;
+      if (style === "glass") {
+        x = c * cellW + cellW * 0.08;
+        y = r * cellH + cellH * 0.1;
+        ww = cellW * 0.84;
+        wh = cellH * 0.8;
+      } else if (style === "classic") {
+        x = c * cellW + cellW * 0.28;
+        y = r * cellH + cellH * 0.15;
+        ww = cellW * 0.44;
+        wh = cellH * 0.7;
+      } else {
+        x = c * cellW + cellW * 0.36;
+        y = r * cellH + cellH * 0.2;
+        ww = cellW * 0.28;
+        wh = ground ? cellH * 0.5 : cellH * 0.58;
+      }
 
-      aCtx.fillStyle = glass;
-      aCtx.fillRect(x, y, ww, wh);
+      if (style !== "glass") {
+        aCtx.fillStyle = glass;
+        aCtx.fillRect(x, y, ww, wh);
+      }
+      // Window frame
+      if (style === "classic" || style === "brick") {
+        aCtx.strokeStyle = `#${tint.clone().multiplyScalar(1.2).getHexString()}`;
+        aCtx.lineWidth = 1.5;
+        aCtx.strokeRect(x - 1, y - 1, ww + 2, wh + 2);
+      }
       const lit = ground ? rng() < 0.16 : !darkFloor[r]! && rng() < (alarm ? 0.2 : 0.12);
       if (lit) {
         const warm = ground ? rng() < 0.95 : rng() < 0.82;
@@ -172,9 +285,11 @@ function getFacadeTextures(
   }
 
   // Vertical mullion seams at the bay boundaries — the metal panel joints
-  aCtx.fillStyle = seam;
-  for (let c = 0; c <= cols; c++) {
-    aCtx.fillRect(Math.round(c * cellW) - 1, 0, 2, H);
+  if (style === "modern") {
+    aCtx.fillStyle = seam;
+    for (let c = 0; c <= cols; c++) {
+      aCtx.fillRect(Math.round(c * cellW) - 1, 0, 2, H);
+    }
   }
 
   // Ground-floor plinth band: slightly darker + more neutral than the facade
@@ -328,6 +443,40 @@ export function modeFactor(viewMode: ViewMode, alarm: boolean): number {
 
 // Radial ground glow under the selected building (one shared texture)
 let groundGlowTexture: THREE.CanvasTexture | null = null;
+
+// ── Contact shadow (Depth & Parallax) ───────────────────────────────────────
+// A baked ambient-occlusion pool under every building: the world has no real
+// shadows (the light-map pass costs more than the fps frame allows), so depth
+// comes from a texture instead of a second render. One 128×128 canvas, shared
+// by all buildings, drawn as a soft dark ellipse hugging the footprint — the
+// eye reads it as weight, the GPU reads it as one extra quad per building.
+let cavityTexture: THREE.CanvasTexture | null = null;
+const CAVITY_OPACITY = 0.34;
+
+export function getCavityTexture(): THREE.CanvasTexture {
+  if (cavityTexture) return cavityTexture;
+  const c = document.createElement("canvas");
+  c.width = 128;
+  c.height = 128;
+  const ctx = c.getContext("2d")!;
+  // transparent centre → darkest just inside the rim → feathered falloff out:
+  // an AO contact ring, not a drop shadow with a direction
+  const g = ctx.createRadialGradient(64, 64, 26, 64, 64, 64);
+  g.addColorStop(0, "rgba(8,10,14,0)");
+  g.addColorStop(0.5, "rgba(8,10,14,0.9)");
+  g.addColorStop(0.78, "rgba(8,10,14,0.42)");
+  g.addColorStop(1, "rgba(8,10,14,0)");
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, 128, 128);
+  cavityTexture = new THREE.CanvasTexture(c);
+  return cavityTexture;
+}
+
+/** The pool size for a footprint: body diagonal × 1.35, clamped to the block. */
+export function cavitySpan(w: number, d: number): number {
+  return Math.min(26, Math.max(6, Math.hypot(w, d) * 1.35));
+}
+
 function getGroundGlowTexture(): THREE.CanvasTexture {
   if (groundGlowTexture) return groundGlowTexture;
   const c = document.createElement("canvas");
@@ -725,7 +874,10 @@ export function Building({
       return [side, roof, side];
     }
     // Light mineral panels keep the architecture legible against living land.
-    // Erosion still changes roughness and metal response in the same order.
+    // The painted style sets the surface it starts from; erosion still changes
+    // roughness and metal response in the same order. Language stays as the
+    // lit-slot accent.
+    const surface = facadeSurfaceForStyle(facadeStyleForSeed(seed));
     const side = new THREE.MeshStandardMaterial({
       color: "#e1e7df",
       map: facade!.map,
@@ -733,9 +885,15 @@ export function Building({
       emissive: new THREE.Color(0xffffff),
       emissiveIntensity: voxelStage ? 0.15 : matState === "alarm" ? 1.15 : 0.55,
       // Eroded hotspots read as coarse, corroded panels; healthy code as
-      // smooth brushed metal. Language stays as the lit-slot accent.
-      roughness: erosion === "eroded" ? 0.78 : erosion === "weathered" ? 0.65 : 0.54,
-      metalness: erosion === "eroded" ? 0.18 : erosion === "weathered" ? 0.25 : 0.3,
+      // smooth brushed metal.
+      roughness: Math.min(
+        1,
+        surface.roughness + (erosion === "eroded" ? 0.24 : erosion === "weathered" ? 0.11 : 0),
+      ),
+      metalness: Math.max(
+        0,
+        surface.metalness - (erosion === "eroded" ? 0.12 : erosion === "weathered" ? 0.05 : 0),
+      ),
       envMapIntensity: 0.9,
       transparent: dimmed || voxelStage,
       opacity: dimmed ? 0.12 : voxelStage ? 0.32 : 1,
@@ -751,7 +909,7 @@ export function Building({
     side.userData.baseEmissive = voxelStage ? 0.15 : matState === "alarm" ? 1.15 : 0.55;
     roof.userData.baseColor = erosion === "stable" || erosion === "unknown" ? "#748c9e" : "#84796c";
     return [side, roof, side];
-  }, [voxelBody, facade, dimmed, matState, erosion, monolith, voxelStage]);
+  }, [voxelBody, facade, dimmed, matState, erosion, monolith, voxelStage, seed]);
 
   // One hull geometry per volume, three groups in the original face order —
   // the order the material array `[side, roof, side]` above is drawn in. The
@@ -1148,6 +1306,19 @@ export function Building({
 
   return (
     <group ref={groupRef} position={[x, 0, z]}>
+      {/* Contact shadow — the baked AO pool under the foundation slab. It sits
+          below scale.y's anchor (y = 0), so the rise animation leaves it on
+          the ground while the building grows out of it. */}
+      <mesh position={[0, 0.045, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+        <planeGeometry args={[cavitySpan(w, d), cavitySpan(w, d)]} />
+        <meshBasicMaterial
+          map={getCavityTexture()}
+          transparent
+          opacity={dimmed ? CAVITY_OPACITY * 0.3 : CAVITY_OPACITY}
+          depthWrite={false}
+        />
+      </mesh>
+
       {/* Foundation slab */}
       <mesh position={[0, 0.18, 0]}>
         <boxGeometry args={[w + 0.55, 0.36, d + 0.55]} />

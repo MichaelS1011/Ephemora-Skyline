@@ -64,10 +64,20 @@ export default [
       "frontend/src/**/*.tsx",
       "frontend/tests/**/*.ts",
       "frontend/tests/**/*.tsx",
+      "backend/tests/**/*.ts",
     ],
     languageOptions: {
       parser,
       globals: {
+        // Vitest injects these — the test files do not import them
+        describe: "readonly",
+        it: "readonly",
+        expect: "readonly",
+        vi: "readonly",
+        beforeEach: "readonly",
+        afterEach: "readonly",
+        beforeAll: "readonly",
+        afterAll: "readonly",
         // Browser globals
         window: "readonly",
         document: "readonly",

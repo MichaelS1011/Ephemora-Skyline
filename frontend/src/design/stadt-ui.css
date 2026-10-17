@@ -260,6 +260,10 @@
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  /* Fluid Motion: the panel enters the way InfoPanel does — one slide in
+     from the right, 250 ms. The global reduced-motion block already cuts
+     every animation to 0.01 ms, so stillness needs no extra rule here. */
+  animation: slide-in-right 0.25s ease-out both;
 }
 .finding-file-card {
   overflow: hidden;

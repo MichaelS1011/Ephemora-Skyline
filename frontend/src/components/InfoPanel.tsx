@@ -10,6 +10,7 @@ import {
   authorColor,
 } from "../city/palette";
 import { coverageLine, isUncheckedClean, verdictBasis } from "../city/provenance";
+import { playVerdict } from "../city/sound";
 import { CATEGORY_IDS, categoryMeta } from "../config/findingCategories";
 import type { VoxelSectionSpec } from "../city/voxels";
 import { OpenInIde } from "./OpenInIde";
@@ -634,7 +635,13 @@ function FindingRow({
                   ? t(lang, "panel.reviewClearTitle", { label })
                   : t(lang, "panel.reviewMarkTitle", { label })
               }
-              onClick={() => setReview(reviewKey, active ? null : segment.status)}
+              onClick={() => {
+                const next = active ? null : segment.status;
+                setReview(reviewKey, next);
+                // Craft/Audio: the hand learns the button worked before the
+                // tally repaints. Clearing stays silent — undo needs no praise.
+                if (next) playVerdict();
+              }}
               className="font-jetbrains text-[11px] leading-none min-h-7 px-2 py-1 transition-colors"
               style={{
                 color: active ? "#141412" : REVIEW_COLOR[segment.status],
