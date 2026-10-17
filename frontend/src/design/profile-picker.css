@@ -13,7 +13,7 @@
   box-shadow: 0 0 24px rgba(232, 80, 60, 0.08);
 }
 .profile-detail:focus-visible {
-  outline: 1px solid rgba(232, 80, 60, 0.6);
+  outline: 2px solid var(--focus-ring);
 }
 .profile-detail-head {
   display: flex;

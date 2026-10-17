@@ -28,7 +28,7 @@
   outline: none;
 }
 .panel-share-studio:focus-visible {
-  outline: 2px solid #e8b23c;
+  outline: 2px solid var(--focus-ring);
   outline-offset: -3px;
 }
 
@@ -80,7 +80,7 @@
 .share-close:focus-visible,
 .share-copy:focus-visible,
 .share-chip input:focus-visible + span {
-  outline: 1px solid #e8b23c;
+  outline: 2px solid var(--focus-ring);
   outline-offset: 2px;
 }
 
@@ -131,7 +131,7 @@
   color: #fff2e9;
 }
 .share-media-button:focus-visible {
-  outline: 2px solid #e8b23c;
+  outline: 2px solid var(--focus-ring);
   outline-offset: 2px;
 }
 .share-chip {

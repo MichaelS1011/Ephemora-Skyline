@@ -52,8 +52,10 @@
   border-radius: 3px;
 }
 .city-minimap canvas:focus-visible {
-  outline: 2px solid rgba(232, 178, 60, 0.9);
+  outline: 2px solid var(--focus-ring);
   outline-offset: 2px;
+  /* world surface: the dark halo beneath the gold carries the bright ground */
+  box-shadow: 0 0 0 2px var(--focus-halo);
 }
 .minimap-keys {
   font-family: var(--font-mono);

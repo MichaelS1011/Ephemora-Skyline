@@ -70,6 +70,13 @@
   --radius-md: 6px;
   --radius-lg: 10px;
   --radius-pill: 999px;
+  /* One focus ring (Apple: a single system focus colour). Gold reaches 8.4:1
+     on the dark chrome — everywhere a control sits on the WORLD instead, the
+     rule adds the dark halo beneath it, because no single colour clears 3:1
+     on both the plaza and the panels (gold on plaza measured 1.4:1 — the
+     honest reason four ring colours existed before this token). */
+  --focus-ring: #e8b23c;
+  --focus-halo: #0a0c10;
   /* Typography */
   --font-ui: "Avenir Next", "Segoe UI", ui-sans-serif, system-ui, sans-serif;
   --font-sans: var(--font-ui);
@@ -532,9 +539,11 @@ canvas {
   outline: none;
 }
 
-/* ── Focus ring ──────────────────────────────────────────────── */
+/* ── Focus ring — the global fallback: one colour, one weight, everywhere
+   no surface-specific rule steps up. The ring is the keyboard's only voice;
+   it must not change accent from region to region. */
 :focus-visible {
-  outline: 1.5px solid rgba(232, 80, 60, 0.7);
+  outline: 2px solid var(--focus-ring);
   outline-offset: 2px;
 }
 
@@ -571,8 +580,11 @@ button:disabled {
   cursor: not-allowed;
 }
 .city-canvas:focus-visible {
-  outline: 2px solid #e8503c;
+  outline: 2px solid var(--focus-ring);
   outline-offset: -3px;
+  /* the ring touches the world, not the chrome — halo beneath it carries
+     the contrast on bright sky and plaza, gold carries it on the dark */
+  box-shadow: inset 0 0 0 2px var(--focus-halo);
 }
 .landing-shell {
   position: absolute;

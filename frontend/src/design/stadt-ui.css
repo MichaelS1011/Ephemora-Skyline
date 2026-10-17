@@ -615,7 +615,7 @@
 .workspace-heatmap button:focus-visible,
 .search-control :is(button, input):focus-visible,
 .action-dock :is(button):focus-visible {
-  outline: 2px solid #e8b23c;
+  outline: 2px solid var(--focus-ring);
   outline-offset: 1px;
 }
 

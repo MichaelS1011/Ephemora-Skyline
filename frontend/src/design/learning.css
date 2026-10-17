@@ -42,11 +42,11 @@
 .city-learning button:focus-visible,
 .city-learning summary:focus-visible,
 .file-learning-return button:focus-visible {
-  outline: 2px solid #b7dfdf;
+  outline: 2px solid var(--focus-ring);
   outline-offset: 3px;
 }
 .panel-context-card:focus-visible {
-  outline: 2px solid #b7dfdf;
+  outline: 2px solid var(--focus-ring);
   outline-offset: -2px;
 }
 .city-learning button:disabled {
