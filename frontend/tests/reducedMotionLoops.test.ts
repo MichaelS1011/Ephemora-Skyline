@@ -37,6 +37,10 @@ const KNOWN_OTHERS: Record<string, string> = {
   // CameraRig, which does honour the query. The rise timing itself is the
   // geometry lane's schedule.
   "CityTree.tsx": "schedules the build; all camera motion goes through CameraRig",
+  // The frame-budget governor measures frame times and flips the gfxLite
+  // flag — it draws nothing, so there is no motion for the query to stop.
+  // Its own yield is perf.ts's streak machine.
+  "GfxGovernor.tsx": "measures frame times; renders nothing, animates nothing",
 };
 
 const framesIn = (name: string): string => {

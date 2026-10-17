@@ -326,6 +326,13 @@ interface AppState {
   showFindings: boolean;
   setShowFindings: (v: boolean) => void;
 
+  // ── Auto-Gfx (perf.ts): the frame budget decides, until a hand doesn't ─
+  autoGfxLite: boolean;
+  setAutoGfxLite: (v: boolean) => void;
+  /** True once the visitor touched the manual switch — the automation
+   *  yields for the visit, the same law the construction crane follows. */
+  gfxAutoDisabled: boolean;
+
   // ── Scan configuration (shared by Landing + AnalyzePanel) ─────────────
   scanProfile: ScanProfile;
   setScanProfile: (p: ScanProfile) => void;
@@ -990,7 +997,10 @@ export const useStore = create<AppState>((set, get) => {
     setPref: (key, value) => {
       const prefs = { ...get().prefs, [key]: value };
       savePrefs(prefs);
-      set({ prefs });
+      // A hand on the manual switch ends the automation for the visit —
+      // a governor that steals back what the user chose is a bug.
+      if (key === "gfxLite") set({ prefs, autoGfxLite: false, gfxAutoDisabled: true });
+      else set({ prefs });
     },
     toggleUpdateCheck: () => {
       const next = !get().prefs.updateCheck;
@@ -1010,6 +1020,10 @@ export const useStore = create<AppState>((set, get) => {
 
     showFindings: false,
     setShowFindings: (v) => set({ showFindings: v }),
+
+    autoGfxLite: false,
+    setAutoGfxLite: (v) => set({ autoGfxLite: v }),
+    gfxAutoDisabled: false,
 
     scanProfile: loadSavedProfile(),
     scanCategories: categoriesForProfile(loadSavedProfile(), loadSavedCategories()),

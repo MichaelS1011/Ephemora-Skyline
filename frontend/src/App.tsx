@@ -6,6 +6,7 @@ import { EffectComposer, Bloom, ToneMapping } from "@react-three/postprocessing"
 import { ToneMappingMode } from "postprocessing";
 import { ModeBar } from "./components/ModeBar";
 import { CityScene } from "./components/CityScene";
+import { GfxGovernor } from "./components/GfxGovernor";
 import { Landing } from "./components/Landing";
 import { InfoPanel } from "./components/InfoPanel";
 import { SearchBar } from "./components/SearchBar";
@@ -173,7 +174,9 @@ export default function App() {
   const navigateToFile = useStore((s) => s.navigateToFile);
   const drillOut = useStore((s) => s.drillOut);
   const setAnalysisId = useStore((s) => s.setAnalysisId);
-  const gfxLite = useStore((s) => s.prefs.gfxLite);
+  // The manual switch and the frame-budget governor — either one dims the
+  // expensive path; only the manual one is ever persisted.
+  const gfxLite = useStore((s) => s.prefs.gfxLite || s.autoGfxLite);
   const lang = useStore((s) => s.prefs.lang);
 
   const [apiStatus, setApiStatus] = useState<"connecting" | "live" | "demo">("connecting");
@@ -456,6 +459,10 @@ export default function App() {
           gl={{ antialias: true, preserveDrawingBuffer: true }}
         >
           <CityScene />
+          {/* The frame budget speaks through perf.ts: struggling windows drop
+              to the lite path, healthy ones take it back after the longer
+              streak. A hand on the manual switch ends it for the visit. */}
+          <GfxGovernor />
           {/* After CityScene on purpose: the pose of the address is the last
               word on the frame, and a scripted flight of this arrival has to
               be asked away from inside a frame, not from an effect. */}
