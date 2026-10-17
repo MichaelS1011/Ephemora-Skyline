@@ -46,6 +46,12 @@
      for exactly that reason; this keeps the same floor as a measured rule
      instead of a blanket paint, and it leaves every label anchored inside the
      world (.cf-*) untouched — that is where the frost genuinely failed (1,83:1). */
+  /* Liquid Glass, measured to its floor: the alpha cannot drop below 0.92
+     without breaking 4.5:1 for the secondary inks over the brightest ground
+     (0.90 fails three surfaces, 0.88 four — glas-chrome.test.ts owns that
+     ladder). The city comes THROUGH instead as depth-of-field: a 24 px blur
+     at 1.4× saturation keeps the world behind the chrome present, coloured
+     and pushed back, and the lit top edge carries the specular. */
   --glass-chrome-bg: rgba(14, 16, 21, 0.92);
   --glass-chrome-sheen: linear-gradient(
     158deg,
@@ -53,9 +59,9 @@
     rgba(242, 239, 232, 0.01) 40%,
     rgba(242, 239, 232, 0) 68%
   );
-  --glass-chrome-blur: blur(14px) saturate(1.2);
-  --glass-chrome-border: rgba(242, 239, 232, 0.16);
-  --glass-chrome-edge: inset 0 1px 0 rgba(242, 239, 232, 0.22);
+  --glass-chrome-blur: blur(24px) saturate(1.4);
+  --glass-chrome-border: rgba(242, 239, 232, 0.2);
+  --glass-chrome-edge: inset 0 1px 0 rgba(242, 239, 232, 0.28);
   /* Typography */
   --font-ui: "Avenir Next", "Segoe UI", ui-sans-serif, system-ui, sans-serif;
   --font-sans: var(--font-ui);
