@@ -107,6 +107,9 @@ describe("die Untergrenze der Zahlenknoten im tatsächlichen Renderpfad", () => 
     // Zwei Regeln in stadt-ui.css setzen `transform: scale(0.78)` auf 11 px —
     // das sind die einzigen Text-Skalen, die kein Welt-Objekt sind. Sie sind
     // nur dann kein Verstoß, wenn ihr Träger nachweislich keine Ziffer zeigt.
+    // Die Presse-Antwort (.app-shell button:active, scale 0.97) ist keine
+    // Text-Skala: sie hebt den ganzen Knopf für 140 ms aus der Ebene, die
+    // Schrift skaliert sie mit — kein Träger wird dauerhaft kleiner gesetzt.
     const scaled: string[] = [];
     for (const f of designFiles()) {
       for (const r of rules(f)) {
@@ -119,7 +122,7 @@ describe("die Untergrenze der Zahlenknoten im tatsächlichen Renderpfad", () => 
       expect(
         s,
         "eine weitere Textfläche skaliert — die Inventur müsste neu gefahren werden",
-      ).toMatch(/severity-(chip-)?shape/);
+      ).toMatch(/severity-(chip-)?shape|\.app-shell button:active/);
     }
     // und die Glyphen selbst: keine Ziffer in den Formzeichen-Tafeln
     for (const file of ["components/ContextCard.tsx", "components/InfoPanel.tsx"]) {

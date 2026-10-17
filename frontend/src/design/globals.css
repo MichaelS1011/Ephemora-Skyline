@@ -62,6 +62,14 @@
   --glass-chrome-blur: blur(24px) saturate(1.4);
   --glass-chrome-border: rgba(242, 239, 232, 0.2);
   --glass-chrome-edge: inset 0 1px 0 rgba(242, 239, 232, 0.28);
+  /* Curve scale (Apple concentric-radius law): four steps, not fourteen.
+     sm = chips and inline controls, md = buttons and small cards,
+     lg = the glass panels, pill = toggles and counters. Nested elements
+     step one down so the inner curve stays concentric with the outer. */
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 10px;
+  --radius-pill: 999px;
   /* Typography */
   --font-ui: "Avenir Next", "Segoe UI", ui-sans-serif, system-ui, sans-serif;
   --font-sans: var(--font-ui);
