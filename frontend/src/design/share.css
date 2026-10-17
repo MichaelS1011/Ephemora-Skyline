@@ -541,3 +541,15 @@
     right: 12px;
   }
 }
+
+/* Narrow desktop windows (the 520 px the header already folds at): the nudge
+   keeps its two buttons and drops its paragraph — at 360 px the card covered
+   9.6 % of the picture for a sentence the buttons already ask about. */
+@media (max-width: 520px) {
+  .share-hint-text {
+    display: none;
+  }
+  .share-hint {
+    padding: 8px 10px;
+  }
+}

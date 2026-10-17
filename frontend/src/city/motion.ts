@@ -68,6 +68,22 @@ export function prefersReducedMotion(): boolean {
   return cached;
 }
 
+/**
+ * The narrow-window rule, shared by anything that must choose between the
+ * wide layout and the compact one (the scan summary opens as a strip below
+ * it). 520 px is the breakpoint the header already folds at (stadt-ui.css),
+ * so the two rules cannot disagree about where "narrow" starts. Read per
+ * call — this is a window-state question, not a per-frame one.
+ */
+export function narrowChromeWindow(): boolean {
+  if (typeof window === "undefined" || typeof window.matchMedia !== "function") return false;
+  try {
+    return window.matchMedia("(max-width: 520px)").matches;
+  } catch {
+    return false;
+  }
+}
+
 /** React subscription for anything that must re-render when the flag flips. */
 export function subscribeReducedMotion(cb: () => void): () => void {
   attach();

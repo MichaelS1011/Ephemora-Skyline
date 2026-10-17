@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useStore } from "../stores/useStore";
 import { severityColor } from "../city/palette";
 import { describeGitignoreSkips, scanVerdict } from "../city/provenance";
+import { narrowChromeWindow } from "../city/motion";
 import { t, type Lang } from "../i18n";
 import { GIT_MAX_TOTAL_BYTES } from "../hooks/useLocalAnalysis";
 import { ts, tsCount } from "./startCopy";
@@ -141,7 +142,10 @@ export function ScanSummary({ demo = false }: { demo?: boolean }) {
     announced.current = analysisId;
     remaining.current = DWELL_MS;
     setOpen(true);
-    setCollapsed(false);
+    // Narrow windows see the strip first — the card covered a fifth of the
+    // skyline at 360 px. "Show" hands the full card back; wide windows keep
+    // the announcement-then-strip rhythm unchanged.
+    setCollapsed(narrowChromeWindow());
     setPinned(false);
     setLeft(Math.round(DWELL_MS / 1000));
   }, [analysisId, cityData, buildPhase]);
