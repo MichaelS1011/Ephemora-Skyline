@@ -256,6 +256,15 @@ export function Minimap({ show = true }: { show?: boolean }) {
   const laidOut = getDirLayout(cityData, focusPath);
   const plots = laidOut.blocks.length;
   const alarmPlots = laidOut.blocks.filter((b) => b.dir.findingsBySeverity.P0 > 0).length;
+  // A root with no districts has no plots to carry the alarm — but its own
+  // files stand on the plaza and their beacons burn. "no plot carries a
+  // critical finding" beside a red beacon is the contradiction the drei-ordner
+  // drive caught on a three-file project; the plaza IS the carrier there.
+  const plazaP0 = laidOut.buildings.reduce(
+    (sum, b) => sum + b.file.findings.filter((f) => f.severity === "P0").length,
+    0,
+  );
+  const alarmNone = alarmPlots === 0 && plazaP0 === 0;
 
   return (
     <div
@@ -279,12 +288,14 @@ export function Minimap({ show = true }: { show?: boolean }) {
           canvas, which is not an answer a reader can see. Counted from the same
           layout the plate draws, so the number cannot disagree with the map. */}
       <p className="minimap-alarm" data-minimap-alarm={String(alarmPlots)} role="status">
-        {alarmPlots === 0
+        {alarmNone
           ? t(lang, "minimap.alarmNone")
-          : t(lang, alarmPlots === 1 ? "minimap.alarmOne" : "minimap.alarm", {
-              n: alarmPlots,
-              total: plots,
-            })}
+          : alarmPlots === 0
+            ? t(lang, "minimap.alarmPlaza")
+            : t(lang, alarmPlots === 1 ? "minimap.alarmOne" : "minimap.alarm", {
+                n: alarmPlots,
+                total: plots,
+              })}
       </p>
       <canvas
         ref={canvasRef}

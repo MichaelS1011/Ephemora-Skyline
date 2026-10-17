@@ -46,13 +46,13 @@ function dir(path: string, p0: number): CityDir {
   } as unknown as CityDir;
 }
 
-const city = (dirs: CityDir[]): CityData =>
+const city = (dirs: CityDir[], rootFiles: CityFile[] = []): CityData =>
   ({
     repo: { owner: "local", name: "probe", branch: "main" },
     analysisId: "scan-1",
     languages: { TypeScript: 30 },
-    totalFiles: dirs.length,
-    renderedFiles: dirs.length,
+    totalFiles: dirs.length + rootFiles.length,
+    renderedFiles: dirs.length + rootFiles.length,
     findingsBySeverity: dirs.reduce(
       (acc, d) => ({
         P0: acc.P0 + d.findingsBySeverity.P0,
@@ -67,14 +67,14 @@ const city = (dirs: CityDir[]): CityData =>
     tree: {
       name: "probe",
       path: "",
-      fileCount: dirs.length,
-      linesOfCode: 30 * dirs.length,
-      languages: { TypeScript: 30 * dirs.length },
+      fileCount: dirs.length + rootFiles.length,
+      linesOfCode: 30 * (dirs.length + rootFiles.length),
+      languages: { TypeScript: 30 * (dirs.length + rootFiles.length) },
       findingsBySeverity: { P0: 0, P1: 0, P2: 0 },
       threatScore: 0,
       topFindings: [],
       children: dirs,
-      detailFiles: [],
+      detailFiles: rootFiles,
       remainingFiles: 0,
       districtFiles: [],
     },
@@ -83,7 +83,7 @@ const city = (dirs: CityDir[]): CityData =>
 let container: HTMLDivElement;
 let root: Root;
 
-async function map(dirs: CityDir[], lang: Lang): Promise<void> {
+async function map(dirs: CityDir[], lang: Lang, rootFiles: CityFile[] = []): Promise<void> {
   if (root) await act(async () => root.unmount());
   container = document.createElement("div");
   document.body.append(container);
@@ -91,7 +91,7 @@ async function map(dirs: CityDir[], lang: Lang): Promise<void> {
     {
       ...useStore.getInitialState(),
       prefs: { ...useStore.getInitialState().prefs, lang },
-      cityData: city(dirs),
+      cityData: city(dirs, rootFiles),
       buildPhase: "built",
     },
     true,
@@ -132,6 +132,17 @@ describe("die Übersichtskarte sagt ihr Urteil auch ohne Farbe", () => {
     await map([dir("src/a", 0), dir("src/b", 0)], "de");
     expect(line()!.textContent).toBe("▲ kein Platz mit einem kritischen Fund");
     expect(line()!.getAttribute("data-minimap-alarm")).toBe("0");
+  });
+
+  it("names the plaza carrier when the root has no districts at all", async () => {
+    // the drei-ordner regression: a three-file project puts its critical on a
+    // plaza building — "no plot carries a critical finding" beside a burning
+    // beacon is the contradiction this line must not print
+    await map([], "en", [file("auth.ts", 1), file("util.py", 0)]);
+    expect(line()!.getAttribute("data-minimap-alarm")).toBe("0");
+    expect(line()!.textContent).toBe("▲ the plaza carries a critical finding");
+    await map([], "en", [file("util.py", 0)]);
+    expect(line()!.textContent).toBe("▲ no plot carries a critical finding");
   });
 
   it("is a status line, so the count is announced when the level changes", async () => {

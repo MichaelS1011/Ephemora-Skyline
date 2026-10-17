@@ -1,0 +1,210 @@
+#!/usr/bin/env node
+/**
+ * drei-ordner-drive.mjs — the upload path, the three modes and the city build,
+ * driven end over end through the real UI for three folder shapes:
+ *
+ *   klein    3 files, one hardcoded secret — the smallest honest city
+ *   mittel   14 files in 4 directories, package.json + a vulnerable pin —
+ *            districts, dependency arcs, an injection and a secret
+ *   gross    120 files across 30 nested directories (4 levels) — the shape
+ *            of a real monorepo: drill paths, LOD, many districts
+ *
+ * For every folder it proves, with numbers read off the screen:
+ *  - the folder was handed over through the page's OWN fallback picker
+ *  - the city stands and the completion card's arithmetic closes:
+ *    analysed + not-read = the file count on disk
+ *  - STRUCTURE / SECURITY / DEPENDENCIES each activate, each changes the
+ *    mode bar's own aria state, none throws a console error
+ *  - the dock's triage count equals the card's finding count
+ * Screenshots go to /tmp/drei-ordner/ for the operator; the claims are the
+ * numbers, never the pictures.
+ *
+ * It uses the operator's running pair (3010/4000) — this session's own
+ * servers — and never binds or starts anything.
+ */
+import { mkdirSync, rmSync, writeFileSync, readdirSync, statSync } from "node:fs";
+import { createRequire } from "node:module";
+import { homedir } from "node:os";
+import { join, resolve } from "node:path";
+
+const require = createRequire(
+  process.env.DRIVE_PLAYWRIGHT_ENTRY ?? join(homedir(), ".local/lib/node_modules/playwright/index.js"),
+);
+const { chromium } = require("playwright");
+
+const ROOT = "/tmp/drei-ordner";
+const OUT = join(ROOT, "shots");
+const URL = "http://localhost:3010/";
+const CITY_TIMEOUT_MS = Number(process.env.CITY_TIMEOUT_MS ?? 240000);
+
+// ── fixtures ────────────────────────────────────────────────────────────────
+const SECRET = 'const API_KEY = "sk-liv3-' + "aB3dEf7Gh9Ij2Kl4";
+function file(path, content) {
+  const full = join(ROOT, path);
+  mkdirSync(full.split("/").slice(0, -1).join("/"), { recursive: true });
+  writeFileSync(full, content);
+}
+function buildFixtures() {
+  rmSync(join(ROOT, "klein"), { recursive: true, force: true });
+  rmSync(join(ROOT, "mittel"), { recursive: true, force: true });
+  rmSync(join(ROOT, "gross"), { recursive: true, force: true });
+
+  // klein — 3 files
+  file("klein/auth.ts", `export const KEY = "${SECRET}";\nexport const login = (u: string) => u;\n`);
+  file("klein/util.py", `def add(a, b):\n    return a + b\n`);
+  file("klein/README.md", `# klein\n\nA three-file project.\n`);
+
+  // mittel — 14 files in 4 directories
+  const m = "mittel";
+  file(`${m}/package.json`, JSON.stringify({
+    name: "mittel-app", version: "1.0.0",
+    dependencies: { "lodash": "4.17.20", "express": "4.16.0", "left-pad": "1.3.0" },
+  }, null, 2));
+  file(`${m}/src/server.ts`, `import express from "express";\nimport { run } from "./tools/exec.js";\nconst app = express();\napp.get("/i", (q, r) => r.send("<b>" + q.query.x + "</b>"));\napp.listen(0);\n`);
+  file(`${m}/src/tools/exec.ts`, `import { exec } from "child_process";\nexport const run = (target: string) => exec("ping " + target);\n`);
+  file(`${m}/src/db.ts`, `const PASSWORD = "${SECRET}";\nexport const query = (id: string) => "SELECT * FROM t WHERE id = " + id;\n`);
+  for (let i = 0; i < 6; i++) file(`${m}/src/lib/f${i}.ts`, `export const f${i} = (x: number) => x + ${i};\n`);
+  file(`${m}/web/index.html`, `<!doctype html><title>mittel</title><body><div id="root"></div></body>\n`);
+  file(`${m}/web/app.ts`, `document.getElementById("root")!.innerHTML = location.hash.slice(1);\n`);
+  file(`${m}/tests/server.test.ts`, `import { describe, it } from "vitest";\ndescribe("s", () => it("works", () => {}));\n`);
+  file(`${m}/docs/notes.md`, `# notes\n\nNothing to see here.\n`);
+
+  // gross — 120 files across 30 nested directories
+  const g = "gross";
+  const dirs = [];
+  for (let a = 0; a < 6; a++)
+    for (let b = 0; b < 5; b++) dirs.push(`${g}/pkg${a}/area${b}/deep${(a + b) % 3}/leaf${b % 2}`);
+  let n = 0;
+  for (const d of dirs) {
+    for (let i = 0; i < 4; i++) {
+      const poison = n === 7 ? `\nconst TOKEN = "${SECRET}";\n` : n === 42 ? `\nexport const q = (x: string) => "SELECT * FROM u WHERE a = " + x;\n` : "";
+      file(`${d}/mod${i}.ts`, `export const v${n}_${i} = ${n};\nexport const use = (x: number) => x * ${i + 1};${poison}`);
+      n++;
+    }
+  }
+  file(`${g}/package.json`, JSON.stringify({
+    name: "gross-monorepo", version: "0.1.0",
+    dependencies: { "axios": "0.21.1", "minimist": "1.2.5" },
+  }, null, 2));
+  file(`${g}/README.md`, `# gross\n\n120 files, 30 nested directories.\n`);
+}
+function countFiles(dir) {
+  let c = 0;
+  for (const e of readdirSync(dir)) {
+    const p = join(dir, e);
+    if (statSync(p).isDirectory()) c += countFiles(p);
+    else c++;
+  }
+  return c;
+}
+
+// ── helpers ─────────────────────────────────────────────────────────────────
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const waitFor = async (what, fn, ms, step = 400) => {
+  const t0 = Date.now();
+  for (;;) {
+    if (await fn()) return;
+    if (Date.now() - t0 > ms) throw new Error(`timeout: ${what}`);
+    await sleep(step);
+  }
+};
+const num = (s, re) => {
+  const m = s.match(re);
+  return m ? Number(m[1].replace(/[^\d]/g, "")) : NaN;
+};
+
+// ── the drive ───────────────────────────────────────────────────────────────
+async function driveFolder(page, name, claims, chooserBox) {
+  const dir = resolve(ROOT, name);
+  const onDisk = countFiles(dir);
+
+  await page.goto(URL, { waitUntil: "load", timeout: 30000 });
+  await page.evaluate(() => localStorage.clear());
+  await page.reload({ waitUntil: "load" });
+  await waitFor("landing", () => page.$$eval("button", (bs) => bs.some((b) => b.textContent?.includes("Choose project folder"))), 60000);
+
+  chooserBox.dir = dir;
+  chooserBox.seen = false;
+  await page.getByRole("button", { name: /Choose project folder/ }).click();
+  await waitFor("the folder was requested by the page", async () => chooserBox.seen, 30000, 200);
+
+  await waitFor("the city stands", () => page.$(".workspace-modes"), CITY_TIMEOUT_MS);
+  await waitFor("the completion card", () => page.$(".start-summary"), 60000, 300);
+  const pin = await page.$(".start-summary-pin");
+  if (pin) await pin.click();
+  await sleep(500);
+  const card = await page.evaluate(() => document.body.innerText);
+  await page.screenshot({ path: join(OUT, `${name}-1-city.png`), animations: "disabled" });
+
+  // arithmetic off the card: "<A> files analyzed" + "<U> ... not read" = on disk
+  const first = (...vals) => vals.find((v) => Number.isFinite(v)) ?? NaN;
+  const analysed = num(card, /(\d[\d,.]*) files analyzed/);
+  const unread = first(
+    num(card, /(\d[\d,.]*) files? in a format the scanners do not read/),
+    num(card, /(\d[\d,.]*) files were not read/),
+    0,
+  );
+  const findings = num(card, /(\d[\d,.]*) findings? to review/);
+
+  // the three modes: each must activate and answer in its own aria state
+  const modes = {};
+  for (const label of ["SECURITY", "DEPENDENCIES", "STRUCTURE"]) {
+    await page.getByRole("radio", { name: new RegExp(label) }).click();
+    await sleep(900);
+    modes[label] = await page.getByRole("radio", { name: new RegExp(label) }).getAttribute("aria-checked");
+    await page.screenshot({ path: join(OUT, `${name}-mode-${label.toLowerCase()}.png`), animations: "disabled" });
+  }
+  // dock triage count vs the card's finding count — the dock's own text is
+  // "Triage" + "8 findings" as two nodes, so the space is optional
+  const dockTriage = num(await page.evaluate(() => document.body.innerText), /Triage\s*(\d+)/);
+
+  claims.push({
+    folder: name, onDisk, analysed, unread,
+    arithmeticCloses: analysed + unread === onDisk,
+    findings, dockTriage,
+    modes,
+  });
+}
+
+async function main() {
+  mkdirSync(OUT, { recursive: true });
+  buildFixtures();
+  const browser = await chromium.launch({ headless: true, args: ["--use-angle=metal"] });
+  const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
+  await page.addInitScript(() => {
+    Object.defineProperty(window, "showDirectoryPicker", { value: undefined, configurable: true });
+  });
+  const consoleErrors = [];
+  page.on("pageerror", (e) => consoleErrors.push(String(e).slice(0, 160)));
+  // ONE handler for the whole run — a handler per folder would stack and the
+  // second setFiles on an already-answered chooser times out
+  const chooserBox = { dir: null, seen: false };
+  page.on("filechooser", async (chooser) => {
+    chooserBox.seen = true;
+    await chooser.setFiles([chooserBox.dir]);
+  });
+  const claims = [];
+  for (const name of ["klein", "mittel", "gross"]) {
+    console.log(`── ${name} ──`);
+    try {
+      await driveFolder(page, name, claims, chooserBox);
+    } catch (e) {
+      claims.push({ folder: name, failed: String(e).slice(0, 200) });
+      await page.screenshot({ path: join(OUT, `${name}-FAILED.png`), animations: "disabled" }).catch(() => {});
+    }
+  }
+  await browser.close();
+  console.log(JSON.stringify({ claims, consoleErrors }, null, 1));
+  const ok = claims.every((c) => !c.failed) &&
+    claims.every((c) => c.arithmeticCloses) &&
+    claims.every((c) => Object.values(c.modes).every((v) => v === "true")) &&
+    claims.every((c) => c.dockTriage === c.findings) &&
+    consoleErrors.length === 0;
+  console.log(ok ? "DREI-ORDNER-DRIVE: PASS" : "DREI-ORDNER-DRIVE: FAIL");
+  process.exitCode = ok ? 0 : 1;
+}
+
+main().catch((e) => {
+  console.error("drive failed:", e);
+  process.exit(2);
+});

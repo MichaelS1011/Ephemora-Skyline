@@ -3077,6 +3077,10 @@ export const DICT = {
     en: "▲ no plot carries a critical finding",
     de: "▲ kein Platz mit einem kritischen Fund",
   },
+  "minimap.alarmPlaza": {
+    en: "▲ the plaza carries a critical finding",
+    de: "▲ der Platz in der Mitte trägt einen kritischen Fund",
+  },
   "tooltip.zoomHintKeyboard": { en: "Enter — walk in", de: "Enter — hineingehen" },
   "tooltip.orbitHintKeyboard": {
     en: "Enter — circle it, Esc frees the camera",
