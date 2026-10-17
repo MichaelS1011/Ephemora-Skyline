@@ -1,48 +1,7 @@
 import { describe, expect, it } from "vitest";
-import type { AnalysisResult, FileAnalysis } from "../src/models/index.js";
+import type { FileAnalysis } from "../src/models/index.js";
 import { mapResultToCityData } from "../src/utils/cityMapper.js";
-
-function makeFile(overrides: Partial<FileAnalysis> & { path: string }): FileAnalysis {
-  return {
-    language: "TypeScript",
-    lines: { total: 100, code: 80, comments: 10, blank: 10 },
-    complexity: { cyclomatic: 5 },
-    functions: [],
-    classes: [],
-    imports: [],
-    exports: [],
-    vulnerabilities: [],
-    ...overrides,
-  };
-}
-
-function makeResult(files: FileAnalysis[]): AnalysisResult {
-  return {
-    id: "test-1",
-    repo: {
-      owner: "o",
-      name: "n",
-      branch: "main",
-      cloneUrl: "u",
-      analyzedAt: new Date().toISOString(),
-    },
-    files,
-    directories: [],
-    summary: {
-      totalFiles: files.length,
-      totalDirectories: 0,
-      totalLines: files.reduce((s, f) => s + f.lines.total, 0),
-      avgCyclomatic: 1,
-      maxCyclomatic: 1,
-      languages: {},
-      totalVulnerabilities: 0,
-      vulnerabilitiesBySeverity: { P0: 0, P1: 0, P2: 0 },
-      languagesByLines: {},
-    },
-    createdAt: new Date().toISOString(),
-    status: "complete",
-  };
-}
+import { makeFile, makeResult } from "./helpers/fixtures.js";
 
 describe("mapResultToCityData", () => {
   it("builds a hierarchical tree with honest subtree counts", () => {

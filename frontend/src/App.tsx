@@ -452,7 +452,7 @@ export default function App() {
       >
         <Canvas
           camera={{ position: [0, 100, 150], fov: 52, near: 0.5, far: 1600 }}
-          dpr={gfxLite ? [1, 1.25] : [1, 1.75]}
+          dpr={gfxLite ? [1, 1.25] : [1, 2]}
           gl={{ antialias: true, preserveDrawingBuffer: true }}
         >
           <CityScene />

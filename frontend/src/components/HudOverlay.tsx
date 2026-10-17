@@ -115,6 +115,14 @@ export function HudOverlay({ apiStatus }: HudOverlayProps) {
                     : t(lang, "hud.localProject")}
             </span>
           </button>
+          {/* The dismissible summary is not the only carrier of the demo's
+              honesty: next to the name it says, permanently, that the findings
+              are samples and nothing was scanned. */}
+          {apiStatus === "demo" && (
+            <span className="demo-synth-mark" data-testid="demo-synth-mark">
+              {t(lang, "hud.demoSynth")}
+            </span>
+          )}
         </div>
         <div className="workspace-status">
           <span className="workspace-files">

@@ -17,7 +17,7 @@ import type { ScanProvenance } from "../src/city/types";
  * `backend/src/services/security/scan-depth.ts`) were two lists, and they had
  * drifted. Measured on the payload this machine holds as `demo-001`: the city
  * axis names THREE engines (`gitleaks, semgrep, npm audit`), the payload names
- * TWO (`gitleaks, semgrep`) across 73 of 73 files — 67 of which look clean on
+ * TWO (`gitleaks, semgrep`) across 74 of 74 files — 67 of which look clean on
  * screen. The dependency audit was therefore claimed as a gap where nothing
  * could have been audited (this demo has no lockfile at all, and
  * `dependency-adapter.ts:45-52` refuses to run without one), while a real

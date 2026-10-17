@@ -21,16 +21,17 @@ import { AnalysisOrchestrator } from "../services/analyzer/orchestrator.js";
 import { corsOptionsFor, localOnlyRoute, uploadLimitAwareErrorHandler } from "./local-only.js";
 import { SecurityScanner } from "../services/security/scanner.js";
 import { READ_BUDGET_EXEMPT } from "./read-budget.js";
-import { getHealth } from "./routes/health.js";
-import { getDemoResult } from "./routes/demo.js";
+import { handleHealth } from "./routes/health.js";
+import { handleCitiesDefault, handleDemo } from "./routes/demo.js";
 import { handleStatus } from "./routes/status.js";
+import { handleResult, handleResultCity, handleResultSarif } from "./routes/result.js";
+import { handleRulePacks } from "./routes/rule-packs.js";
+import { handleFootprint, handleFootprintPurge } from "./routes/footprint.js";
 import { bindHost, isLoopbackHost, portInUseMessage } from "./bind-address.js";
 import {
-  footprintSnapshot,
   handleCancelLocalAnalyze,
   handleLocalAnalyze,
   pruneStaleUploadDirs,
-  purgeStaleCopies,
   uploadsRoot,
 } from "./routes/local-analyze.js";
 import { handleHandoff, handleVerify } from "./routes/agent.js";
@@ -40,11 +41,7 @@ import { handleUpdateCheck } from "./routes/update-check.js";
 // Placed after the route imports: the tree-hygiene gate reads this file's import
 // order and rejects a scanner question raised before the routes that stage.
 import { decideStart, inspectStagingRoot } from "./upload-dir-guard.js";
-import { listPacks } from "../services/security/rule-packs.js";
-import { isOffline } from "../services/security/network-policy.js";
 import { handleTestRun, handleTestStatus } from "./routes/tests.js";
-import { mapResultToCityData } from "../utils/cityMapper.js";
-import { resultToSarif } from "../utils/sarif.js";
 
 dotenv.config();
 
@@ -138,39 +135,20 @@ app.use("/api", readLimiter);
 // ── Routes ─────────────────────────────────────────────────────────────────
 
 // GET /api/health
-app.get("/api/health", async (_req: Request, res: Response): Promise<void> => {
-  const health = await getHealth();
-  // The city link's lifetime is a fact about this process, not about the
-  // defaults in the text: ANALYSIS_MAX_ENTRIES / ANALYSIS_TTL_MS can move, and
-  // the screen has to say the value that is actually in force.
-  res.json({
-    ...health,
-    cityStore: { maxEntries: analysisStore.maxEntries, ttlMs: analysisStore.ttlMs },
-  });
+app.get("/api/health", (_req: Request, res: Response): void => {
+  void handleHealth(_req, res, analysisStore);
 });
 
 // GET /api/demo — hardcoded demo dataset. A read, but one a foreign page has no
 // business receiving: it carries the same origin guard as the routes that run.
 app.get("/api/demo", localOnlyRoute, (_req: Request, res: Response): void => {
-  try {
-    res.json(getDemoResult());
-  } catch {
-    res.status(500).json({ error: "Internal server error" });
-  }
+  handleDemo(_req, res);
 });
 
 // GET /api/cities/default — city-mapped demo data consumed by the frontend.
 // A read like /api/demo: a foreign page has no business receiving it either.
 app.get("/api/cities/default", localOnlyRoute, (_req: Request, res: Response): void => {
-  try {
-    const demo = getDemoResult();
-    // Register it under its own id, so `?city=demo-001` resolves like any other
-    // city and a reload lands back on the demo instead of the empty world.
-    if (!analysisStore.get(demo.id)) analysisStore.set(demo.id, demo);
-    res.json(mapResultToCityData(demo));
-  } catch {
-    res.status(500).json({ error: "Internal server error" });
-  }
+  handleCitiesDefault(_req, res, analysisStore);
 });
 
 // POST /api/analyze-local — analyze a folder picked in the browser
@@ -213,47 +191,17 @@ app.get("/api/tests/run/:runId", (req: Request, res: Response): void => {
 
 // GET /api/result/:id — retrieve a completed analysis
 app.get("/api/result/:id", (req: Request, res: Response): void => {
-  const id = req.params["id"];
-  if (!id || Array.isArray(id)) {
-    res.status(400).json({ error: "Missing analysis ID" });
-    return;
-  }
-
-  const result = analysisStore.get(id);
-  if (!result) {
-    res.status(404).json({ error: "Analysis not found" });
-    return;
-  }
-
-  if (result.status === "analyzing") {
-    res.json({ status: "pending", progress: 0 });
-    return;
-  }
-
-  res.json(result);
+  handleResult(req, res, analysisStore);
 });
 
 // GET /api/result/:id/city — retrieve analysis mapped to city data
 app.get("/api/result/:id/city", (req: Request, res: Response): void => {
-  const id = req.params["id"];
-  const result = analysisStore.get(typeof id === "string" ? id : "");
-  if (!result) {
-    res.status(404).json({ error: "Analysis not found" });
-    return;
-  }
-  res.json(mapResultToCityData(result));
+  handleResultCity(req, res, analysisStore);
 });
 
 // GET /api/result/:id/sarif — SARIF export for InfoPanel + CI
 app.get("/api/result/:id/sarif", (req: Request, res: Response): void => {
-  const id = req.params["id"];
-  const result = analysisStore.get(typeof id === "string" ? id : "");
-  if (!result) {
-    res.status(404).json({ error: "Analysis not found" });
-    return;
-  }
-  res.setHeader("Content-Type", "application/sarif+json");
-  res.json(resultToSarif(result));
+  handleResultSarif(req, res, analysisStore);
 });
 
 // GET /api/update/check — the one outbound question the app asks about itself
@@ -262,14 +210,9 @@ app.get("/api/update/check", readLimiter, (req: Request, res: Response): void =>
 });
 
 // GET /api/rule-packs — which rule bundles exist, where they came from, and
-// under what license. The UI cannot offer a pack it has not seen here, and a
-// pack whose manifest lies about its rule count is not in this list. The
-// absolute directory stays server-side: the client selects by id, never by path.
+// under what license (see routes/rule-packs.ts).
 app.get("/api/rule-packs", localOnlyRoute, (_req: Request, res: Response): void => {
-  res.json({
-    offline: isOffline(),
-    packs: listPacks().map(({ dir: _dir, ...publicPack }) => publicPack),
-  });
+  handleRulePacks(_req, res);
 });
 
 // GET /api/footprint — what this program keeps on the machine it runs on, and
@@ -287,14 +230,14 @@ app.get(
   localOnlyRoute,
   readLimiter,
   async (_req: Request, res: Response): Promise<void> => {
-    res.json(await footprintSnapshot());
+    await handleFootprint(_req, res);
   },
 );
 app.post(
   "/api/footprint/purge",
   localOnlyRoute,
   async (_req: Request, res: Response): Promise<void> => {
-    res.json(await purgeStaleCopies());
+    await handleFootprintPurge(_req, res);
   },
 );
 

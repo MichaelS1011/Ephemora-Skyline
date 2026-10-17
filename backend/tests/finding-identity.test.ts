@@ -1,11 +1,12 @@
 import { describe, expect, it } from "vitest";
-import type { AnalysisResult, FileAnalysis, SecurityIssue } from "../src/models/index.js";
+import type { AnalysisResult, SecurityIssue } from "../src/models/index.js";
 import { mapResultToCityData } from "../src/utils/cityMapper.js";
 import { resultToSarif } from "../src/utils/sarif.js";
 import {
   findingFingerprint,
   normalizeIdentityPath,
 } from "../src/services/security/finding-identity.js";
+import { makeFile, makeResult } from "./helpers/fixtures.js";
 
 /**
  * A review verdict is only worth keeping if the finding it belongs to can be
@@ -29,42 +30,6 @@ function makeIssue(overrides: Partial<SecurityIssue> & { line: number }): Securi
     ruleId: "javascript-lang.security.rules.eval.eval",
     ...overrides,
   } as SecurityIssue;
-}
-
-function makeFile(path: string, issues: SecurityIssue[]): FileAnalysis {
-  return {
-    path,
-    language: "TypeScript",
-    lines: { total: 50, code: 40, comments: 5, blank: 5 },
-    complexity: { cyclomatic: 3 },
-    functions: [],
-    classes: [],
-    imports: [],
-    exports: [],
-    vulnerabilities: issues,
-  } as FileAnalysis;
-}
-
-function makeResult(files: FileAnalysis[], id = "scan-1"): AnalysisResult {
-  return {
-    id,
-    repo: { owner: "o", name: "n", branch: "main", cloneUrl: "u", analyzedAt: "" },
-    files,
-    directories: [],
-    summary: {
-      totalFiles: files.length,
-      totalDirectories: 0,
-      totalLines: 50,
-      avgCyclomatic: 1,
-      maxCyclomatic: 1,
-      languages: {},
-      totalVulnerabilities: 0,
-      vulnerabilitiesBySeverity: { P0: 0, P1: 0, P2: 0 },
-      languagesByLines: {},
-    },
-    createdAt: "",
-    status: "complete",
-  } as AnalysisResult;
 }
 
 /** Every fingerprint the city JSON carries, keyed by `path:line`. */
@@ -97,7 +62,9 @@ function cityFingerprints(result: AnalysisResult): Map<string, string> {
 describe("one finding, one identity", () => {
   it("names the scan that produced the city", () => {
     const city = mapResultToCityData(
-      makeResult([makeFile("a.ts", [makeIssue({ line: 3 })])], "scan-42"),
+      makeResult([makeFile({ path: "a.ts", vulnerabilities: [makeIssue({ line: 3 })] })], {
+        id: "scan-42",
+      }),
     ) as unknown as {
       analysisId?: string;
     };
@@ -106,8 +73,11 @@ describe("one finding, one identity", () => {
 
   it("puts the same identity in the city JSON and in the SARIF", () => {
     const result = makeResult([
-      makeFile("src/a.ts", [makeIssue({ line: 3 })]),
-      makeFile("src/b.ts", [makeIssue({ line: 9, ruleId: "no-fs-read" })]),
+      makeFile({ path: "src/a.ts", vulnerabilities: [makeIssue({ line: 3 })] }),
+      makeFile({
+        path: "src/b.ts",
+        vulnerabilities: [makeIssue({ line: 9, ruleId: "no-fs-read" })],
+      }),
     ]);
     const inCity = cityFingerprints(result);
     const sarif = resultToSarif(result) as unknown as {
@@ -139,9 +109,9 @@ describe("one finding, one identity", () => {
 
   it("is unmoved by the order the walk happened to return the files in", () => {
     const files = [
-      makeFile("src/a.ts", [makeIssue({ line: 3 })]),
-      makeFile("src/b.ts", [makeIssue({ line: 9 })]),
-      makeFile("src/c.ts", [makeIssue({ line: 12, type: "DEBUG_LOG" })]),
+      makeFile({ path: "src/a.ts", vulnerabilities: [makeIssue({ line: 3 })] }),
+      makeFile({ path: "src/b.ts", vulnerabilities: [makeIssue({ line: 9 })] }),
+      makeFile({ path: "src/c.ts", vulnerabilities: [makeIssue({ line: 12, type: "DEBUG_LOG" })] }),
     ];
     const vorwaerts = cityFingerprints(makeResult(files));
     const rueckwaerts = cityFingerprints(makeResult([...files].reverse()));
@@ -153,15 +123,19 @@ describe("one finding, one identity", () => {
 
   it("does not shift the other findings when one more is added to the file", () => {
     const vorher = cityFingerprints(
-      makeResult([makeFile("src/a.ts", [makeIssue({ line: 3 }), makeIssue({ line: 8 })])]),
+      makeResult([
+        makeFile({
+          path: "src/a.ts",
+          vulnerabilities: [makeIssue({ line: 3 }), makeIssue({ line: 8 })],
+        }),
+      ]),
     );
     const nachher = cityFingerprints(
       makeResult([
-        makeFile("src/a.ts", [
-          makeIssue({ line: 1 }),
-          makeIssue({ line: 3 }),
-          makeIssue({ line: 8 }),
-        ]),
+        makeFile({
+          path: "src/a.ts",
+          vulnerabilities: [makeIssue({ line: 1 }), makeIssue({ line: 3 }), makeIssue({ line: 8 })],
+        }),
       ]),
     );
     for (const key of ["src/a.ts:3", "src/a.ts:8"]) {
@@ -225,9 +199,9 @@ describe("one finding, one identity", () => {
 describe("file ids come from the path", () => {
   it("survives the files arriving in another order", () => {
     const files = [
-      makeFile("src/a.ts", [makeIssue({ line: 3 })]),
-      makeFile("src/b.ts", [makeIssue({ line: 9 })]),
-      makeFile("src/c.ts", [makeIssue({ line: 12, type: "DEBUG_LOG" })]),
+      makeFile({ path: "src/a.ts", vulnerabilities: [makeIssue({ line: 3 })] }),
+      makeFile({ path: "src/b.ts", vulnerabilities: [makeIssue({ line: 9 })] }),
+      makeFile({ path: "src/c.ts", vulnerabilities: [makeIssue({ line: 12, type: "DEBUG_LOG" })] }),
     ];
     const ids = (r: AnalysisResult): Map<string, string> => {
       const city = mapResultToCityData(r) as unknown;

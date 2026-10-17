@@ -1,6 +1,8 @@
+import type { Request, Response } from "express";
 import type { AnalysisResult, FileAnalysis } from "../../models/index.js";
 import { categoryOf } from "../../services/security/categories.js";
 import { knowledgeFor } from "../../services/security/finding-knowledge.js";
+import { mapResultToCityData } from "../../utils/cityMapper.js";
 
 /**
  * Synthetic demo repository — a plausible multi-district codebase that flows
@@ -158,6 +160,20 @@ const FINDINGS: Record<string, FindingSpec[]> = {
       fix: "Store non-sensitive data only; use httpOnly cookies for the rest",
     },
   ],
+  // A file whose only finding is review-level hygiene: the one shape that makes
+  // the panel show what a threat word stands on ("Medium · from 1 review-level
+  // note …", verdictBasis in frontend/src/city/provenance.ts). Measured before:
+  // no demo file was hygiene-only, so the demo path could never show that line.
+  "frontend/src/components/DebugPanel.tsx": [
+    {
+      type: "CONSOLE_USAGE",
+      severity: "P2",
+      line: 12,
+      code: 'console.log("frame", frameMs);',
+      message: "Debug logging left in production code",
+      fix: "Remove the log or gate it behind a development flag",
+    },
+  ],
   "scripts/deploy.mjs": [
     {
       type: "CMD_INJECTION",
@@ -198,6 +214,11 @@ function buildFileSpecs(): FileSpec[] {
   SCRIPTS.forEach((n, i) => push(`scripts/${n}.mjs`, "JavaScript", 35 + ((i * 67) % 150)));
   INFRA.forEach((n) => push(`infrastructure/${n}`, n.endsWith(".yml") ? "YAML" : "Config", 45));
   MOBILE.forEach((n, i) => push(`mobile/src/${n}.tsx`, "TypeScript", 80 + ((i * 131) % 300)));
+
+  // Appended last on purpose: the seeded PRNG is consumed file by file, so a
+  // file added here leaves every earlier file's height, imports and complexity
+  // untouched — the demo city keeps its measured shape and gains one sample.
+  push("frontend/src/components/DebugPanel.tsx", "TypeScript", 22);
 
   return specs;
 }
@@ -381,4 +402,35 @@ function makeImportSource(fromPath: string, toPath: string): string {
   const ups = "../".repeat(fromParts.length - common);
   const down = toParts.slice(common).join("/");
   return `${ups}${down}/${toBase}`;
+}
+
+/** A result store subset the demo routes touch. */
+type DemoStore = {
+  get(id: string): AnalysisResult | undefined;
+  set(id: string, result: AnalysisResult): void;
+};
+
+/** GET /api/demo — the hardcoded demo dataset, served as a stored result. */
+export function handleDemo(_req: Request, res: Response): void {
+  try {
+    res.json(getDemoResult());
+  } catch {
+    res.status(500).json({ error: "Internal server error" });
+  }
+}
+
+/**
+ * GET /api/cities/default — the city-mapped demo the frontend draws before any
+ * real scan exists. It registers the demo under its own id, so `?city=demo-001`
+ * resolves like any other city and a reload lands back on the demo instead of
+ * the empty world.
+ */
+export function handleCitiesDefault(_req: Request, res: Response, analysisStore: DemoStore): void {
+  try {
+    const demo = getDemoResult();
+    if (!analysisStore.get(demo.id)) analysisStore.set(demo.id, demo);
+    res.json(mapResultToCityData(demo));
+  } catch {
+    res.status(500).json({ error: "Internal server error" });
+  }
 }

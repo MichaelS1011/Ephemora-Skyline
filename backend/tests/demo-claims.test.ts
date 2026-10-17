@@ -21,7 +21,7 @@ describe("demo city claims only what its own data supports", () => {
    */
   it("classifies every finding it shows, with the CWE the scanner would give it", () => {
     const findings = demo.files.flatMap((f) => f.vulnerabilities);
-    expect(findings.length).toBe(7);
+    expect(findings.length).toBe(8);
     for (const v of findings) {
       expect(v.category, `${v.type} has no category`).toBeTruthy();
       expect(CATEGORY_IDS).toContain(v.category);
@@ -41,7 +41,7 @@ describe("demo city claims only what its own data supports", () => {
    */
   it("shows the line each of its findings was raised on", () => {
     const all = demo.files.flatMap((f) => f.vulnerabilities);
-    expect(all.length).toBe(7);
+    expect(all.length).toBe(8);
     for (const v of all) {
       expect(v.snippet, `${v.type} carries no code frame`).toBeTruthy();
       expect(v.snippet!.line.length, `${v.type} has an empty frame`).toBeGreaterThan(0);
@@ -61,7 +61,7 @@ describe("demo city claims only what its own data supports", () => {
       ...node.children.flatMap(walk),
     ];
     const drawn = walk(city.tree).flatMap((f) => f.findings);
-    expect(drawn.length).toBe(7);
+    expect(drawn.length).toBe(8);
     for (const v of drawn) expect(v.snippet, `${v.type} lost its frame on the way`).toBeTruthy();
   });
 
@@ -85,6 +85,24 @@ describe("demo city claims only what its own data supports", () => {
       const mean =
         inside.reduce((s, f) => s + f.complexity.cyclomatic, 0) / Math.max(1, inside.length);
       expect(dir.avgComplexity, dir.path).toBe(Math.round(mean * 100) / 100);
+    }
+  });
+
+  /**
+   * R3-03: the panel shows what a threat word stands on ("Medium · from 1
+   * review-level note …") only for a file whose findings are all hygiene.
+   * Measured before: the demo held no such file, so the demo path could never
+   * show that line. It now ships exactly one, honestly marked as a demo sample.
+   */
+  it("ships one hygiene-only file, so the verdict-basis line has a demo carrier", () => {
+    const hygieneOnly = demo.files.filter(
+      (f) =>
+        f.vulnerabilities.length > 0 && f.vulnerabilities.every((v) => v.category === "hygiene"),
+    );
+    expect(hygieneOnly.map((f) => f.path)).toEqual(["frontend/src/components/DebugPanel.tsx"]);
+    for (const v of hygieneOnly[0]!.vulnerabilities) {
+      expect(v.provenance).toBe("demo");
+      expect(v.severity).toBe("P2");
     }
   });
 

@@ -311,6 +311,16 @@ export const DICT = {
     en: "Demo project",
     de: "Demo-Projekt",
   },
+  /**
+   * Fund 5 / UX-Punkt 4: "sample findings, no scan" lived only in the
+   * dismissible summary, so a dismissed demo read "73 files · 3 Critical" with
+   * nothing saying the numbers are synthetic. This line sits next to the city
+   * name permanently — the demo states its own syntheticity on site.
+   */
+  "hud.demoSynth": {
+    en: "◈ Sample findings · no scan",
+    de: "◈ Beispielfunde · kein Scan",
+  },
   "hud.connecting": {
     en: "Connecting…",
     de: "Verbindung wird hergestellt…",
@@ -1346,6 +1356,18 @@ export const DICT = {
   "findings.summaryPP": {
     en: "{count} findings in {files} files",
     de: "{count} Funde in {files} Dateien",
+  },
+  /**
+   * UX 6 — the card of the first (heaviest) finding states the scan's whole
+   * scope before the finding itself: how many findings, across how many files,
+   * and that this card is the first of them. `{summary}` is the existing
+   * `findings.summary*` phrase, so the singular/plural grammar stays owned by
+   * the one place that already counts it — this key only adds the honest
+   * orientation, never a second number.
+   */
+  "panel.triageFirstFinding": {
+    en: "{summary} — here is the first one",
+    de: "{summary} — hier ist der erste",
   },
   "findings.closeAria": {
     en: "Close findings list",

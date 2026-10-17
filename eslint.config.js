@@ -20,7 +20,7 @@ export default [
     ],
   },
   {
-    files: ["backend/src/**/*.ts"],
+    files: ["backend/src/**/*.ts", "backend/tests/**/*.ts"],
     languageOptions: {
       parser,
       globals: {

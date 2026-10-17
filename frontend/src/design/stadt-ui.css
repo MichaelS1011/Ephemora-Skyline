@@ -33,6 +33,20 @@
   color: var(--meta-strong);
   margin-top: 1px;
 }
+/* The demo's permanent syntheticity line, next to the project name. It is the
+   one item in the identity row allowed to shrink first (min-width 0 + ellipsis),
+   so a narrow header clips the label instead of the name or the severity chips. */
+.demo-synth-mark {
+  display: inline-flex;
+  align-items: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+  font-size: var(--fs-meta);
+  color: var(--meta-strong);
+  letter-spacing: 0.02em;
+}
 .workspace-files {
   font-variant-numeric: tabular-nums;
   font-size: 13px;

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { cityOnDisk, useStore } from "../stores/useStore";
-import { findFileById } from "../city/layout";
+import { allFiles, findFileById } from "../city/layout";
 import {
   churnColor,
   languageColor,
@@ -17,7 +17,7 @@ import { useTestRunner } from "../hooks/useTestRunner";
 import { fixFor, type FixSuggestion } from "../findings/fixes";
 import { findingKey, reviewKeyFor } from "../reviews";
 import { findingContext } from "../findings/context";
-import { t, type DictKey, type Lang } from "../i18n";
+import { formatCount, t, type DictKey, type Lang } from "../i18n";
 import type { CityFile, CityFinding, FindingCategory, ReviewStatus } from "../city/types";
 import { learningCopy } from "./learningCopy";
 import "../design/stadt-ui.css";
@@ -734,6 +734,8 @@ export function InfoPanel() {
   const reviews = useStore((s) => s.reviews);
   const verdictsBlocked = useStore((s) => s.verdictsBlocked);
   const focusedFindingKey = useStore((s) => s.focusedFindingKey);
+  const triageActive = useStore((s) => s.triageActive);
+  const triageCursor = useStore((s) => s.triageCursor);
   const closeRef = useRef<HTMLButtonElement>(null);
   const [linkCopied, setLinkCopied] = useState(false);
   const selectedId = selectedUnit?.kind === "file" ? selectedUnit.id : null;
@@ -767,6 +769,31 @@ export function InfoPanel() {
   const focusedLine = lineSegmentFor(focusedFindingKey, file);
   const inOtherDistrict = hit.chain.join("/") !== focusPath.join("/");
   const hasFindings = file.findings.length > 0;
+  // UX 6 — when the triage opens on the first (heaviest) finding, the card's
+  // first honest sentence states the whole scan's scope before the finding
+  // itself: how many findings, across how many files, and that this card is the
+  // first of them. The numbers come from the real payload, not from this one
+  // file's list, and "first" means the queue's first position — a later step
+  // says nothing about being first.
+  const totalFindings =
+    cityData.findingsBySeverity.P0 +
+    cityData.findingsBySeverity.P1 +
+    cityData.findingsBySeverity.P2;
+  const filesWithFindings = allFiles(cityData).filter(
+    ({ file: f }) => f.findings.length > 0,
+  ).length;
+  const firstTriage =
+    triageActive && triageCursor === 0 && focusBelongsToFile(focusedFindingKey, file.id);
+  // Byte-stable EN pluralization, the same four shapes the findings list uses.
+  const triageSummaryKey = firstTriage
+    ? totalFindings === 1
+      ? filesWithFindings === 1
+        ? "findings.summaryFF"
+        : "findings.summaryFP"
+      : filesWithFindings === 1
+        ? "findings.summaryPF"
+        : "findings.summaryPP"
+    : null;
   const hasAst = file.findings.some((f) => f.provenance === "semgrep");
   const hasSecrets = file.findings.some((f) => f.provenance?.startsWith("gitleaks"));
   // The heading wears the worst grade actually present instead of always P0
@@ -879,6 +906,24 @@ export function InfoPanel() {
           ✕
         </button>
       </div>
+
+      {/* UX 6 — the first honest sentence on the first finding's card: the
+          whole scan's scope, then the orientation that this card shows the
+          first of it. Only the queue's first position may claim "first". */}
+      {firstTriage && triageSummaryKey && (
+        <p
+          className="panel-triage-first font-jetbrains text-[11px] leading-relaxed mb-3"
+          data-first-finding
+          style={{ color: "#d8c9a3" }}
+        >
+          {t(lang, "panel.triageFirstFinding", {
+            summary: t(lang, triageSummaryKey, {
+              count: formatCount(lang, totalFindings),
+              files: formatCount(lang, filesWithFindings),
+            }),
+          })}
+        </p>
+      )}
 
       <nav className="file-learning-return" aria-label={learningCopy(lang, "overview")}>
         <button type="button" onClick={() => returnToCity(true)}>

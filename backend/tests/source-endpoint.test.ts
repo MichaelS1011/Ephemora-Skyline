@@ -4,50 +4,16 @@ import os from "os";
 import path from "path";
 import { handleSource } from "../src/server/routes/source.js";
 import { registerUploadDir, pruneStaleUploadDirs } from "../src/server/routes/local-analyze.js";
-import type { AnalysisResult, FileAnalysis } from "../src/models/index.js";
+import type { AnalysisResult } from "../src/models/index.js";
+import type { Request, Response } from "express";
 import { usePrivateStaging } from "./helpers/privateStaging.js";
+import { makeFile, makeResult } from "./helpers/fixtures.js";
 // A staging root of this file's own — the TTL prune below fast-forwards the clock,
 // and in the shared suite root that reaches into a sibling file's staged folders.
 const STAGING = await usePrivateStaging("source-endpoint");
 
 const TS_CONTENT = "const a = 1;\nconst b = 2;\n";
 const PY_CONTENT = 'print("hi")\r\nprint("bye")\n'; // CRLF must be stripped
-
-function makeFile(overrides: Partial<FileAnalysis> & { path: string }): FileAnalysis {
-  return {
-    language: "TypeScript",
-    lines: { total: 2, code: 2, comments: 0, blank: 0 },
-    complexity: { cyclomatic: 1 },
-    functions: [],
-    classes: [],
-    imports: [],
-    exports: [],
-    vulnerabilities: [],
-    ...overrides,
-  };
-}
-
-function makeResult(files: FileAnalysis[]): AnalysisResult {
-  return {
-    id: "src-1",
-    repo: { owner: "local", name: "x", branch: "local", cloneUrl: "", analyzedAt: "" },
-    files,
-    directories: [],
-    summary: {
-      totalFiles: files.length,
-      totalDirectories: 0,
-      totalLines: 4,
-      avgCyclomatic: 1,
-      maxCyclomatic: 1,
-      languages: {},
-      totalVulnerabilities: 0,
-      vulnerabilitiesBySeverity: { P0: 0, P1: 0, P2: 0 },
-      languagesByLines: {},
-    },
-    createdAt: new Date().toISOString(),
-    status: "complete",
-  };
-}
 
 /** Minimal express-like response capture (pattern of local-analyze.test.ts) */
 function makeRes() {
@@ -68,8 +34,8 @@ function makeRes() {
 
 function callSource(store: Map<string, AnalysisResult>, id: string, fileId: string) {
   const res = makeRes();
-  const req = { params: { id, fileId } } as unknown as import("express").Request;
-  return handleSource(req, res as unknown as import("express").Response, store).then(() => res);
+  const req = { params: { id, fileId } } as unknown as Request;
+  return handleSource(req, res as unknown as Response, store).then(() => res);
 }
 
 let stagedDir = "";

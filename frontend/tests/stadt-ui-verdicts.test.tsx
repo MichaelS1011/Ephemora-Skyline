@@ -17,6 +17,7 @@ import { HudOverlay } from "../src/components/HudOverlay";
 import { FindingsPanel } from "../src/components/FindingsPanel";
 import { t, type Lang } from "../src/i18n";
 import { isUncheckedClean } from "../src/city/provenance";
+import { findingKey } from "../src/reviews";
 import { useStore } from "../src/stores/useStore";
 import { city as cityOf, dir, file as fileOf, finding, provenance } from "./helpers/cityFixture";
 import type { CityData, CityFile, CityFinding } from "../src/city/types";
@@ -191,6 +192,24 @@ describe("die Kopfzeile qualifizierte ihr „Keine Funde“ nicht", () => {
       t("de", "hud.sevAriaOffOne", { label: t("de", "hud.sevCritical"), count: 1 }),
     );
     expect(chip!.getAttribute("aria-label")).not.toContain("1 Funde");
+  });
+
+  it("sagt an der Demo-Stadt dauerhaft, dass die Funde Beispiele sind", async () => {
+    await show(
+      createElement(HudOverlay, { apiStatus: "demo" as const }),
+      city([file("src/a.js", [])]),
+    );
+    const mark = container.querySelector("[data-testid='demo-synth-mark']");
+    expect(mark, "the demo city carries no permanent syntheticity label").toBeTruthy();
+    expect(mark!.textContent).toBe(t("de", "hud.demoSynth"));
+  });
+
+  it("trägt die Beispiel-Kennzeichnung nur in der Demo, nicht beim eigenen Scan", async () => {
+    await show(
+      createElement(HudOverlay, { apiStatus: "live" as const }),
+      city([file("src/a.js", [])]),
+    );
+    expect(container.querySelector("[data-testid='demo-synth-mark']")).toBeNull();
   });
 });
 
@@ -511,4 +530,70 @@ describe("der erste Verdict bekommt sein ehrliches Versprechen", () => {
       expect(note.textContent?.trim().startsWith("✓")).toBe(false);
     },
   );
+});
+
+/**
+ * UX 6 — after the scan the dock's "Triage N findings" was the first thing a
+ * reader learned, and the card of the first (heaviest) finding was a second
+ * click. That card now opens with the honest scope: N findings across M files,
+ * and that this is the first of them. The numbers come from the whole payload,
+ * not from the one file's list, and only the queue's first position may claim
+ * "first" — a later step says nothing about being first.
+ */
+describe("die Karte des ersten Funds nennt den ganzen Umfang (UX 6)", () => {
+  const twoFiles = () => [file("src/a.js", [secret()]), file("src/b.js", [secret({ line: 4 })])];
+
+  it("nennt Fundzahl, Dateizahl und „hier ist der erste“", async () => {
+    const files = twoFiles();
+    await show(createElement(InfoPanel), city(files));
+    await act(async () => {
+      useStore.setState({
+        triageActive: true,
+        triageCursor: 0,
+        focusedFindingKey: findingKey(files[0]!.id, 0),
+      });
+      useStore.getState().setSelectedUnit({ kind: "file", id: files[0]!.id });
+    });
+    const line = container.querySelector("[data-first-finding]");
+    expect(line, "the first finding's card says nothing about the scan").toBeTruthy();
+    expect(line!.textContent).toContain("2 Funde in 2 Dateien");
+    expect(line!.textContent).toContain("hier ist der erste");
+  });
+
+  it("beansprucht „erster“ nicht für einen späteren Schritt der Warteschlange", async () => {
+    const files = twoFiles();
+    await show(createElement(InfoPanel), city(files));
+    await act(async () => {
+      useStore.setState({
+        triageActive: true,
+        triageCursor: 1,
+        focusedFindingKey: findingKey(files[1]!.id, 0),
+      });
+      useStore.getState().setSelectedUnit({ kind: "file", id: files[1]!.id });
+    });
+    expect(container.querySelector("[data-first-finding]")).toBeNull();
+  });
+
+  it("bleibt ohne laufende Triage aus", async () => {
+    const files = twoFiles();
+    await show(createElement(InfoPanel), city(files));
+    await act(async () => useStore.getState().setSelectedUnit({ kind: "file", id: files[0]!.id }));
+    expect(container.querySelector("[data-first-finding]")).toBeNull();
+  });
+
+  it("sagt es auch auf Englisch", async () => {
+    const files = twoFiles();
+    await show(createElement(InfoPanel), city(files), "en");
+    await act(async () => {
+      useStore.setState({
+        triageActive: true,
+        triageCursor: 0,
+        focusedFindingKey: findingKey(files[0]!.id, 0),
+      });
+      useStore.getState().setSelectedUnit({ kind: "file", id: files[0]!.id });
+    });
+    const line = container.querySelector("[data-first-finding]");
+    expect(line!.textContent).toContain("2 findings in 2 files");
+    expect(line!.textContent).toContain("here is the first one");
+  });
 });

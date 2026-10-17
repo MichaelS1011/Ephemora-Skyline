@@ -45,10 +45,13 @@ backend/src/
 │       ├── status.ts        # GET /api/status/:id (polled)
 │       ├── job-progress.ts  # progress map, skeleton, failure marking
 │       ├── source.ts        # GET /api/result/:id/source/:fileId
+│       ├── result.ts        # GET /api/result/:id(/city|/sarif) — the stored result and its exports
 │       ├── tests.ts         # POST /api/tests/:id/run — the project's own tests
 │       ├── update-check.ts  # GET /api/update/check (the one self-request)
+│       ├── rule-packs.ts    # GET /api/rule-packs — the rule bundles the UI can offer
 │       ├── demo.ts          # GET /api/demo, /api/cities/default
 │       ├── health.ts        # GET /api/health
+│       ├── footprint.ts     # GET /api/footprint, POST /api/footprint/purge — what the program keeps on disk
 │       ├── agent.ts         # GET /api/result/:id/handoff, POST /api/verify (docs/AGENTS.md)
 │       └── verdicts.ts      # GET/PUT /api/result/:id/verdicts, POST /api/verdicts/reset — the machine-local verdict store
 ├── services/

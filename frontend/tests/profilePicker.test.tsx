@@ -1,5 +1,7 @@
 // @vitest-environment jsdom
 import { readFileSync } from "node:fs";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import { act, createElement } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -122,7 +124,10 @@ describe("scan profile picker (#50)", () => {
       );
     }
     // and the one export that used to hold them is gone, not lying beside it
-    const config = readFileSync("src/config/scanProfiles.ts", "utf-8");
+    const config = readFileSync(
+      resolve(dirname(fileURLToPath(import.meta.url)), "../src/config/scanProfiles.ts"),
+      "utf-8",
+    );
     expect(config).not.toContain("PROFILE_DURATION");
     expect(config).not.toMatch(/:\s*"~\d+s"/);
   });

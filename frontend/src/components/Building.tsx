@@ -198,6 +198,50 @@ function getFacadeTextures(
 const UNIT_BOX = new THREE.BoxGeometry(1, 1, 1);
 const UNIT_CYLINDER = new THREE.CylinderGeometry(0.5, 0.5, 1, 8);
 
+// ── Three-group hull box ───────────────────────────────────────────────────
+// A `BoxGeometry` carries six face groups, so the hull's six-slot material
+// array `[side, side, roof, roof, side, side]` pulled six draw calls per hull
+// mesh (body, stepped tower, annex). The same attribute data in the SAME draw
+// order — +x/−x sides, both roof faces, +z/−z sides — costs three draw calls
+// with the material array `[side, roof, side]`: positions, normals, UVs and
+// the per-group material order are unchanged, so the picture is pixel-identical
+// everywhere. Two groups (sides first, roof last) would draw the hull's
+// transparent faces in a different blend order and measurably shift the dimmed
+// close-up backdrop — measured 1.0 % of pixels against a 0.17 % animation
+// floor, which this exact-order variant avoids.
+const SIDE_GROUPS_A = [0, 1]; // +x, −x
+const ROOF_GROUPS = [2, 3]; // +y, −y
+const SIDE_GROUPS_B = [4, 5]; // +z, −z
+
+function threeGroupBox(w: number, h: number, d: number): THREE.BufferGeometry {
+  const box = new THREE.BoxGeometry(w, h, d);
+  const flat = box.toNonIndexed(); // 6 groups × 6 vertices, in group order
+  const order: number[] = [];
+  for (const g of [...SIDE_GROUPS_A, ...ROOF_GROUPS, ...SIDE_GROUPS_B]) {
+    for (let i = g * 6; i < g * 6 + 6; i++) order.push(i);
+  }
+  const merged = new THREE.BufferGeometry();
+  for (const name of ["position", "normal", "uv"] as const) {
+    const attr = flat.getAttribute(name);
+    const out = new Float32Array(order.length * attr.itemSize);
+    for (let i = 0; i < order.length; i++) {
+      const src = order[i]! * attr.itemSize;
+      const dst = i * attr.itemSize;
+      for (let k = 0; k < attr.itemSize; k++) out[dst + k] = attr.array[src + k]!;
+    }
+    merged.setAttribute(name, new THREE.BufferAttribute(out, attr.itemSize));
+  }
+  const index = new Uint16Array(order.length);
+  for (let i = 0; i < order.length; i++) index[i] = i;
+  merged.setIndex(new THREE.BufferAttribute(index, 1));
+  merged.addGroup(0, SIDE_GROUPS_A.length * 6, 0);
+  merged.addGroup(SIDE_GROUPS_A.length * 6, ROOF_GROUPS.length * 6, 1);
+  merged.addGroup((SIDE_GROUPS_A.length + ROOF_GROUPS.length) * 6, SIDE_GROUPS_B.length * 6, 2);
+  box.dispose();
+  flat.dispose();
+  return merged;
+}
+
 /**
  * Pick volume for the voxel-body mode: fully invisible (colorWrite off) but
  * raycastable, so the building stays clickable/hoverable as ONE target while
@@ -652,7 +696,10 @@ export function Building({
       });
       side.userData.baseColor = "#5d7180";
       roof.userData.baseColor = "#445b6b";
-      return [side, side, roof, roof, side, side];
+      // Three slots in the original draw order: the hull geometry carries
+      // three groups (sides, roof, sides) so each hull mesh is three draw
+      // calls instead of six, with unchanged blend order.
+      return [side, roof, side];
     }
     if (matState === "glass") {
       const side = new THREE.MeshPhysicalMaterial({
@@ -672,7 +719,7 @@ export function Building({
       });
       side.userData.baseColor = "#d8cdb4";
       roof.userData.baseColor = "#1a2530";
-      return [side, side, roof, roof, side, side];
+      return [side, roof, side];
     }
     // Light mineral panels keep the architecture legible against living land.
     // Erosion still changes roughness and metal response in the same order.
@@ -700,14 +747,31 @@ export function Building({
     side.userData.baseColor = "#e1e7df";
     side.userData.baseEmissive = voxelStage ? 0.15 : matState === "alarm" ? 1.15 : 0.55;
     roof.userData.baseColor = erosion === "stable" || erosion === "unknown" ? "#748c9e" : "#84796c";
-    return [side, side, roof, roof, side, side];
+    return [side, roof, side];
   }, [voxelBody, facade, dimmed, matState, erosion, monolith, voxelStage]);
 
+  // One hull geometry per volume, three groups in the original face order —
+  // the order the material array `[side, roof, side]` above is drawn in. The
+  // body, the stepped tower and the annex each cost 3 draw calls instead of 6.
+  const hullGeometries = useMemo(() => {
+    if (voxelBody) return [];
+    const list = [threeGroupBox(w, bodyH, d)];
+    if (stepped) list.push(threeGroupBox(w * 0.62, towerH, d * 0.62));
+    if (hasAnnex) list.push(threeGroupBox(annexW, annexH, annexD));
+    return list;
+  }, [voxelBody, w, bodyH, d, stepped, towerH, hasAnnex, annexW, annexH, annexD]);
+
+  useEffect(() => {
+    return () => {
+      for (const g of hullGeometries) g.dispose();
+    };
+  }, [hullGeometries]);
+
   // Brightness (focus tier × view mode) used to be baked into the materials, so
-  // selecting one file rebuilt 6 materials per neighbour and threw 180 away
-  // (measured in the browser). The material is created once at full brightness
-  // and the factor is written onto it here — layout effect, so no frame of the
-  // undimmed colour flashes before the next render.
+  // selecting one file rebuilt every neighbour's materials and threw the old
+  // ones away (measured in the browser). The material is created once at full
+  // brightness and the factor is written onto it here — layout effect, so no
+  // frame of the undimmed colour flashes before the next render.
   useLayoutEffect(() => {
     for (const m of materials) {
       const base = m.userData.baseColor as string | undefined;
@@ -1152,9 +1216,12 @@ export function Building({
       ) : (
         <>
           {/* Main body */}
-          <mesh position={[0, bodyH / 2 + 0.3, 0]} material={materials} {...pointerProps}>
-            <boxGeometry args={[w, bodyH, d]} />
-          </mesh>
+          <mesh
+            position={[0, bodyH / 2 + 0.3, 0]}
+            geometry={hullGeometries[0]}
+            material={materials}
+            {...pointerProps}
+          />
 
           {/* Illuminated edges — lit corner seams on the dark metal body. The
               material is one object the hover eases (see useFrame), not a
@@ -1172,11 +1239,10 @@ export function Building({
           {stepped && (
             <mesh
               position={[0, bodyH + 0.3 + towerH / 2, 0]}
+              geometry={hullGeometries[1]}
               material={materials}
               {...pointerProps}
-            >
-              <boxGeometry args={[w * 0.62, towerH, d * 0.62]} />
-            </mesh>
+            />
           )}
           {stepped && edgeGeometries[1] && (
             <lineSegments
@@ -1191,11 +1257,10 @@ export function Building({
           {hasAnnex && (
             <mesh
               position={[annexX, annexH / 2 + 0.3, annexZ]}
+              geometry={hullGeometries[2]}
               material={materials}
               {...pointerProps}
-            >
-              <boxGeometry args={[annexW, annexH, annexD]} />
-            </mesh>
+            />
           )}
           {hasAnnex && edgeGeometries[1] && (
             <lineSegments

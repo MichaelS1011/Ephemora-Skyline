@@ -25,6 +25,7 @@ const doc = readFileSync(path.join(REPO, "docs/AGENTS.md"), "utf-8");
 const flat = doc.replace(/\s+/g, " ");
 const agentSource = readFileSync(path.join(REPO, "backend/src/server/routes/agent.ts"), "utf-8");
 const serverSource = readFileSync(path.join(REPO, "backend/src/server/index.ts"), "utf-8");
+const resultSource = readFileSync(path.join(REPO, "backend/src/server/routes/result.ts"), "utf-8");
 
 /** A source line that must never be able to come back out of the channel. */
 const SOURCE_LINE = 'const TOKEN = "sk-live-SENTINEL-not-in-the-payload"; db.query(TOKEN + x)';
@@ -519,9 +520,11 @@ describe("the result and verify routes answer their contract", () => {
     expect(serverSource).toMatch(/app\.get\("\/api\/result\/:id", /);
     expect(serverSource).toMatch(/app\.get\("\/api\/result\/:id\/city", /);
     expect(serverSource).toMatch(/app\.get\("\/api\/result\/:id\/sarif", /);
-    expect(serverSource).toContain('res.status(404).json({ error: "Analysis not found" })');
-    expect(serverSource).toContain('res.status(400).json({ error: "Missing analysis ID" })');
-    expect(serverSource).toContain('"application/sarif+json"');
+    // The 404/400/Content-Type answers live in the result handler module the
+    // wiring above delegates to (routes/result.ts).
+    expect(resultSource).toContain('res.status(404).json({ error: "Analysis not found" })');
+    expect(resultSource).toContain('res.status(400).json({ error: "Missing analysis ID" })');
+    expect(resultSource).toContain('"application/sarif+json"');
 
     // The success forms are the same exports the handoff contract already keyed
     // to the fingerprint: one stored result maps to a city and a SARIF export.

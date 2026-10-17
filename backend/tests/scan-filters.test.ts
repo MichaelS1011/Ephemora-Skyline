@@ -1,8 +1,9 @@
 import { describe, it, expect } from "vitest";
 import { SecurityScanner } from "../src/services/security/scanner.js";
 import { stubAdapters, type AdapterStubs } from "./helpers/scanners.js";
+import { makeFile } from "./helpers/fixtures.js";
 import { resolveConfig } from "../src/services/security/scan-config.js";
-import type { FileAnalysis, SecurityIssue } from "../src/models/index.js";
+import type { SecurityIssue } from "../src/models/index.js";
 
 /**
  * A scan profile is a promise about what the city will show. Only one of the
@@ -28,19 +29,6 @@ const issue = (over: Partial<SecurityIssue>): SecurityIssue =>
     ...over,
   }) as SecurityIssue;
 
-const file = (p: string): FileAnalysis =>
-  ({
-    path: p,
-    language: "TypeScript",
-    lines: { total: 1, code: 1, comments: 0, blank: 0 },
-    complexity: { cyclomatic: 1 },
-    functions: [],
-    classes: [],
-    imports: [],
-    exports: [],
-    vulnerabilities: [],
-  }) as FileAnalysis;
-
 /** Batch adapters are swapped for a fixed result, so the merge is what is measured */
 function scannerWithBatchFindings(
   findings: Map<string, SecurityIssue[]>,
@@ -60,7 +48,7 @@ describe("the config judges every way a finding arrives", () => {
       new Map([["app.ts", [issue({ message: "secret in app.ts" })]]]),
       resolveConfig({ profile: "custom", disabledFindingTypes: ["HARDCODED_SECRET"] }).config,
     );
-    const files = [file("app.ts")];
+    const files = [makeFile({ path: "app.ts" })];
     const res = await scanner.scanRepositoryBatch("/tmp/does-not-need-to-exist", files);
     expect(res.mergedCount).toBe(0);
     expect(files[0]!.vulnerabilities).toEqual([]);
@@ -71,7 +59,7 @@ describe("the config judges every way a finding arrives", () => {
       new Map([["app.ts", [issue({ type: "QUALITY_F401", severity: "P2", message: "unused" })]]]),
       resolveConfig({ profile: "quick" }).config, // P0 only
     );
-    const files = [file("app.ts")];
+    const files = [makeFile({ path: "app.ts" })];
     await scanner.scanRepositoryBatch("/tmp/does-not-need-to-exist", files);
     expect(files[0]!.vulnerabilities).toEqual([]);
   });
@@ -85,7 +73,7 @@ describe("the config judges every way a finding arrives", () => {
       new Map([["third_party/legacy/app.ts", [issue({ message: "secret" })]]]),
       resolveConfig({ profile: "custom", excludePaths: ["third_party/"] }).config,
     );
-    const files = [file("third_party/legacy/app.ts")];
+    const files = [makeFile({ path: "third_party/legacy/app.ts" })];
     await scanner.scanRepositoryBatch("/tmp/does-not-need-to-exist", files);
     expect(files[0]!.vulnerabilities).toEqual([]);
   });
@@ -103,7 +91,7 @@ describe("the config judges every way a finding arrives", () => {
         lastRunner: "osv-scanner",
       },
     });
-    const files = [file("src/app.ts")];
+    const files = [makeFile({ path: "src/app.ts" })];
     const res = await scanner.scanDependencies("/tmp/does-not-need-to-exist", files);
     expect(res.added).toBe(0);
     expect(files.find((f) => f.path === "package-lock.json")?.vulnerabilities ?? []).toEqual([]);
@@ -159,7 +147,7 @@ describe("the tool toggles decide which engines run", () => {
     return { scanner, calls };
   }
 
-  const files = () => [file("app.ts")];
+  const files = () => [makeFile({ path: "app.ts" })];
 
   it("does not run gitleaks when the profile turned it off", async () => {
     const { scanner, calls } = fakes({ profile: "quality-only" });
