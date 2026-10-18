@@ -3,7 +3,7 @@
 import { useLayoutEffect, useMemo, useRef } from "react";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
-import { graphPath, nearestNode, type SidewalkNetwork } from "../city/sidewalks";
+import { approachNode, graphPath, nearestNode, type SidewalkNetwork } from "../city/sidewalks";
 import {
   STOP_BOARD,
   STOP_POST,
@@ -952,7 +952,9 @@ export function Pedestrians({
       return;
     }
     const from = nearestNode(network, e.x, e.z);
-    const to = nearestNode(network, x, z);
+    // The last step may not cross a carriageway: a door on this kerb is reached
+    // from this kerb, not from the node diagonally across the junction.
+    const to = approachNode(network, streets ?? [], x, z);
     e.path = graphPath(network, from, to);
     e.node = e.path.length > 0 ? e.path[e.path.length - 1]! : from;
     e.finalX = x;

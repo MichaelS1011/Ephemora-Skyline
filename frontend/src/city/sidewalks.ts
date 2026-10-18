@@ -577,3 +577,58 @@ export function graphPath(net: SidewalkNetwork, from: number, to: number): numbe
   }
   return [];
 }
+
+/** A straight segment, in the same world coordinates the streets are drawn in. */
+export interface Segment {
+  x1: number;
+  z1: number;
+  x2: number;
+  z2: number;
+}
+
+const orient = (ax: number, az: number, bx: number, bz: number, cx: number, cz: number): number =>
+  (bx - ax) * (cz - az) - (bz - az) * (cx - ax);
+
+/** Strict proper crossing of two segments — a shared endpoint is not a crossing. */
+const crosses = (a: Segment, b: Segment): boolean => {
+  const d1 = orient(a.x1, a.z1, a.x2, a.z2, b.x1, b.z1);
+  const d2 = orient(a.x1, a.z1, a.x2, a.z2, b.x2, b.z2);
+  const d3 = orient(b.x1, b.z1, b.x2, b.z2, a.x1, a.z1);
+  const d4 = orient(b.x1, b.z1, b.x2, b.z2, a.x2, a.z2);
+  return d1 * d2 < 0 && d3 * d4 < 0;
+};
+
+/**
+ * The kerb a figure should finish its route from.
+ *
+ * `nearestNode` answers "which node is closest" by straight-line distance, and a
+ * kerb on the far side of the carriageway is often the closest thing to a door.
+ * The route then ends in a step that cuts across the street — measured as the
+ * crowd's worst tell: residents walking diagonally over a junction while the
+ * crosswalk they are routed to sits two metres away.
+ *
+ * So: prefer the nearest node from which the last step reaches its goal without
+ * crossing a street line. Only when every candidate crosses one — a goal truly
+ * in the middle of the road, or a network that does not serve it — fall back to
+ * the plain nearest node, because standing still on the kerb is worse than the
+ * short crossing.
+ */
+export function approachNode(
+  net: SidewalkNetwork,
+  streets: readonly Segment[],
+  x: number,
+  z: number,
+): number {
+  if (streets.length === 0 || net.nodes.length === 0) return nearestNode(net, x, z);
+  let best = -1;
+  let bestD = Infinity;
+  for (let i = 0; i < net.nodes.length; i++) {
+    const n = net.nodes[i]!;
+    const d = (n.x - x) * (n.x - x) + (n.z - z) * (n.z - z);
+    if (d >= bestD) continue;
+    if (streets.some((s) => crosses({ x1: n.x, z1: n.z, x2: x, z2: z }, s))) continue;
+    bestD = d;
+    best = i;
+  }
+  return best >= 0 ? best : nearestNode(net, x, z);
+}
