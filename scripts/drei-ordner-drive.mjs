@@ -188,6 +188,31 @@ async function driveFolder(page, name, claims, chooserBox) {
   });
   const chipSum = surfaces.p0 + surfaces.p1 + surfaces.p2;
 
+  // Die Wortebene darf mit der Breite nicht verschwinden. Gemessen an einem
+  // Punkt: "▲ 3" ist eine Form und eine Zahl und sagt nicht, welcher Grad das
+  // ist — Schwelle ist 300 px, kleine Desktop-Fenster sind zu schmal, und
+  // Farbsehschwäche macht die Schwere unsichtbar. Das Wort muss bei 390 und
+  // bei 1440 da sein.
+  // Ein Testmesspunkt nur: live lesen, sofort zurück auf die aktuelle Größe.
+  const narrowWord = await page.evaluate(() => {
+    const chips = [...document.querySelectorAll(".workspace-severities button")];
+    const label = chips[0]?.querySelector(".severity-label");
+    return { labels: chips.filter((b) => b.querySelector(".severity-label")).length, words: chips.map((b) => (b.querySelector(".severity-label")?.textContent ?? "").trim()) };
+  });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await sleep(900);
+  const narrow = await page.evaluate(() => {
+    const chips = [...document.querySelectorAll(".workspace-severities button")];
+    const visible = chips.filter((b) => (b.getBoundingClientRect().width ?? 0) > 0);
+    const labels = visible.filter((b) => {
+      const l = b.querySelector(".severity-label");
+      return l && getComputedStyle(l).display !== "none" && l.getBoundingClientRect().width > 0;
+    });
+    return { chips: visible.length, labelled: labels.length };
+  });
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await sleep(900);
+
 
   // the three modes: each must activate and answer in its own aria state
   const modes = {};
@@ -226,7 +251,7 @@ async function driveFolder(page, name, claims, chooserBox) {
   claims.push({
     folder: name, onDisk, analysed, unread,
     arithmeticCloses: analysed + unread === onDisk,
-    findings, surfaces, chipSum, dockClicks,
+    findings, surfaces, chipSum, narrowWord, narrow, dockClicks,
     modes,
   });
 }
@@ -269,6 +294,8 @@ async function main() {
     // or a null quietly reads as agreement
     // jeder Dock-Klick muss ankommen und eine Wirkung haben
     claims.every((c) => Object.values(c.dockClicks).every((d) => d.clicked && d.reacted)) &&
+    // jedes sichtbare Schwere-Chip trägt bei 390 px sein Wort
+    claims.every((c) => c.narrow.chips > 0 && c.narrow.labelled === c.narrow.chips) &&
     claims.every((c) => Object.values(c.surfaces.present).every(Boolean)) &&
     claims.every((c) => c.chipSum === c.findings) &&
     claims.every((c) => c.surfaces.dockFindings === c.findings) &&

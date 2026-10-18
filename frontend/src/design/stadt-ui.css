@@ -256,10 +256,7 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.filter-chip-rule {
-  font-family: var(--font-mono);
-  letter-spacing: 0.01em;
-}
+
 .filter-count {
   flex: none;
   font-variant-numeric: tabular-nums;
@@ -634,8 +631,10 @@
     padding: 4px 7px;
     font-size: var(--fs-meta);
   }
+  /* same rule as globals.css: the word is what says "Critical", not the▲ */
   .app-shell .workspace-header .workspace-severities .severity-label {
-    display: none;
+    font-size: var(--fs-meta);
+    margin-left: 3px;
   }
   .app-shell .workspace-header .clean-status {
     font-size: var(--fs-meta);

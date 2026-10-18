@@ -146,20 +146,15 @@ describe("the findings tally", () => {
       { P0: 0, P1: 0, P2: 10 },
     );
     const text = await show(<FindingsPanel />, data);
-    // Scoped to the chip row: the list below names every rule anyway.
-    const chipRow = () =>
-      [...container.querySelectorAll('[role="group"]')].find(
-        (g) => g.getAttribute("aria-label") === "Filter findings by rule",
-      )?.textContent ?? "";
-    expect(chipRow()).toContain("rule_0");
-    expect(chipRow()).not.toContain("rule_9");
+    const ruleChips = () => container.querySelectorAll("[data-rule-chip]").length;
+    expect(ruleChips()).toBe(8);
     expect(text).toContain("+2 rules");
 
     const toggle = [...container.querySelectorAll("button")].find((b) =>
       /^\+2 rules$/.test((b.textContent ?? "").trim()),
     );
     await act(async () => toggle!.click());
-    expect(chipRow()).toContain("rule_9");
+    expect(ruleChips()).toBe(10);
     expect(container.textContent).toContain("fewer rules");
   });
 });

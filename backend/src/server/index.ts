@@ -19,6 +19,7 @@ import type { ResolvedScanConfig } from "../services/security/scan-config.js";
 import { AnalysisStore } from "./analysis-store.js";
 import { AnalysisOrchestrator } from "../services/analyzer/orchestrator.js";
 import { corsOptionsFor, localOnlyRoute, uploadLimitAwareErrorHandler } from "./local-only.js";
+import { ruleClassNames } from "../services/security/finding-knowledge.js";
 import { SecurityScanner } from "../services/security/scanner.js";
 import { READ_BUDGET_EXEMPT } from "./read-budget.js";
 import { handleHealth } from "./routes/health.js";
@@ -137,6 +138,16 @@ app.use("/api", readLimiter);
 // GET /api/health
 app.get("/api/health", (_req: Request, res: Response): void => {
   void handleHealth(_req, res, analysisStore);
+});
+
+// GET /api/rule-classes — the curated class names, so a filter chip can say
+// "Eval on a string" for a finding whose payload carries no label (the demo
+// engine writes none). The table is the one the cards use; a copy in the UI
+// would drift from it. Guarded like the other reads a foreign page has no
+// business receiving.
+app.get("/api/rule-classes", localOnlyRoute, (_req: Request, res: Response): void => {
+  res.setHeader("Cache-Control", "public, max-age=300");
+  res.json(ruleClassNames());
 });
 
 // GET /api/demo — hardcoded demo dataset. A read, but one a foreign page has no

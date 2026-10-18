@@ -3,6 +3,13 @@ import { categoryOf } from "./categories.js";
 import { maskIssueFrames, maskSecretText } from "./redact.js";
 
 export interface FindingKnowledge {
+  /**
+   * A rule class in the words a developer would use, for a filter chip. The
+   * engine id (`regex:EVAL_USAGE`) stays available in the tooltip: it is the
+   * name to search the rules for, not the name to read a list by.
+   */
+  class?: string;
+  classDe?: string;
   /** Plain-language: what does this finding mean for the code owner? */
   explain: string;
   /** German twin of `explain` — the card picks it when the UI speaks German. */
@@ -22,6 +29,8 @@ export interface FindingKnowledge {
  */
 export const FINDING_KNOWLEDGE: Record<string, FindingKnowledge> = {
   CMD_INJECTION: {
+    class: "Command injection",
+    classDe: "Befehlsinjektion",
     explain:
       "User-controlled input reaches a shell command. An attacker can append their own commands (e.g. `; rm -rf /`) and run anything with your process's permissions.",
     explainDe:
@@ -31,6 +40,8 @@ export const FINDING_KNOWLEDGE: Record<string, FindingKnowledge> = {
     refUrl: "https://owasp.org/www-community/attacks/Command_Injection",
   },
   SQL_INJECTION: {
+    class: "SQL injection",
+    classDe: "SQL-Injektion",
     explain:
       "A database query is built by string concatenation, so attacker-supplied text can change its meaning — read, modify or delete any data the query can touch.",
     explainDe:
@@ -40,6 +51,8 @@ export const FINDING_KNOWLEDGE: Record<string, FindingKnowledge> = {
     refUrl: "https://owasp.org/www-community/attacks/SQL_Injection",
   },
   EVAL_USAGE: {
+    class: "Eval on a string",
+    classDe: "Eval auf einer Zeichenkette",
     explain:
       "eval() executes a string as code. If any part of that string is attacker-influenced, it is arbitrary code execution. There is almost always a safe alternative.",
     explainDe:
@@ -50,6 +63,8 @@ export const FINDING_KNOWLEDGE: Record<string, FindingKnowledge> = {
       "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/eval#never_use_eval!",
   },
   DYNAMIC_FUNCTION: {
+    class: "Dynamic function call",
+    classDe: "Dynamischer Funktionsaufruf",
     explain:
       "new Function() compiles a string into executable code — same risk profile as eval(). Attackers who control the string control your process.",
     explainDe:
@@ -60,6 +75,8 @@ export const FINDING_KNOWLEDGE: Record<string, FindingKnowledge> = {
       "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Function/Function",
   },
   PATH_TRAVERSAL: {
+    class: "Path traversal",
+    classDe: "Pfad-Traversierung",
     explain:
       "User input flows into a filesystem path together with `../`. An attacker can escape the intended directory and read or overwrite any file the process can reach.",
     explainDe:
@@ -70,6 +87,8 @@ export const FINDING_KNOWLEDGE: Record<string, FindingKnowledge> = {
     refUrl: "https://owasp.org/www-community/attacks/Path_Traversal",
   },
   XSS: {
+    class: "Cross-site scripting",
+    classDe: "Cross-Site-Scripting",
     explain:
       "Untrusted data is rendered as HTML (innerHTML / dangerouslySetInnerHTML). Injected `<script>` runs in your users' browsers — session hijacking, keylogging, defacement.",
     explainDe:
@@ -80,6 +99,8 @@ export const FINDING_KNOWLEDGE: Record<string, FindingKnowledge> = {
     refUrl: "https://owasp.org/www-community/attacks/xss/",
   },
   PROTOTYPE_POLLUTION: {
+    class: "Prototype pollution",
+    classDe: "Prototype Pollution",
     explain:
       "Manipulating object prototypes (__proto__, __defineGetter__ …) can poison every object of that type in the app — a common step towards remote code execution.",
     explainDe:
@@ -89,6 +110,8 @@ export const FINDING_KNOWLEDGE: Record<string, FindingKnowledge> = {
     refUrl: "https://github.com/nicknisi/prototype-pollution",
   },
   UNSAFE_DESERIALIZATION: {
+    class: "Unsafe deserialization",
+    classDe: "Unsicheres Deserialisieren",
     explain:
       "Deserializing untrusted data (yaml.load, unserialize …) can instantiate arbitrary objects or trigger gadget chains — often remote code execution.",
     explainDe:
@@ -98,6 +121,8 @@ export const FINDING_KNOWLEDGE: Record<string, FindingKnowledge> = {
     refUrl: "https://owasp.org/www-community/vulnerabilities/Deserialization_of_untrusted_data",
   },
   SETTIMEOUT_STRING: {
+    class: "String passed to setTimeout",
+    classDe: "Zeichenkette an setTimeout",
     explain:
       'setTimeout("…code…") evaluates the string like eval(). Pass a function reference instead: setTimeout(() => doWork(), 100).',
     explainDe:
@@ -107,6 +132,8 @@ export const FINDING_KNOWLEDGE: Record<string, FindingKnowledge> = {
     refUrl: "https://developer.mozilla.org/en-US/docs/Web/API/setTimeout#syntax",
   },
   HARDCODED_SECRET: {
+    class: "Hardcoded secret",
+    classDe: "Hartcodiertes Secret",
     explain:
       "A credential is committed in plain text. Anyone with repo access (or the git history) owns it. Rotate the credential, move it to an environment variable or a secrets manager.",
     explainDe:
@@ -117,6 +144,8 @@ export const FINDING_KNOWLEDGE: Record<string, FindingKnowledge> = {
     refUrl: "https://owasp.org/www-community/vulnerabilities/Use_of_hard-coded_password",
   },
   VULNERABLE_DEPENDENCY: {
+    class: "Vulnerable dependency",
+    classDe: "Verwundbare Abhängigkeit",
     explain:
       "The installed package version matches a published vulnerability advisory. Check whether the affected API and inputs are reachable, including in build tools. Review the advisory for a fix or mitigation.",
     explainDe:
@@ -126,6 +155,8 @@ export const FINDING_KNOWLEDGE: Record<string, FindingKnowledge> = {
     refUrl: "https://osv.dev/",
   },
   CONSOLE_USAGE: {
+    class: "Debug logging left in",
+    classDe: "Debug-Ausgabe im Code",
     explain:
       "This rule detects console output, not a proven data leak. Inspect the logged values and the runtime context. Ordinary status messages may need no change; redact sensitive data and use log levels where appropriate.",
     explainDe:
@@ -135,6 +166,8 @@ export const FINDING_KNOWLEDGE: Record<string, FindingKnowledge> = {
     refUrl: "https://cwe.mitre.org/data/definitions/532.html",
   },
   LOOSE_EQUALITY: {
+    class: "Loose equality",
+    classDe: "Lockerer Vergleich",
     explain:
       "== coerces types before comparing ('0' == false is true). These surprising rules cause subtle logic bugs — prefer === / !==.",
     explainDe:
@@ -143,6 +176,8 @@ export const FINDING_KNOWLEDGE: Record<string, FindingKnowledge> = {
     refUrl: "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Operators/Equality",
   },
   LOCALSTORAGE_USAGE: {
+    class: "Secrets in localStorage",
+    classDe: "Secrets im localStorage",
     explain:
       "localStorage is readable by any script on the page — never store tokens or personal data there; XSS turns directly into account takeover.",
     explainDe:
@@ -152,6 +187,8 @@ export const FINDING_KNOWLEDGE: Record<string, FindingKnowledge> = {
     refUrl: "https://developer.mozilla.org/en-US/docs/Web/API/Web_Storage_API",
   },
   INSECURE_HTTP: {
+    class: "Plain HTTP",
+    classDe: "Unverschlüsseltes HTTP",
     explain:
       "A request goes over plain http:// — anyone on the network can read and modify it. Use https:// everywhere.",
     explainDe:
@@ -161,6 +198,8 @@ export const FINDING_KNOWLEDGE: Record<string, FindingKnowledge> = {
     refUrl: "https://owasp.org/www-project-top-ten/2021/A02_2021-Cryptographic_Failures",
   },
   WEAK_CRYPTO: {
+    class: "Weak cryptography",
+    classDe: "Schwache Kryptografie",
     explain:
       "A weak hash (md5/sha1) is used where collision resistance matters. Attackers can forge signatures or passwords — use SHA-256 or better (bcrypt/argon2 for passwords).",
     explainDe:
@@ -170,6 +209,8 @@ export const FINDING_KNOWLEDGE: Record<string, FindingKnowledge> = {
     refUrl: "https://owasp.org/www-project-top-ten/2021/A02_2021-Cryptographic_Failures",
   },
   QUALITY_ASSERT: {
+    class: "Assertion in application code",
+    classDe: "Assertion im Anwendungscode",
     explain:
       "An assert statement validates runtime input. When Python runs with -O optimization, asserts are stripped entirely — the check silently disappears.",
     explainDe:
@@ -179,6 +220,8 @@ export const FINDING_KNOWLEDGE: Record<string, FindingKnowledge> = {
     refUrl: "https://docs.python.org/3/using/cmdline.html#cmdoption-O",
   },
   QUALITY_F401: {
+    class: "Unused import",
+    classDe: "Ungenutzter Import",
     explain:
       "An imported module is never used. Dead imports slow readers down and can hide dependency cycles — remove it.",
     explainDe:
@@ -186,6 +229,8 @@ export const FINDING_KNOWLEDGE: Record<string, FindingKnowledge> = {
     fixDe: "Den unbenutzten Import entfernen",
   },
   QUALITY_F811: {
+    class: "Redefined name",
+    classDe: "Redefinierter Name",
     explain:
       "A name is redefined, silently overwriting the earlier definition — often a copy-paste bug or a missing rename.",
     explainDe:
@@ -193,6 +238,8 @@ export const FINDING_KNOWLEDGE: Record<string, FindingKnowledge> = {
     fixDe: "Die doppelte Definition zusammenführen oder den Namen eindeutig benennen",
   },
   QUALITY_F841: {
+    class: "Unused variable",
+    classDe: "Ungenutzte Variable",
     explain:
       "A local variable is assigned but never used — usually a leftover or a forgotten return value.",
     explainDe:
@@ -200,6 +247,8 @@ export const FINDING_KNOWLEDGE: Record<string, FindingKnowledge> = {
     fixDe: "Die unbenutzte Zuweisung entfernen oder den Wert verwenden",
   },
   QUALITY_F821: {
+    class: "Undefined name",
+    classDe: "Undefinierter Name",
     explain:
       "The code references a name that is never defined in this scope. This is a runtime crash waiting to happen when the code path executes.",
     explainDe:
@@ -207,6 +256,8 @@ export const FINDING_KNOWLEDGE: Record<string, FindingKnowledge> = {
     fixDe: "Den Namen definieren oder den fehlenden Import ergänzen",
   },
   QUALITY_E711: {
+    class: "Comparison to None",
+    classDe: "Vergleich mit None",
     explain:
       "Comparing to None with == instead of `is` — None is a singleton, identity is the correct check.",
     explainDe:
@@ -214,6 +265,8 @@ export const FINDING_KNOWLEDGE: Record<string, FindingKnowledge> = {
     fixDe: "`is None` / `is not None` verwenden",
   },
   QUALITY_E712: {
+    class: "Comparison to True/False",
+    classDe: "Vergleich mit True/False",
     explain:
       "Comparing to True/False with == — use the boolean directly (`if flag:` instead of `if flag == True:`).",
     explainDe:
@@ -221,6 +274,8 @@ export const FINDING_KNOWLEDGE: Record<string, FindingKnowledge> = {
     fixDe: "Den Wahrheitswert direkt prüfen (`if flag:` statt `if flag == True:`)",
   },
   QUALITY_B006: {
+    class: "Mutable default argument",
+    classDe: "Veränderliches Standardargument",
     explain:
       "A mutable default argument (list/dict/set) is shared across every call of the function — mutations leak between invocations. Use None and create a fresh value inside.",
     explainDe:
@@ -228,6 +283,8 @@ export const FINDING_KNOWLEDGE: Record<string, FindingKnowledge> = {
     fixDe: "Default auf None setzen und den Wert im Funktionskörper erzeugen",
   },
   INSTALL_HOOKS: {
+    class: "Install hook runs code",
+    classDe: "Install-Hook führt Code aus",
     explain:
       "A lifecycle hook (preinstall/postinstall) runs automatically whenever someone installs this package — on their machine, in their build, with their credentials. This is the standard route by which a careless or compromised dependency executes code.",
     explainDe:
@@ -238,6 +295,8 @@ export const FINDING_KNOWLEDGE: Record<string, FindingKnowledge> = {
     refUrl: "https://cwe.mitre.org/data/definitions/829.html",
   },
   CURL_PIPE_BASH: {
+    class: "Pipe to shell",
+    classDe: "Pipe in die Shell",
     explain:
       "A script is downloaded and executed in one step, so whatever the server returns that day runs with your privileges. A hijacked domain or a compromised server becomes code execution on this machine.",
     explainDe:
@@ -247,6 +306,8 @@ export const FINDING_KNOWLEDGE: Record<string, FindingKnowledge> = {
     refUrl: "https://cwe.mitre.org/data/definitions/494.html",
   },
   WORLD_WRITABLE: {
+    class: "World-writable file",
+    classDe: "Weltbeschreibbare Datei",
     explain:
       "The file or directory is writable by every user on the machine. Any local process can replace its content — a script, socket or config that something else executes becomes a path to running code as another user.",
     explainDe:
@@ -257,6 +318,8 @@ export const FINDING_KNOWLEDGE: Record<string, FindingKnowledge> = {
     refUrl: "https://cwe.mitre.org/data/definitions/732.html",
   },
   TLS_VERIFICATION_DISABLED: {
+    class: "TLS check disabled",
+    classDe: "TLS-Prüfung abgeschaltet",
     explain:
       "Certificate validation is switched off, so the connection no longer proves who is on the other end. Anything a network attacker can route through can read or change the traffic — including credentials and tokens.",
     explainDe:
@@ -267,6 +330,8 @@ export const FINDING_KNOWLEDGE: Record<string, FindingKnowledge> = {
     refUrl: "https://cwe.mitre.org/data/definitions/295.html",
   },
   DESTRUCTIVE_COMMAND: {
+    class: "Destructive command",
+    classDe: "Zerstörerischer Befehl",
     explain:
       "This deletes down the filesystem root or writes to a raw device. If the path above it is ever empty or unset, the command stops being a cleanup and destroys the machine it runs on.",
     explainDe:
@@ -275,6 +340,8 @@ export const FINDING_KNOWLEDGE: Record<string, FindingKnowledge> = {
       "Absolute oder nicht gesetzte Pfade vor dem Löschen ablehnen und nie aus einem Skript auf einen Geräteknoten schreiben",
   },
   SSRF: {
+    class: "Request forgery (SSRF)",
+    classDe: "Anfragefälschung (SSRF)",
     explain:
       "A URL that arrived in the request is fetched by the server itself, so the caller decides where your process connects. From outside you only ever see the reply, but the target can be an internal service, a neighbour on the localhost, or the cloud provider's metadata endpoint — all of which trust a request because it came from inside. Take the target from an allowlist of hosts and schemes, refuse link-local and private addresses, and do not forward the response body to the caller.",
     explainDe:
@@ -285,6 +352,8 @@ export const FINDING_KNOWLEDGE: Record<string, FindingKnowledge> = {
     refUrl: "https://cwe.mitre.org/data/definitions/918.html",
   },
   WEAK_RANDOMNESS: {
+    class: "Weak randomness",
+    classDe: "Schwache Zufälligkeit",
     explain:
       "Math.random() is a statistical generator, not a cryptographic one: its output is derived from its previous state, so seeing a few values lets an attacker predict the rest. That is fine for a jitter delay and fatal for anything meant to be unguessable — a reset token, a session id, a verification code — because the value is only a secret if nobody can compute it. Draw these from crypto.randomBytes() or crypto.randomUUID() instead.",
     explainDe:
@@ -295,6 +364,8 @@ export const FINDING_KNOWLEDGE: Record<string, FindingKnowledge> = {
     refUrl: "https://cwe.mitre.org/data/definitions/330.html",
   },
   CORS: {
+    class: "CORS misconfiguration",
+    classDe: "CORS-Fehlkonfiguration",
     explain:
       "Access-Control-Allow-Origin: * combined with Access-Control-Allow-Credentials: true is a CORS misconfiguration. Browsers block JavaScript from reading the response to a credentialed cross-origin request with a wildcard origin; this combination does not demonstrate authenticated data exposure. For credentialed requests, return a specific origin from an allowlist and Vary: Origin when it varies. For public responses, omit credential support and send requests without credentials. CORS is not authentication or CSRF protection.",
     explainDe:
@@ -307,9 +378,30 @@ export const FINDING_KNOWLEDGE: Record<string, FindingKnowledge> = {
   },
 };
 
+/**
+ * The curated class names, type → name, in both languages — for a UI that must
+ * name a rule it has a finding for but no carried label for (the demo engine
+ * writes no labels into its payload). Reading the one table is what keeps a
+ * chip from disagreeing with the card.
+ */
+export function ruleClassNames(): Record<string, { class: string; classDe?: string }> {
+  const out: Record<string, { class: string; classDe?: string }> = {};
+  for (const [type, knowledge] of Object.entries(FINDING_KNOWLEDGE)) {
+    if (!knowledge.class) continue;
+    out[type] = { class: knowledge.class, classDe: knowledge.classDe };
+  }
+  return out;
+}
+
 export function knowledgeFor(type: string): FindingKnowledge {
+  // A finding names its rule two ways: the type (`E711`) and, since the
+  // adapter layer, an engine-qualified id (`ruff:E711`, `regex:SQL_INJECTION`).
+  // Looking up the type alone left every ruff finding unnamed and collapsed
+  // E711 and E712 into one "e 711" chip.
+  const bare = type.includes(":") ? type.slice(type.lastIndexOf(":") + 1) : type;
   return (
-    FINDING_KNOWLEDGE[type] ?? {
+    FINDING_KNOWLEDGE[type] ??
+    FINDING_KNOWLEDGE[bare] ?? {
       explain: "Scanner flagged this construct as a potential security or quality issue.",
       explainDe:
         "Der Scanner hat dieses Konstrukt als mögliches Sicherheits- oder Qualitätsproblem markiert.",
@@ -373,6 +465,8 @@ export function enrichIssues(issues: SecurityIssue[], content?: string): void {
     // never depends on which engine found the thing. Old payloads without the
     // fields render exactly what they rendered before.
     if (!issue.explanationDe && knowledge.explainDe) issue.explanationDe = knowledge.explainDe;
+    if (!issue.label && knowledge.class) issue.label = knowledge.class;
+    if (!issue.labelDe && knowledge.classDe) issue.labelDe = knowledge.classDe;
     if (!issue.fixDe && knowledge.fixDe) issue.fixDe = knowledge.fixDe;
     // After the knowledge pass, because the category is derived from the CWE
     // this is the place that attaches.

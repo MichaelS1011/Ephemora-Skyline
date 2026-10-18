@@ -72,6 +72,10 @@ export interface CityFinding {
   sourceSeverity?: string;
   packageName?: string;
   packageVersion?: string;
+  /** The rule class in a developer's words, for a filter chip */
+  label?: string;
+  /** German twin of `label` */
+  labelDe?: string;
   /** Plain-language explanation of the finding class */
   explanation?: string;
   /** German twin of `explanation` — the card picks it when the UI speaks German */
@@ -411,6 +415,8 @@ function toCityFinding(
   const enriched = v as unknown as {
     provenance?: string;
     ruleId?: string;
+    label?: string;
+    labelDe?: string;
     explanation?: string;
     explanationDe?: string;
     fixDe?: string;
@@ -443,6 +449,8 @@ function toCityFinding(
     sourceSeverity: v.sourceSeverity,
     packageName: v.packageName,
     packageVersion: v.packageVersion,
+    label: enriched.label,
+    labelDe: enriched.labelDe,
     explanation: enriched.explanation,
     explanationDe: enriched.explanationDe,
     fixDe: enriched.fixDe,

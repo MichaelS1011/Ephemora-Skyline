@@ -1,7 +1,7 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useStore } from "../stores/useStore";
 import { allFiles } from "../city/layout";
-import { severityTotal } from "../city/facts";
+import { ruleClassLabel, severityTotal, useRuleClassNames } from "../city/facts";
 import { MovedSinceLastScan } from "./MovedSinceLastScan";
 import { severityColor, languageColor } from "../city/palette";
 import type { CityFile, CityFinding, ReviewStatus, Severity } from "../city/types";
@@ -122,6 +122,18 @@ export function FindingsPanel() {
     }
     return counts;
   }, [severityGroups]);
+
+  // One flatten per render, not one per chip and per call: a large city holds
+  // thousands of findings and the chip row re-renders on every filter change.
+  const everyFinding = useMemo(
+    () => (cityData ? allFiles(cityData).flatMap((h) => h.file.findings) : []),
+    [cityData],
+  );
+  const ruleClasses = useRuleClassNames();
+  const allFindingsLabel = useCallback(
+    (rule: string) => ruleClassLabel(everyFinding, rule, lang, ruleClasses),
+    [everyFinding, lang, ruleClasses],
+  );
 
   const ruleChips = useMemo(() => {
     const ranked = [...ruleCounts.entries()].sort(
@@ -365,11 +377,14 @@ export function FindingsPanel() {
                 type="button"
                 aria-pressed={active}
                 onClick={() => setRuleFilter(active ? null : rule)}
-                title={t(lang, "findings.ruleTitle", { rule })}
-                className="filter-chip filter-chip-rule"
+                title={`${allFindingsLabel(rule)} · ${t(lang, "findings.ruleTitle", { rule })}`}
+                className="filter-chip"
+                data-rule-chip={rule}
                 data-active={active || undefined}
               >
-                <span className="filter-chip-label font-jetbrains">{rule}</span>
+                {/* A person reads the class, not the engine id; the id that
+                    finds the rule file stays one hover away. */}
+                <span className="filter-chip-label">{allFindingsLabel(rule)}</span>
                 <span className="filter-count">{count}</span>
               </button>
             );

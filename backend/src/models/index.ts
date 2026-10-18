@@ -122,6 +122,10 @@ export interface SecurityIssue {
   sourceSeverity?: string;
   packageName?: string;
   packageVersion?: string;
+  /** The rule class in a developer's words, for a filter chip (curated knowledge) */
+  label?: string;
+  /** German twin of `label` */
+  labelDe?: string;
   /** Plain-language explanation of the finding class (curated knowledge) */
   explanation?: string;
   /** German twin of `explanation` — the card picks it when the UI speaks German */

@@ -1288,7 +1288,10 @@ div[role="status"].animate-toast-rise {
   .workspace-status {
     gap: 12px;
   }
-  .severity-label,
+  /* The severity word stays at every width: "▲ 3" alone is a shape and a
+     number with nothing that says which grade it is, and the house rule is
+     that colour and shape are never the only carrier. Measured at 390 px:
+     the three chips with their words take 87 + 74 + 96 px of a 351 px row. */
   .workspace-files {
     display: none;
   }
