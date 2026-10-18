@@ -76,7 +76,7 @@ export function OpenInIde({
         style={{ background: "rgba(232,178,60,0.06)", border: "1px solid rgba(232,178,60,0.25)" }}
       >
         <div
-          className="font-jetbrains text-[11px] tracking-widest mb-1.5"
+          className="font-jetbrains text-[length:var(--fs-meta)] tracking-widest mb-1.5"
           style={{ color: "#d8c9a3" }}
         >
           {t(lang, "ide.setup")}
@@ -89,7 +89,7 @@ export function OpenInIde({
             aria-label={t(lang, "ide.pathAria")}
             aria-invalid={invalid || undefined}
             aria-describedby={invalid ? "workspace-root-hint" : undefined}
-            className="flex-1 min-w-0 font-jetbrains text-[11px] px-1.5 py-1 rounded-sm"
+            className="flex-1 min-w-0 font-jetbrains text-[length:var(--fs-meta)] px-1.5 py-1 rounded-sm"
             style={{
               background: "rgba(0,0,0,0.4)",
               border: invalid ? "1px solid #ff0044" : "1px solid rgba(150,142,128,0.3)",
@@ -106,7 +106,7 @@ export function OpenInIde({
               setConfigured(true);
             }}
             disabled={invalid}
-            className="font-jetbrains text-[11px] px-2 py-1 rounded-sm cursor-pointer hover:brightness-125 disabled:opacity-40 disabled:cursor-not-allowed"
+            className="font-jetbrains text-[length:var(--fs-meta)] px-2 py-1 rounded-sm cursor-pointer hover:brightness-125 disabled:opacity-40 disabled:cursor-not-allowed"
             style={{
               background: "rgba(232,178,60,0.12)",
               border: "1px solid rgba(232,178,60,0.4)",
@@ -120,7 +120,7 @@ export function OpenInIde({
           <div
             id="workspace-root-hint"
             role="alert"
-            className="font-jetbrains text-[11px] mt-1.5"
+            className="font-jetbrains text-[length:var(--fs-meta)] mt-1.5"
             style={{ color: "#ff6688" }}
           >
             {t(lang, "ide.invalidHint")}
@@ -146,7 +146,7 @@ export function OpenInIde({
               ? t(lang, "ide.openAriaLine", { path: absolute, editor: EDITOR_LABELS[editor], line })
               : t(lang, "ide.openAria", { path: absolute, editor: EDITOR_LABELS[editor] })
           }
-          className="font-jetbrains text-[11px] tracking-wide px-2 py-1 rounded-sm
+          className="font-jetbrains text-[length:var(--fs-meta)] tracking-wide px-2 py-1 rounded-sm
                      transition-opacity hover:opacity-80 disabled:opacity-40 cursor-pointer"
           style={{
             color: "#f2d5a0",
@@ -165,7 +165,7 @@ export function OpenInIde({
           aria-label={t(lang, "ide.switchAria", {
             editor: EDITOR_LABELS[editor === "vscode" ? "cursor" : "vscode"],
           })}
-          className="font-jetbrains text-[11px] px-1.5 py-1 rounded-sm cursor-pointer hover:opacity-80"
+          className="font-jetbrains text-[length:var(--fs-meta)] px-1.5 py-1 rounded-sm cursor-pointer hover:opacity-80"
           style={{ color: "var(--meta)", border: "1px solid rgba(150,142,128,0.3)" }}
         >
           ⇄
@@ -177,7 +177,7 @@ export function OpenInIde({
           }}
           aria-label={t(lang, "ide.pathAria")}
           title={t(lang, "ide.setup")}
-          className="font-jetbrains text-[11px] px-1.5 py-1 rounded-sm cursor-pointer hover:opacity-80"
+          className="font-jetbrains text-[length:var(--fs-meta)] px-1.5 py-1 rounded-sm cursor-pointer hover:opacity-80"
           style={{ color: "var(--meta)", border: "1px solid rgba(150,142,128,0.3)" }}
         >
           ✎

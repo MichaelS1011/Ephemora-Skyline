@@ -277,7 +277,7 @@ export function Minimap({ show = true }: { show?: boolean }) {
       }}
     >
       <div
-        className="font-mono text-[11px] tracking-widest mb-1 px-0.5"
+        className="font-mono text-[length:var(--fs-meta)] tracking-widest mb-1 px-0.5"
         style={{ color: "rgba(232,80,60,0.5)" }}
       >
         {t(lang, "minimap.title")}{" "}

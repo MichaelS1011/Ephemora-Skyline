@@ -22,13 +22,16 @@ export function PanelAdvice({ advice, lang }: { advice?: StructureNote[]; lang: 
       data-structure-advice
       aria-label={t(lang, "panel.adviceTitle")}
     >
-      <h4 className="font-jetbrains text-[11px] tracking-widest mb-1" style={{ color: "#d8c9a3" }}>
+      <h4
+        className="font-jetbrains text-[length:var(--fs-meta)] tracking-widest mb-1"
+        style={{ color: "#d8c9a3" }}
+      >
         {t(lang, "panel.adviceTitle")}
       </h4>
       {advice.map((note) => (
         <p
           key={note.kind}
-          className="font-jetbrains text-[11px] leading-relaxed mb-1"
+          className="font-jetbrains text-[length:var(--fs-meta)] leading-relaxed mb-1"
           style={{ color: "var(--meta-strong)" }}
         >
           {t(lang, NOTE_KEY[note.kind], { n: formatCount(lang, note.value) })}

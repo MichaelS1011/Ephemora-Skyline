@@ -468,7 +468,7 @@ export default function App() {
                    focus:z-[100] focus:rounded focus:px-4 focus:py-2.5 focus:font-jetbrains
                    focus:text-sm focus:bg-[#161614] focus:text-[#f2efe8]
                    focus:shadow-[0_2px_14px_rgba(0,0,0,0.65)]
-                   focus:outline focus:outline-2 focus:outline-[#e8b23c] focus:outline-offset-2"
+                   focus:outline focus:outline-2 focus:outline-[var(--accent-gold)] focus:outline-offset-2"
       >
         {t(lang, "a11y.skipLink")}
       </a>
@@ -546,7 +546,7 @@ export default function App() {
             <div
               role="alert"
               className="absolute top-20 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3
-                         font-jetbrains text-[11px] px-4 py-2.5 rounded"
+                         font-jetbrains text-[length:var(--fs-meta)] px-4 py-2.5 rounded"
               style={{
                 background: "rgba(32, 16, 12, 0.92)",
                 border: "1px solid rgba(255, 107, 107, 0.45)",
@@ -652,8 +652,8 @@ export default function App() {
                   aria-label={t(lang, "hud.shortcutsAria")}
                   aria-expanded={showKeyboardHints}
                   aria-controls="keyboard-hints-overlay"
-                  className="font-mono text-[11px] text-[color:var(--meta-strong)] hover:text-[#e8b23c] transition-colors
-                             focus:outline-none focus:ring-1 focus:ring-[#e8b23c] rounded px-1 py-0.5"
+                  className="font-mono text-[length:var(--fs-meta)] text-[color:var(--meta-strong)] hover:text-[color:var(--accent-gold)] transition-colors
+                             focus:outline-none focus:ring-1 focus:ring-[var(--accent-gold)] rounded px-1 py-0.5"
                 >
                   [?] {t(lang, "hud.shortcutsHint")}
                 </button>

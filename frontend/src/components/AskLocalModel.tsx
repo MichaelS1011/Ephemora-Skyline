@@ -157,7 +157,7 @@ export function AskLocalModel({ finding }: { finding: CityFinding }) {
         onClick={() => void ask()}
         disabled={state.kind === "running"}
         title={t(lang, "panel.askModelTitle")}
-        className="font-jetbrains text-[11px] inline-flex items-center gap-1.5 px-2 py-1 rounded-sm transition-colors"
+        className="font-jetbrains text-[length:var(--fs-meta)] inline-flex items-center gap-1.5 px-2 py-1 rounded-sm transition-colors"
         style={{
           color: "#8fb6d8",
           background: "rgba(100,130,170,0.08)",
@@ -170,7 +170,7 @@ export function AskLocalModel({ finding }: { finding: CityFinding }) {
       {state.kind === "done" && (
         <div
           role="status"
-          className="font-jetbrains text-[11px] leading-relaxed px-2 py-1.5 rounded-sm mt-1.5"
+          className="font-jetbrains text-[length:var(--fs-meta)] leading-relaxed px-2 py-1.5 rounded-sm mt-1.5"
           style={{
             color: "#d8e4f8",
             background: "rgba(100,130,170,0.06)",
@@ -189,7 +189,7 @@ export function AskLocalModel({ finding }: { finding: CityFinding }) {
         <p
           role="alert"
           data-ask-model-failed=""
-          className="font-jetbrains text-[11px] leading-relaxed mt-1.5"
+          className="font-jetbrains text-[length:var(--fs-meta)] leading-relaxed mt-1.5"
           style={{ color: "#e0a0a8" }}
         >
           {t(lang, state.key)}

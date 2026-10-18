@@ -34,7 +34,7 @@ function LangSwitch({ lang, onPick }: { lang: Lang; onPick: (lang: Lang) => void
     <div
       role="group"
       aria-label={t(lang, "landing.langAria")}
-      className="start-lang flex items-center gap-1 font-jetbrains text-[11px] tracking-wider"
+      className="start-lang flex items-center gap-1 font-jetbrains text-[length:var(--fs-meta)] tracking-wider"
     >
       {(["en", "de"] as const).map((code, index) => (
         <Fragment key={code}>
@@ -47,7 +47,7 @@ function LangSwitch({ lang, onPick }: { lang: Lang; onPick: (lang: Lang) => void
             type="button"
             onClick={() => onPick(code)}
             aria-pressed={lang === code}
-            className="rounded px-1.5 py-0.5 transition-colors hover:text-[#f2efe8] focus:outline-none focus:ring-1 focus:ring-[#e8b23c]"
+            className="rounded px-1.5 py-0.5 transition-colors hover:text-[#f2efe8] focus:outline-none focus:ring-1 focus:ring-[var(--accent-gold)]"
             style={{ color: lang === code ? BRAND.ink : "var(--meta-strong)" }}
           >
             {code.toUpperCase()}

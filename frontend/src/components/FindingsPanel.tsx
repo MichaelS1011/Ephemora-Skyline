@@ -23,7 +23,7 @@ const SEVERITY_SHAPE: Record<Severity, string> = { P0: "▲", P1: "◆", P2: "�
 const REVIEW_DOT_COLOR: Record<ReviewStatus, string> = {
   reviewed: "#29d398",
   "false-positive": "#8f8b82",
-  "to-fix": "#e8b23c",
+  "to-fix": "var(--accent-gold)",
 };
 const REVIEW_LABEL_KEY: Record<ReviewStatus, DictKey> = {
   reviewed: "findings.reviewLabelReviewed",

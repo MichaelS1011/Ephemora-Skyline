@@ -106,13 +106,16 @@ export function SecurityTour() {
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
           {/* Label */}
-          <div className="font-jetbrains text-[11px] tracking-widest mb-0.5" style={{ color }}>
+          <div
+            className="font-jetbrains text-[length:var(--fs-meta)] tracking-widest mb-0.5"
+            style={{ color }}
+          >
             {t(lang, "tour.stepLabel", { index: idx + 1, total: stops.length })}
           </div>
 
           {/* File */}
           <div
-            className="font-jetbrains text-[11px] font-medium truncate mt-0.5"
+            className="font-jetbrains text-[length:var(--fs-meta)] font-medium truncate mt-0.5"
             style={{ color: "#e8f0ff" }}
             title={stop.file.path}
           >
@@ -126,7 +129,7 @@ export function SecurityTour() {
           {/* Worst finding preview */}
           {worst && (
             <div
-              className="font-jetbrains text-[11px] mt-1"
+              className="font-jetbrains text-[length:var(--fs-meta)] mt-1"
               style={{ color: "var(--meta-strong)" }}
             >
               <span style={{ color, fontWeight: 600 }}>{worst.severity}</span>
@@ -142,7 +145,7 @@ export function SecurityTour() {
           {/* Fix preview */}
           {worst?.fix && (
             <div
-              className="font-jetbrains text-[11px] mt-1.5 px-2 py-1 rounded-sm"
+              className="font-jetbrains text-[length:var(--fs-meta)] mt-1.5 px-2 py-1 rounded-sm"
               style={{
                 color: "#29d398",
                 background: "rgba(41,211,152,0.07)",
@@ -159,7 +162,7 @@ export function SecurityTour() {
           <button
             onClick={prevTour}
             disabled={idx === 0}
-            className="font-jetbrains text-[11px] w-7 h-7 flex items-center justify-center rounded-sm transition-all duration-150 disabled:opacity-25"
+            className="font-jetbrains text-[length:var(--fs-meta)] w-7 h-7 flex items-center justify-center rounded-sm transition-all duration-150 disabled:opacity-25"
             style={{ border: "1px solid rgba(150,142,128,0.4)", color: "var(--meta-strong)" }}
             aria-label={t(lang, "tour.prevAria")}
           >
@@ -168,7 +171,7 @@ export function SecurityTour() {
           <button
             onClick={nextTour}
             disabled={idx >= stops.length - 1}
-            className="font-jetbrains text-[11px] px-3 py-1 rounded-sm transition-all duration-150 disabled:opacity-25"
+            className="font-jetbrains text-[length:var(--fs-meta)] px-3 py-1 rounded-sm transition-all duration-150 disabled:opacity-25"
             style={{ border: `1px solid ${color}`, color, background: `${color}14` }}
             aria-label={t(lang, "tour.nextAria")}
           >
@@ -176,7 +179,7 @@ export function SecurityTour() {
           </button>
           <button
             onClick={endTour}
-            className="btn-danger font-jetbrains text-[11px] px-2 py-1 rounded-sm"
+            className="btn-danger font-jetbrains text-[length:var(--fs-meta)] px-2 py-1 rounded-sm"
             aria-label={t(lang, "tour.exitAria")}
           >
             {t(lang, "tour.exit")}
@@ -184,7 +187,10 @@ export function SecurityTour() {
         </div>
       </div>
 
-      <div className="font-jetbrains text-[11px] mt-2" style={{ color: "var(--meta-faint)" }}>
+      <div
+        className="font-jetbrains text-[length:var(--fs-meta)] mt-2"
+        style={{ color: "var(--meta-faint)" }}
+      >
         {t(lang, "tour.hint")}
       </div>
     </div>

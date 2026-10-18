@@ -279,7 +279,7 @@
 }
 .start-elapsed {
   font: 500 13px/1 var(--font-mono);
-  color: #e8b23c;
+  color: var(--accent-gold);
   font-variant-numeric: tabular-nums;
 }
 .start-progress-current {
@@ -339,7 +339,7 @@
   font-variant-numeric: tabular-nums;
 }
 .start-budget-wait {
-  color: #e8b23c;
+  color: var(--accent-gold);
 }
 .start-stages {
   list-style: none;
@@ -402,7 +402,7 @@
 .start-stage-hold {
   margin-left: auto;
   font-size: 11px;
-  color: #e8b23c;
+  color: var(--accent-gold);
   font-variant-numeric: tabular-nums;
 }
 .start-progress-meta {
@@ -481,7 +481,7 @@
   display: block;
   margin: 2px 0 1px;
   font: 600 26px/1.1 var(--font-mono);
-  color: #e8b23c;
+  color: var(--accent-gold);
   font-variant-numeric: tabular-nums;
 }
 .start-state-text {
@@ -552,12 +552,12 @@
 .start-state--cap,
 .start-state--upload-too-large,
 .start-state--rate-limit {
-  border-left-color: #e8b23c;
+  border-left-color: var(--accent-gold);
 }
 .start-state--cap .start-state-glyph,
 .start-state--upload-too-large .start-state-glyph,
 .start-state--rate-limit .start-state-glyph {
-  color: #e8b23c;
+  color: var(--accent-gold);
 }
 .start-state--no-source {
   border-left-color: #6f7a6a;
@@ -808,7 +808,7 @@
   content: "▪";
   position: absolute;
   left: 0;
-  color: #e8b23c;
+  color: var(--accent-gold);
 }
 .start-summary-drops li.is-gitignore::before {
   content: "◦";
@@ -842,7 +842,7 @@
 }
 .start-summary-pin.is-on {
   border-color: rgba(232, 178, 60, 0.55);
-  color: #e8b23c;
+  color: var(--accent-gold);
 }
 .start-summary-pin:hover,
 .start-summary-strip-open:hover {
@@ -949,7 +949,7 @@
   display: none;
 }
 .start-coach-glyph {
-  color: #e8b23c;
+  color: var(--accent-gold);
   font-family: var(--font-mono);
 }
 .start-coach-strip-hint {
@@ -1148,5 +1148,5 @@
   font-variant-numeric: tabular-nums;
 }
 .start-boot.is-slow .start-boot-meta {
-  color: #e8b23c;
+  color: var(--accent-gold);
 }

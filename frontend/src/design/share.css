@@ -271,7 +271,7 @@
   margin: 8px 0 0;
   font-family: "JetBrains Mono", ui-monospace, Menlo, monospace;
   font-size: 11px;
-  color: #e8b23c;
+  color: var(--accent-gold);
 }
 .share-error {
   margin: 0 0 10px;
@@ -366,7 +366,7 @@
 }
 .share-tone {
   font-size: 11px;
-  color: #e8b23c;
+  color: var(--accent-gold);
 }
 .share-copy {
   min-height: 26px;
@@ -398,7 +398,7 @@
   color: #dedbd3;
 }
 .share-link {
-  color: #e8b23c;
+  color: var(--accent-gold);
   overflow-wrap: anywhere;
 }
 .share-subtle {

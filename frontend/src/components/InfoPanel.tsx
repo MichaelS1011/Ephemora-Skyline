@@ -28,13 +28,13 @@ import "../design/stadt-ui.css";
 import "../design/learning.css";
 
 /** Amber accent of the triage focus ring. */
-const FOCUS_COLOR = "#e8b23c";
+const FOCUS_COLOR = "var(--accent-gold)";
 
 /** Review status → segment/border color (same palette as the findings list). */
 const REVIEW_COLOR: Record<ReviewStatus, string> = {
   reviewed: "#29d398",
   "false-positive": "#8f8b82",
-  "to-fix": "#e8b23c",
+  "to-fix": "var(--accent-gold)",
 };
 
 const REVIEW_SEGMENTS: Array<{ status: ReviewStatus; labelKey: DictKey }> = [
@@ -215,7 +215,7 @@ export function SevChip({ severity }: { severity: "P0" | "P1" | "P2" }) {
   const colorblind = useStore((s) => s.prefs.colorblind);
   return (
     <span
-      className="severity-chip font-jetbrains text-[11px] px-1.5 py-px rounded-sm font-semibold"
+      className="severity-chip font-jetbrains text-[length:var(--fs-meta)] px-1.5 py-px rounded-sm font-semibold"
       data-severity={severity}
       style={{ color: severityColor(severity, colorblind) }}
       title={severity}
@@ -308,7 +308,7 @@ function ProvenanceTag({ prov }: { prov?: string }) {
   const color = isAst ? "#d8c9a3" : isSecret ? "#ff6464" : "var(--meta-strong)";
   return (
     <span
-      className="font-jetbrains text-[11px] px-1.5 py-px rounded-sm"
+      className="font-jetbrains text-[length:var(--fs-meta)] px-1.5 py-px rounded-sm"
       style={{
         color,
         border: `1px solid ${color}44`,
@@ -400,7 +400,7 @@ function SuggestedFixBlock({
 
   return (
     <div
-      className="font-jetbrains text-[11px] leading-relaxed rounded-sm px-2 py-1.5"
+      className="font-jetbrains text-[length:var(--fs-meta)] leading-relaxed rounded-sm px-2 py-1.5"
       style={{
         color: "#29d398",
         background: "rgba(41,211,152,0.07)",
@@ -415,7 +415,7 @@ function SuggestedFixBlock({
           onClick={() => void copy()}
           title={t(lang, "panel.copyFixTitle")}
           aria-label={t(lang, "panel.copyFixTitle")}
-          className="shrink-0 font-jetbrains text-[11px] w-5 h-5 flex items-center justify-center rounded-sm transition-colors"
+          className="shrink-0 font-jetbrains text-[length:var(--fs-meta)] w-5 h-5 flex items-center justify-center rounded-sm transition-colors"
           style={{ color: copied ? "#29d398" : "#6688aa", background: "rgba(100,130,170,0.1)" }}
         >
           {copied ? "✓" : "⎘"}
@@ -550,7 +550,10 @@ function FindingRow({
         <div className="flex items-center gap-1.5 flex-wrap flex-1 min-w-0">
           <SevChip severity={finding.severity} />
           <ProvenanceTag prov={finding.provenance} />
-          <span className="font-jetbrains text-[11px] truncate" style={{ color: "#cfcabe" }}>
+          <span
+            className="font-jetbrains text-[length:var(--fs-meta)] truncate"
+            style={{ color: "#cfcabe" }}
+          >
             {finding.type}
           </span>
           {finding.cwe && (
@@ -563,13 +566,19 @@ function FindingRow({
             </span>
           )}
           {finding.ruleId && (
-            <span className="font-jetbrains text-[11px]" style={{ color: "var(--meta-strong)" }}>
+            <span
+              className="font-jetbrains text-[length:var(--fs-meta)]"
+              style={{ color: "var(--meta-strong)" }}
+            >
               {finding.ruleId}
             </span>
           )}
         </div>
         <div className="flex items-center gap-1 shrink-0">
-          <span className="font-jetbrains text-[11px]" style={{ color: "var(--meta-strong)" }}>
+          <span
+            className="font-jetbrains text-[length:var(--fs-meta)]"
+            style={{ color: "var(--meta-strong)" }}
+          >
             :{finding.line}
           </span>
           <button
@@ -577,7 +586,7 @@ function FindingRow({
             title={
               expanded ? t(lang, "panel.detailsCollapseTitle") : t(lang, "panel.detailsExpandTitle")
             }
-            className="font-jetbrains text-[11px] w-5 h-5 flex items-center justify-center rounded-sm transition-colors"
+            className="font-jetbrains text-[length:var(--fs-meta)] w-5 h-5 flex items-center justify-center rounded-sm transition-colors"
             style={{ color: "#6688aa", background: "rgba(100,130,170,0.1)" }}
             aria-label={
               expanded ? t(lang, "panel.detailsCollapseAria") : t(lang, "panel.detailsExpandAria")
@@ -590,7 +599,7 @@ function FindingRow({
           <button
             onClick={copy}
             title={t(lang, "panel.copyFindingTitle")}
-            className="font-jetbrains text-[11px] w-5 h-5 flex items-center justify-center rounded-sm transition-colors"
+            className="font-jetbrains text-[length:var(--fs-meta)] w-5 h-5 flex items-center justify-center rounded-sm transition-colors"
             style={{ color: copied ? "#29d398" : "#6688aa", background: "rgba(100,130,170,0.1)" }}
             aria-label={t(lang, "panel.copyFindingAria")}
           >
@@ -645,7 +654,7 @@ function FindingRow({
                 // tally repaints. Clearing stays silent — undo needs no praise.
                 if (next) playVerdict();
               }}
-              className="font-jetbrains text-[11px] leading-none min-h-7 px-2 py-1 transition-colors"
+              className="font-jetbrains text-[length:var(--fs-meta)] leading-none min-h-7 px-2 py-1 transition-colors"
               style={{
                 color: active ? "#141412" : REVIEW_COLOR[segment.status],
                 background: active ? REVIEW_COLOR[segment.status] : "rgba(255,255,255,0.03)",
@@ -670,7 +679,7 @@ function FindingRow({
         <p
           role="status"
           data-first-verdict
-          className="font-jetbrains text-[11px] leading-relaxed mt-1.5"
+          className="font-jetbrains text-[length:var(--fs-meta)] leading-relaxed mt-1.5"
           style={{ color: demo ? "#8f8b82" : "#29d398" }}
         >
           {demo ? "" : "✓ "}
@@ -688,7 +697,7 @@ function FindingRow({
         >
           {explanation && (
             <div
-              className="font-jetbrains text-[11px] leading-relaxed px-2 py-1.5 rounded-sm"
+              className="font-jetbrains text-[length:var(--fs-meta)] leading-relaxed px-2 py-1.5 rounded-sm"
               style={{
                 color: "#d8e4f8",
                 background: "rgba(232,178,60,0.06)",
@@ -717,7 +726,7 @@ function FindingRow({
               href={refUrl}
               target="_blank"
               rel="noreferrer"
-              className="font-jetbrains text-[11px] inline-flex items-center gap-1 transition-opacity hover:opacity-80"
+              className="font-jetbrains text-[length:var(--fs-meta)] inline-flex items-center gap-1 transition-opacity hover:opacity-80"
               style={{ color: "#d8c9a3" }}
             >
               ↗{" "}
@@ -875,27 +884,33 @@ export function InfoPanel() {
               style={{ background: accent, boxShadow: `0 0 6px ${accent}` }}
             />
             <span
-              className="font-jetbrains text-[11px] tracking-[0.15em] uppercase"
+              className="font-jetbrains text-[length:var(--fs-meta)] tracking-[0.15em] uppercase"
               style={{ color: accent }}
               title={t(lang, "panel.langTitle")}
             >
               {file.language}
             </span>
-            <span className="font-jetbrains text-[11px]" style={{ color: "var(--meta-strong)" }}>
+            <span
+              className="font-jetbrains text-[length:var(--fs-meta)]"
+              style={{ color: "var(--meta-strong)" }}
+            >
               ·
             </span>
             <span
-              className="font-jetbrains text-[11px]"
+              className="font-jetbrains text-[length:var(--fs-meta)]"
               style={{ color: "#8f8b82" }}
               title={t(lang, "panel.locTitle")}
             >
               {formatCount(lang, file.linesOfCode)} LOC
             </span>
-            <span className="font-jetbrains text-[11px]" style={{ color: "var(--meta-strong)" }}>
+            <span
+              className="font-jetbrains text-[length:var(--fs-meta)]"
+              style={{ color: "var(--meta-strong)" }}
+            >
               ·
             </span>
             <span
-              className="font-jetbrains text-[11px]"
+              className="font-jetbrains text-[length:var(--fs-meta)]"
               style={{ color: "#8f8b82" }}
               title={t(lang, "panel.cxTitle")}
             >
@@ -923,7 +938,7 @@ export function InfoPanel() {
           first of it. Only the queue's first position may claim "first". */}
       {firstTriage && triageSummaryKey && (
         <p
-          className="panel-triage-first font-jetbrains text-[11px] leading-relaxed mb-3"
+          className="panel-triage-first font-jetbrains text-[length:var(--fs-meta)] leading-relaxed mb-3"
           data-first-finding
           style={{ color: "#d8c9a3" }}
         >
@@ -954,7 +969,7 @@ export function InfoPanel() {
       {inOtherDistrict && (
         <button
           onClick={() => setFocusPath(hit.chain, { keepSelection: true })}
-          className="w-full mb-3 py-1.5 font-jetbrains text-[11px] tracking-widest rounded-sm transition-all duration-150 hover:opacity-90"
+          className="w-full mb-3 py-1.5 font-jetbrains text-[length:var(--fs-meta)] tracking-widest rounded-sm transition-all duration-150 hover:opacity-90"
           style={{
             border: "1px solid rgba(232,178,60,0.4)",
             color: "#f2d5a0",
@@ -968,7 +983,7 @@ export function InfoPanel() {
       {/* Threat + provenance badges */}
       <div className="flex gap-1.5 flex-wrap mb-3">
         <span
-          className="font-jetbrains text-[11px] px-1.5 py-px rounded-sm uppercase tracking-wide"
+          className="font-jetbrains text-[length:var(--fs-meta)] px-1.5 py-px rounded-sm uppercase tracking-wide"
           style={{
             color: "var(--meta-strong)",
             border: "1px solid rgba(100,130,170,0.3)",
@@ -993,7 +1008,7 @@ export function InfoPanel() {
             const churn = churnColor(file.churnScore ?? 0, colorblind);
             return (
               <span
-                className="font-jetbrains text-[11px] px-1.5 py-px rounded-sm"
+                className="font-jetbrains text-[length:var(--fs-meta)] px-1.5 py-px rounded-sm"
                 style={{
                   color: churn,
                   border: `1px solid ${churn}4d`,
@@ -1007,7 +1022,7 @@ export function InfoPanel() {
           })()}
         {file.exportedSymbols !== undefined && (
           <span
-            className="font-jetbrains text-[11px] px-1.5 py-px rounded-sm"
+            className="font-jetbrains text-[length:var(--fs-meta)] px-1.5 py-px rounded-sm"
             style={{
               color: "#a78bfa",
               border: "1px solid rgba(167,139,250,0.3)",
@@ -1020,7 +1035,7 @@ export function InfoPanel() {
         )}
         {file.deadCodeCandidate && (
           <span
-            className="font-jetbrains text-[11px] px-1.5 py-px rounded-sm"
+            className="font-jetbrains text-[length:var(--fs-meta)] px-1.5 py-px rounded-sm"
             style={{
               color: "#d8cdb4",
               border: "1px solid rgba(210,200,180,0.35)",
@@ -1033,7 +1048,7 @@ export function InfoPanel() {
         )}
         {file.bytes !== undefined && file.bytes >= 150_000 && (
           <span
-            className="font-jetbrains text-[11px] px-1.5 py-px rounded-sm"
+            className="font-jetbrains text-[length:var(--fs-meta)] px-1.5 py-px rounded-sm"
             style={{
               color: "#9aa7b8",
               border: "1px solid rgba(154,167,184,0.4)",
@@ -1046,7 +1061,7 @@ export function InfoPanel() {
         )}
         {file.inCycle && (
           <span
-            className="font-jetbrains text-[11px] px-1.5 py-px rounded-sm"
+            className="font-jetbrains text-[length:var(--fs-meta)] px-1.5 py-px rounded-sm"
             style={{
               color: severityColor("P0", colorblind),
               border: `1px solid ${severityColor("P0", colorblind)}59`,
@@ -1059,7 +1074,7 @@ export function InfoPanel() {
         )}
         {file.coveragePct !== undefined && (
           <span
-            className="font-jetbrains text-[11px] px-1.5 py-px rounded-sm"
+            className="font-jetbrains text-[length:var(--fs-meta)] px-1.5 py-px rounded-sm"
             style={{
               color: file.coveragePct >= 80 ? "#d8c9a3" : "#ffd23f",
               border: `1px solid ${file.coveragePct >= 80 ? "rgba(232,178,60,0.35)" : "rgba(255,210,63,0.35)"}`,
@@ -1073,7 +1088,7 @@ export function InfoPanel() {
         )}
         {file.clonePartners && file.clonePartners.length > 0 && (
           <span
-            className="font-jetbrains text-[11px] px-1.5 py-px rounded-sm"
+            className="font-jetbrains text-[length:var(--fs-meta)] px-1.5 py-px rounded-sm"
             style={{
               color: "#ffe14d",
               border: "1px solid rgba(255,225,77,0.4)",
@@ -1088,7 +1103,7 @@ export function InfoPanel() {
         )}
         {file.topAuthor && (
           <span
-            className="font-jetbrains text-[11px] px-1.5 py-px rounded-sm"
+            className="font-jetbrains text-[length:var(--fs-meta)] px-1.5 py-px rounded-sm"
             style={{
               color: authorColor(file.topAuthor),
               border: `1px solid ${authorColor(file.topAuthor)}55`,
@@ -1101,7 +1116,7 @@ export function InfoPanel() {
         )}
         {hasAst && (
           <span
-            className="font-jetbrains text-[11px] px-1.5 py-px rounded-sm"
+            className="font-jetbrains text-[length:var(--fs-meta)] px-1.5 py-px rounded-sm"
             style={{
               color: "#d8c9a3",
               border: "1px solid rgba(232,178,60,0.3)",
@@ -1114,7 +1129,7 @@ export function InfoPanel() {
         )}
         {hasSecrets && (
           <span
-            className="font-jetbrains text-[11px] px-1.5 py-px rounded-sm"
+            className="font-jetbrains text-[length:var(--fs-meta)] px-1.5 py-px rounded-sm"
             style={{
               color: "#ff6464",
               border: "1px solid rgba(255,100,100,0.3)",
@@ -1171,7 +1186,7 @@ export function InfoPanel() {
         <>
           <div className="panel-section-head flex items-center justify-between mb-2.5">
             <span
-              className="font-jetbrains text-[11px] tracking-[0.2em] uppercase"
+              className="font-jetbrains text-[length:var(--fs-meta)] tracking-[0.2em] uppercase"
               style={{ color: severityColor(worstSeverity!, colorblind) }}
             >
               {t(
@@ -1181,7 +1196,7 @@ export function InfoPanel() {
               )}
             </span>
             <span
-              className="font-jetbrains text-[11px]"
+              className="font-jetbrains text-[length:var(--fs-meta)]"
               style={{ color: "var(--meta-strong)" }}
               title={t(lang, "panel.provTitle")}
             >
@@ -1239,14 +1254,17 @@ export function InfoPanel() {
             ⊘
           </span>
           <span className="min-w-0">
-            <span className="font-jetbrains text-[11px] block leading-relaxed">
+            <span className="font-jetbrains text-[length:var(--fs-meta)] block leading-relaxed">
               {t(
                 lang,
                 engines.length === 1 ? "panel.noFindingsUncheckedOne" : "panel.noFindingsUnchecked",
                 { n: engines.length },
               )}
             </span>
-            <span className="font-jetbrains text-[11px] block mt-1" style={{ opacity: 0.85 }}>
+            <span
+              className="font-jetbrains text-[length:var(--fs-meta)] block mt-1"
+              style={{ opacity: 0.85 }}
+            >
               {engines.join(" · ")}
             </span>
           </span>
@@ -1260,7 +1278,10 @@ export function InfoPanel() {
           <span aria-hidden="true" className="file-verdict-mark" style={{ color: "#29d398" }}>
             ✓
           </span>
-          <span className="font-jetbrains text-[11px]" style={{ color: "#29d398" }}>
+          <span
+            className="font-jetbrains text-[length:var(--fs-meta)]"
+            style={{ color: "#29d398" }}
+          >
             {t(lang, "panel.noFindingsChecked")}
           </span>
         </div>
@@ -1270,7 +1291,7 @@ export function InfoPanel() {
           security scanner even opens the format. */}
       {coverage && (
         <div
-          className="file-coverage font-jetbrains text-[11px] mt-1.5"
+          className="file-coverage font-jetbrains text-[length:var(--fs-meta)] mt-1.5"
           data-file-coverage={coverage.kind}
           style={{ color: "#8f8b82" }}
         >
@@ -1345,7 +1366,7 @@ function VoxelStructureBlock({ file }: { file: CityFile }) {
     <div className="mb-3" aria-label={t(lang, "panel.structureAria")}>
       <div className="flex items-baseline justify-between gap-2 mb-1.5">
         <span
-          className="font-jetbrains text-[11px] tracking-[0.2em] uppercase"
+          className="font-jetbrains text-[length:var(--fs-meta)] tracking-[0.2em] uppercase"
           style={{ color: "#e1ded4" }}
         >
           {t(lang, "panel.structureHeader")}
@@ -1364,7 +1385,7 @@ function VoxelStructureBlock({ file }: { file: CityFile }) {
           const isOpen = expanded.has(i);
           return (
             <div key={i}>
-              <div className="flex items-center gap-2 font-jetbrains text-[11px] min-w-0">
+              <div className="flex items-center gap-2 font-jetbrains text-[length:var(--fs-meta)] min-w-0">
                 <button
                   type="button"
                   onClick={() => toggle(i)}
@@ -1588,7 +1609,7 @@ function SourceBlock({
           aria-expanded={open}
           aria-controls={open ? sourceId : undefined}
           aria-label={t(lang, "panel.sourceToggleAria")}
-          className="flex items-center gap-1 font-jetbrains text-[11px] tracking-[0.2em] uppercase transition-opacity hover:opacity-80"
+          className="flex items-center gap-1 font-jetbrains text-[length:var(--fs-meta)] tracking-[0.2em] uppercase transition-opacity hover:opacity-80"
           style={{ color: "#e1ded4" }}
         >
           <span aria-hidden="true" style={{ color: "var(--meta-strong)" }}>
@@ -1599,7 +1620,7 @@ function SourceBlock({
         {status === "ready" && scrollToLine != null && (
           <span
             className="font-jetbrains text-[length:var(--fs-meta)] px-1.5 py-px rounded-sm shrink-0"
-            style={{ color: "#e8b23c", border: "1px solid rgba(232,178,60,0.4)" }}
+            style={{ color: "var(--accent-gold)", border: "1px solid rgba(232,178,60,0.4)" }}
             title={t(lang, "panel.sourceLine", { line: scrollToLine })}
           >
             {t(lang, "panel.sourceLine", { line: scrollToLine })}
@@ -1620,7 +1641,7 @@ function SourceBlock({
             <button
               type="button"
               onClick={() => void load()}
-              className="w-full py-1.5 font-jetbrains text-[11px] tracking-widest rounded-sm transition-all duration-150 hover:opacity-90"
+              className="w-full py-1.5 font-jetbrains text-[length:var(--fs-meta)] tracking-widest rounded-sm transition-all duration-150 hover:opacity-90"
               style={{
                 border: "1px solid rgba(232,178,60,0.4)",
                 color: "#f2d5a0",
@@ -1777,7 +1798,7 @@ function RunTestsButton({
       <button
         onClick={() => void runTests([filePath])}
         disabled={busy || !analysisId || !analysisOnDisk}
-        className="w-full mb-3 py-1.5 font-jetbrains text-[11px] tracking-widest rounded-sm
+        className="w-full mb-3 py-1.5 font-jetbrains text-[length:var(--fs-meta)] tracking-widest rounded-sm
                  transition-all duration-150 hover:brightness-110 focus:outline-none focus:ring-1 focus:ring-[#29d398]
                  disabled:opacity-40 cursor-pointer"
         style={{
@@ -1789,11 +1810,14 @@ function RunTestsButton({
       >
         {busy ? `⟳ ${testRun.stage || t(lang, "panel.running")}` : t(lang, "panel.runTestFile")}
       </button>
-      <p className="mb-3 text-[11px] leading-relaxed" style={{ color: "var(--meta)" }}>
+      <p
+        className="mb-3 text-[length:var(--fs-meta)] leading-relaxed"
+        style={{ color: "var(--meta)" }}
+      >
         {t(lang, "test.snapshot")}
       </p>
       {testRun.status === "failed" && (
-        <p role="alert" className="mb-3 text-[11px]" style={{ color: "#ff6b7a" }}>
+        <p role="alert" className="mb-3 text-[length:var(--fs-meta)]" style={{ color: "#ff6b7a" }}>
           {testRun.stage}
         </p>
       )}
@@ -1820,7 +1844,7 @@ function TestResultsBlock({ filePath }: { filePath: string }) {
       }}
     >
       <div
-        className="px-2 py-1.5 font-jetbrains text-[11px] font-semibold"
+        className="px-2 py-1.5 font-jetbrains text-[length:var(--fs-meta)] font-semibold"
         style={{
           color:
             result.status === "failed"
@@ -1849,7 +1873,7 @@ function TestResultsBlock({ filePath }: { filePath: string }) {
             ✕ {f.name}
           </div>
           <pre
-            className="font-jetbrains text-[11px] leading-snug whitespace-pre-wrap mt-0.5"
+            className="font-jetbrains text-[length:var(--fs-meta)] leading-snug whitespace-pre-wrap mt-0.5"
             style={{ color: "var(--meta)" }}
           >
             {f.message}
@@ -1857,7 +1881,10 @@ function TestResultsBlock({ filePath }: { filePath: string }) {
         </div>
       ))}
       {result.failures.length > 3 && (
-        <div className="px-2 pb-1.5 font-jetbrains text-[11px]" style={{ color: "var(--meta)" }}>
+        <div
+          className="px-2 pb-1.5 font-jetbrains text-[length:var(--fs-meta)]"
+          style={{ color: "var(--meta)" }}
+        >
           {t(lang, "panel.moreFailures", { count: result.failures.length - 3 })}
         </div>
       )}

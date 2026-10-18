@@ -193,7 +193,7 @@ export function HudOverlay({ apiStatus }: HudOverlayProps) {
       {constructing && (
         <div
           className="absolute bottom-4 left-1/2 z-40 flex max-w-[calc(100vw-24px)] -translate-x-1/2 flex-wrap
-                     items-center justify-center gap-x-3 gap-y-1 rounded-lg px-4 py-2.5 font-mono text-[11px]
+                     items-center justify-center gap-x-3 gap-y-1 rounded-lg px-4 py-2.5 font-mono text-[length:var(--fs-meta)]
                      pointer-events-auto"
           style={{
             background: "rgba(20, 20, 18, 0.82)",
@@ -230,8 +230,8 @@ export function HudOverlay({ apiStatus }: HudOverlayProps) {
           <button
             onClick={requestBuildSkip}
             aria-label={t(lang, "hud.skipAria")}
-            className="shrink-0 rounded px-1 py-0.5 font-mono text-[11px] text-[color:var(--meta-strong)]
-                       transition-colors hover:text-[#e8b23c] focus:outline-none focus:ring-1 focus:ring-[#e8b23c]"
+            className="shrink-0 rounded px-1 py-0.5 font-mono text-[length:var(--fs-meta)] text-[color:var(--meta-strong)]
+                       transition-colors hover:text-[color:var(--accent-gold)] focus:outline-none focus:ring-1 focus:ring-[var(--accent-gold)]"
           >
             {t(lang, "hud.skip")} ⏭
           </button>

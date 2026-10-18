@@ -37,7 +37,7 @@ export function Breadcrumbs() {
         <button
           onClick={drillOut}
           aria-label={t(lang, "crumbs.upAria")}
-          className="font-mono text-[11px] px-1.5 py-0.5"
+          className="font-mono text-[length:var(--fs-meta)] px-1.5 py-0.5"
           style={{
             border: "1px solid rgba(165,158,144,0.4)",
             color: "#cfcabe",
@@ -52,7 +52,7 @@ export function Breadcrumbs() {
         onClick={() => setFocusPath([])}
         aria-current={focusPath.length === 0 ? "location" : undefined}
         title={t(lang, "crumbs.rootTip")}
-        className="font-mono text-[11px] px-2 py-0.5 transition-colors"
+        className="font-mono text-[length:var(--fs-meta)] px-2 py-0.5 transition-colors"
         style={{
           border: `1px solid ${focusPath.length === 0 ? "#f2d5a0" : "rgba(165,158,144,0.35)"}`,
           color: focusPath.length === 0 ? "#f2d5a0" : "var(--meta-strong)",
@@ -68,7 +68,7 @@ export function Breadcrumbs() {
         return (
           <span key={`${seg}-${i}`} className="flex items-center gap-1.5">
             <span
-              className="font-mono text-[11px]"
+              className="font-mono text-[length:var(--fs-meta)]"
               aria-hidden="true"
               style={{ color: "var(--meta-faint)" }}
             >
@@ -82,7 +82,7 @@ export function Breadcrumbs() {
               // already the button's visible label.
               aria-current={isActive ? "location" : undefined}
               title={`/${focusPath.slice(0, i + 1).join("/")}`}
-              className="font-mono text-[11px] px-2 py-0.5 transition-colors"
+              className="font-mono text-[length:var(--fs-meta)] px-2 py-0.5 transition-colors"
               style={{
                 border: `1px solid ${isActive ? "#f2d5a0" : "rgba(165,158,144,0.35)"}`,
                 color: isActive ? "#f2d5a0" : "var(--meta-strong)",
@@ -98,7 +98,7 @@ export function Breadcrumbs() {
       {selectedFile && (
         <span className="flex items-center gap-1.5">
           <span
-            className="font-mono text-[11px]"
+            className="font-mono text-[length:var(--fs-meta)]"
             aria-hidden="true"
             style={{ color: "var(--meta-faint)" }}
           >
@@ -109,7 +109,7 @@ export function Breadcrumbs() {
             aria-current="location"
             aria-label={t(lang, "crumb.fileActive", { name: selectedFile.name })}
             title={t(lang, "crumb.fileTitle")}
-            className="font-mono text-[11px] px-2 py-0.5 transition-colors"
+            className="font-mono text-[length:var(--fs-meta)] px-2 py-0.5 transition-colors"
             style={{
               border: "1px solid #f2d5a0",
               color: "#f2d5a0",
@@ -124,7 +124,7 @@ export function Breadcrumbs() {
       {selectedFile && focusedLine !== null && (
         <span className="flex items-center gap-1.5">
           <span
-            className="font-mono text-[11px]"
+            className="font-mono text-[length:var(--fs-meta)]"
             aria-hidden="true"
             style={{ color: "var(--meta-faint)" }}
           >
@@ -135,10 +135,10 @@ export function Breadcrumbs() {
             onClick={() => refocusVoxel?.()}
             aria-label={t(lang, "crumb.lineSegment", { line: focusedLine })}
             title={t(lang, "crumb.lineSegment", { line: focusedLine })}
-            className="font-mono text-[11px] px-2 py-0.5 transition-colors"
+            className="font-mono text-[length:var(--fs-meta)] px-2 py-0.5 transition-colors"
             style={{
               border: "1px solid rgba(232,178,60,0.6)",
-              color: "#e8b23c",
+              color: "var(--accent-gold)",
               fontWeight: 600,
               background: "rgba(232,178,60,0.08)",
             }}

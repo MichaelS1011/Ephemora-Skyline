@@ -21,10 +21,12 @@ function ProgressBar({ progress, stage }: { progress: number; stage: string }) {
         {/* The server names its stages in English; `progressLine` answers with
             the dictionary, and with "analysis running" for a stage nobody
             mapped — never with the raw string in a German wait screen. */}
-        <span className="font-mono text-[11px] text-[#e8b23c] tracking-widest analyze-stage">
+        <span className="font-mono text-[length:var(--fs-meta)] text-[color:var(--accent-gold)] tracking-widest analyze-stage">
           {progressLine(lang, stage) || t(lang, "analyze.initializing")}
         </span>
-        <span className="font-mono text-[11px] text-[#e8503c] ml-2 shrink-0">{progress}%</span>
+        <span className="font-mono text-[length:var(--fs-meta)] text-[#e8503c] ml-2 shrink-0">
+          {progress}%
+        </span>
       </div>
       <div className="w-full h-[3px] bg-[#1c1c1a] border border-[#1a2a3a] rounded-sm overflow-hidden">
         <div
@@ -108,7 +110,8 @@ export function AnalyzePanel({ className = "" }: { className?: string }) {
     }
   }, [isOpen]);
 
-  const borderColor = state === "error" ? "#ff0044" : state === "success" ? "#e8503c" : "#e8b23c";
+  const borderColor =
+    state === "error" ? "#ff0044" : state === "success" ? "#e8503c" : "var(--accent-gold)";
 
   return (
     <div className={`analyze-control relative ${className}`}>
@@ -152,7 +155,7 @@ export function AnalyzePanel({ className = "" }: { className?: string }) {
             if (e.key === "Escape") setIsOpen(false);
           }}
         >
-          <div className="font-mono text-xs text-[#e8b23c] tracking-widest mb-3 flex items-center gap-2">
+          <div className="font-mono text-xs text-[color:var(--accent-gold)] tracking-widest mb-3 flex items-center gap-2">
             <span>◈</span>
             <span>{t(lang, "analyze.header")}</span>
           </div>
@@ -176,7 +179,7 @@ export function AnalyzePanel({ className = "" }: { className?: string }) {
           >
             {isPicking ? (
               <span className="flex items-center justify-center gap-2">
-                <span className="inline-block w-2 h-2 rounded-full bg-[#e8b23c] animate-pulse" />
+                <span className="inline-block w-2 h-2 rounded-full bg-[var(--accent-gold)] animate-pulse" />
                 {t(lang, "picker.waiting")}
               </span>
             ) : state === "collecting" ? (
@@ -200,7 +203,7 @@ export function AnalyzePanel({ className = "" }: { className?: string }) {
                 id="analyze-picker-status"
                 role="status"
                 aria-live="polite"
-                className="font-mono text-[11px] text-[color:var(--meta-strong)] text-center"
+                className="font-mono text-[length:var(--fs-meta)] text-[color:var(--meta-strong)] text-center"
               >
                 {notice || t(lang, "picker.waiting")}
               </p>
@@ -212,8 +215,8 @@ export function AnalyzePanel({ className = "" }: { className?: string }) {
                   type="button"
                   onClick={openAlternativePicker}
                   aria-describedby="analyze-picker-status"
-                  className="w-full mt-2 py-1 rounded-sm font-mono text-[11px] tracking-widest border border-[#e8b23c]
-                             text-[#e8b23c] bg-transparent hover:bg-[rgba(232,178,60,0.08)] transition-all duration-150"
+                  className="w-full mt-2 py-1 rounded-sm font-mono text-[length:var(--fs-meta)] tracking-widest border border-[var(--accent-gold)]
+                             text-[color:var(--accent-gold)] bg-transparent hover:bg-[rgba(232,178,60,0.08)] transition-all duration-150"
                 >
                   {t(lang, "picker.alternative")}
                 </button>
@@ -222,7 +225,7 @@ export function AnalyzePanel({ className = "" }: { className?: string }) {
           )}
 
           {state === "collecting" && collected.files > 0 && (
-            <div className="mt-2 font-mono text-[11px] text-[color:var(--meta-strong)] text-center">
+            <div className="mt-2 font-mono text-[length:var(--fs-meta)] text-[color:var(--meta-strong)] text-center">
               {t(lang, "analyze.filesBytes", {
                 files: collected.files,
                 kb: formatDecimal(lang, collected.bytes / 1024, 0),
@@ -235,7 +238,7 @@ export function AnalyzePanel({ className = "" }: { className?: string }) {
               id="analyze-error"
               role="alert"
               aria-live="assertive"
-              className="mt-3 px-2 py-1.5 border border-[#ff0044] rounded font-mono text-[11px] text-[#ff6688]"
+              className="mt-3 px-2 py-1.5 border border-[#ff0044] rounded font-mono text-[length:var(--fs-meta)] text-[#ff6688]"
               style={{ background: "rgba(255,0,68,0.08)" }}
             >
               ⚠ {errorMessage}
@@ -248,7 +251,7 @@ export function AnalyzePanel({ className = "" }: { className?: string }) {
             <div
               role="status"
               aria-live="polite"
-              className="mt-3 px-2 py-1.5 border border-[#e8503c] rounded font-mono text-[11px] text-[#e8503c]"
+              className="mt-3 px-2 py-1.5 border border-[#e8503c] rounded font-mono text-[length:var(--fs-meta)] text-[#e8503c]"
               style={{ background: "rgba(232,80,60,0.08)" }}
             >
               {t(lang, "analyze.success")}
@@ -257,7 +260,7 @@ export function AnalyzePanel({ className = "" }: { className?: string }) {
           {isAnalyzing && (
             <button
               onClick={cancel}
-              className="w-full mt-2 py-1 rounded-sm font-mono text-[11px] tracking-widest border border-[#ff0044]
+              className="w-full mt-2 py-1 rounded-sm font-mono text-[length:var(--fs-meta)] tracking-widest border border-[#ff0044]
                          text-[#ff0044] bg-transparent hover:bg-[rgba(255,0,68,0.08)]
                          transition-all duration-150"
               aria-label={t(lang, "landing.cancel")}

@@ -27,7 +27,7 @@ import "../design/griff.css";
 function Keycap({ label }: { label: string }): React.ReactElement {
   return (
     <kbd
-      className="font-jetbrains text-[11px] px-2 py-1 rounded"
+      className="font-jetbrains text-[length:var(--fs-meta)] px-2 py-1 rounded"
       style={{
         background: "rgba(232,178,60,0.08)",
         border: "1px solid rgba(232,178,60,0.22)",
@@ -144,7 +144,7 @@ export function KeyboardHints({ isOpen, onClose }: KeyboardHintsProps) {
             {groups.map((group) => (
               <div key={group} className="mb-3 last:mb-0">
                 <div
-                  className="font-jetbrains text-[11px] tracking-[0.2em] uppercase mb-3 pb-2"
+                  className="font-jetbrains text-[length:var(--fs-meta)] tracking-[0.2em] uppercase mb-3 pb-2"
                   style={{
                     color: "var(--meta-faint)",
                     borderBottom: "1px solid rgba(232,178,60,0.08)",
@@ -163,7 +163,7 @@ export function KeyboardHints({ isOpen, onClose }: KeyboardHintsProps) {
             ))}
 
             <p
-              className="font-jetbrains text-[11px] mt-4 pt-3"
+              className="font-jetbrains text-[length:var(--fs-meta)] mt-4 pt-3"
               style={{
                 color: "var(--meta-strong)",
                 borderTop: "1px solid rgba(232,178,60,0.12)",

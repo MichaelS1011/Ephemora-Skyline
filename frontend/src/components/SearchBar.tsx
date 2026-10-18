@@ -318,12 +318,15 @@ export function SearchBar() {
                         {highlight(file.name, query)}
                       </span>
                       <span
-                        className="block font-jetbrains text-[11px] break-all leading-relaxed mt-0.5"
+                        className="block font-jetbrains text-[length:var(--fs-meta)] break-all leading-relaxed mt-0.5"
                         style={{ color: "var(--meta-strong)" }}
                       >
                         {highlight(file.path, query)}
                       </span>
-                      <span className="block text-[11px] mt-1" style={{ color: "var(--meta)" }}>
+                      <span
+                        className="block text-[length:var(--fs-meta)] mt-1"
+                        style={{ color: "var(--meta)" }}
+                      >
                         {file.language} · {formatCount(lang, file.linesOfCode)} LOC
                       </span>
                     </div>
@@ -331,7 +334,7 @@ export function SearchBar() {
 
                   {file.findings.length > 0 && (
                     <span
-                      className="font-jetbrains text-[11px] px-2 py-1 rounded shrink-0"
+                      className="font-jetbrains text-[length:var(--fs-meta)] px-2 py-1 rounded shrink-0"
                       style={{
                         color: dotColor,
                         border: `1px solid ${dotColor}55`,

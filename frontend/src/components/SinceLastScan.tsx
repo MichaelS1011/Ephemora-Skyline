@@ -47,7 +47,10 @@ export function SinceLastScan({ lang, previousScan }: { lang: Lang; previousScan
   const report = verify.status === "ran" ? verify.report : null;
   return (
     <div className="py-4" data-since-last-scan={verify.status}>
-      <div className="text-[11px] tracking-widest mb-2" style={{ color: "#d8c9a3" }}>
+      <div
+        className="text-[length:var(--fs-meta)] tracking-widest mb-2"
+        style={{ color: "#d8c9a3" }}
+      >
         {verify.status === "ran" && verify.previousScannedAt
           ? t(lang, "ctx.sinceTitleDated", {
               date: new Date(verify.previousScannedAt).toLocaleDateString(
@@ -70,7 +73,10 @@ export function SinceLastScan({ lang, previousScan }: { lang: Lang; previousScan
               {t(lang, "ctx.sinceAsk")}
             </button>
             {samplePath(cityData) && (
-              <span className="font-mono text-[11px] opacity-80"> · {samplePath(cityData)}</span>
+              <span className="font-mono text-[length:var(--fs-meta)] opacity-80">
+                {" "}
+                · {samplePath(cityData)}
+              </span>
             )}
           </p>
         ) : (
@@ -125,21 +131,24 @@ export function SinceLastScan({ lang, previousScan }: { lang: Lang; previousScan
           </p>
           {report.moved.length > 0 && (
             <>
-              <p className="text-[11px] leading-relaxed" style={{ color: "var(--meta-strong)" }}>
+              <p
+                className="text-[length:var(--fs-meta)] leading-relaxed"
+                style={{ color: "var(--meta-strong)" }}
+              >
                 {t(lang, "ctx.sinceWhy")}
               </p>
               <button
                 type="button"
                 onClick={() => setShowMoved((v) => !v)}
                 aria-expanded={showMoved}
-                className="self-start text-[11px] underline decoration-dotted underline-offset-2"
+                className="self-start text-[length:var(--fs-meta)] underline decoration-dotted underline-offset-2"
                 style={{ color: "var(--meta-strong)" }}
               >
                 {t(lang, "ctx.sinceDetailed")}
               </button>
               {showMoved && (
                 <ul
-                  className="text-[11px] font-mono flex flex-col gap-0.5"
+                  className="text-[length:var(--fs-meta)] font-mono flex flex-col gap-0.5"
                   style={{ color: "var(--meta-strong)" }}
                 >
                   {report.moved.map(({ from, to }) => (

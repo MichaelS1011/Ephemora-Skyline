@@ -38,7 +38,17 @@ describe("one ring to point", () => {
     const globals = readFileSync(resolve(designDir, "globals.css"), "utf-8");
     const m = globals.match(/--focus-ring:\s*([^;]+);/);
     expect(m, "--focus-ring is defined").not.toBeNull();
-    expect(m![1]!.trim()).toBe("#e8b23c");
+    // The ring may name the accent rather than repeat its hex — then the chain
+    // has to end at the same full-strength gold, or "brand gold" would be a
+    // claim about a token that points somewhere else.
+    let value = m![1]!.trim();
+    for (let hop = 0; hop < 4 && value.startsWith("var("); hop += 1) {
+      const name = value.slice(4, -1).replace(/^-+/, "");
+      const next = new RegExp(`--${name}:\\s*([^;]+);`).exec(globals);
+      expect(next, `${value} is referenced but never declared`).not.toBeNull();
+      value = next![1]!.trim();
+    }
+    expect(value).toBe("#e8b23c");
   });
 
   it("the ring is two-tone where it touches the world: gold for dark chrome, dark halo for bright ground", () => {
