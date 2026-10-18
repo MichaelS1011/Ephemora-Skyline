@@ -189,6 +189,7 @@ export function HudOverlay({ apiStatus }: HudOverlayProps) {
           </span>
         ))}
         <span className="legend-explainer">{t(lang, "hud.heightComplexity")}</span>
+        <span className="legend-explainer">{t(lang, "hud.roofFindings")}</span>
       </div>
       {constructing && (
         <div

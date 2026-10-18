@@ -88,6 +88,12 @@
   margin-bottom: 2px;
 }
 
+/* The second rule the board states: the scale belongs to the height, the roof
+   reads on its own line beneath it rather than crowding the ticks. */
+.cf-mast-roof-note {
+  margin-top: 6px;
+}
+
 .cf-mast-ticks {
   display: flex;
   flex-direction: column;

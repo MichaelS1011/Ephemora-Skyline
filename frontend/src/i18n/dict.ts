@@ -406,6 +406,10 @@ export const DICT = {
     en: "Height = complexity",
     de: "Höhe = Komplexität",
   },
+  "hud.roofFindings": {
+    en: "Roof = what was found here",
+    de: "Dach = was hier gefunden wurde",
+  },
   "hud.phase0": {
     en: "The Ephe's are moving in…",
     de: "Die Ephe's ziehen ein…",

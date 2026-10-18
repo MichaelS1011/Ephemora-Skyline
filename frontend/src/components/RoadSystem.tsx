@@ -643,6 +643,7 @@ export function RoadSystem({
                     <div key={c}>{formatDecimal(lang, c, 2)}</div>
                   ))}
                 </div>
+                <div className="cf-mast-title cf-mast-roof-note">{t(lang, "hud.roofFindings")}</div>
               </div>
             </Html>
           </group>
