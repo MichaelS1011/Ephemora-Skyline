@@ -5,7 +5,7 @@ import { languageColor, severityColor, threatColor } from "../city/palette";
 import type { CityFile, CityFinding, Severity } from "../city/types";
 import { findingKey } from "../reviews";
 import { formatCount, t, type DictKey } from "../i18n";
-import { FindingGermanLine } from "./InfoPanel";
+import { FindingGermanLine } from "./FindingCard";
 
 /** Severity → the word the header and the list use, so one grade reads the same everywhere. */
 const SEVERITY_LABEL_KEY: Record<Severity, DictKey> = {

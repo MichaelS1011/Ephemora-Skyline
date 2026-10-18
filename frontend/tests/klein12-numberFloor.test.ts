@@ -125,7 +125,9 @@ describe("die Untergrenze der Zahlenknoten im tatsächlichen Renderpfad", () => 
       ).toMatch(/severity-(chip-)?shape|\.app-shell button:active/);
     }
     // und die Glyphen selbst: keine Ziffer in den Formzeichen-Tafeln
-    for (const file of ["components/ContextCard.tsx", "components/InfoPanel.tsx"]) {
+    // (Die Tafel des Fund-Reihers steht seit der InfoPanel-Spaltung am 18.10.
+    // in `components/FindingCard.tsx`, zusammen mit `SevChip`.)
+    for (const file of ["components/ContextCard.tsx", "components/FindingCard.tsx"]) {
       const text = readFileSync(path.join(SRC, file), "utf-8");
       const shapes = [...text.matchAll(/P[012]:\s*"([^"]+)"/g)].map((m) => m[1]!);
       expect(shapes.length, `${file} hat keine Formzeichen-Tafel`).toBeGreaterThan(0);

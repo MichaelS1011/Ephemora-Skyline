@@ -71,18 +71,34 @@ describe("soundAllowed — reduced motion is the switch", () => {
 });
 
 describe("the verdict button is the only speaker", () => {
-  it("InfoPanel plays on a set verdict and stays silent on clearing", async () => {
+  /**
+   * The verdict control moved with `FindingRow` into `FindingCard.tsx`
+   * (2026-10-18 InfoPanel split); the claim did not move with it: the row that
+   * sets a verdict is the only place in the interface that starts a sound, and
+   * clearing one stays silent.
+   */
+  it("FindingRow plays on a set verdict and stays silent on clearing", async () => {
     const { readFileSync } = await import("node:fs");
     const { dirname, resolve } = await import("node:path");
     const { fileURLToPath } = await import("node:url");
     const src = readFileSync(
-      resolve(dirname(fileURLToPath(import.meta.url)), "../src/components/InfoPanel.tsx"),
+      resolve(dirname(fileURLToPath(import.meta.url)), "../src/components/FindingCard.tsx"),
       "utf-8",
     );
     expect(src).toMatch(/if \(next\) playVerdict\(\)/);
     // exactly one call site — no other component may start talking
     expect(src.match(/playVerdict\(\)/g)).toHaveLength(1);
-    const panels = ["Building", "FindingsPanel", "HudOverlay", "Landing", "AnalyzePanel"];
+    const panels = [
+      "Building",
+      "FindingsPanel",
+      "HudOverlay",
+      "Landing",
+      "AnalyzePanel",
+      // the two modules the split left behind: they compose the row, they do not
+      // speak for it
+      "InfoPanel",
+      "FilePanels",
+    ];
     for (const p of panels) {
       const s = readFileSync(
         resolve(dirname(fileURLToPath(import.meta.url)), `../src/components/${p}.tsx`),

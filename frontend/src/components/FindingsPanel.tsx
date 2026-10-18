@@ -7,7 +7,7 @@ import { severityColor, languageColor } from "../city/palette";
 import type { CityFile, CityFinding, ReviewStatus, Severity } from "../city/types";
 import { findingKey, reviewKeyFor } from "../reviews";
 import { t, type DictKey } from "../i18n";
-import { FindingMessage } from "./InfoPanel";
+import { FindingMessage } from "./FindingCard";
 
 const SEVERITY_RANK: Record<Severity, number> = { P0: 0, P1: 1, P2: 2 };
 /** Severity → i18n label (reuses the HUD filter vocabulary). */
