@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useStore } from "../stores/useStore";
+import { useOrigin } from "../stores/useOrigin";
 import { severityColor } from "../city/palette";
 import { describeGitignoreSkips, scanVerdict } from "../city/provenance";
 import { narrowChromeWindow } from "../city/motion";
@@ -128,6 +129,9 @@ export function ScanSummary({ demo = false }: { demo?: boolean }) {
   const [held, setHeld] = useState(false);
   const [left, setLeft] = useState(0);
   const [collapsed, setCollapsed] = useState(false);
+  // A file answers the city and nothing else — its banner may not speak of a
+  // scan it never ran, nor of a test it cannot start.
+  const standalone = useOrigin((s) => s.origin) === "file";
 
   // A finished scan always gets its line; the timer only runs while the card
   // is open, unpinned and outside the pointer — and it remembers how much was
@@ -141,6 +145,15 @@ export function ScanSummary({ demo = false }: { demo?: boolean }) {
     // put a dismissed notice back over the panel the person was reading.
     if (announced.current === analysisId) return;
     announced.current = analysisId;
+    // An exported city has already closed its own window: it arrived as a file,
+    // and the reader is not waiting to learn that a scan finished. The line
+    // says what the file is and stays folded — no countdown of a moment that
+    // has passed.
+    if (standalone) {
+      setOpen(true);
+      setCollapsed(true);
+      return;
+    }
     remaining.current = DWELL_MS;
     setOpen(true);
     // Narrow windows see the strip first — the card covered a fifth of the
@@ -149,7 +162,7 @@ export function ScanSummary({ demo = false }: { demo?: boolean }) {
     setCollapsed(narrowChromeWindow());
     setPinned(false);
     setLeft(Math.round(DWELL_MS / 1000));
-  }, [analysisId, cityData, buildPhase]);
+  }, [analysisId, cityData, buildPhase, standalone]);
 
   useEffect(() => {
     if (!open || pinned || held || collapsed) return;
@@ -202,22 +215,24 @@ export function ScanSummary({ demo = false }: { demo?: boolean }) {
 
   const status = demo
     ? t(lang, "summary.demo")
-    : verdict.kind === "clear"
-      ? ts(lang, "summary.noneFound")
-      : verdict.kind === "shallow"
-        ? t(
-            lang,
-            verdict.missing.length === 1
-              ? "summary.noFindingsMissing"
-              : "summary.noFindingsMissingMany",
-            { missing: verdict.missing.join(", ") },
-          )
-        : verdict.kind === "unknown"
-          ? t(lang, "summary.depthUnknown")
-          : t(lang, "summary.complete");
+    : standalone
+      ? t(lang, "summary.exported")
+      : verdict.kind === "clear"
+        ? ts(lang, "summary.noneFound")
+        : verdict.kind === "shallow"
+          ? t(
+              lang,
+              verdict.missing.length === 1
+                ? "summary.noFindingsMissing"
+                : "summary.noFindingsMissingMany",
+              { missing: verdict.missing.join(", ") },
+            )
+          : verdict.kind === "unknown"
+            ? t(lang, "summary.depthUnknown")
+            : t(lang, "summary.complete");
   // Three honest states, three shapes: a clean sweep is solid, an unverified
   // one is dashed (the border says what the fill cannot), a finding is red.
-  const shape = demo || unverified ? "unverified" : clean ? "clear" : "findings";
+  const shape = demo || unverified || standalone ? "unverified" : clean ? "clear" : "findings";
   const nf = (n: number) => formatCount(lang, n);
 
   if (collapsed) {

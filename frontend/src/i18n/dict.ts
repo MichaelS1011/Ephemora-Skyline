@@ -725,6 +725,10 @@ export const DICT = {
     en: "{name} saved to your downloads.",
     de: "{name} liegt in den Downloads deines Browsers.",
   },
+  "actions.runTestsExported": {
+    en: "An exported city carries no staged copy to run",
+    de: "Eine exportierte Stadt hat keine mitgeführte Kopie zum Ausführen",
+  },
   "actions.runTestsNoFolderTitle": {
     en: "The demo city has no folder on this machine, so there is nothing to run",
     de: "Die Demo-Stadt hat keinen Ordner auf diesem Rechner, da läuft nichts",
@@ -2345,6 +2349,12 @@ export const DICT = {
    * only in the README's prose (R3-03). Phrased as a statement about the
    * rules — never as a promise that the listed classes are absent.
    */
+  // One line in the card's body, the full paragraph one click below it — the
+  // sentence itself does not change, only the layer it lives on.
+  "ctx.classCoverageSummary": {
+    en: "What the shipped rules cannot see",
+    de: "Was die mitgelieferten Regeln nicht sehen",
+  },
   "ctx.classCoverage": {
     en: "What the shipped rules cannot see: authorisation/IDOR and race conditions have no rule at all. SSRF, weak randomness, server-side response sinks, path traversal and credential literals are matched by shape heuristics only — they catch the obvious line, not the clever one. No finding in these classes means un-checked, not clean",
     de: "Was die mitgelieferten Regeln nicht sehen: Autorisierung/IDOR und Race-Conditions haben überhaupt keine Regel. SSRF, schwache Zufälligkeit, serverseitige Antwort-Senken, Pfadtraversierung und Credential-Literale erkennt nur eine Form-Heuristik — sie greift die offensichtliche Zeile, nicht die clevere. Kein Befund heißt hier ungeprüft, nicht sauber",
@@ -2365,6 +2375,14 @@ export const DICT = {
     en: "{inTests} of {total} findings was found in test code",
     de: "{inTests} von {total} Funden stammt aus Testcode",
   },
+  "ctx.filesOne": {
+    en: "{n} file",
+    de: "{n} Datei",
+  },
+  "ctx.filesMany": {
+    en: "{n} files",
+    de: "{n} Dateien",
+  },
   "ctx.drawTip": {
     en: "One building per file that fits the plots of this view. The rest are represented by a district plot or a podium marker, and every finding is still counted.",
     de: "Ein Gebäude pro Datei, auf die die Plätze dieser Ansicht passen. Der Rest steckt auf einem Bezirksplatz oder einem Sockel-Marker, und jeder Fund bleibt gezählt.",
@@ -2373,6 +2391,17 @@ export const DICT = {
   // when they come back. `gone` is a fingerprint that is no longer in this
   // folder; `moved` is the same rule still there, at another line, and is
   // never counted as fixed.
+  // The opening comparison dates itself: "since the scan of 11 Oct" is what a
+  // person means, not "since you last looked". With no date in the payload the
+  // sentence stays true by saying only "the earlier scan".
+  "ctx.sinceTitleDated": {
+    en: "Since the scan of {date}",
+    de: "Seit dem Scan vom {date}",
+  },
+  "ctx.sinceTitleEarlier": {
+    en: "Since the earlier scan",
+    de: "Seit dem früheren Scan",
+  },
   "ctx.sinceTitle": {
     en: "Since your last scan",
     de: "Seit deinem letzten Scan",
@@ -2532,13 +2561,15 @@ export const DICT = {
     en: "{drawn} of {files} files here stands as a building — a folder draws at most {cap}, the rest share one podium marker.",
     de: "{drawn} von {files} Dateien hier steht als Gebäude — ein Ordner zeichnet höchstens {cap}, der Rest teilt sich einen Sockel-Marker.",
   },
+  // The file count is its own plural: a folder holding one file read "1 files
+  // live in 1 sub-district" — the sub-district was inflected, the file was not.
   "layout.subDistrictsOne": {
-    en: "{below} files live in {plots} sub-district; each plot shows up to {towers} of its most at-risk files.",
-    de: "{below} Dateien liegen in {plots} Unterbezirk; jeder Platz zeigt bis zu {towers} seiner riskantesten Dateien.",
+    en: "{files} in {plots} sub-district · {towers} towers per plot",
+    de: "{files} in {plots} Unterbezirk · {towers} Türme je Platz",
   },
   "layout.subDistrictsMany": {
-    en: "{below} files live in {plots} sub-districts; each plot shows up to {towers} of its most at-risk files.",
-    de: "{below} Dateien liegen in {plots} Unterbezirken; jeder Platz zeigt bis zu {towers} seiner riskantesten Dateien.",
+    en: "{files} in {plots} sub-districts · {towers} towers per plot",
+    de: "{files} in {plots} Unterbezirken · {towers} Türme je Platz",
   },
 
   // ── Boot screen ───────────────────────────────────────────────────────────
@@ -2583,6 +2614,12 @@ export const DICT = {
   "summary.complete": {
     en: "◈ Scan complete",
     de: "◈ Scan abgeschlossen",
+  },
+  // An exported city is one scan, carried as a file. Nobody scanned anything in
+  // this folder, so the banner says what the file is instead of what a scan did.
+  "summary.exported": {
+    en: "◈ Exported city · one scan, carried as a file",
+    de: "◈ Exportierte Stadt · ein Scan, als Datei mitgenommen",
   },
   "summary.demo": {
     en: "◈ Demo · sample findings, no scan",

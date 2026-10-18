@@ -14,6 +14,7 @@ import {
   triageList,
   useStore,
 } from "../stores/useStore";
+import { useOrigin } from "../stores/useOrigin";
 import { useTestRunner } from "../hooks/useTestRunner";
 import { t } from "../i18n";
 import { cityLinkNotice } from "../cityLifetime";
@@ -91,6 +92,7 @@ export function ActionBar() {
   const threatFilter = useStore((s) => s.threatFilter);
   const ruleFilter = useStore((s) => s.ruleFilter);
   const { runTests } = useTestRunner();
+  const standalone = useOrigin((s) => s.origin) === "file";
   const [menuOpen, setMenuOpen] = useState(false);
   const [feedback, setFeedback] = useState<{ message: string; error?: boolean } | null>(null);
   const moreRef = useRef<HTMLDivElement>(null);
@@ -157,7 +159,7 @@ export function ActionBar() {
   /** The two kinds of "cannot run tests now" split by what they mean: while a
    *  run is on its way the label says so in words, anything else (no scan, no
    *  folder behind the demo) is a step that leads nowhere and is struck. */
-  const testsBlocked = !testing && (!analysisId || !cityOnDisk(cityData));
+  const testsBlocked = !testing && (standalone || !analysisId || !cityOnDisk(cityData));
 
   const closeMenu = (): void => {
     setMenuOpen(false);
@@ -485,7 +487,9 @@ export function ActionBar() {
               <button
                 role="menuitem"
                 type="button"
-                disabled={testing || !analysisId || !cityOnDisk(cityData)}
+                // a carried file has no staged copy to run: the button is struck
+                // with the reason, not offered and then refused
+                disabled={testing || standalone || !analysisId || !cityOnDisk(cityData)}
                 onClick={() => {
                   closeMenu();
                   setFeedback(null);
@@ -494,11 +498,13 @@ export function ActionBar() {
                 className="flex min-h-10 w-full items-center gap-3 rounded-lg px-3 text-left hover:bg-white/5"
                 style={struck(testsBlocked)}
                 title={
-                  !analysisId
-                    ? t(lang, "actions.runTestsNoScanTitle")
-                    : !cityOnDisk(cityData)
-                      ? t(lang, "actions.runTestsNoFolderTitle")
-                      : t(lang, "actions.runTestsTitle")
+                  standalone
+                    ? t(lang, "actions.runTestsExported")
+                    : !analysisId
+                      ? t(lang, "actions.runTestsNoScanTitle")
+                      : !cityOnDisk(cityData)
+                        ? t(lang, "actions.runTestsNoFolderTitle")
+                        : t(lang, "actions.runTestsTitle")
                 }
               >
                 <span aria-hidden="true">▷</span>
@@ -595,8 +601,22 @@ export function ActionBar() {
                 role="menuitem"
                 type="button"
                 onClick={async () => {
+                  // A carried file has no backend and, by design, no network.
+                  // Measured before this guard: the click answered "up to date ()"
+                  // — the 503 from the file's own server parsed as a version
+                  // check that found no newer release. Saying "no connection"
+                  // is the true answer.
+                  if (standalone) {
+                    closeMenu();
+                    setFeedback({ message: t(lang, "update.unavailable"), error: true });
+                    return;
+                  }
                   try {
                     const r = await fetch("/api/update/check");
+                    if (!r.ok) {
+                      setFeedback({ message: t(lang, "update.unavailable"), error: true });
+                      return;
+                    }
                     const d = (await r.json()) as {
                       updateAvailable?: boolean;
                       latest?: string | null;

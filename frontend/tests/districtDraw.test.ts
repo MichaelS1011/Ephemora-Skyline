@@ -148,8 +148,10 @@ describe("explainDistrictDraw", () => {
   it("explains a district that shows six buildings for ninety-two files", () => {
     const lines = explainDistrictDraw(frontendLike(), LIMITS, "en");
     expect(lines).toHaveLength(1);
-    expect(lines[0]).toContain("86 files live in 2 sub-districts");
-    expect(lines[0]).toContain("6");
+    // the sentence was tightened to fit the card's first-screen budget; the
+    // three facts it carried — files, sub-districts, towers per plot — stay
+    expect(lines[0]).toContain("86 files in 2 sub-districts");
+    expect(lines[0]).toContain("6 towers per plot");
   });
 
   it("explains the podium when a folder outgrows its plots", () => {
@@ -176,13 +178,13 @@ describe("explainDistrictDraw", () => {
 
   it("derives the skyline number from the payload when the city ships no limits", () => {
     const lines = explainDistrictDraw(frontendLike(), undefined, "en");
-    expect(lines[0]).toContain("each plot shows up to 6 of its most at-risk files");
+    expect(lines[0]).toContain("6 towers per plot");
   });
 
   it("says the same thing in German when German is the display language", () => {
     const lines = explainDistrictDraw(frontendLike(), LIMITS, "de");
-    expect(lines[0]).toContain("86 Dateien liegen in 2 Unterbezirken");
-    expect(lines[0]).toContain("bis zu 6 seiner riskantesten Dateien");
+    expect(lines[0]).toContain("86 Dateien in 2 Unterbezirken");
+    expect(lines[0]).toContain("6 Türme je Platz");
     const one = explainDistrictDraw(
       dir({
         path: "app",

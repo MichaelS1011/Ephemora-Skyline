@@ -10,7 +10,7 @@
  * does not lose its anchor.
  */
 import { beforeEach, describe, expect, it } from "vitest";
-import { anchorFor, folderShape } from "../src/verify";
+import { anchorFor, folderShape, verifyAnchorScannedAt } from "../src/verify";
 import type { CityData, CityDir } from "../src/city/types";
 
 function dir(path: string, children: CityDir[] = [], files: string[] = []): CityDir {
@@ -57,6 +57,44 @@ const repoB = city(
   "scan-2",
   dir("root", [dir("src", [], ["src/a.ts", "src/b.ts", "src/c.ts"])], ["README.md"]),
 );
+
+describe("the anchor keeps what 'last scan' means", () => {
+  beforeEach(() => window.localStorage.clear());
+
+  it("carries the scan's own time, so 'the last scan' can be dated", () => {
+    // The anchor held only the moment this BROWSER showed the scan. A week
+    // later the card would say "since your last scan" and mean "since you
+    // looked", which are not the same day when a scan ran overnight in CI.
+    const scanned = city("scan-1", repoA.tree);
+    (scanned as unknown as { createdAt: string }).createdAt = "2026-10-11T07:30:00.000Z";
+    const anchor = anchorFor(scanned);
+    expect(anchor?.scannedAt, "the scan's own timestamp travels with it").toBe(
+      "2026-10-11T07:30:00.000Z",
+    );
+  });
+
+  it("keeps the earlier scan's time after that record is replaced", () => {
+    // "Since the scan of 11 Oct" dates the EARLIER scan, and the anchor keeps
+    // one record per folder — so the earlier one is gone from the anchor by the
+    // time the comparison runs. Measured: the heading fell back to "the
+    // earlier scan" even though both payloads carried their times.
+    const first = city("scan-1", repoA.tree);
+    (first as unknown as { createdAt: string }).createdAt = "2026-10-11T07:30:00.000Z";
+    anchorFor(first);
+    const second = city("scan-2", repoA.tree);
+    (second as unknown as { createdAt: string }).createdAt = "2026-10-18T07:30:00.000Z";
+    const anchor = anchorFor(second);
+    expect(anchor?.previousId).toBe("scan-1");
+    expect(verifyAnchorScannedAt("scan-1")).toBe("2026-10-11T07:30:00.000Z");
+  });
+
+  it("survives a reload without inventing a date", () => {
+    // A payload from an older build has no createdAt: the anchor must then say
+    // nothing about when, rather than borrow the browser's clock.
+    const anchor = anchorFor(repoA);
+    expect(anchor?.scannedAt).toBeUndefined();
+  });
+});
 
 describe("the comparison anchor", () => {
   beforeEach(() => window.localStorage.clear());

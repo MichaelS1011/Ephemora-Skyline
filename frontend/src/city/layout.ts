@@ -18,7 +18,7 @@
  */
 
 import type { CityData, CityDir, CityFile, CityFinding, Severity } from "./types";
-import { t, type Lang } from "../i18n";
+import { formatCount, t, type Lang } from "../i18n";
 import { languageColor, threatRank } from "./palette";
 import { defaultOverviewPath } from "./overview";
 import {
@@ -1151,7 +1151,9 @@ export function explainDistrictDraw(
   if (draw.plots > 0 && draw.filesBelow > 0) {
     lines.push(
       t(lang, draw.plots === 1 ? "layout.subDistrictsOne" : "layout.subDistrictsMany", {
-        below: draw.filesBelow,
+        files: t(lang, draw.filesBelow === 1 ? "ctx.filesOne" : "ctx.filesMany", {
+          n: formatCount(lang, draw.filesBelow),
+        }),
         plots: draw.plots,
         towers: draw.skylineTowers,
       }),

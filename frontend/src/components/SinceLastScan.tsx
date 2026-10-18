@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { allFiles } from "../city/layout";
 import { formatCount, t, type Lang } from "../i18n";
 import { useStore } from "../stores/useStore";
@@ -26,11 +26,18 @@ function samplePath(city: NonNullable<ReturnType<typeof useStore.getState>["city
  * Colour never carries the meaning either: no green on this row, because green
  * would say "fixed" louder than any tooltip can take back.
  */
-export function SinceLastScan({ lang }: { lang: Lang }) {
+export function SinceLastScan({ lang, previousScan }: { lang: Lang; previousScan: boolean }) {
   const verify = useStore((s) => s.verify);
   const runVerify = useStore((s) => s.runVerify);
   const cityData = useStore((s) => s.cityData);
   const [showMoved, setShowMoved] = useState(false);
+  // The opening ask lives here, next to the row it fills. In App the card is
+  // mounted and unmounted as the view changes, so an effect there measured as
+  // "idle" at the moment the reader looks; this component is on screen exactly
+  // when the question matters.
+  useEffect(() => {
+    if (previousScan) void runVerify({ silent: true });
+  }, [previousScan, runVerify]);
   if (!cityData) return null;
 
   // The demo city is sample data with a fixed id; a comparison against a real
@@ -41,22 +48,36 @@ export function SinceLastScan({ lang }: { lang: Lang }) {
   return (
     <div className="py-4" data-since-last-scan={verify.status}>
       <div className="text-[11px] tracking-widest mb-2" style={{ color: "#d8c9a3" }}>
-        {t(lang, "ctx.sinceTitle")}
+        {verify.status === "ran" && verify.previousScannedAt
+          ? t(lang, "ctx.sinceTitleDated", {
+              date: new Date(verify.previousScannedAt).toLocaleDateString(
+                lang === "de" ? "de-DE" : "en-GB",
+                { day: "numeric", month: "short" },
+              ),
+            })
+          : verify.status === "ran"
+            ? t(lang, "ctx.sinceTitleEarlier")
+            : t(lang, "ctx.sinceTitle")}
       </div>
-      {verify.status === "idle" && (
-        <p className="text-[12px] leading-relaxed" style={{ color: "var(--meta-strong)" }}>
-          <button
-            type="button"
-            onClick={() => void runVerify()}
-            className="underline decoration-dotted underline-offset-2"
-          >
-            {t(lang, "ctx.sinceAsk")}
-          </button>
-          {samplePath(cityData) && (
-            <span className="font-mono text-[11px] opacity-80"> · {samplePath(cityData)}</span>
-          )}
-        </p>
-      )}
+      {verify.status === "idle" &&
+        (previousScan ? (
+          <p className="text-[12px] leading-relaxed" style={{ color: "var(--meta-strong)" }}>
+            <button
+              type="button"
+              onClick={() => void runVerify()}
+              className="underline decoration-dotted underline-offset-2"
+            >
+              {t(lang, "ctx.sinceAsk")}
+            </button>
+            {samplePath(cityData) && (
+              <span className="font-mono text-[11px] opacity-80"> · {samplePath(cityData)}</span>
+            )}
+          </p>
+        ) : (
+          <p className="text-[12px]" style={{ color: "var(--meta-strong)" }}>
+            {t(lang, "ctx.sinceNone")}
+          </p>
+        ))}
       {verify.status === "running" && (
         <p
           className="text-[12px]"

@@ -809,3 +809,26 @@
   font-variant-numeric: tabular-nums;
   color: #e8e4da;
 }
+
+/* A paragraph that qualifies a fact belongs one layer below it, not in the
+   body: <details> keeps the words and gives the first screen back. */
+.ctx-coverage > summary {
+  cursor: pointer;
+  list-style: none;
+  /* the ▸ marker is the hint; an underline underneath it too is two
+     affordances for one control */
+}
+.ctx-coverage > summary::-webkit-details-marker {
+  display: none;
+}
+.ctx-coverage > summary::before {
+  content: "▸ ";
+}
+.ctx-coverage[open] > summary::before {
+  content: "▾ ";
+}
+.ctx-coverage-body {
+  margin: 6px 0 0;
+  font-size: var(--fs-meta);
+  line-height: 1.5;
+}

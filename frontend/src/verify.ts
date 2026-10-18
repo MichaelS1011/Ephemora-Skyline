@@ -33,6 +33,12 @@ export interface VerifyAnchor {
   previousId: string | null;
   /** When this scan was first shown in this browser. */
   at: number;
+  /**
+   * When the scan itself finished, as the payload states it. Absent for
+   * payloads written before the field existed — the comparison then says
+   * "earlier", never a date it does not have.
+   */
+  scannedAt?: string;
 }
 
 export interface VerifyReport {
@@ -98,6 +104,40 @@ export function folderShape(city: CityData): string {
   return `${list.length}:${hash.toString(16).padStart(8, "0")}`;
 }
 
+const TIMES_KEY = "codecity-verify-times:v1";
+const MAX_TIMES = 120;
+
+/** Remember a replaced scan's own time; the anchor no longer holds its record. */
+function rememberTime(scanId: string, scannedAt: string | undefined): void {
+  if (!scannedAt || typeof window === "undefined") return;
+  try {
+    const table = JSON.parse(window.localStorage.getItem(TIMES_KEY) ?? "{}") as Record<
+      string,
+      string
+    >;
+    table[scanId] = scannedAt;
+    const entries = Object.entries(table).slice(-MAX_TIMES);
+    window.localStorage.setItem(TIMES_KEY, JSON.stringify(Object.fromEntries(entries)));
+  } catch {
+    /* storage off: the date is missing, the sentence stays true without it */
+  }
+}
+
+/** The recorded finish time of one scan, or undefined when it was never noted. */
+export function verifyAnchorScannedAt(scanId: string): string | undefined {
+  const fromAnchor = read().find((entry) => entry.scanId === scanId)?.scannedAt;
+  if (fromAnchor) return fromAnchor;
+  try {
+    const table = JSON.parse(window.localStorage.getItem(TIMES_KEY) ?? "{}") as Record<
+      string,
+      string
+    >;
+    return table[scanId];
+  } catch {
+    return undefined;
+  }
+}
+
 function read(): VerifyAnchor[] {
   if (typeof window === "undefined") return [];
   try {
@@ -137,18 +177,34 @@ export function anchorFor(city: CityData | null): VerifyAnchor | null {
   if (!city?.analysisId) return null;
   const entries = read();
   const existing = entries.find((e) => e.scanId === city.analysisId);
-  if (existing) return existing;
+  if (existing) {
+    // An entry written before the payload carried a time is filled in on the
+    // next visit of that scan: the heading may then date itself.
+    if (!existing.scannedAt && city.createdAt) {
+      existing.scannedAt = city.createdAt;
+      write(entries.map((e) => (e.scanId === existing.scanId ? existing : e)));
+    }
+    return existing;
+  }
   const shape = folderShape(city);
   const previous = [...entries]
     .reverse()
     .find((e) => e.shape === shape && e.scanId !== city.analysisId);
+  const scannedAt = city.createdAt;
   const anchor: VerifyAnchor = {
     scanId: city.analysisId,
     shape,
     previousId: previous?.scanId ?? null,
     at: Date.now(),
+    ...(typeof scannedAt === "string" && scannedAt.length > 0 ? { scannedAt } : {}),
   };
-  // one anchor per shape: the newest visit is the one a comparison means
+  // One anchor per shape: the newest scan is the one a comparison starts
+  // from. The record it replaces stays in a separate, tiny side table — the
+  // earlier scan's own time is what "since the scan of 11 Oct" dates, and the
+  // earlier scan is gone from the server before the next visit.
+  for (const replaced of entries.filter((e) => e.shape === shape)) {
+    rememberTime(replaced.scanId, replaced.scannedAt);
+  }
   const kept = entries.filter((e) => e.shape !== shape);
   write([...kept, anchor]);
   return anchor;

@@ -202,6 +202,8 @@ export interface CityData {
    * written before the field existed.
    */
   analysisId?: string;
+  /** ISO time the scan finished. Older payloads do not carry it. */
+  createdAt?: string;
   totalFiles: number;
   renderedFiles: number;
   /** Σ lines the scanner read as code-shaped, data catalogues included */

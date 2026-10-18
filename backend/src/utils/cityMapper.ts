@@ -238,6 +238,8 @@ export interface DirConnection {
 export interface CityData {
   /** Which scan produced this city; every export names it. */
   analysisId?: string;
+  /** When the scan finished — the date a comparison dates itself by. */
+  createdAt?: string;
   /** Complete searchable files that are outside the 3D rendering budget. */
   additionalFiles?: CityFile[];
   repo: { owner: string; name: string; branch: string };
@@ -861,6 +863,7 @@ export function mapResultToCityData(result: AnalysisResult): CityData {
   return {
     // The city names the scan it came from, everywhere it is shared.
     analysisId: result.id,
+    createdAt: result.createdAt,
     repo: {
       owner: result.repo.owner,
       name: result.repo.name,

@@ -101,9 +101,17 @@ describe("Das Dock trägt seinen Zustand ohne Deckkraft", () => {
     expect((blocked as RegExpMatchArray)[1], "der laufende Testlauf würde gestrichen").toMatch(
       /^!testing/,
     );
-    expect(control("struck(testsBlocked)")).toMatch(
-      /disabled=\{testing \|\| !analysisId \|\| !cityOnDisk\(cityData\)\}/,
-    );
+    // The disable and the strike must name the SAME conditions. Measured in an
+    // exported city: the button was disabled (with the reason in its title)
+    // while the strike still asked the older question and left it looking live.
+    // The check therefore holds the two expressions equal instead of spelling
+    // out one of them — a spelled-out list passes a one-sided edit.
+    const disabled = bar.match(/disabled=\{testing \|\| ([^}]+)\}/);
+    expect(disabled, "testsBlocked ist keine Zeile mehr").not.toBeNull();
+    const sameBlock = (blocked as RegExpMatchArray)[1]!
+      .replace(/^!testing && \(?/, "")
+      .replace(/\)$/, "");
+    expect((disabled as RegExpMatchArray)[1]!.trim()).toBe(sameBlock);
     expect(bar).toMatch(/testing \? t\(lang, "actions\.testsRunning"\)/);
   });
 

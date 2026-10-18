@@ -161,8 +161,8 @@ describe("project overview", () => {
   it("explains why a district of 92 files draws few buildings", async () => {
     const text = await show(<ContextCard />, cityData(), ["frontend"]);
     expect(text).toContain("District overview");
-    expect(text).toContain("86 files live in 2 sub-districts");
-    expect(text).toContain("each plot shows up to 6 of its most at-risk files");
+    expect(text).toContain("86 files in 2 sub-districts");
+    expect(text).toContain("6 towers per plot");
   });
 
   it("explains a plaza whose files do not all fit on the plots", async () => {

@@ -9,7 +9,7 @@
  * burned. So a new scan clears it, and a second ask on the same scan is the
  * same question, not a new one.
  */
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useStore } from "../src/stores/useStore";
 import type { CityData, CityDir } from "../src/city/types";
 
@@ -54,6 +54,13 @@ describe("the comparison's own state", () => {
     useStore.setState({ cityData: null, verify: { status: "idle" } });
   });
 
+  // A spy that outlives its case makes the next case count the last one's
+  // calls: measured — "one ask per scan" saw two because an earlier case's
+  // mocked fetch was still installed when its spy was restored.
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
   it("is cleared when a different scan arrives", () => {
     useStore.setState({ cityData: city("scan-A") });
     useStore.setState({ verify: { status: "aged-out" } });
@@ -80,6 +87,67 @@ describe("the comparison's own state", () => {
     // App's popstate calls setCityData again with the SAME city
     useStore.getState().setCityData(useStore.getState().cityData!);
     expect(useStore.getState().verify).toEqual({ status: "aged-out" });
+  });
+
+  it("asks the comparison by itself when an earlier scan of this folder exists", async () => {
+    // The question a developer asks on the second visit is "what changed", and
+    // a card that waits for a click answers it only to people who knew to ask.
+    useStore.getState().setCityData(city("scan-1"));
+    useStore.getState().setCityData(city("scan-2"));
+    const report = {
+      before: "scan-1",
+      after: "scan-2",
+      checked: 0,
+      present: [],
+      gone: [],
+      moved: [],
+      unknown: [],
+    };
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(
+        new Response(JSON.stringify(report), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        }),
+      );
+    await useStore.getState().runVerify({ silent: true });
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+    expect(useStore.getState().verify.status).toBe("ran");
+  });
+
+  it("is asked only once per scan, however often the city is re-entered", async () => {
+    useStore.getState().setCityData(city("scan-1"));
+    useStore.getState().setCityData(city("scan-2"));
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          before: "scan-1",
+          after: "scan-2",
+          checked: 0,
+          present: [],
+          gone: [],
+          moved: [],
+          unknown: [],
+        }),
+        {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        },
+      ),
+    );
+    await useStore.getState().runVerify({ silent: true });
+    await useStore.getState().runVerify({ silent: true });
+    await useStore.getState().runVerify({ silent: true });
+    expect(fetchSpy, "one answer per scan is enough").toHaveBeenCalledTimes(1);
+  });
+
+  it("stays quiet without a counterpart — no silent question, no sentence", async () => {
+    useStore.getState().setCityData(city("scan-A"));
+    const fetchSpy = vi.spyOn(globalThis, "fetch");
+    await useStore.getState().runVerify({ silent: true });
+    expect(fetchSpy).not.toHaveBeenCalled();
+    expect(useStore.getState().verify).toEqual({ status: "idle" });
   });
 
   it("calls a broken connection failed, not aged out", async () => {

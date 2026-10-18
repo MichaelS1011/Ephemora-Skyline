@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useStore } from "../stores/useStore";
 import { formatCount, formatDecimal, t } from "../i18n";
 import { severityTotal } from "../city/facts";
+import { anchorFor } from "../verify";
 import { explainDistrictDraw, resolveDir, tourStops } from "../city/layout";
 import { describeGitignoreSkips, scanVerdict } from "../city/provenance";
 import { blindCategories, categoryMeta, summarizeCategories } from "../config/findingCategories";
@@ -114,6 +115,9 @@ export function ContextCard() {
   const langs = topLanguages(dir.languages, 4);
   const totalLangLines = Object.values(dir.languages).reduce((sum, lines) => sum + lines, 0) || 1;
   const stops = tourStops(cityData);
+  // Whether an earlier scan of this folder shape exists is a localStorage
+  // read; the card asks once per render rather than after a button.
+  const previousScan = Boolean(anchorFor(cityData)?.previousId);
   const chainPrefix = focusPath.join("/");
   const inScope = isRoot
     ? stops[0]
@@ -256,16 +260,24 @@ export function ContextCard() {
           {/* S2 · R3-03: the rule set's own blind classes belong on the screen
               the user is reading, once per project — not only in the README's
               prose. Phrased about the rules, never as a promise the classes
-              are absent from the code. */}
+              are absent from the code.
+              Layered, not cut: the whole paragraph used to sit in the body and
+              was the single longest block on the card (802 characters, 33
+              lines before this change). It now opens one line below the fact
+              it qualifies, in the same words. */}
           {isRoot && (
-            <div
-              className="ctx-note"
-              data-context-class-coverage="true"
-              style={{ color: "#8f8b82" }}
-              title={t(lang, "ctx.classCoverageTip")}
-            >
-              {t(lang, "ctx.classCoverage")}
-            </div>
+            <details className="ctx-coverage" data-context-class-coverage="true">
+              <summary
+                className="ctx-note"
+                style={{ color: "#8f8b82" }}
+                title={t(lang, "ctx.classCoverageTip")}
+              >
+                {t(lang, "ctx.classCoverageSummary")}
+              </summary>
+              <p className="ctx-coverage-body" style={{ color: "#8f8b82" }}>
+                {t(lang, "ctx.classCoverage")}
+              </p>
+            </details>
           )}
           {testLine !== "" && (
             <div className="ctx-note" style={{ color: "#aaa69c" }} title={t(lang, "ctx.testTip")}>
@@ -285,7 +297,7 @@ export function ContextCard() {
         </div>
       )}
 
-      {isRoot && <SinceLastScan lang={lang} />}
+      {isRoot && <SinceLastScan lang={lang} previousScan={previousScan} />}
 
       <div className="py-4" style={{ borderBottom: "1px solid rgba(150,142,128,0.18)" }}>
         {totalFindings > 0 ? (

@@ -19,6 +19,11 @@ import type { ResolvedScanConfig } from "../services/security/scan-config.js";
 import { AnalysisStore } from "./analysis-store.js";
 import { AnalysisOrchestrator } from "../services/analyzer/orchestrator.js";
 import { corsOptionsFor, localOnlyRoute, uploadLimitAwareErrorHandler } from "./local-only.js";
+import { defaultFrontendDir, notFoundHandler, serveFrontend } from "./static-site.js";
+import { exportCity } from "../services/export/export-city.js";
+import { mapResultToCityData } from "../utils/cityMapper.js";
+import os from "os";
+import path from "path";
 import { ruleClassNames } from "../services/security/finding-knowledge.js";
 import { SecurityScanner } from "../services/security/scanner.js";
 import { READ_BUDGET_EXEMPT } from "./read-budget.js";
@@ -124,7 +129,37 @@ const testRunLimiter = rateLimit({
 if (process.env.TRUST_PROXY) {
   app.set("trust proxy", process.env.TRUST_PROXY);
 }
-app.use(helmet());
+/**
+ * Helmet's defaults are written for a server that serves nothing but JSON.
+ * This one now serves the built app too, and the default policy refused the
+ * one inline <script> Vite leaves in index.html to set the theme before paint
+ * (measured: `script-src 'self'` error in the console of every first visit).
+ *
+ * The policy below is the app's own: scripts and styles come from this origin
+ * with that one inline hash-free allowance, the renderer needs `data:` and
+ * `blob:` for textures and recorded video, and there is no third-party origin
+ * anywhere — which is a product promise, not a tick-box.
+ */
+app.use(
+  helmet({
+    contentSecurityPolicy: {
+      directives: {
+        defaultSrc: ["'self'"],
+        scriptSrc: ["'self'", "'unsafe-inline'"],
+        styleSrc: ["'self'", "'unsafe-inline'"],
+        imgSrc: ["'self'", "data:", "blob:"],
+        mediaSrc: ["'self'", "blob:"],
+        workerSrc: ["'self'", "blob:"],
+        connectSrc: ["'self'"],
+        fontSrc: ["'self'", "data:"],
+        objectSrc: ["'none'"],
+        frameAncestors: ["'none'"],
+        baseUri: ["'self'"],
+        formAction: ["'self'"],
+      },
+    },
+  }),
+);
 app.use(cors(corsOptionsFor()));
 // Large-body parser must run BEFORE the global one: the global 10mb parser
 // would otherwise reject big local-folder uploads with 413 first
@@ -134,6 +169,32 @@ app.use(express.urlencoded({ extended: true }));
 app.use("/api", readLimiter);
 
 // ── Routes ─────────────────────────────────────────────────────────────────
+
+// POST /api/export — write the city this server holds as a folder that runs
+// on another desk. A write to the machine, so it carries the origin guard.
+app.post("/api/export", localOnlyRoute, (req: Request, res: Response): void => {
+  const body = req.body as { id?: unknown } | undefined;
+  const id = typeof body?.id === "string" ? body.id : "";
+  const city = id ? analysisStore.get(id) : undefined;
+  if (!city) {
+    res.status(404).json({ error: "Analysis not found" });
+    return;
+  }
+  const web = process.env.EPHEMORA_WEB_DIR ?? defaultFrontendDir(import.meta.url);
+  if (!web) {
+    res.status(409).json({ error: "No built app in this checkout — run `npm run build` first." });
+    return;
+  }
+  const safe = id.replace(/[^a-zA-Z0-9-]/g, "").slice(0, 40) || "city";
+  const outDir = path.join(os.homedir(), "Downloads", `ephemora-${safe}`);
+  try {
+    const result = exportCity(outDir, web, mapResultToCityData(city));
+    res.json(result);
+  } catch (err) {
+    logger.error({ err }, "export failed");
+    res.status(500).json({ error: "The export could not be written", detail: String(err) });
+  }
+});
 
 // GET /api/health
 app.get("/api/health", (_req: Request, res: Response): void => {
@@ -287,6 +348,16 @@ app.get("/api/result/:id/source/:fileId", readLimiter, (req: Request, res: Respo
 app.get("/api/status/:id", (req: Request, res: Response): void => {
   handleStatus(req, res, analysisStore);
 });
+
+// ── The built app on this port ─────────────────────────────────────────────
+// Set AFTER every API route: the static mount must never shadow `/api/*`. The
+// directory comes from `EPHEMORA_WEB_DIR` (a package install names it) or sits
+// where the workspace build leaves it; a dev checkout has no build and keeps
+// using Vite on its own port.
+const webDir = process.env.EPHEMORA_WEB_DIR ?? defaultFrontendDir(import.meta.url);
+serveFrontend(app, webDir);
+
+app.use(notFoundHandler());
 
 // ── Error handling ─────────────────────────────────────────────────────────
 app.use(uploadLimitAwareErrorHandler(logger));

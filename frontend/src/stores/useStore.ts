@@ -40,7 +40,7 @@ import {
 import { loadPrefs, savePrefs, type Prefs } from "../prefs";
 import { mergeEngineGaps } from "../city/provenance";
 import { hasCityVisit, recordCityVisit } from "../recentCities";
-import { anchorFor, verifyScans, type VerifyReport } from "../verify";
+import { anchorFor, verifyAnchorScannedAt, verifyScans, type VerifyReport } from "../verify";
 import {
   clearVisitParams,
   currentVisit,
@@ -102,6 +102,16 @@ export type HeatChannel = "threat" | "complexity" | "churn";
  * its paths exist in no directory, and the endpoints answer 404. Three
  * controls have to know which of the two they are pointing at.
  */
+/**
+ * When the earlier scan of this folder finished, if this browser knows.
+ * Reads the anchor record rather than the payload, because the earlier city
+ * is not in the page any more — only the note this browser kept of it.
+ */
+function scannedAtOf(scanId: string): { previousScannedAt?: string } {
+  const stored = verifyAnchorScannedAt(scanId);
+  return stored ? { previousScannedAt: stored } : {};
+}
+
 export function cityOnDisk(city: CityData | null): boolean {
   return !!city && city.repo.owner === "local";
 }
@@ -180,7 +190,12 @@ interface AppState {
    * THIS city; `status` says whether there was a question to ask at all.
    */
   verify: VerifyState;
-  runVerify: () => Promise<void>;
+  /**
+   * Ask whether anything changed since the earlier scan of this folder.
+   * `silent` is the opening call: it does not say "nothing to compare" when
+   * there is no counterpart, and it asks at most once per scan.
+   */
+  runVerify: (options?: { silent?: boolean }) => Promise<void>;
 
   // ── Semantic zoom navigation ───────────────────────────────────────────
   focusPath: string[]; // directory names from the root, [] = overview
@@ -445,7 +460,13 @@ export type VerifyState =
   | { status: "running" }
   | { status: "aged-out" }
   | { status: "failed" }
-  | { status: "ran"; report: VerifyReport; beforeId: string };
+  | {
+      status: "ran";
+      report: VerifyReport;
+      beforeId: string;
+      /** The earlier scan's own time, when its payload carried one. */
+      previousScannedAt?: string;
+    };
 
 export interface TriageEntry {
   file: ReturnType<typeof allFiles>[number]["file"];
@@ -770,13 +791,24 @@ export const useStore = create<AppState>((set, get) => {
     onContextRestored: () => set({ sceneRebuildAt: null }),
     rebuildScene: () => set({ sceneRebuildAt: Date.now() }),
     verify: { status: "idle" },
-    runVerify: async () => {
+    runVerify: async (options) => {
       const city = get().cityData;
       const anchor = anchorFor(city);
+      // The record is written when a city arrives (setCityData); a state that
+      // was built without a visit (a rehydration, a test harness) still knows
+      // the scan's own time from the payload it holds.
+      if (anchor && !anchor.scannedAt && city?.createdAt) anchor.scannedAt = city.createdAt;
       if (!city?.analysisId || !anchor?.previousId) {
-        set({ verify: { status: "none" } });
+        // An opening question with no counterpart is not a fact the reader
+        // needs on the card; an explicit click that finds none still says so.
+        if (!options?.silent) set({ verify: { status: "none" } });
         return;
       }
+      // One answer per scan: re-entering the city (history, language switch,
+      // a re-derived payload) must not ask the server again.
+      const current = get().verify;
+      if (current.status === "ran" || current.status === "running" || current.status === "aged-out")
+        return;
       set({ verify: { status: "running" } });
       const settle = (next: VerifyState): void => {
         // the reader can leave the city while this is in flight
@@ -786,7 +818,12 @@ export const useStore = create<AppState>((set, get) => {
         const answer = await verifyScans(anchor.previousId, city.analysisId);
         settle(
           answer.ok
-            ? { status: "ran", report: answer.report, beforeId: anchor.previousId }
+            ? {
+                status: "ran",
+                report: answer.report,
+                beforeId: anchor.previousId,
+                ...(anchor.previousId ? scannedAtOf(anchor.previousId) : undefined),
+              }
             : { status: answer.agedOut ? "aged-out" : "failed" },
         );
       } catch {

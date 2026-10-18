@@ -477,6 +477,7 @@ export function city(overrides: CityOverrides = {}): CityData {
     additionalFiles: field(rest, "additionalFiles", undefined),
     repo: rest.repo ?? { owner: "local", name: "probe", branch: "main" },
     analysisId: field(rest, "analysisId", undefined),
+    createdAt: field(rest, "createdAt", undefined),
     totalFiles: rest.totalFiles ?? tree.fileCount,
     renderedFiles: rest.renderedFiles ?? rendered.length,
     totalLines: rest.totalLines ?? tree.linesOfCode,

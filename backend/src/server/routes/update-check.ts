@@ -25,8 +25,21 @@ export interface UpdateInfo {
 const require = createRequire(import.meta.url);
 
 export function currentVersion(): string {
-  // routes/ → server/ → src/ → backend/package.json
-  return require("../../../package.json").version as string;
+  // routes/ → server/ → src|dist/ → backend/. In an installed package the
+  // backend manifest is not shipped (npm keeps manifests out of `files`), so
+  // the package's own manifest one level above is the same version and always
+  // there. Measured: the installed launcher died on ENOENT for
+  // backend/package.json before this fallback existed.
+  const candidates = ["../../../package.json", "../../../../package.json"];
+  for (const candidate of candidates) {
+    try {
+      const version = (require(candidate) as { version?: unknown }).version;
+      if (typeof version === "string" && version.length > 0) return version;
+    } catch {
+      /* next candidate */
+    }
+  }
+  return "0.0.0";
 }
 
 /** Compare dotted numeric versions ("v" prefix tolerated). */

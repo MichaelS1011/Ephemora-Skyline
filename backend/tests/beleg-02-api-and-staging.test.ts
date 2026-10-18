@@ -20,7 +20,7 @@ const REPO = path.resolve(import.meta.dirname, "../..");
 const read = (rel: string): string => readFileSync(path.join(REPO, rel), "utf-8");
 const serverSource = read("backend/src/server/index.ts");
 
-describe("the API table (README.md:222-245)", () => {
+describe("the API table (README.md:222-246)", () => {
   const readme = read("README.md");
   const rows = [...readme.matchAll(/^\|\s*`(GET|POST)\s+(\/api\/[^`]+)`\s*\|/gm)].map((m) => ({
     method: m[1]!,
@@ -38,8 +38,8 @@ describe("the API table (README.md:222-245)", () => {
    * to prevent. 2026-10-12: the two staged-copy routes were named in the
    * privacy section but had no row here; they have one now.
    */
-  it("names twenty-one routes, as many as the table has rows", () => {
-    expect(rows.length).toBe(21);
+  it("names twenty-two routes, as many as the table has rows", () => {
+    expect(rows.length).toBe(22);
   });
 
   it("lists only routes the server actually registers", () => {
