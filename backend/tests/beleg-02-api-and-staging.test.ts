@@ -20,7 +20,7 @@ const REPO = path.resolve(import.meta.dirname, "../..");
 const read = (rel: string): string => readFileSync(path.join(REPO, rel), "utf-8");
 const serverSource = read("backend/src/server/index.ts");
 
-describe("the API table (README.md:212-230)", () => {
+describe("the API table (README.md:213-231)", () => {
   const readme = read("README.md");
   const rows = [...readme.matchAll(/^\|\s*`(GET|POST)\s+(\/api\/[^`]+)`\s*\|/gm)].map((m) => ({
     method: m[1]!,
@@ -129,7 +129,7 @@ describe("the task graph ARCHITECTURE describes (docs/ARCHITECTURE.md:29-33)", (
   }
 });
 
-describe("what the staging route really keeps (README.md:116)", () => {
+describe("what the staging route really keeps (README.md:117)", () => {
   const previousRoot = process.env["CODECITY_UPLOAD_DIR"];
   const previousTtl = process.env["CODECITY_UPLOAD_TTL_HOURS"];
 
@@ -171,7 +171,7 @@ describe("what the staging route really keeps (README.md:116)", () => {
   });
 
   it("gives the git history its own 20 MB budget", () => {
-    // README.md:116 "The folder picker sends .git too — up to 20 MB of it, in its own budget"
+    // README.md:117 "The folder picker sends .git too — up to 20 MB of it, in its own budget"
     const route = read("backend/src/server/routes/local-analyze.ts");
     expect(route).toMatch(/const GIT_MAX_TOTAL_BYTES = 20 \* 1024 \* 1024;/);
   });

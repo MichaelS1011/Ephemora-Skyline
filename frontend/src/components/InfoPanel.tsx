@@ -20,6 +20,7 @@ import { findingKey, reviewKeyFor } from "../reviews";
 import { findingContext } from "../findings/context";
 import { formatCount, t, type DictKey, type Lang } from "../i18n";
 import type { CityFile, CityFinding, FindingCategory, ReviewStatus } from "../city/types";
+import { PanelAdvice } from "./PanelAdvice";
 import { learningCopy } from "./learningCopy";
 import "../design/stadt-ui.css";
 import "../design/learning.css";
@@ -931,6 +932,8 @@ export function InfoPanel() {
           })}
         </p>
       )}
+
+      <PanelAdvice advice={file.advice} lang={lang} />
 
       <nav className="file-learning-return" aria-label={learningCopy(lang, "overview")}>
         <button type="button" onClick={() => returnToCity(true)}>

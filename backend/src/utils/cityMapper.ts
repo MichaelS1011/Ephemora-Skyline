@@ -125,6 +125,8 @@ export interface CityFile {
   role?: FileRole;
   linesOfCode: number;
   cyclomaticComplexity: number;
+  /** Structure notes for the card's teaching block — see analyzer/structure-advice */
+  advice?: Array<{ kind: "monolith" | "deep" | "longline"; value: number }>;
   threatLevel: ThreatLevel;
   findings: CityFinding[];
   /** Raw file size in bytes — bloat LOC hides */
@@ -937,6 +939,9 @@ function mapCityFile(
     language: f.language,
     linesOfCode: f.lines.code,
     cyclomaticComplexity: f.complexity?.cyclomatic ?? 1,
+    // the card's teaching notes — only when they exist, so an ordinary file
+    // carries no empty array into the shared city JSON
+    advice: f.advice?.length ? f.advice : undefined,
     threatLevel: threatLevelOf(f.vulnerabilities),
     findings,
     bytes: f.bytes,

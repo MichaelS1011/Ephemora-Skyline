@@ -43,15 +43,15 @@ vi.mock("child_process", () => ({
 /**
  * BELEG-02 — the scan-configuration table the README prints.
  *
- * Claim source: README.md:124-132 (the profile table, the nine categories, the
- * custom-pattern sentence) and README.md:107/105 with docs/GETTING_STARTED.md:81-85
+ * Claim source: README.md:125-133 (the profile table, the nine categories, the
+ * custom-pattern sentence) and README.md:108/105 with docs/GETTING_STARTED.md:81-85
  * (the offline switch and what it closes). Data source: the presets
  * `resolveConfig()` applies, the category table the scanner derives from, the
  * custom patterns a scan actually runs, and the child-process calls the Semgrep
  * adapter makes. No sentence is read back out of the README.
  */
 
-describe("nine categories a scan can be switched by (README.md:135)", () => {
+describe("nine categories a scan can be switched by (README.md:136)", () => {
   /**
    * The README's sentence names nine groups in order. The labels below are what
    * FINDING_CATEGORIES carries; the count and the order are the claim.
@@ -82,7 +82,7 @@ describe("nine categories a scan can be switched by (README.md:135)", () => {
   });
 
   it("keeps the last bucket for the rule that cites no CWE the taxonomy knows", () => {
-    // README.md:137 "a bucket for findings whose rule carries no CWE the taxonomy knows"
+    // README.md:138 "a bucket for findings whose rule carries no CWE the taxonomy knows"
     expect(categoryOf("MYSTERY_RULE")).toBe("unclassified");
     expect(categoryOf("MYSTERY_RULE", "CWE-999999")).toBe("unclassified");
     expect(categoryInfo("unclassified").meaning).toContain("no CWE");
@@ -102,7 +102,7 @@ describe("nine categories a scan can be switched by (README.md:135)", () => {
   });
 });
 
-describe("the profile table (README.md:126-128)", () => {
+describe("the profile table (README.md:127-129)", () => {
   const base = defaultScanConfig();
 
   it("offers the four profiles the table has rows for", () => {
@@ -143,7 +143,7 @@ describe("the profile table (README.md:126-128)", () => {
   });
 });
 
-describe("your own patterns (README.md:137)", () => {
+describe("your own patterns (README.md:138)", () => {
   const pattern = {
     id: "NO_DIRECT_DOM",
     regex: "document\\.getElementById",
@@ -177,7 +177,7 @@ describe("your own patterns (README.md:137)", () => {
   });
 
   it("stops at the twenty-five the sentence names", () => {
-    // README.md:139 "up to 25 regular expressions"; backend/tests/scan-config.test.ts:74
+    // README.md:140 "up to 25 regular expressions"; backend/tests/scan-config.test.ts:74
     // already shows a longer list being cut, this pins the number itself.
     expect(MAX_CUSTOM_PATTERNS).toBe(25);
     const many = Array.from({ length: 26 }, (_, i) => ({
@@ -191,8 +191,8 @@ describe("your own patterns (README.md:137)", () => {
     expect(errors.join(" ")).toContain(`truncated to ${MAX_CUSTOM_PATTERNS}`);
   });
 
-  it("runs the ReDoS canary before a pattern is ever run (README.md:139)", () => {
-    // README.md:139 "Each one is validated against a ReDoS canary before it is ever run."
+  it("runs the ReDoS canary before a pattern is ever run (README.md:140)", () => {
+    // README.md:140 "Each one is validated against a ReDoS canary before it is ever run."
     const rejected = resolveConfig({
       customPatterns: [{ id: "BLOWUP", regex: "(a|aa)*b", severity: "P1", message: "x" }],
     });
@@ -207,7 +207,7 @@ describe("your own patterns (README.md:137)", () => {
   });
 });
 
-describe("the docker fallback the offline switch closes (README.md:111, README.md:114, docs/GETTING_STARTED.md:81)", () => {
+describe("the docker fallback the offline switch closes (README.md:112, README.md:115, docs/GETTING_STARTED.md:81)", () => {
   const previous = process.env["SKYLINE_OFFLINE"];
   /**
    * `SEMGREP_DOCKER=0` is how a machine says "my Docker is not an engine source"
@@ -238,7 +238,7 @@ describe("the docker fallback the offline switch closes (README.md:111, README.m
 
       const inspected = calls.filter((c) => c[1] === "image");
       expect(inspected, "the offline path never asked the local image store").toHaveLength(1);
-      // README.md:111 names this image and this tag
+      // README.md:112 names this image and this tag
       expect(inspected[0]![3]).toBe("semgrep/semgrep:1.162.0");
       expect(
         calls.filter((c) => c[1] === "run"),

@@ -1369,6 +1369,24 @@ export const DICT = {
     en: "{summary} — here is the first one",
     de: "{summary} — hier ist der erste",
   },
+  // The card's teaching block — what the tower's height already showed, in
+  // words, with the benefit named. Numbers come from the file's own metrics.
+  "panel.adviceTitle": {
+    en: "What this shape tells you",
+    de: "Was diese Form dir sagt",
+  },
+  "panel.adviceMonolith": {
+    en: "{n} lines live in this one file. Reviewers skim past changes in its middle and every edit risks a name clash far away — split by responsibility and each piece becomes reviewable on its own. The work does not get bigger, only smaller.",
+    de: "{n} Zeilen wohnen in dieser einen Datei. Prüfende übersehen Änderungen in ihrer Mitte, und jede Bearbeitung riskiert einen Namenskonflikt weit entfernt — nach Verantwortung aufgeteilt wird jedes Stück für sich prüfbar. Die Arbeit wird nicht größer, nur kleiner.",
+  },
+  "panel.adviceDeep": {
+    en: "{n} ways run through this file's branches. Past about fifty no reader — not even the one who wrote it — can hold them all at once, so changes happen on faith. Extract the branches into named functions: each gets a boundary, a name and a test.",
+    de: "{n} Wege führen durch die Verzweigungen dieser Datei. Jenseits von etwa fünfzig verliert kein Leser mehr den Überblick — auch nicht, wer sie geschrieben hat; Änderungen geschehen dann auf Vertrauen. Die Zweige in benannte Funktionen ausgliedern: jede erhält eine Grenze, einen Namen und einen Test.",
+  },
+  "panel.adviceLongline": {
+    en: "A line here runs {n} characters — past roughly 120 it leaves the reading column, so it is read by scrolling, and the beginning is off-screen by the time the eye reaches the end. Break it into named steps. A minified or generated file was never meant to be read: exclude its folder in the scan settings instead.",
+    de: "Eine Zeile hier läuft {n} Zeichen — jenseits von etwa 120 verlässt sie die Lesespalte, wird also seitlich scrollend gelesen, und ihr Anfang ist vom Bildschirm verschwunden, ehe das Auge ihr Ende erreicht. In benannte Zwischenschritte zerlegen. Eine minifizierte oder generierte Datei war nie zum Lesen da: ihren Ordner lieber in den Scan-Einstellungen ausschließen.",
+  },
   "findings.closeAria": {
     en: "Close findings list",
     de: "Fundliste schließen",

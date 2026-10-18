@@ -84,6 +84,8 @@ export interface CityFile {
   role?: FileRole;
   linesOfCode: number;
   cyclomaticComplexity: number;
+  /** Structure notes for the card's teaching block (analyzer/structure-advice) */
+  advice?: Array<{ kind: "monolith" | "deep" | "longline"; value: number }>;
   threatLevel: ThreatLevel;
   findings: CityFinding[];
   /** Raw file size in bytes — bloat LOC hides */

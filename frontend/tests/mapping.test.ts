@@ -65,6 +65,21 @@ describe("shape scales", () => {
     ).toBe(34);
   });
 
+  it("saturates, so a written-in-a-hurry file cannot punch a hole in the sky", () => {
+    // The question the drive asked with its 1,204-line giant: does a file
+    // typed out to 5,000 or 100,000 lines shoot its tower up? The rail answers
+    // once — beyond the reference every wall stands at the same height, and the
+    // card, not the geometry, is what tells the beginner the shape is wrong.
+    const h = (n: number) =>
+      buildingHeight(file({ cyclomaticComplexity: n, linesOfCode: n, importCount: 0 }));
+    expect(h(5_000)).toBeCloseTo(h(20_000), 6);
+    expect(h(5_000)).toBeCloseTo(h(100_000), 6);
+    expect(h(5_000)).toBeLessThanOrEqual(34);
+    expect(h(5_000)).toBeGreaterThan(h(60));
+    // the height the README quotes, measured here rather than retyped
+    expect(h(5_000)).toBeCloseTo(25.27, 1);
+  });
+
   it("maps taller buildings for more complex files", () => {
     const simple = buildingHeight(
       file({ cyclomaticComplexity: 2, linesOfCode: 50, importCount: 1 }),

@@ -35,6 +35,7 @@ import { languageOfPath, type ResolvedScanConfig } from "../security/scan-config
 import { collectGitChurn, hasGitHistory } from "./git-churn.js";
 import { detectDuplicates } from "./duplicates.js";
 import { collectCoverage } from "./coverage.js";
+import { structureNotes } from "./structure-advice.js";
 import { IgnoreMatcher } from "./gitignore.js";
 import type { SecurityScanner } from "../security/scanner.js";
 
@@ -277,7 +278,18 @@ export class AnalysisOrchestrator {
               // functions to name, no imports to draw edges from.
               const dataFile = isDataFile(relativePath, language);
               const cyclomatic = dataFile ? 1 : estimateCyclomaticComplexity(content, language);
-
+              // The card's teaching notes. Monolith counts every line (a wall of
+              // text is a wall whatever the language), height counts code lines —
+              // see analyzer/structure-advice for why these are notes not findings.
+              const advice = dataFile
+                ? []
+                : structureNotes({
+                    lines: lines.total,
+                    longestLine: content
+                      .split(/\r?\n/)
+                      .reduce((max, l) => (l.length > max ? l.length : max), 0),
+                    cyclomatic,
+                  });
               const vulnerabilities = await this.scanner.scanFile(relativePath, content);
               const { imports: rawImports, exports: fileExports } = dataFile
                 ? { imports: [], exports: [] }
@@ -298,6 +310,7 @@ export class AnalysisOrchestrator {
                 lines,
                 bytes: Buffer.byteLength(content, "utf-8"),
                 complexity: { cyclomatic },
+                advice,
                 functions,
                 classes,
                 sections,

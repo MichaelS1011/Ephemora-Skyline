@@ -173,7 +173,7 @@ describe("the gates the README tells a reader to run (README.md:74-86)", () => {
       ),
     ];
     expect(accepted).toEqual(["GHSA-vfj7-8cjw-p6xm"]);
-    // README.md:86 "except those explicitly accepted … with a reason and a re-check date"
+    // README.md:87 "except those explicitly accepted … with a reason and a re-check date"
     expect(allowed).toContain("why:");
     expect(allowed).toContain("recheck:");
     // …and the tree carries the fixed release the override asks for

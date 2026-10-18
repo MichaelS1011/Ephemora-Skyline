@@ -237,6 +237,8 @@ export function file(
     role: field(overrides, "role", undefined),
     linesOfCode: overrides.linesOfCode ?? 40,
     cyclomaticComplexity: overrides.cyclomaticComplexity ?? 1,
+    /** Absent = the payload predates the card's teaching notes. */
+    advice: field(overrides, "advice", undefined),
     threatLevel: overrides.threatLevel ?? threatLevelOf(ownFindings),
     findings: ownFindings,
     bytes: field(overrides, "bytes", undefined),

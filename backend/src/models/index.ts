@@ -22,6 +22,12 @@ export interface FileAnalysis {
   /** Raw file size in bytes — flags binary bloat that LOC hides */
   bytes?: number;
   complexity: { cyclomatic: number };
+  /**
+   * Structure notes for the card's teaching block (analyzer/structure-advice).
+   * Plain {kind,value} pairs — the UI words them in its own language, and they
+   * are deliberately NOT findings: the triage queue stays about risks.
+   */
+  advice?: Array<{ kind: "monolith" | "deep" | "longline"; value: number }>;
   functions: Array<{
     name: string;
     line: number;

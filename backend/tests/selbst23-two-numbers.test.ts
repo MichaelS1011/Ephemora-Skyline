@@ -3,7 +3,7 @@ import { readFileSync, existsSync } from "fs";
 import path from "path";
 
 /**
- * SELBST-23 — the two numbers README.md:84 states about our own scan.
+ * SELBST-23 — the two numbers README.md:85 states about our own scan.
  *
  * The README sentence used to name 68 findings and 59 quoted test text for the
  * first scan of this repository, and nothing in the tree or in the working
@@ -119,7 +119,7 @@ describe("the delivered self-scan list (docs/self-scan-findings.ndjson)", () => 
   });
 });
 
-describe("the two numbers README.md:84 claims (README.md accuracy bullet)", () => {
+describe("the two numbers README.md:85 claims (README.md accuracy bullet)", () => {
   const total = () => findingLines().length;
   const quoted = () => findings().filter(isQuotedTestText).length;
 
