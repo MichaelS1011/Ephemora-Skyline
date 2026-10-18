@@ -2369,6 +2369,85 @@ export const DICT = {
     en: "One building per file that fits the plots of this view. The rest are represented by a district plot or a podium marker, and every finding is still counted.",
     de: "Ein Gebäude pro Datei, auf die die Plätze dieser Ansicht passen. Der Rest steckt auf einem Bezirksplatz oder einem Sockel-Marker, und jeder Fund bleibt gezählt.",
   },
+  // "What changed since I was last here" — the one question a developer asks
+  // when they come back. `gone` is a fingerprint that is no longer in this
+  // folder; `moved` is the same rule still there, at another line, and is
+  // never counted as fixed.
+  "ctx.sinceTitle": {
+    en: "Since your last scan",
+    de: "Seit deinem letzten Scan",
+  },
+  // The ask names what the tie actually is — the file list — because the same
+  // repository at another branch or path hashes the same, and a person must be
+  // able to tell which earlier visit they are about to be measured against.
+  "ctx.sinceAsk": {
+    en: "Compare with the last earlier scan with this file list",
+    de: "Mit dem letzten früheren Scan mit dieser Dateiliste vergleichen",
+  },
+  "ctx.sinceRunning": {
+    en: "Comparing…",
+    de: "Wird verglichen …",
+  },
+  "ctx.sinceNone": {
+    en: "Nothing earlier with this file list on this machine to compare with.",
+    de: "Nichts Früheres mit dieser Dateiliste auf diesem Rechner zum Vergleichen.",
+  },
+  "ctx.sinceAgedOut": {
+    en: "The earlier scan is gone (the server keeps 20 results for 24 hours) — a fresh scan will compare again.",
+    de: "Der frühere Scan ist weg (der Server behält 20 Ergebnisse für 24 Stunden) — ein neuer Scan vergleicht wieder.",
+  },
+  // "No longer detected", not "fixed": a renamed file and a silenced finding
+  // both leave this count, and the docs say so. The loosened severity is part
+  // of the word, not only of a hover title nobody on touch can reach.
+  "ctx.sinceGone": {
+    en: "{n} no longer detected",
+    de: "{n} nicht mehr gefunden",
+  },
+  "ctx.sinceGoneTip": {
+    en: "The rule no longer fires on this file and line. A fix does that — so does a renamed file or a silenced rule.",
+    de: "Die Regel schlägt auf dieser Datei und Zeile nicht mehr an. Eine Behebung bewirkt das — aber auch eine umbenannte Datei oder eine stumm gestellte Regel.",
+  },
+  "ctx.sinceMoved": {
+    en: "{n} at another line",
+    de: "{n} an anderer Zeile",
+  },
+  "ctx.sinceMovedTip": {
+    en: "The same rule still fires on that file. That is a shifted line, not a fix.",
+    de: "Dieselbe Regel schlägt in dieser Datei weiter an. Eine verschobene Zeile ist keine Behebung.",
+  },
+  "ctx.sincePresent": {
+    en: "{n} unchanged",
+    de: "{n} unverändert",
+  },
+  "ctx.sincePresentTip": {
+    en: "Same rule, same file, same line, same code — nothing moved.",
+    de: "Dieselbe Regel, dieselbe Datei, dieselbe Zeile, derselbe Code — nichts hat sich bewegt.",
+  },
+  "ctx.sinceWhy": {
+    en: "A finding that vanished is not a fix by itself: if the rule still fires on that file, the pair below is not a before and after.",
+    de: "Ein verschwundener Fund ist für sich keine Behebung: schlägt die Regel in dieser Datei weiter an, ist das Paar darunter kein Vorher und Nachher.",
+  },
+  "ctx.sinceFailed": {
+    en: "The comparison did not arrive. Nothing about your project was re-read; try again in a moment.",
+    de: "Der Vergleich kam nicht an. Aus deinem Projekt wurde nichts neu gelesen; versuch es gleich noch einmal.",
+  },
+  "ctx.sinceDetailed": {
+    en: "Show the moved findings",
+    de: "Die verschobenen Funde zeigen",
+  },
+  "findings.movedTitle": {
+    en: "At another line since your last scan",
+    de: "Seit deinem letzten Scan an anderer Zeile",
+  },
+  "findings.movedWhy": {
+    en: "Same rule, same file, new line — the comparison pairs the vanished one with this one, so treat the line below as a lead, not as a fix.",
+    de: "Dieselbe Regel, dieselbe Datei, neue Zeile — der Vergleich paart den verschwundenen mit diesem; die Zeile darunter ist ein Hinweis, keine Behebung.",
+  },
+  // The arrow keeps the uncertainty visible inside the row itself.
+  "findings.movedLine": {
+    en: "line {from} → line {to}",
+    de: "Zeile {from} → Zeile {to}",
+  },
   "ctx.findingsOne": {
     en: "1 finding to review",
     de: "1 Fund zur Prüfung",

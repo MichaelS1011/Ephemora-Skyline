@@ -7,6 +7,7 @@ import { describeGitignoreSkips, scanVerdict } from "../city/provenance";
 import { blindCategories, categoryMeta, summarizeCategories } from "../config/findingCategories";
 import { topLanguages, languageColor, severityColor, authorColor } from "../city/palette";
 import { MarkerLegend } from "./CoachMarks";
+import { SinceLastScan } from "./SinceLastScan";
 import { CityLearningGuide } from "./CityLearningGuide";
 import { learningCopy } from "./learningCopy";
 import "../design/stadt-ui.css";
@@ -283,6 +284,8 @@ export function ContextCard() {
           ))}
         </div>
       )}
+
+      {isRoot && <SinceLastScan lang={lang} />}
 
       <div className="py-4" style={{ borderBottom: "1px solid rgba(150,142,128,0.18)" }}>
         {totalFindings > 0 ? (

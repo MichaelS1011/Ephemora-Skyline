@@ -40,6 +40,7 @@ import {
 import { loadPrefs, savePrefs, type Prefs } from "../prefs";
 import { mergeEngineGaps } from "../city/provenance";
 import { hasCityVisit, recordCityVisit } from "../recentCities";
+import { anchorFor, verifyScans, type VerifyReport } from "../verify";
 import {
   clearVisitParams,
   currentVisit,
@@ -173,6 +174,13 @@ interface AppState {
   onContextRestored: () => void;
   /** A fresh `<Canvas>`, so a lost or thrown scene gets its own context back. */
   rebuildScene: () => void;
+
+  /**
+   * "What changed since I was last here." `ran` carries the last comparison of
+   * THIS city; `status` says whether there was a question to ask at all.
+   */
+  verify: VerifyState;
+  runVerify: () => Promise<void>;
 
   // ── Semantic zoom navigation ───────────────────────────────────────────
   focusPath: string[]; // directory names from the root, [] = overview
@@ -431,6 +439,14 @@ function buildingShot(
   };
 }
 
+export type VerifyState =
+  | { status: "idle" }
+  | { status: "none" }
+  | { status: "running" }
+  | { status: "aged-out" }
+  | { status: "failed" }
+  | { status: "ran"; report: VerifyReport; beforeId: string };
+
 export interface TriageEntry {
   file: ReturnType<typeof allFiles>[number]["file"];
   index: number; // position within file.findings — stable per analysis
@@ -681,6 +697,14 @@ export const useStore = create<AppState>((set, get) => {
         revealPulse: null,
         testRun: { status: "idle", stage: "" },
         testResults: {},
+        // A NEW scan is a new question about what changed since last time. The
+        // history re-enters this door with the same city (App.tsx popstate), and
+        // a Back inside the city must not throw away a comparison the reader
+        // already asked for.
+        verify:
+          get().cityData?.analysisId === (data?.analysisId ?? null)
+            ? get().verify
+            : { status: "idle" },
         buildPhase: data ? (seenBefore ? "built" : "constructing") : "empty",
         buildStartedAt: data ? Date.now() : 0,
         constructionDone: 0,
@@ -690,6 +714,9 @@ export const useStore = create<AppState>((set, get) => {
         poseRequest: pose ? { pose, nonce: ++poseNonce } : null,
       });
       if (data) recordCityVisit(data);
+      // every scan is noted with its folder shape, whether or not anyone asks
+      // later: the comparison needs the earlier scan even if it was a drive-by
+      if (data?.analysisId) anchorFor(data);
       // The address names the city that is on screen, so a reload comes back to
       // it instead of the empty world. Written from the payload's own scan id —
       // which is why every city, the demo included, now carries one.
@@ -742,6 +769,30 @@ export const useStore = create<AppState>((set, get) => {
     onContextLost: () => set({ sceneRebuildAt: Date.now() }),
     onContextRestored: () => set({ sceneRebuildAt: null }),
     rebuildScene: () => set({ sceneRebuildAt: Date.now() }),
+    verify: { status: "idle" },
+    runVerify: async () => {
+      const city = get().cityData;
+      const anchor = anchorFor(city);
+      if (!city?.analysisId || !anchor?.previousId) {
+        set({ verify: { status: "none" } });
+        return;
+      }
+      set({ verify: { status: "running" } });
+      const settle = (next: VerifyState): void => {
+        // the reader can leave the city while this is in flight
+        if (get().cityData?.analysisId === city.analysisId) set({ verify: next });
+      };
+      try {
+        const answer = await verifyScans(anchor.previousId, city.analysisId);
+        settle(
+          answer.ok
+            ? { status: "ran", report: answer.report, beforeId: anchor.previousId }
+            : { status: answer.agedOut ? "aged-out" : "failed" },
+        );
+      } catch {
+        settle({ status: "failed" });
+      }
+    },
 
     focusPath: [],
     selectedUnit: null,

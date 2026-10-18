@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useStore } from "../stores/useStore";
 import { allFiles } from "../city/layout";
 import { severityTotal } from "../city/facts";
+import { MovedSinceLastScan } from "./MovedSinceLastScan";
 import { severityColor, languageColor } from "../city/palette";
 import type { CityFile, CityFinding, ReviewStatus, Severity } from "../city/types";
 import { findingKey, reviewKeyFor } from "../reviews";
@@ -286,6 +287,8 @@ export function FindingsPanel() {
           ×
         </button>
       </div>
+
+      <MovedSinceLastScan lang={lang} />
 
       <div
         className="filter-row filter-row-priority"
