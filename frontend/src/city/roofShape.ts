@@ -40,3 +40,24 @@ export function roofFor(findings: readonly CityFinding[]): RoofShape {
   if (any) return "penthouse";
   return "flat";
 }
+
+/** The two bodies a tower can be drawn as, and the height each one ends at. */
+export interface CrownGeometry {
+  voxelBody: boolean;
+  bodyH: number;
+  stepped: boolean;
+  h: number;
+}
+
+/**
+ * Where the crown sits, measured from the body that is actually on screen.
+ *
+ * A legacy tower caps at `bodyH` and grows a thinner tower above it; an opened
+ * building draws its voxel stack instead, and that stack runs to `h`. The crown
+ * first existed only on the legacy body, so a building lost its crown precisely
+ * when the reader zoomed close enough to open it — the fact stayed, the shape
+ * that told it disappeared. One function, both bodies, so the two cannot drift.
+ */
+export function crownBaseY(g: CrownGeometry): number {
+  return g.voxelBody ? g.h + 0.12 : g.bodyH + (g.stepped ? 0.3 : 0.55) + 0.12;
+}

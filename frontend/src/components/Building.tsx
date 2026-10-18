@@ -6,7 +6,7 @@ import * as THREE from "three";
 import type { CityFile, Severity } from "../city/types";
 import type { FocusTier } from "../city/focus";
 import type { VoxelLayout } from "../city/voxels";
-import { roofFor } from "../city/roofShape";
+import { crownBaseY, roofFor } from "../city/roofShape";
 import {
   languageColor,
   severityColor,
@@ -1580,67 +1580,71 @@ export function Building({
         </mesh>
       )}
 
+      {/* The crown — the finding, told in massing. Drawn for BOTH body kinds:
+          an opened building becomes a voxel stack, and a crown that only lived
+          on the legacy shell would disappear exactly when the reader came close
+          enough to want it. Geometry only, no colour spent on it. */}
+      {roofType !== "flat" &&
+        (() => {
+          const crownY = crownBaseY({ voxelBody, bodyH, stepped, h }) + 0.12;
+          const roofTone = new THREE.Color("#38455e").multiplyScalar(overallFactor);
+          const crownProps = {
+            roughness: 0.8,
+            transparent: dimmed || voxelStage,
+            opacity: dimmed ? 0.12 : voxelStage ? 0.3 : 1,
+          };
+          return (
+            <>
+              {roofType === "penthouse" && (
+                <mesh position={[0, crownY + 0.68, 0]}>
+                  <boxGeometry args={[w * 0.68, 1.35, d * 0.68]} />
+                  <meshStandardMaterial color={roofTone} {...crownProps} />
+                </mesh>
+              )}
+
+              {roofType === "terrace" && (
+                <>
+                  <mesh position={[-w * 0.12, crownY + 0.39, -d * 0.12]}>
+                    <boxGeometry args={[w * 0.88, 0.78, d * 0.88]} />
+                    <meshStandardMaterial color={roofTone} {...crownProps} />
+                  </mesh>
+                  <mesh position={[w * 0.16, crownY + 1.17, d * 0.16]}>
+                    <boxGeometry args={[w * 0.56, 0.78, d * 0.56]} />
+                    <meshStandardMaterial color={roofTone} {...crownProps} />
+                  </mesh>
+                </>
+              )}
+
+              {roofType === "mast" && (
+                <mesh
+                  position={[0, crownY + 1.3, 0]}
+                  geometry={UNIT_CYLINDER}
+                  material={detailMats.metal}
+                  scale={[0.34, 2.6, 0.34]}
+                />
+              )}
+            </>
+          );
+        })()}
+
       {/* Roof + rooftop clutter — legacy silhouette decorations only; the
           voxel body's geometry IS honest, decorations would lie about it */}
       {!voxelBody && (
         <>
           {(() => {
-            // One dark slab on every tower, so the crown sits on a roof rather
-            // than floating where the old lid did; then the massing that carries
-            // the finding. Geometry only — no new colour is spent here.
-            const capY = bodyH + (stepped ? 0.3 : 0.55) + 0.12;
-            const crownY = capY + 0.12;
-            // Deliberately NOT the language colour: the façade and the legend
-            // already spend that one, and a crown painted with it would read as a
-            // second language marker instead of a second fact. The shape carries
-            // the finding, so the shape is what gets to be seen — in roof grey.
-            const roofTone = new THREE.Color("#38455e").multiplyScalar(overallFactor);
-            const crownProps = {
-              roughness: 0.8,
-              transparent: dimmed || voxelStage,
-              opacity: dimmed ? 0.12 : voxelStage ? 0.3 : 1,
-            };
+            // One dark slab on every legacy tower, so the crown sits on a roof
+            // rather than floating where the old lid did.
+            const capY = crownBaseY({ voxelBody, bodyH, stepped, h });
             return (
-              <>
-                <mesh position={[0, capY, 0]}>
-                  <boxGeometry args={[w + 0.25, 0.24, d + 0.25]} />
-                  <meshStandardMaterial
-                    color="#242c3d"
-                    roughness={0.85}
-                    transparent={dimmed}
-                    opacity={dimmed ? 0.1 : 1}
-                  />
-                </mesh>
-
-                {roofType === "penthouse" && (
-                  <mesh position={[0, crownY + 0.68, 0]}>
-                    <boxGeometry args={[w * 0.68, 1.35, d * 0.68]} />
-                    <meshStandardMaterial color={roofTone} {...crownProps} />
-                  </mesh>
-                )}
-
-                {roofType === "terrace" && (
-                  <>
-                    <mesh position={[-w * 0.12, crownY + 0.39, -d * 0.12]}>
-                      <boxGeometry args={[w * 0.88, 0.78, d * 0.88]} />
-                      <meshStandardMaterial color={roofTone} {...crownProps} />
-                    </mesh>
-                    <mesh position={[w * 0.16, crownY + 1.17, d * 0.16]}>
-                      <boxGeometry args={[w * 0.56, 0.78, d * 0.56]} />
-                      <meshStandardMaterial color={roofTone} {...crownProps} />
-                    </mesh>
-                  </>
-                )}
-
-                {roofType === "mast" && (
-                  <mesh
-                    position={[0, crownY + 1.3, 0]}
-                    geometry={UNIT_CYLINDER}
-                    material={detailMats.metal}
-                    scale={[0.34, 2.6, 0.34]}
-                  />
-                )}
-              </>
+              <mesh position={[0, capY, 0]}>
+                <boxGeometry args={[w + 0.25, 0.24, d + 0.25]} />
+                <meshStandardMaterial
+                  color="#242c3d"
+                  roughness={0.85}
+                  transparent={dimmed}
+                  opacity={dimmed ? 0.1 : 1}
+                />
+              </mesh>
             );
           })()}
 

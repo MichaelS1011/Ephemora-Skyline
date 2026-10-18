@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { roofFor, ROOF_SHAPES, type RoofShape } from "../src/city/roofShape";
+import { crownBaseY, roofFor, ROOF_SHAPES, type RoofShape } from "../src/city/roofShape";
 
 /**
  * The roof used to be derived from the height — the same number the body already
@@ -43,5 +43,43 @@ describe("the roof reads what a file holds", () => {
     const rank = (s: RoofShape) => ROOF_SHAPES.indexOf(s);
     expect(rank(roofFor([finding("P2")]))).toBeLessThan(rank(roofFor([finding("P1")])));
     expect(rank(roofFor([finding("P1")]))).toBeLessThan(rank(roofFor([finding("P0")])));
+  });
+});
+
+/**
+ * The crown's height, measured from the body that is actually drawn.
+ *
+ * The first version of the crown sat inside the legacy-body branch only, so the
+ * moment a tower opened into its voxel stack — exactly when a reader gets close
+ * enough to care — the crown disappeared. Both bodies span `h`, but the legacy
+ * one caps at `bodyH` and grows a tower above it, while the stack fills to `h`.
+ */
+describe("the crown sits on whichever body is drawn", () => {
+  it("caps the legacy body above its slab", () => {
+    expect(crownBaseY({ voxelBody: false, bodyH: 12, stepped: false, h: 12 })).toBeCloseTo(
+      12.67,
+      2,
+    );
+    expect(crownBaseY({ voxelBody: false, bodyH: 12.24, stepped: true, h: 17 })).toBeCloseTo(
+      12.66,
+      2,
+    );
+  });
+
+  it("rides the top of a voxel stack instead of vanishing", () => {
+    const y = crownBaseY({ voxelBody: true, bodyH: 12.24, stepped: true, h: 17 });
+    expect(y).toBeCloseTo(17.12, 2);
+    // the defect this case exists for: the stack's own height, not the plinth's
+    expect(y).toBeGreaterThan(17);
+  });
+
+  it("never buries the crown inside the body it crowns", () => {
+    for (const g of [
+      { voxelBody: true, bodyH: 4, stepped: false, h: 4 },
+      { voxelBody: true, bodyH: 3, stepped: true, h: 9 },
+      { voxelBody: false, bodyH: 9, stepped: false, h: 9 },
+    ]) {
+      expect(crownBaseY(g)).toBeGreaterThanOrEqual(g.h);
+    }
   });
 });
