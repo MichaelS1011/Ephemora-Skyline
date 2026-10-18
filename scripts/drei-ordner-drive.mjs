@@ -146,6 +146,48 @@ async function driveFolder(page, name, claims, chooserBox) {
   );
   const findings = num(card, /(\d[\d,.]*) findings? to review/);
 
+  // read at arrival, while all five surfaces are on screen — the scan
+  // banner folds itself into a strip later, and a strip has no count
+  // One total, four surfaces — each read inside its OWN container. A first
+  // version searched body.innerText for "N findings to review" and got the
+  // context card's number where it meant to see the scan banner's: the same
+  // surface counted twice is a gate with no teeth, and the negative control
+  // (a banner deliberately one finding high) stayed green because of it.
+  const surfaces = await page.evaluate(() => {
+    const inBox = (sel, re) => {
+      const el = document.querySelector(sel);
+      if (!el) return null;
+      // innerText, not textContent: the count and the word are separate
+      // nodes, and only the rendered text puts a space between them
+      const m = (el.innerText ?? "").replace(/\u00a0/g, " ").match(re);
+      return m ? Number(m[1].replace(/[^\d]/g, "")) : null;
+    };
+    const chip = (id) => {
+      const el = document.querySelector(`.workspace-severities button[data-severity="${id}"]`);
+      if (!el) return 0; // a chip is only drawn above zero, so absent IS the zero
+      const m = (el.innerText ?? "").match(/(\d[\d.,]*)/);
+      return m ? Number(m[1].replace(/\D/g, "")) : 0;
+    };
+    return {
+      present: {
+        severities: !!document.querySelector(".workspace-severities"),
+        dock: !!document.querySelector(".action-dock"),
+        summary: !!document.querySelector(".start-summary"),
+        ctxCard: !!document.querySelector(".panel-context-card"),
+      },
+      p0: chip("P0"),
+      p1: chip("P1"),
+      p2: chip("P2"),
+      dockTriage: inBox(".action-dock", /Triage\s*(\d+)/i),
+      dockFindings: inBox(".action-dock", /(\d[\d.,]*)\s+findings?\b/i) ?? inBox(".action-dock", /Findings\s*(\d+)/i),
+      // the summary states no total — it states the critical count, so that
+      // is the number tied to the header chip rather than to the total
+      bannerCritical: inBox(".start-summary", /Critical:\s*(\d+)/),
+      ctxCard: inBox(".panel-context-card", /(\d[\d.,]*)\s+findings?\b/i),
+    };
+  });
+  const chipSum = surfaces.p0 + surfaces.p1 + surfaces.p2;
+
   // the three modes: each must activate and answer in its own aria state
   const modes = {};
   for (const label of ["SECURITY", "DEPENDENCIES", "STRUCTURE"]) {
@@ -158,10 +200,14 @@ async function driveFolder(page, name, claims, chooserBox) {
   // "Triage" + "8 findings" as two nodes, so the space is optional
   const dockTriage = num(await page.evaluate(() => document.body.innerText), /Triage\s*(\d+)/);
 
+  // the same total on every surface that states it. Three of these were
+  // computed independently in the code until city/facts.ts became the one door;
+  // this is the check that catches a door being propped open again.
+
   claims.push({
     folder: name, onDisk, analysed, unread,
     arithmeticCloses: analysed + unread === onDisk,
-    findings, dockTriage,
+    findings, dockTriage, surfaces, chipSum,
     modes,
   });
 }
@@ -199,6 +245,14 @@ async function main() {
     claims.every((c) => c.arithmeticCloses) &&
     claims.every((c) => Object.values(c.modes).every((v) => v === "true")) &&
     claims.every((c) => c.dockTriage === c.findings) &&
+    // one total, four surfaces: header chips, dock triage, dock findings,
+    // scan banner, context card — and every container must actually be there,
+    // or a null quietly reads as agreement
+    claims.every((c) => Object.values(c.surfaces.present).every(Boolean)) &&
+    claims.every((c) => c.chipSum === c.findings) &&
+    claims.every((c) => c.surfaces.dockFindings === c.findings) &&
+    claims.every((c) => c.surfaces.bannerCritical === c.surfaces.p0) &&
+    claims.every((c) => c.surfaces.ctxCard === c.findings) &&
     consoleErrors.length === 0;
   console.log(ok ? "DREI-ORDNER-DRIVE: PASS" : "DREI-ORDNER-DRIVE: FAIL");
   process.exitCode = ok ? 0 : 1;

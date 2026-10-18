@@ -7,6 +7,7 @@ import { formatCount, t, type Lang } from "../i18n";
 import { GIT_MAX_TOTAL_BYTES } from "../hooks/useLocalAnalysis";
 import { ts, tsCount } from "./startCopy";
 import type { DroppedFiles } from "../city/types";
+import { severityTotal } from "../city/facts";
 import "../design/start.css";
 
 /* Tiny CSS-only confetti burst (3 squares, purely decorative) */
@@ -168,7 +169,7 @@ export function ScanSummary({ demo = false }: { demo?: boolean }) {
   if (!cityData) return null;
 
   const f = cityData.findingsBySeverity;
-  const total = f.P0 + f.P1 + f.P2;
+  const total = severityTotal(f);
   const findingsInTests = cityData.findingsInTests ?? 0;
   // The scan is only complete for what the project itself called source.
   // Say what the .gitignore kept out while the user is still reading this.

@@ -6,6 +6,7 @@ import { BrandWordmark } from "./Landing";
 import { AnalyzePanel } from "./AnalyzePanel";
 import { PHASE_0_MS } from "./CityTree";
 import { t, formatCount, type DictKey, type Lang } from "../i18n";
+import { severityCount, severityTotal } from "../city/facts";
 import "../design/stadt-ui.css";
 
 interface HudOverlayProps {
@@ -52,10 +53,7 @@ export function HudOverlay({ apiStatus }: HudOverlayProps) {
   const lang = useStore((s) => s.prefs.lang);
   const colorblind = useStore((s) => s.prefs.colorblind);
   if (!cityData) return null;
-  const totalFindings = Object.values(cityData.findingsBySeverity).reduce(
-    (sum, count) => sum + count,
-    0,
-  );
+  const totalFindings = severityTotal(cityData.findingsBySeverity);
 
   // Construction status line: phase 0 is the empty-terrain prologue, then
   // the build counter takes over. Updates ride the existing construction
@@ -138,7 +136,7 @@ export function HudOverlay({ apiStatus }: HudOverlayProps) {
                     onClick={() => setThreatFilter(threatFilter === id ? "all" : id)}
                     aria-pressed={threatFilter === id}
                     aria-label={(() => {
-                      const count = cityData.findingsBySeverity[id];
+                      const count = severityCount(cityData.findingsBySeverity, id);
                       const label = t(lang, labelKey);
                       // "1 Funde" was what the header read out on every single
                       // finding — the singular variants are dictionary keys now.

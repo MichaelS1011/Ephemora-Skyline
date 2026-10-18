@@ -19,6 +19,7 @@ import { t } from "../i18n";
 import { cityLinkNotice } from "../cityLifetime";
 import { openStudio } from "../share/studioBus";
 import { tx } from "../share/fallbackCopy";
+import { severityTotal } from "../city/facts";
 
 interface ActionButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   label: string;
@@ -149,7 +150,7 @@ export function ActionBar() {
   if (!cityData) return null;
 
   const findings = cityData.findingsBySeverity;
-  const totalFindings = findings.P0 + findings.P1 + findings.P2;
+  const totalFindings = severityTotal(findings);
   const constructing = buildPhase === "constructing";
   const pct = constructionTotal > 0 ? Math.round((constructionDone / constructionTotal) * 100) : 0;
   const testing = testRun.status === "installing" || testRun.status === "running";
