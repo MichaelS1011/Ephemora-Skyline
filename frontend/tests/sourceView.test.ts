@@ -7,7 +7,7 @@ import {
   parseFocusedKey,
   focusBelongsToFile,
   lineSegmentFor,
-} from "../src/components/InfoPanel";
+} from "../src/findings/panelLogic";
 import type { VoxelSectionSpec } from "../src/city/voxels";
 import type { CityFile, CityFinding } from "../src/city/types";
 

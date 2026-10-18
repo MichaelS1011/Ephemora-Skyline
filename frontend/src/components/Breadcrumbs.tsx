@@ -1,7 +1,7 @@
 import { useStore } from "../stores/useStore";
 import { findFileById } from "../city/layout";
 import { t } from "../i18n";
-import { lineSegmentFor } from "./InfoPanel";
+import { lineSegmentFor } from "../findings/panelLogic";
 
 /**
  * Breadcrumb navigation for the semantic zoom — where am I in the repo?
