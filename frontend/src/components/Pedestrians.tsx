@@ -15,6 +15,7 @@ import {
   type Transit,
 } from "../city/openWorldStreets";
 import { prefersReducedMotion, reducedSettle } from "../city/motion";
+import { ACCEL, pivotMarch, ramp, strideBlend } from "../city/epheGait";
 import type { BuildSite } from "../city/layout";
 import { EPHE_PALETTE } from "../city/palette";
 import { surfaceMatrix, surfacePoint } from "../city/worldSurface";
@@ -81,6 +82,15 @@ interface Ephe {
   /** Integrated from distance travelled, so a turning or waiting resident
    *  does not keep walking in place. */
   gait: number;
+  /** Current walking speed, eased toward target: nobody reaches a full
+   *  stride in one frame, and nobody sheds it in one frame either. */
+  vel: number;
+  /** 0 standing … 1 full stride. Eases the legs in at a start and brings
+   *  the feet home at an arrival, so neither ends in a pose the figure
+   *  would have to teleport out of. */
+  blend: number;
+  /** True while turning on the spot rather than cutting a corner. */
+  pivot: boolean;
   color: THREE.Color;
   // walk target
   tx: number;
@@ -280,6 +290,9 @@ function makeEphe(
     tall: 0.78 + (((i * 29) % 100) / 100) * 0.5,
     phase: (i * 1.7) % (Math.PI * 2),
     gait: (i * 1.7) % (Math.PI * 2),
+    vel: 0,
+    blend: 0,
+    pivot: false,
     color: new THREE.Color(WALKER_COLORS[i % WALKER_COLORS.length]!),
     tx: 0,
     tz: 0,
@@ -850,8 +863,12 @@ export function Pedestrians({
     while (diff > Math.PI) diff -= Math.PI * 2;
     while (diff < -Math.PI) diff += Math.PI * 2;
     e.angle += Math.max(-TURN_SPEED * dt, Math.min(TURN_SPEED * dt, diff));
-    if (Math.abs(diff) > TURN_IN_PLACE) return false;
-    const step = Math.min(e.speed * e.hustle * dt, dist);
+    const turning = Math.abs(diff) > TURN_IN_PLACE;
+    e.pivot = turning;
+    // A start is a ramp, not a switch.
+    e.vel = ramp(e.vel, turning ? 0 : e.speed * e.hustle, ACCEL, dt);
+    if (turning) return false;
+    const step = Math.min(e.vel * dt, dist);
     e.x += Math.sin(e.angle) * step;
     e.z += Math.cos(e.angle) * step;
     return false;
@@ -1518,7 +1535,16 @@ export function Pedestrians({
       const travelled = Math.hypot(e.x - previousX, e.z - previousZ);
       const moving = dt > 0 && travelled > 0.00001;
       if (moving) e.gait += (travelled * 5.5) / e.tall;
-      const stride = moving ? Math.sin(e.gait) : 0;
+      // A pivot flag left over from a walk must not make a chatting or
+      // working figure march, so the mode has to agree.
+      const turning = !moving && e.pivot && e.mode === "walk";
+      if (turning) e.gait += dt * 7;
+      e.blend = strideBlend(e.blend, moving || turning, dt);
+      const stride = moving
+        ? Math.sin(e.gait) * e.blend
+        : turning
+          ? pivotMarch(e.gait) * e.blend
+          : 0;
       const grow =
         e.mode === "exit" || e.mode === "enter"
           ? Math.max(e.anim, 0)
