@@ -107,6 +107,20 @@ brew install gitleaks semgrep osv-scanner ruff   # macOS — optional, improves 
 | **npm audit**     | CVEs in npm dependencies (requires `package-lock.json`)                                                            | skipped                                                  |
 | **ruff**          | Python lint, contributing to the hygiene category                                                                  | skipped                                                  |
 
+### A local model for one line (optional)
+
+Every explanation the cards show is written by this program. The one thing it cannot write is a sentence about _this particular line_ — so a card can ask a model you run yourself.
+
+```bash
+export EPHEMORA_LLM_URL=http://127.0.0.1:8100/v1     # llama.cpp, Ollama, LM Studio, vLLM
+export EPHEMORA_LLM_MODEL=Qwen3.5-9B                  # what the card signs its answer with
+npm run dev
+```
+
+Then open a finding's details and press **Ask … on this machine**. What the model receives is the flagged line (masked, clipped to 500 characters) and the rule facts already printed on the card: no file, no surrounding lines, no path. `EPHEMORA_LLM_URL` must be `127.0.0.1`, `localhost` or `::1` — a hosted address is refused when the server starts, and the card offers nothing rather than a click that fails. `EPHEMORA_LLM_TIMEOUT_MS` raises the 45-second wait for a cold or large model.
+
+Measured on 2026-10-18 against a 9B model on a GB10 (vLLM, 2 048-token context): a question costs 920–1 090 bytes and answers in 2,3–3,4 s. `node scripts/local-llm-probe.mjs` re-runs that measurement through the same code the route calls, and `--live` runs it through the HTTP route with a real scan and a real fingerprint.
+
 ## Development workflow
 
 ### Working on one workspace

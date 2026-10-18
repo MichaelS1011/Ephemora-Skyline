@@ -22,6 +22,7 @@ import { findingContext } from "../findings/context";
 import { formatCount, formatDecimal, t, type DictKey, type Lang } from "../i18n";
 import type { CityFile, CityFinding, FindingCategory, ReviewStatus } from "../city/types";
 import { PanelAdvice } from "./PanelAdvice";
+import { AskLocalModel } from "./AskLocalModel";
 import { learningCopy } from "./learningCopy";
 import "../design/stadt-ui.css";
 import "../design/learning.css";
@@ -706,6 +707,10 @@ function FindingRow({
           {(suggestion || fixLine) && (
             <SuggestedFixBlock suggestion={suggestion} fallbackFix={fixLine} hint={fixHint} />
           )}
+
+          {/* The one sentence this product cannot write itself: what THIS line
+              does wrong. Offered only when a model runs on this machine. */}
+          <AskLocalModel finding={finding} />
 
           {refUrl && (
             <a

@@ -25,6 +25,11 @@ import { mapResultToCityData } from "../utils/cityMapper.js";
 import os from "os";
 import path from "path";
 import { ruleClassNames } from "../services/security/finding-knowledge.js";
+import {
+  handleExplainFinding,
+  llmConfigFrom,
+  type LlmConfig,
+} from "../services/security/llm-explain.js";
 import { SecurityScanner } from "../services/security/scanner.js";
 import { READ_BUDGET_EXEMPT } from "./read-budget.js";
 import { handleHealth } from "./routes/health.js";
@@ -58,6 +63,25 @@ const server = http.createServer(app);
 
 // ── Single source of truth for all analysis results ───────────────────────
 const analysisStore = new AnalysisStore();
+
+// ── Optional local model ───────────────────────────────────────────────────
+// Read once at boot, never per click. A URL that is not loopback is refused
+// here and logged loudly, and the product continues without the feature —
+// because the alternative is a server that accepts a copy-pasted hosted
+// endpoint and then sends a user's flagged lines somewhere the README says
+// they never go.
+function readLocalModel(): LlmConfig | null {
+  try {
+    return llmConfigFrom(process.env);
+  } catch (err) {
+    logger.error(
+      { err: (err as Error).message },
+      "EPHEMORA_LLM_URL was rejected: explanations by a local model are turned off",
+    );
+    return null;
+  }
+}
+const localModel = readLocalModel();
 
 // ── Service instances ─────────────────────────────────────────────────────
 // Per analysis, not per process: the scanner carries the resolved profile and
@@ -198,7 +222,16 @@ app.post("/api/export", localOnlyRoute, (req: Request, res: Response): void => {
 
 // GET /api/health
 app.get("/api/health", (_req: Request, res: Response): void => {
-  void handleHealth(_req, res, analysisStore);
+  void handleHealth(_req, res, analysisStore, localModel);
+});
+
+// POST /api/explain-finding — one flagged line to a model on this machine.
+// The server, not the browser, picks what travels: the finding is read out of
+// the store by its fingerprint, so the request body carries no code at all, and
+// the address check runs before a socket is opened. Without EPHEMORA_LLM_URL the
+// route answers 501, and the card never offered the button in the first place.
+app.post("/api/explain-finding", localOnlyRoute, (req: Request, res: Response): void => {
+  void handleExplainFinding(req, res, { store: analysisStore, config: localModel });
 });
 
 // GET /api/rule-classes — the curated class names, so a filter chip can say

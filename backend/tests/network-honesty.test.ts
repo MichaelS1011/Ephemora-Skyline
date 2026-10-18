@@ -1,4 +1,5 @@
 import { describe, it, expect, afterEach, vi } from "vitest";
+import type { Response as ExpressResponse } from "express";
 import { readFileSync, readdirSync } from "fs";
 import path from "path";
 import { OFFLINE_ENV, OUTBOUND_CALLS, isOffline } from "../src/services/security/network-policy.js";
@@ -93,7 +94,7 @@ describe("the release check", () => {
     vi.resetModules();
     const { handleUpdateCheck } = await import("../src/server/routes/update-check.js");
     const json = vi.fn();
-    await handleUpdateCheck({} as never, { json } as unknown as import("express").Response);
+    await handleUpdateCheck({} as never, { json } as unknown as ExpressResponse);
     expect(fetchMock).not.toHaveBeenCalled();
     expect(json.mock.calls[0]![0]).toMatchObject({ updateAvailable: false, offline: true });
   });
@@ -144,6 +145,23 @@ describe("the documented network surface", () => {
    */
   it("says plainly that no source code is uploaded", () => {
     expect(read("README.md")).toMatch(/never uploaded and never sent to a third party/i);
+  });
+
+  /**
+   * The literal-URL scan above cannot see the one fetch whose address comes from
+   * the environment. That is the fetch a user configures, and its promise is not
+   * "this host is declared" but "this host is this machine" — so the rule is
+   * checked where it is enforced instead: the module that owns the call must be
+   * the module that owns the loopback test, and it must refuse a redirect rather
+   * than let the local server pick the next hop.
+   */
+  it("holds the one variable-URL fetch to the loopback rule", () => {
+    const src = read("backend/src/services/security/llm-explain.ts");
+    expect(src).toContain("assertLoopbackTarget");
+    expect(src).toContain('redirect: "error"');
+    expect(src).toMatch(/LOOPBACK\s*=\s*new Set\(\[[^\]]*127\.0\.0\.1/);
+    // and it must not be a prefix test, which `localhost.evil.test` survives
+    expect(src).not.toMatch(/hostname\.(startsWith|includes)\(/);
   });
 
   /**

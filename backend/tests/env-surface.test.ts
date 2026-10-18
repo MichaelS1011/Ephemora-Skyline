@@ -35,7 +35,16 @@ const NOT_READ_BY_US: Record<string, string> = {
 };
 
 /** Names the process reads through a parameter or a constant, not `process.env.X` */
-const READ_INDIRECTLY = ["HOST", "FRONTEND_ORIGIN", "SKYLINE_OFFLINE"];
+const READ_INDIRECTLY = [
+  "HOST",
+  "FRONTEND_ORIGIN",
+  "SKYLINE_OFFLINE",
+  // `llmConfigFrom(env)` takes the environment as a parameter so the loopback
+  // rule can be tested without editing the real process; `index.ts` hands it
+  // `process.env`. Same key, read one function down.
+  "EPHEMORA_LLM_URL",
+  "EPHEMORA_LLM_MODEL",
+];
 
 /** Reads that are the platform's contract rather than a user setting */
 const NOT_A_SETTING = ["PATH"];

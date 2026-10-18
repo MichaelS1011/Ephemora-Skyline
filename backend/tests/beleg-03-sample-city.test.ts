@@ -32,7 +32,7 @@ const walkTree = (node: CityDir): void => {
 };
 walkTree(city.tree);
 
-describe("the caption over the built city (README.md:168)", () => {
+describe("the caption over the built city (README.md:170)", () => {
   it("ships 74 sample files", () => {
     expect(demo.summary.totalFiles).toBe(74);
     expect(demo.files).toHaveLength(74);
@@ -41,7 +41,7 @@ describe("the caption over the built city (README.md:168)", () => {
   });
 
   it("raises six districts over them", () => {
-    // README.md:166 "74 sample files in six districts"; the summary says the same
+    // README.md:168 "74 sample files in six districts"; the summary says the same
     expect(demo.summary.totalDirectories).toBe(6);
     expect(city.tree.children).toHaveLength(6);
   });
@@ -90,7 +90,7 @@ describe("the caption over the built city (README.md:168)", () => {
   });
 
   it("names its own alarm count: one of six plots carries a critical finding", () => {
-    // README.md:166 quotes the map's sentence "▲ 1 of 6 plots carries a critical finding"
+    // README.md:168 quotes the map's sentence "▲ 1 of 6 plots carries a critical finding"
     const withCritical = city.tree.children.filter((d) => d.findingsBySeverity.P0 > 0);
     expect(withCritical).toHaveLength(1);
     expect(withCritical[0]!.name).toBe("backend");
@@ -98,7 +98,7 @@ describe("the caption over the built city (README.md:168)", () => {
   });
 });
 
-describe("the finding cards the captions describe (README.md:168, CHANGELOG.md)", () => {
+describe("the finding cards the captions describe (README.md:170, CHANGELOG.md)", () => {
   it("shows eight findings in seven files", () => {
     expect(allFindings).toHaveLength(8);
     expect(new Set(allFindings.map((f) => f.file)).size).toBe(7);

@@ -107,6 +107,39 @@ were run on it as a whole.
   on the machine that develops the file, and both loopback spellings are in the
   allowed-origin list, because nginx does not forward `Host` and the self-origin
   fallback therefore cannot fire through it.
+- **One command installs it.** `npx ephemora-skyline` starts the backend, which
+  now serves the built app itself, and opens the address once `/api/health`
+  answers. Measured on the packed tarball rather than the checkout: 0,89 MB,
+  234 files, installed into an empty folder and asked over HTTP — health, the app
+  document, the version the package names. `scripts/pack-check.mjs` is that
+  measurement, and it fails on a build that shipped without its frontend.
+- **A city can be carried away as a folder.** `POST /api/export` writes the app,
+  the city JSON, a one-route server and a start script into
+  `~/Downloads/ephemora-<id>`, and the README it writes carries digests read back
+  from the files on disk, not from memory of them. The page boots from the
+  embedded payload behind an API guard, so nothing on screen asks a server that is
+  not there: the summary says _exported city_ instead of _Scan complete_, the
+  update check answers "could not check" instead of "up to date", and the test
+  runner is struck because the strike and the disable must be the same question.
+  `frontend/tests/exported-banner.test.tsx` and `backend/tests/export-identity.test.ts`
+- **The comparison asks itself, once, when the city arrives.** A folder shape seen
+  before carries the scan it is worth comparing against; the card dates its
+  heading by that scan ("Since the scan of 18 Oct") and the three numbers — no
+  longer detected, at another line, unchanged — arrive without a click. Measured
+  on a second visit to the same folder: 0,2 s to a settled card, and a first visit
+  stays silent because there is nothing to compare. `frontend/tests/verify-anchor.test.ts`,
+  `frontend/tests/since-on-arrival.test.tsx`
+- **A card can ask a model that lives on the same machine.** With
+  `EPHEMORA_LLM_URL` set to a loopback OpenAI-compatible server, a finding's
+  details offer one sentence about the flagged line. The whitelist of what may
+  travel is asserted as a set, not a deny-list, and the address is checked before
+  a request exists. Measured against a 9B model on a GB10: 920–1 090 bytes per
+  question and 2,3–3,4 s to an answer warm, and 2,8 s through the HTTP route with
+  a real scan and the fingerprint the card holds. Two defects came out of that
+  measurement and not out of the stub: a 20 s clock that fired on a cold model,
+  and a reasoning dump where an answer belonged.
+  `backend/tests/llm-explain-guard.test.ts`, `frontend/tests/ask-local-model.test.tsx`,
+  `scripts/local-llm-probe.mjs`
 
 ### Fixed
 

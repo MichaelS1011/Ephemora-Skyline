@@ -13,7 +13,6 @@ import {
   testFileCount,
   type ClientGitignore,
   type ClientReader,
-  type IgnoreMatcherLike,
   type PickerPlan,
   type WalkResult,
 } from "./helpers/claimsShared.js";
@@ -363,16 +362,16 @@ describe("the claims lane of 2026-10-14 (S1: no public number breaks)", () => {
       `${files.toLocaleString("en-US")} files / ${Math.round(total / 1024 / 1024)} MB`,
     );
     expect(sec).not.toMatch(/3000 files|3,000 files|40 MB/);
-    // twelve registrations, and both documents say twelve
+    // fourteen registrations, and both documents say fourteen
     const registrations = read("backend/src/server/index.ts")
       .split("\n")
       .filter((l) => /localOnlyRoute[,)"]/.test(l) && !l.trim().startsWith("import")).length;
-    expect(registrations, "the guard is wired where the docs say").toBe(13);
-    expect(sec, "SECURITY undersells the guard — thirteen routes refuse a foreign page").toMatch(
-      /[Ee]leven routes|[Tt]welve routes|[Tt]hirteen routes/,
+    expect(registrations, "the guard is wired where the docs say").toBe(14);
+    expect(sec, "SECURITY undersells the guard — fourteen routes refuse a foreign page").toMatch(
+      /[Tt]hirteen routes|[Ff]ourteen routes/,
     );
     expect(sec).not.toMatch(/two routes that execute/i);
-    expect(read("README.md")).toContain("thirteen routes");
+    expect(read("README.md")).toContain("fourteen routes");
     // every shipped adapter is named by the security policy
     const adapters = readdirSync(path.join(REPO, "backend/src/services/security/adapters"))
       .join("\n")

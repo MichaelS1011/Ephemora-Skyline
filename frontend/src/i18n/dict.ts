@@ -1042,6 +1042,66 @@ export const DICT = {
     en: "Copy suggested fix",
     de: "Fix-Vorschlag kopieren",
   },
+  "panel.askModel": {
+    en: "Ask {model} on this machine",
+    de: "{model} auf diesem Rechner fragen",
+  },
+  "panel.askModelUnnamed": {
+    en: "Ask the model on this machine",
+    de: "Modell auf diesem Rechner fragen",
+  },
+  "panel.askModelTitle": {
+    en: "Sends this finding's flagged line to a model running on this machine. Nothing else, and nothing remote.",
+    de: "Sendet die markierte Zeile dieses Funds an ein Modell auf diesem Rechner. Sonst nichts, und nichts Entferntes.",
+  },
+  "panel.askModelAgain": {
+    en: "Ask again",
+    de: "Nochmal fragen",
+  },
+  "panel.askModelThinking": {
+    en: "{model} is thinking",
+    de: "{model} überlegt",
+  },
+  "panel.askModelThinkingUnnamed": {
+    en: "The model is thinking",
+    de: "Das Modell überlegt",
+  },
+  "panel.askModelBy": {
+    en: "Written by {model}, a model on this machine — it saw the flagged line, not the file.",
+    de: "Geschrieben von {model}, einem Modell auf diesem Rechner — es sah die markierte Zeile, nicht die Datei.",
+  },
+  "panel.askModelByUnnamed": {
+    en: "Written by a model on this machine — it saw the flagged line, not the file.",
+    de: "Geschrieben von einem Modell auf diesem Rechner — es sah die markierte Zeile, nicht die Datei.",
+  },
+  "panel.askModelTimeout": {
+    en: "The model did not answer in time. A local model is only as fast as the machine it runs on.",
+    de: "Das Modell hat nicht rechtzeitig geantwortet. Ein lokales Modell ist nur so schnell wie der Rechner, auf dem es läuft.",
+  },
+  "panel.askModelTruncated": {
+    en: "The model ran out of room mid-sentence.",
+    de: "Dem Modell ging mitten im Satz der Platz aus.",
+  },
+  "panel.askModelUnreachable": {
+    en: "The model could not be reached on this machine. Is the server behind EPHEMORA_LLM_URL still running?",
+    de: "Das Modell war auf diesem Rechner nicht erreichbar. Läuft der Server hinter EPHEMORA_LLM_URL noch?",
+  },
+  "panel.askModelError": {
+    en: "The model answered, but not in words this card can show.",
+    de: "Das Modell hat geantwortet, aber nicht in Worten, die diese Karte zeigen kann.",
+  },
+  "panel.askModelNotLocal": {
+    en: "The configured model address is not this machine, so nothing was sent.",
+    de: "Die konfigurierte Modelladresse ist nicht dieser Rechner, daher wurde nichts gesendet.",
+  },
+  "panel.askModelGone": {
+    en: "This finding is no longer in the scan the server holds — the scan behind this card is older than the one on disk.",
+    de: "Dieser Fund liegt nicht mehr im Scan, den der Server hält — der Scan dieser Karte ist älter als der auf der Platte.",
+  },
+  "panel.askModelShut": {
+    en: "This page could not ask the model just now: the server closed the door after the page was loaded.",
+    de: "Diese Seite konnte das Modell gerade nicht fragen: Der Server hat die Tür geschlossen, nachdem die Seite geladen war.",
+  },
   "panel.copied": {
     en: "Copied",
     de: "Kopiert",
