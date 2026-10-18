@@ -188,6 +188,7 @@ async function driveFolder(page, name, claims, chooserBox) {
   });
   const chipSum = surfaces.p0 + surfaces.p1 + surfaces.p2;
 
+
   // the three modes: each must activate and answer in its own aria state
   const modes = {};
   for (const label of ["SECURITY", "DEPENDENCIES", "STRUCTURE"]) {
@@ -198,7 +199,25 @@ async function driveFolder(page, name, claims, chooserBox) {
   }
   // dock triage count vs the card's finding count — the dock's own text is
   // "Triage" + "8 findings" as two nodes, so the space is optional
-  const dockTriage = num(await page.evaluate(() => document.body.innerText), /Triage\s*(\d+)/);
+  // Ein Klick, der nichts tut, ist ein geschluckter Klick. Ein Treffer-Test auf
+  // Layout-Rechtecke hat hier zweimal falschen Alarm gegeben (verdeckte
+  // <details>-Kinder haben echte Rects, ohne gemalt zu werden), also fragt
+  // dieses Tor die einzige Instanz, die zählt: die Anwendung selbst.
+  const dockClicks = {};
+  for (const [label, re] of [
+    ["overview", /Overview|R\u00fcckblick|\u00dcbersicht/],
+    ["triage", /Triage/],
+  ]) {
+    const btn = page.getByRole("button", { name: re }).first();
+    const before = await page.evaluate(() => document.body.innerText);
+    const err = await btn.click({ timeout: 5000 }).then(() => null).catch((e) => String(e).split("\n")[0].slice(0, 60));
+    await sleep(1200);
+    const after = await page.evaluate(() => document.body.innerText);
+    dockClicks[label] = { clicked: err === null, reacted: after !== before };
+  }
+  // der Dock-Zähler wird am Ankunftsmoment gelesen (surfaces.dockTriage);
+  // ein zweiter Lesegang nach den Modus- und Klick-Tests findet ihn nicht mehr,
+  // weil das Dock im Triage-Modus „3 / 8“ zeigt statt „Triage 8 findings“
 
   // the same total on every surface that states it. Three of these were
   // computed independently in the code until city/facts.ts became the one door;
@@ -207,7 +226,7 @@ async function driveFolder(page, name, claims, chooserBox) {
   claims.push({
     folder: name, onDisk, analysed, unread,
     arithmeticCloses: analysed + unread === onDisk,
-    findings, dockTriage, surfaces, chipSum,
+    findings, surfaces, chipSum, dockClicks,
     modes,
   });
 }
@@ -244,10 +263,12 @@ async function main() {
   const ok = claims.every((c) => !c.failed) &&
     claims.every((c) => c.arithmeticCloses) &&
     claims.every((c) => Object.values(c.modes).every((v) => v === "true")) &&
-    claims.every((c) => c.dockTriage === c.findings) &&
+    claims.every((c) => c.surfaces.dockTriage === c.findings) &&
     // one total, four surfaces: header chips, dock triage, dock findings,
     // scan banner, context card — and every container must actually be there,
     // or a null quietly reads as agreement
+    // jeder Dock-Klick muss ankommen und eine Wirkung haben
+    claims.every((c) => Object.values(c.dockClicks).every((d) => d.clicked && d.reacted)) &&
     claims.every((c) => Object.values(c.surfaces.present).every(Boolean)) &&
     claims.every((c) => c.chipSum === c.findings) &&
     claims.every((c) => c.surfaces.dockFindings === c.findings) &&
