@@ -15,7 +15,7 @@ import {
   parseExcludes,
   saveExcludes,
 } from "../config/scanProfiles";
-import { t, type Lang } from "../i18n";
+import { formatCount, t, type Lang } from "../i18n";
 
 export function ScanExcludes({ lang }: { lang: Lang }) {
   const [draft, setDraft] = useState<string>(() => loadExcludes().join(", "));
@@ -30,7 +30,7 @@ export function ScanExcludes({ lang }: { lang: Lang }) {
     setDraft(next.join(", "));
   };
 
-  const count = (n: number): string => n.toLocaleString(lang === "de" ? "de-DE" : "en-US");
+  const count = (n: number): string => formatCount(lang, n);
 
   return (
     <label className="scan-exclude">

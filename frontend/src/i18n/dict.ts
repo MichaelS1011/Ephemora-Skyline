@@ -1387,6 +1387,37 @@ export const DICT = {
     en: "A line here runs {n} characters — past roughly 120 it leaves the reading column, so it is read by scrolling, and the beginning is off-screen by the time the eye reaches the end. Break it into named steps. A minified or generated file was never meant to be read: exclude its folder in the scan settings instead.",
     de: "Eine Zeile hier läuft {n} Zeichen — jenseits von etwa 120 verlässt sie die Lesespalte, wird also seitlich scrollend gelesen, und ihr Anfang ist vom Bildschirm verschwunden, ehe das Auge ihr Ende erreicht. In benannte Zwischenschritte zerlegen. Eine minifizierte oder generierte Datei war nie zum Lesen da: ihren Ordner lieber in den Scan-Einstellungen ausschließen.",
   },
+  // A surface that throws ends at its own edge; these are the words the reader
+  // sees in its place. The subject names what was lost, never the stack.
+  "surface.worldGone": {
+    en: "The city stopped drawing itself.",
+    de: "Die Stadt hat das Zeichnen aufgegeben.",
+  },
+  "surface.cardGone": {
+    en: "This card stopped answering.",
+    de: "Diese Karte antwortet nicht mehr.",
+  },
+  // Two bodies, because the two failures lose different things: the city IS the
+  // surface that died, so a sentence promising "the rest of the city" would be
+  // false exactly where it is shown. Neither sentence claims anything about
+  // what left the machine — a render boundary cannot know what was in flight.
+  "surface.worldBody": {
+    en: "Everything around the picture still stands: the panels, the queue and your verdicts. Only the drawing stopped.",
+    de: "Alles rund um das Bild steht noch: die Panels, die Liste und deine Verdikte. Nur das Zeichnen hat aufgehört.",
+  },
+  "surface.cardBody": {
+    en: "The city, the queue and your verdicts are untouched — only this card stopped answering.",
+    de: "Stadt, Liste und deine Verdikte sind unberührt — nur diese Karte antwortet nicht mehr.",
+  },
+  "surface.tryAgain": {
+    en: "Draw it again",
+    de: "Nochmal zeichnen",
+  },
+  // the card is not drawn, it answers; one verb does not fit both surfaces
+  "surface.tryAgainCard": {
+    en: "Show it again",
+    de: "Erneut anzeigen",
+  },
   "findings.closeAria": {
     en: "Close findings list",
     de: "Fundliste schließen",

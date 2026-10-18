@@ -4,7 +4,7 @@ import { ProfileChips } from "./ProfileChips";
 import { ScanExcludes } from "./ScanExcludes";
 import { useStore } from "../stores/useStore";
 import { progressLine } from "../config/scanStages";
-import { t } from "../i18n";
+import { formatDecimal, t } from "../i18n";
 
 function ProgressBar({ progress, stage }: { progress: number; stage: string }) {
   const lang = useStore((s) => s.prefs.lang);
@@ -225,7 +225,7 @@ export function AnalyzePanel({ className = "" }: { className?: string }) {
             <div className="mt-2 font-mono text-[11px] text-[color:var(--meta-strong)] text-center">
               {t(lang, "analyze.filesBytes", {
                 files: collected.files,
-                kb: (collected.bytes / 1024).toFixed(0),
+                kb: formatDecimal(lang, collected.bytes / 1024, 0),
               })}
             </div>
           )}

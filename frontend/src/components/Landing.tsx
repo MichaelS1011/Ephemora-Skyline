@@ -4,7 +4,7 @@ import { useLocalAnalysis } from "../hooks/useLocalAnalysis";
 import { ProfileChips } from "./ProfileChips";
 import { SCAN_PROFILES } from "../config/scanProfiles";
 import { OUTBOUND_CALLS } from "../config/networkSurface";
-import { t, type Lang } from "../i18n";
+import { formatCount, formatDecimal, t, type Lang } from "../i18n";
 import { ts, tsCount } from "./startCopy";
 import type { CityData } from "../city/types";
 import { recentCities, type RecentCity } from "../recentCities";
@@ -214,11 +214,11 @@ export function ScanProgress({
   // The head of the composed line is the stage; the rest is the clock and the
   // budget, which this block shows in their own places.
   const head = stageLine.split(" · ")[0]?.trim() ?? "";
-  const nf = (n: number) => n.toLocaleString(lang === "de" ? "de-DE" : "en-US");
+  const nf = (n: number) => formatCount(lang, n);
   const bytes = collected.bytes;
   const size =
     bytes >= 1024 * 1024
-      ? `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+      ? `${formatDecimal(lang, bytes / (1024 * 1024))} MB`
       : `${Math.round(bytes / 1024)} KB`;
 
   return (
@@ -398,9 +398,7 @@ export function StartNotice({
         <p className="start-state-row">
           <span className="start-kicker">{ts(lang, "start.measured")}</span>
           {number !== undefined && (
-            <span className="start-state-figure">
-              {number.toLocaleString(lang === "de" ? "de-DE" : "en-US")}
-            </span>
+            <span className="start-state-figure">{formatCount(lang, number)}</span>
           )}
           <span className="start-state-text">{measured}</span>
         </p>
@@ -420,8 +418,7 @@ export function StartNotice({
   );
 }
 
-const nfLang = (lang: Lang, n: number): string =>
-  n.toLocaleString(lang === "de" ? "de-DE" : "en-US");
+const nfLang = (lang: Lang, n: number): string => formatCount(lang, n);
 
 /** The card for a scan that stopped: one shape for every wall, both languages. */
 function ScanErrorCard({
@@ -515,7 +512,7 @@ function RecentCities({ lang }: { lang: Lang }) {
   const [cities] = useState<RecentCity[]>(() => recentCities().slice(0, 6));
   if (cities.length === 0) return null;
   const now = Date.now();
-  const nf = (n: number) => n.toLocaleString(lang === "de" ? "de-DE" : "en-US");
+  const nf = (n: number) => formatCount(lang, n);
   return (
     <nav className="start-recent" aria-label={ts(lang, "landing.recentAria")}>
       <p className="start-kicker">{ts(lang, "landing.recentTitle")}</p>
@@ -605,7 +602,9 @@ export function Landing() {
     void readFootprint();
   }, []);
   const bytesOf = (n: number): string =>
-    n >= 1024 * 1024 ? `${(n / (1024 * 1024)).toFixed(1)} MB` : `${Math.round(n / 1024)} KB`;
+    n >= 1024 * 1024
+      ? `${formatDecimal(lang, n / (1024 * 1024))} MB`
+      : `${formatCount(lang, Math.round(n / 1024))} KB`;
   const purgeFootprint = async (): Promise<void> => {
     setFootNote("");
     try {

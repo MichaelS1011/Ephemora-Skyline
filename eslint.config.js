@@ -128,4 +128,26 @@ export default [
       "@typescript-eslint/consistent-type-imports": "error",
     },
   },
+  {
+    // One door for numbers: the UI language, not the browser's locale, decides
+    // how a count is grouped. `formatCount(lang, n)` and `formatDecimal(lang, n)`
+    // in frontend/src/i18n.ts are those doors; everywhere else a bare
+    // toLocaleString() is a locale-blind number waiting to print "5,000" inside
+    // a German card. The selector also catches `date.toLocaleString()` — a full
+    // datetime should go through the same doors; `toLocaleDateString` and
+    // `toLocaleTimeString` stay available, they carry no count.
+    files: ["frontend/src/**/*.ts", "frontend/src/**/*.tsx"],
+    ignores: ["frontend/src/i18n.ts", "frontend/src/i18n/**"],
+    languageOptions: { parser },
+    rules: {
+      "no-restricted-syntax": [
+        "error",
+        {
+          selector: "CallExpression[callee.property.name=/^(toLocaleString|toLocaleFormat)$/]",
+          message:
+            "Format counts through formatCount(lang, n) from src/i18n.ts so they follow the UI language, not the browser.",
+        },
+      ],
+    },
+  },
 ];

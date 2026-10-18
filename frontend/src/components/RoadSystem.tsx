@@ -12,7 +12,7 @@ import { ENV } from "../city/palette";
 import { CAR_SHAPE, FLEET_LIVERY } from "../city/openWorldStreets";
 import { COMPLEXITY_TICKS, heightForComplexity } from "../city/mapping";
 import { reducedSettle } from "../city/motion";
-import { t } from "../i18n";
+import { formatDecimal, t } from "../i18n";
 import { useStore } from "../stores/useStore";
 import "../design/city-funktion.css";
 
@@ -640,7 +640,7 @@ export function RoadSystem({
                 <div className="cf-mast-title">{t(lang, "hud.heightComplexity")}</div>
                 <div className="cf-mast-ticks">
                   {[...COMPLEXITY_TICKS].reverse().map((c) => (
-                    <div key={c}>{c.toFixed(2)}</div>
+                    <div key={c}>{formatDecimal(lang, c, 2)}</div>
                   ))}
                 </div>
               </div>

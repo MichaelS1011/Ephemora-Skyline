@@ -34,6 +34,20 @@ export function formatCount(lang: Lang, n: number): string {
 }
 
 /**
+ * The sibling door for a number with a decimal part — "15.1k" lines, a crop
+ * percentage. `toFixed` always prints a period, so a German card would show
+ * "15.1k" beside a "1.204" it formatted itself. Same rule as `formatCount`:
+ * the UI language decides the separator, never the browser and never a fixed
+ * string method.
+ */
+export function formatDecimal(lang: Lang, n: number, digits = 1): string {
+  return n.toLocaleString(lang === "de" ? "de-DE" : "en-US", {
+    minimumFractionDigits: digits,
+    maximumFractionDigits: digits,
+  });
+}
+
+/**
  * The count phrase for places that build text from parts instead of picking a
  * `…One`/`…Many` key: `plural("de", 1, "Fund", "Funde")` → "1 Fund". Only an
  * exact 1 takes the singular — 0 and 0.5 stay plural in both languages, so a

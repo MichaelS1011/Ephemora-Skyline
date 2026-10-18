@@ -23,6 +23,7 @@ import { ActionBar } from "./components/ActionBar";
 import { ShareStudio } from "./components/ShareStudio";
 import { ShareHint } from "./share/ShareHint";
 import { ContextCard } from "./components/ContextCard";
+import { SceneBoundary, SurfaceBoundary, SurfaceFailed } from "./components/SurfaceBoundary";
 import { FindingsPanel } from "./components/FindingsPanel";
 import { HeatmapToggle } from "./components/HeatmapToggle";
 import { HelpTipProvider } from "./components/HelpTipProvider";
@@ -181,6 +182,12 @@ export default function App() {
 
   const [apiStatus, setApiStatus] = useState<"connecting" | "live" | "demo">("connecting");
   const [showKeyboardHints, setShowKeyboardHints] = useState(false);
+  // Two failure paths for the world, because there are two places it can die:
+  // the DOM boundary below catches a WebGL context the machine cannot give,
+  // and only a boundary INSIDE <Canvas> can see the scene graph throw. A scene
+  // throw takes the canvas down and the reader gets the same sentence back.
+  const [sceneCrashed, setSceneCrashed] = useState(false);
+  const [canvasNonce, setCanvasNonce] = useState(0);
   const [permalinkError, setPermalinkError] = useState("");
 
   const canvasWrapperRef = useRef<HTMLDivElement | null>(null);
@@ -453,21 +460,46 @@ export default function App() {
         role="application"
         className="city-canvas w-full h-full"
       >
-        <Canvas
-          camera={{ position: [0, 100, 150], fov: 52, near: 0.5, far: 1600 }}
-          dpr={gfxLite ? [1, 1.25] : [1, 2]}
-          gl={{ antialias: true, preserveDrawingBuffer: true }}
-        >
-          <CityScene />
-          {/* The frame budget speaks through perf.ts: struggling windows drop
+        {sceneCrashed ? (
+          <SurfaceFailed
+            lang={lang}
+            subject="surface.worldGone"
+            body="surface.worldBody"
+            retry="surface.tryAgain"
+            origin="scene"
+            className="surface-failed--world"
+            onRetry={() => {
+              setSceneCrashed(false);
+              setCanvasNonce((n) => n + 1);
+            }}
+          />
+        ) : (
+          <SurfaceBoundary
+            lang={lang}
+            subject="surface.worldGone"
+            body="surface.worldBody"
+            retry="surface.tryAgain"
+            origin="city"
+            className="surface-failed--world"
+          >
+            <Canvas
+              key={canvasNonce}
+              camera={{ position: [0, 100, 150], fov: 52, near: 0.5, far: 1600 }}
+              dpr={gfxLite ? [1, 1.25] : [1, 2]}
+              gl={{ antialias: true, preserveDrawingBuffer: true }}
+            >
+              <SceneBoundary origin="scene" onFail={() => setSceneCrashed(true)}>
+                <CityScene />
+                {/* The frame budget speaks through perf.ts: struggling windows drop
               to the lite path, healthy ones take it back after the longer
               streak. A hand on the manual switch ends it for the visit. */}
-          <GfxGovernor />
-          {/* After CityScene on purpose: the pose of the address is the last
+                <GfxGovernor />
+                {/* After CityScene on purpose: the pose of the address is the last
               word on the frame, and a scripted flight of this arrival has to
               be asked away from inside a frame, not from an effect. */}
-          <VisitCamera />
-          {/* gfxLite skips the bloom pass entirely — the one expensive
+                <VisitCamera />
+              </SceneBoundary>
+              {/* gfxLite skips the bloom pass entirely — the one expensive
               post-processing step — and caps the pixel ratio above.
               The ToneMapping effect is not a look choice: `<EffectComposer>`
               renders the scene with the renderer's own tone mapping turned off,
@@ -476,13 +508,15 @@ export default function App() {
               the upper band rendered 202,223,239 with the composer against
               211,219,224 without it). Same curve as the direct path, so both
               quality settings show one picture. */}
-          {!gfxLite && (
-            <EffectComposer enableNormalPass={false}>
-              <Bloom luminanceThreshold={0.9} intensity={0.22} mipmapBlur />
-              <ToneMapping mode={ToneMappingMode.ACES_FILMIC} />
-            </EffectComposer>
-          )}
-        </Canvas>
+              {!gfxLite && (
+                <EffectComposer enableNormalPass={false}>
+                  <Bloom luminanceThreshold={0.9} intensity={0.22} mipmapBlur />
+                  <ToneMapping mode={ToneMappingMode.ACES_FILMIC} />
+                </EffectComposer>
+              )}
+            </Canvas>
+          </SurfaceBoundary>
+        )}
       </div>
 
       {/* Landing hero — only on the empty world */}
@@ -550,7 +584,18 @@ export default function App() {
                 <SearchBar />
               </div>
 
-              <InfoPanel />
+              {/* The card is the densest surface in the app and the one a
+                  finding can surprise with an unexpected shape. */}
+              <SurfaceBoundary
+                lang={lang}
+                subject="surface.cardGone"
+                body="surface.cardBody"
+                retry="surface.tryAgainCard"
+                origin="card"
+                className="panel-info panel-card"
+              >
+                <InfoPanel />
+              </SurfaceBoundary>
               <FindingsPanel />
               <ScanSummary demo={apiStatus === "demo"} />
               <SecurityTour />

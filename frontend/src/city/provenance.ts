@@ -1,5 +1,5 @@
 import type { ScanProvenance } from "./types";
-import { t, type Lang } from "../i18n";
+import { formatCount, t, type Lang } from "../i18n";
 
 /**
  * What the scan can honestly claim.
@@ -257,13 +257,13 @@ export function describeGitignoreSkips(
   if (skipped.files > 0)
     parts.push(
       t(lang, skipped.files === 1 ? "prov.skipFile" : "prov.skipFiles", {
-        n: skipped.files.toLocaleString(),
+        n: formatCount(lang, skipped.files),
       }),
     );
   if (skipped.directories > 0)
     parts.push(
       t(lang, skipped.directories === 1 ? "prov.skipFolder" : "prov.skipFolders", {
-        n: skipped.directories.toLocaleString(),
+        n: formatCount(lang, skipped.directories),
       }),
     );
   return parts.join(t(lang, "prov.skipJoin"));

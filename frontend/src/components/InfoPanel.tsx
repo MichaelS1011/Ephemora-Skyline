@@ -18,7 +18,7 @@ import { useTestRunner } from "../hooks/useTestRunner";
 import { fixFor, type FixSuggestion } from "../findings/fixes";
 import { findingKey, reviewKeyFor } from "../reviews";
 import { findingContext } from "../findings/context";
-import { formatCount, t, type DictKey, type Lang } from "../i18n";
+import { formatCount, formatDecimal, t, type DictKey, type Lang } from "../i18n";
 import type { CityFile, CityFinding, FindingCategory, ReviewStatus } from "../city/types";
 import { PanelAdvice } from "./PanelAdvice";
 import { learningCopy } from "./learningCopy";
@@ -886,7 +886,7 @@ export function InfoPanel() {
               style={{ color: "#8f8b82" }}
               title={t(lang, "panel.locTitle")}
             >
-              {file.linesOfCode.toLocaleString()} LOC
+              {formatCount(lang, file.linesOfCode)} LOC
             </span>
             <span className="font-jetbrains text-[11px]" style={{ color: "var(--meta-strong)" }}>
               ·
@@ -998,7 +998,7 @@ export function InfoPanel() {
                 }}
                 title={t(lang, "panel.churnTitle", { commits: file.commitCount ?? 0 })}
               >
-                CHURN {file.churnScore.toFixed(2)}
+                CHURN {formatDecimal(lang, file.churnScore, 2)}
               </span>
             );
           })()}
@@ -1038,7 +1038,7 @@ export function InfoPanel() {
             }}
             title={t(lang, "panel.hugeFileTitle")}
           >
-            {(file.bytes / 1024).toFixed(0)} KB
+            {formatDecimal(lang, file.bytes / 1024, 0)} KB
           </span>
         )}
         {file.inCycle && (
@@ -1352,7 +1352,7 @@ function VoxelStructureBlock({ file }: { file: CityFile }) {
           style={{ color: "var(--meta-strong)" }}
           title={t(lang, "panel.voxelLegendTitle")}
         >
-          {t(lang, "panel.voxelLegend", { count: total.toLocaleString() })}
+          {t(lang, "panel.voxelLegend", { count: formatCount(lang, total) })}
         </span>
       </div>
       <div className="flex flex-col gap-0.5">

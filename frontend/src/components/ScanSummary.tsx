@@ -3,7 +3,7 @@ import { useStore } from "../stores/useStore";
 import { severityColor } from "../city/palette";
 import { describeGitignoreSkips, scanVerdict } from "../city/provenance";
 import { narrowChromeWindow } from "../city/motion";
-import { t, type Lang } from "../i18n";
+import { formatCount, t, type Lang } from "../i18n";
 import { GIT_MAX_TOTAL_BYTES } from "../hooks/useLocalAnalysis";
 import { ts, tsCount } from "./startCopy";
 import type { DroppedFiles } from "../city/types";
@@ -43,7 +43,7 @@ function dropRows(
   churnRan: boolean,
 ): { key: string; text: string }[] {
   if (!dropped) return [];
-  const nf = (n: number) => n.toLocaleString(lang === "de" ? "de-DE" : "en-US");
+  const nf = (n: number) => formatCount(lang, n);
   const rows: { key: string; text: string }[] = [];
   if (dropped.pathTooLong > 0)
     rows.push({
@@ -217,7 +217,7 @@ export function ScanSummary({ demo = false }: { demo?: boolean }) {
   // Three honest states, three shapes: a clean sweep is solid, an unverified
   // one is dashed (the border says what the fill cannot), a finding is red.
   const shape = demo || unverified ? "unverified" : clean ? "clear" : "findings";
-  const nf = (n: number) => n.toLocaleString(lang === "de" ? "de-DE" : "en-US");
+  const nf = (n: number) => formatCount(lang, n);
 
   if (collapsed) {
     return (

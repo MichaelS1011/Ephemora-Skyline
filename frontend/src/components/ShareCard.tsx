@@ -14,7 +14,7 @@
 
 import { useState } from "react";
 import type { Lang } from "../i18n";
-import { formatCount } from "../i18n";
+import { formatCount, formatDecimal } from "../i18n";
 import type { CaptureResult } from "../hooks/useCityCapture";
 import { captionsFor, type CaptionTone } from "../share/captions";
 import { SharePlatforms } from "../share/Platforms";
@@ -115,7 +115,7 @@ export function ShareCard({
           <Fact label={tx(lang, "card.size")} value={byteLine(result.bytes, lang)} />
           <Fact
             label={tx(lang, "card.duration")}
-            value={`${(result.durationMs / 1000).toFixed(1)} s`}
+            value={`${formatDecimal(lang, result.durationMs / 1000)} s`}
           />
           <Fact label={tx(lang, "card.resolution")} value={`${result.width} × ${result.height}`} />
           <Fact label={tx(lang, "card.fpsSet")} value={`${result.fps} fps`} />
@@ -192,7 +192,6 @@ function Fact({ label, value, mono }: { label: string; value: string; mono?: boo
 
 /** Bytes as counted, plus the same number in megabytes for the eye. */
 function byteLine(bytes: number, lang: Lang): string {
-  const mb = bytes / 1_048_576;
-  const decimal = lang === "de" ? "," : ".";
-  return `${formatCount(lang, bytes)} bytes (${mb.toFixed(1).replace(".", decimal)} MB)`;
+  // one door, not a hand-rolled comma swap beside it
+  return `${formatCount(lang, bytes)} bytes (${formatDecimal(lang, bytes / 1_048_576)} MB)`;
 }

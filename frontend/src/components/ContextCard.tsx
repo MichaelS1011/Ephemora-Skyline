@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useStore } from "../stores/useStore";
-import { t } from "../i18n";
+import { formatCount, formatDecimal, t } from "../i18n";
 import { explainDistrictDraw, resolveDir, tourStops } from "../city/layout";
 import { describeGitignoreSkips, scanVerdict } from "../city/provenance";
 import { blindCategories, categoryMeta, summarizeCategories } from "../config/findingCategories";
@@ -187,7 +187,7 @@ export function ContextCard() {
             {t(lang, "ctx.files")}
           </dt>
           <dd className="text-[22px] font-semibold leading-none tabular-nums">
-            {dir.fileCount.toLocaleString()}
+            {formatCount(lang, dir.fileCount)}
           </dd>
         </div>
         <div title={t(lang, "ctx.codeLinesTip")}>
@@ -195,7 +195,9 @@ export function ContextCard() {
             {t(lang, "ctx.codeLines")}
           </dt>
           <dd className="text-[22px] font-semibold leading-none tabular-nums">
-            {codeLines >= 1000 ? `${(codeLines / 1000).toFixed(1)}k` : codeLines.toLocaleString()}
+            {codeLines >= 1000
+              ? `${formatDecimal(lang, codeLines / 1000)}k`
+              : formatCount(lang, codeLines)}
           </dd>
         </div>
       </dl>
@@ -216,7 +218,7 @@ export function ContextCard() {
               title={t(lang, "ctx.dataLinesTip")}
             >
               {t(lang, "ctx.dataLines", {
-                count: dataLines.toLocaleString(),
+                count: formatCount(lang, dataLines),
                 labels: dataLabels ? ` (${dataLabels})` : "",
               })}
             </div>
@@ -287,7 +289,7 @@ export function ContextCard() {
             <div className="text-[13px] font-medium mb-2.5">
               {totalFindings === 1
                 ? t(lang, "ctx.findingsOne")
-                : t(lang, "ctx.findingsMany", { count: totalFindings.toLocaleString() })}
+                : t(lang, "ctx.findingsMany", { count: formatCount(lang, totalFindings) })}
             </div>
             <div className="flex gap-x-3 gap-y-2 flex-wrap">
               {(

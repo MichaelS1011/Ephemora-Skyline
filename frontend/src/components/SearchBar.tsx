@@ -4,7 +4,7 @@ import { searchFiles, searchFindings } from "../city/layout";
 import { languageColor, severityColor, threatColor } from "../city/palette";
 import type { CityFile, CityFinding, Severity } from "../city/types";
 import { findingKey } from "../reviews";
-import { t, type DictKey } from "../i18n";
+import { formatCount, t, type DictKey } from "../i18n";
 import { FindingGermanLine } from "./InfoPanel";
 
 /** Severity → the word the header and the list use, so one grade reads the same everywhere. */
@@ -324,7 +324,7 @@ export function SearchBar() {
                         {highlight(file.path, query)}
                       </span>
                       <span className="block text-[11px] mt-1" style={{ color: "var(--meta)" }}>
-                        {file.language} · {file.linesOfCode.toLocaleString()} LOC
+                        {file.language} · {formatCount(lang, file.linesOfCode)} LOC
                       </span>
                     </div>
                   </div>

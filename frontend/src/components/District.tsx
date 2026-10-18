@@ -9,7 +9,7 @@ import { districtUnderground, stripRowZ, undergroundPlateLine } from "../city/la
 import { ENV, curbAlarmColor, languageColor, severityColor } from "../city/palette";
 import { complexityForHeight } from "../city/mapping";
 import { reducedSettle } from "../city/motion";
-import { t } from "../i18n";
+import { formatDecimal, t } from "../i18n";
 import { claimHover, easeGlow, inkOpacity, releaseHover } from "../interaction/hover";
 import { FOOTPRINT_EDGES, makeInkMaterial } from "../interaction/hoverInk";
 import { useStore } from "../stores/useStore";
@@ -298,7 +298,9 @@ export function District({ placement, appearAt, skylineAt, constructing }: Distr
             {undergroundPlateLine(lang, underground.hidden, underground.total)}
           </div>
           {tallH > 0 && (
-            <div className="cf-plate-height">↑ {complexityForHeight(tallH).toFixed(2)}</div>
+            <div className="cf-plate-height">
+              ↑ {formatDecimal(lang, complexityForHeight(tallH), 2)}
+            </div>
           )}
         </div>
       </Html>

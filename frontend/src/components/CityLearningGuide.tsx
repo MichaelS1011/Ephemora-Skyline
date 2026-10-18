@@ -1,6 +1,7 @@
 import { useId, useLayoutEffect, useRef, useState } from "react";
 import { allFiles, resolveDir, tourStops } from "../city/layout";
 import { findingKey } from "../reviews";
+import { formatCount } from "../i18n";
 import { useStore } from "../stores/useStore";
 import { learningCopy as copy } from "./learningCopy";
 import "../design/learning.css";
@@ -39,7 +40,7 @@ export function CityLearningGuide() {
   const evidence = tourStops(city).find(({ file }) => inScope(file.path));
   const demo = city.scanProvenance?.regex === false;
   const labels = ["structure", "shape", "evidence"] as const;
-  const number = (n: number) => n.toLocaleString(lang === "de" ? "de-DE" : "en-US");
+  const number = (n: number) => formatCount(lang, n);
 
   const openEvidence = () => {
     if (!evidence) return;

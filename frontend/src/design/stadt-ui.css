@@ -708,3 +708,45 @@
     padding: 12px 12px 8px;
   }
 }
+
+/* One surface's failure ends at its own edge: the fallback wears the geometry of
+   what it replaces (`.panel-card` for the card, full-bleed for the world) and
+   keeps the glass language, because a crash is not an excuse for a new look. */
+.surface-failed {
+  display: grid;
+  align-content: center;
+  justify-items: center;
+  gap: 8px;
+  padding: 16px;
+  text-align: center;
+  pointer-events: auto;
+}
+.surface-failed--world {
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  /* the failed canvas can be any colour the GPU left behind, so the sentence
+     sits on the same measured floor as the rest of the chrome — the AA numbers
+     the panels pass only hold on a floor that is actually there */
+  background: var(--glass-chrome-sheen), var(--glass-chrome-bg);
+  backdrop-filter: blur(24px) saturate(1.4);
+}
+.surface-failed-title {
+  font-family: var(--font-display, inherit);
+  font-size: var(--fs-body, 14px);
+  color: var(--ink-strong, #e8e4da);
+}
+.surface-failed-body {
+  font-size: var(--fs-small, 12px);
+  line-height: 1.5;
+  color: var(--meta-strong);
+  max-width: 34ch;
+}
+.surface-failed-retry {
+  margin-top: 4px;
+  padding: 6px 12px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--focus-ring);
+  color: var(--focus-ring);
+  font-size: var(--fs-small, 12px);
+}

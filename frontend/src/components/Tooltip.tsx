@@ -14,7 +14,7 @@ import {
   uncheckedFileCount,
 } from "../city/provenance";
 import type { Severity } from "../city/types";
-import { t } from "../i18n";
+import { formatCount, t } from "../i18n";
 import { inputIsKeyboard, resolve } from "../interaction/shortcuts";
 import { getKeyboardMark } from "../interaction/keyboardMark";
 
@@ -126,7 +126,7 @@ export function Tooltip() {
     title = block.dir.name;
     subtitle = t(lang, "tooltip.folderSubtitle", {
       files: block.dir.fileCount,
-      loc: block.dir.linesOfCode.toLocaleString(),
+      loc: formatCount(lang, block.dir.linesOfCode),
     });
     const counts = block.dir.findingsBySeverity;
     // The chain used to stop at P1: a district whose only findings were medium
@@ -186,7 +186,7 @@ export function Tooltip() {
   } else {
     const b = layout.buildings.find((x) => x.file.id === target);
     if (!b) return null;
-    const loc = b.file.linesOfCode.toLocaleString();
+    const loc = formatCount(lang, b.file.linesOfCode);
     title = b.file.name;
     subtitle = b.file.path;
     accent = languageColor(b.file.language);
