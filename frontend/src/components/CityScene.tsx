@@ -26,6 +26,9 @@ import { CityTree } from "./CityTree";
 import { Pedestrians } from "./Pedestrians";
 import "../design/world.css";
 
+/** How long a lost context gets to restore itself before the app offers a rebuild. */
+const CONTEXT_RESTORE_WAIT_MS = 1500;
+
 /** The empty world's crowd is smaller than a city's, and its street network is
  *  built once at module scope, not per render. */
 const OPEN_WORLD_COUNT = 46;
@@ -91,6 +94,46 @@ export function CityScene() {
   const buildStartedAt = useStore((s) => s.buildStartedAt);
   const buildPhase = useStore((s) => s.buildPhase);
   const { camera, gl } = useThree();
+
+  /**
+   * A graphics context the browser takes away is not an exception — nothing
+   * throws, the canvas simply keeps its last frame while the renderer goes
+   * quiet, and the chrome around it goes on stating "1 of 6 plots carries a
+   * critical finding" over an empty picture. Measured: 87 KB of city before,
+   * 5 KB of flat ground after, no sentence anywhere. Restoring the context is
+   * the browser's own call, so the honest answer is to say what happened and
+   * offer to rebuild the canvas, not to wait.
+   */
+  const onContextLost = useStore((s) => s.onContextLost);
+  const onContextRestored = useStore((s) => s.onContextRestored);
+  useEffect(() => {
+    const canvas = gl.domElement;
+    // three's own `forceContextRestore()` answers synchronously and sets its
+    // internal flag to "restored" while the frames stay empty (measured — it
+    // is what three calls in `onContextRestore` before `initGLContext()` has
+    // anything to draw with). A restore is therefore only believed once the
+    // canvas says `webglcontextrestored`; until then the reader sees the
+    // sentence instead of a frame that pretends to be a city.
+    let restoreTimer = 0;
+    const lost = (event: Event): void => {
+      // without preventDefault the browser never even offers a restore
+      event.preventDefault();
+      onContextLost?.();
+      window.clearTimeout(restoreTimer);
+      restoreTimer = window.setTimeout(() => onContextLost?.(), CONTEXT_RESTORE_WAIT_MS);
+    };
+    const restored = (): void => {
+      window.clearTimeout(restoreTimer);
+      onContextRestored?.();
+    };
+    canvas.addEventListener("webglcontextlost", lost);
+    canvas.addEventListener("webglcontextrestored", restored);
+    return () => {
+      window.clearTimeout(restoreTimer);
+      canvas.removeEventListener("webglcontextlost", lost);
+      canvas.removeEventListener("webglcontextrestored", restored);
+    };
+  }, [gl, onContextLost, onContextRestored]);
 
   /** The open world's own grid: streets, kerbs, zebra crossings, block pads and
    *  the graph the Ephe's walk on before any folder has been scanned. Built

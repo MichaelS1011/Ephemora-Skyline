@@ -146,6 +146,7 @@ interface AppState {
   constructionDone: number;
   /** Epoch ms when a build skip was requested (null = no skip requested). */
   buildSkipAt: number | null;
+  sceneRebuildAt: number | null;
   setCityData: (data: CityData | null) => void;
   /**
    * Tear the view down for the Landing.
@@ -162,6 +163,16 @@ interface AppState {
   replayConstruction: () => void;
   setConstructionProgress: (done: number, total: number) => void;
   requestBuildSkip: () => void;
+  /**
+   * The browser took the WebGL context away. The renderer hands its canvas
+   * back so the app can restart the same context before asking for a rebuild —
+   * `SceneBoundary` never sees this, because nothing throws.
+   */
+  onContextLost: () => void;
+  /** The canvas confirmed the restore; the city is drawing again. */
+  onContextRestored: () => void;
+  /** A fresh `<Canvas>`, so a lost or thrown scene gets its own context back. */
+  rebuildScene: () => void;
 
   // ── Semantic zoom navigation ───────────────────────────────────────────
   focusPath: string[]; // directory names from the root, [] = overview
@@ -722,7 +733,15 @@ export const useStore = create<AppState>((set, get) => {
     setConstructionProgress: (done, total) =>
       set({ constructionDone: done, constructionTotal: total }),
     buildSkipAt: null,
+    sceneRebuildAt: null as number | null,
     requestBuildSkip: () => set({ buildSkipAt: Date.now() }),
+    // A fresh canvas is the only reliable way back: this renderer's own
+    // `forceContextRestore()` answers "restored" while the frames stay empty
+    // (measured twice in a row), so the scene is torn down and rebuilt on a
+    // new context instead of being talked into a half-life.
+    onContextLost: () => set({ sceneRebuildAt: Date.now() }),
+    onContextRestored: () => set({ sceneRebuildAt: null }),
+    rebuildScene: () => set({ sceneRebuildAt: Date.now() }),
 
     focusPath: [],
     selectedUnit: null,

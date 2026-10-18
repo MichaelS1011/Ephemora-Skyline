@@ -188,6 +188,21 @@ export default function App() {
   // throw takes the canvas down and the reader gets the same sentence back.
   const [sceneCrashed, setSceneCrashed] = useState(false);
   const [canvasNonce, setCanvasNonce] = useState(0);
+  // The browser can take the graphics context away without a throw — a GPU
+  // reset, a driver update, a tab that sat too long in the background. The
+  // store counts those so the sentence appears and the canvas gets a fresh
+  // context only after the reader asks for it.
+  const sceneRebuildAt = useStore((s) => s.sceneRebuildAt);
+  // The store's flag falling is NOT the same as a drawing canvas: the reader
+  // pressed "Draw it again", so the canvas is remounted either way and the
+  // sentence has to leave.
+  const [sceneRebuilding, setSceneRebuilding] = useState(false);
+  const contextLost = sceneRebuildAt !== null && !sceneCrashed && !sceneRebuilding;
+  const rebuildScene = (): void => {
+    setSceneRebuilding(true);
+    setSceneCrashed(false);
+    setCanvasNonce((n) => n + 1);
+  };
   const [permalinkError, setPermalinkError] = useState("");
 
   const canvasWrapperRef = useRef<HTMLDivElement | null>(null);
@@ -431,6 +446,14 @@ export default function App() {
 
   const inCity = cityData !== null;
   const isLoading = useStore((s) => s.isLoading);
+
+  // The new canvas reports its restore once it really draws; until then the
+  // flag stays set and the fallback stays where the reader put it.
+  useEffect(() => {
+    if (!sceneRebuilding) return;
+    const id = window.setTimeout(() => setSceneRebuilding(false), 2500);
+    return () => window.clearTimeout(id);
+  }, [sceneRebuilding]);
   const buildPhase = useStore((s) => s.buildPhase);
 
   return (
@@ -460,18 +483,15 @@ export default function App() {
         role="application"
         className="city-canvas w-full h-full"
       >
-        {sceneCrashed ? (
+        {sceneCrashed || contextLost ? (
           <SurfaceFailed
             lang={lang}
-            subject="surface.worldGone"
+            subject={sceneCrashed ? "surface.worldGone" : "surface.contextLost"}
             body="surface.worldBody"
             retry="surface.tryAgain"
-            origin="scene"
+            origin={sceneCrashed ? "scene" : "context"}
             className="surface-failed--world"
-            onRetry={() => {
-              setSceneCrashed(false);
-              setCanvasNonce((n) => n + 1);
-            }}
+            onRetry={rebuildScene}
           />
         ) : (
           <SurfaceBoundary

@@ -6,6 +6,7 @@ import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import type { BlockPlacement, StripBar } from "../city/layout";
 import { districtUnderground, stripRowZ, undergroundPlateLine } from "../city/layout";
+import { severityTotal } from "../city/facts";
 import { ENV, curbAlarmColor, languageColor, severityColor } from "../city/palette";
 import { complexityForHeight } from "../city/mapping";
 import { reducedSettle } from "../city/motion";
@@ -52,7 +53,7 @@ export function District({ placement, appearAt, skylineAt, constructing }: Distr
   const lang = useStore((s) => s.prefs.lang);
   const colorblind = useStore((s) => s.prefs.colorblind);
   const sev = dir.findingsBySeverity;
-  const totalFindings = sev.P0 + sev.P1 + sev.P2;
+  const totalFindings = severityTotal(sev);
   const worstSev: Severity | null =
     sev.P0 > 0 ? "P0" : sev.P1 > 0 ? "P1" : sev.P2 > 0 ? "P2" : null;
   /** The two payload numbers the audit wanted ON the plot, not behind a hover. */

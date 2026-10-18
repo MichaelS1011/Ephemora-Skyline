@@ -11,6 +11,7 @@
  */
 
 import type { CityData } from "../city/types";
+import { severityTotal } from "../city/facts";
 import { formatCount } from "../i18n";
 import type { Lang } from "../i18n";
 
@@ -64,7 +65,7 @@ export function measuredFacts(city: CityData | null): MeasuredFacts {
     files: city.totalFiles,
     codeLines: city.codeLines ?? city.totalLines,
     codeLinesOnly: city.codeLines !== undefined,
-    findings: city.findingsBySeverity.P0 + city.findingsBySeverity.P1 + city.findingsBySeverity.P2,
+    findings: severityTotal(city.findingsBySeverity),
     p0: city.findingsBySeverity.P0,
     languages: langs.length,
     languageNames: langs.slice(0, 3).map(([name]) => name),

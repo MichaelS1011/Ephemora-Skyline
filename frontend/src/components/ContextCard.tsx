@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useStore } from "../stores/useStore";
 import { formatCount, formatDecimal, t } from "../i18n";
+import { severityTotal } from "../city/facts";
 import { explainDistrictDraw, resolveDir, tourStops } from "../city/layout";
 import { describeGitignoreSkips, scanVerdict } from "../city/provenance";
 import { blindCategories, categoryMeta, summarizeCategories } from "../config/findingCategories";
@@ -69,7 +70,7 @@ export function ContextCard() {
   const isRoot = focusPath.length === 0;
   const dir = resolveDir(cityData.tree, focusPath);
   const findings = dir.findingsBySeverity;
-  const totalFindings = findings.P0 + findings.P1 + findings.P2;
+  const totalFindings = severityTotal(findings);
   // Payloads from before the split only have the mixed number; show it rather
   // than inventing a code-only figure.
   const codeLines = dir.codeLines ?? dir.linesOfCode;

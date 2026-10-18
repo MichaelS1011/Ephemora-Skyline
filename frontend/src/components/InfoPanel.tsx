@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { cityOnDisk, useStore } from "../stores/useStore";
 import { allFiles, findFileById } from "../city/layout";
+import { severityTotal } from "../city/facts";
 import {
   churnColor,
   languageColor,
@@ -783,10 +784,7 @@ export function InfoPanel() {
   // first of them. The numbers come from the real payload, not from this one
   // file's list, and "first" means the queue's first position — a later step
   // says nothing about being first.
-  const totalFindings =
-    cityData.findingsBySeverity.P0 +
-    cityData.findingsBySeverity.P1 +
-    cityData.findingsBySeverity.P2;
+  const totalFindings = severityTotal(cityData.findingsBySeverity);
   const filesWithFindings = allFiles(cityData).filter(
     ({ file: f }) => f.findings.length > 0,
   ).length;

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useStore } from "../stores/useStore";
 import { allFiles } from "../city/layout";
+import { severityTotal } from "../city/facts";
 import { severityColor, languageColor } from "../city/palette";
 import type { CityFile, CityFinding, ReviewStatus, Severity } from "../city/types";
 import { findingKey, reviewKeyFor } from "../reviews";
@@ -137,7 +138,8 @@ export function FindingsPanel() {
   const totalFindings = groups.reduce((sum, group) => sum + group.count, 0);
   // Rule-independent total — the "All rules" chip must not shrink when a rule
   // chip is active, otherwise it would advertise a filtered count.
-  const severityTotal = severityGroups.reduce((sum, group) => sum + group.count, 0);
+  // the filtered view's own total; the scan's total comes from the one door
+  const filteredTotal = severityGroups.reduce((sum, group) => sum + group.count, 0);
   /**
    * V2: how many findings of the WHOLE scan carry a verdict. Counted over
    * every file the scan holds (never the filtered list — a filter must not
@@ -162,13 +164,9 @@ export function FindingsPanel() {
    * not drawn in the current view. Only stated unfiltered: under a severity or
    * rule filter the scan total has no comparable counterpart.
    */
-  const scanTotal = cityData
-    ? cityData.findingsBySeverity.P0 +
-      cityData.findingsBySeverity.P1 +
-      cityData.findingsBySeverity.P2
-    : 0;
+  const scanTotal = cityData ? severityTotal(cityData.findingsBySeverity) : 0;
   const undrawn =
-    threatFilter === "all" && ruleFilter === null ? Math.max(0, scanTotal - severityTotal) : 0;
+    threatFilter === "all" && ruleFilter === null ? Math.max(0, scanTotal - filteredTotal) : 0;
   const rowRefs = useRef<Map<string, HTMLDivElement>>(new Map());
   const selectedId = selectedUnit?.kind === "file" ? selectedUnit.id : null;
 
@@ -331,9 +329,7 @@ export function FindingsPanel() {
                 : t(lang, SEVERITY_LABEL_KEY[priority as Severity])}
               <span className="filter-count">
                 {priority === "all"
-                  ? cityData.findingsBySeverity.P0 +
-                    cityData.findingsBySeverity.P1 +
-                    cityData.findingsBySeverity.P2
+                  ? severityTotal(cityData.findingsBySeverity)
                   : cityData.findingsBySeverity[priority]}
               </span>
             </button>
@@ -356,7 +352,7 @@ export function FindingsPanel() {
             data-active={ruleFilter === null || undefined}
           >
             {t(lang, "findings.allRules")}
-            <span className="filter-count">{severityTotal}</span>
+            <span className="filter-count">{filteredTotal}</span>
           </button>
           {ruleChips.map(([rule, count]) => {
             const active = ruleFilter === rule;

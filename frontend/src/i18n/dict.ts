@@ -1405,6 +1405,12 @@ export const DICT = {
     en: "Everything around the picture still stands: the panels, the queue and your verdicts. Only the drawing stopped.",
     de: "Alles rund um das Bild steht noch: die Panels, die Liste und deine Verdikte. Nur das Zeichnen hat aufgehört.",
   },
+  // a lost context throws nothing; the picture just stops, so the title has to
+  // say who stopped it
+  "surface.contextLost": {
+    en: "The graphics stopped drawing this city.",
+    de: "Die Grafik hat aufgehört, diese Stadt zu zeichnen.",
+  },
   "surface.cardBody": {
     en: "The city, the queue and your verdicts are untouched — only this card stopped answering.",
     de: "Stadt, Liste und deine Verdikte sind unberührt — nur diese Karte antwortet nicht mehr.",
