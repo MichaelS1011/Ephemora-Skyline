@@ -44,8 +44,15 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "fs";
 import path from "path";
-import { ENV, severityColor, severityTextColor } from "../src/city/palette";
-import { contrast } from "./colourMath";
+import {
+  ENV,
+  LANGUAGE_COLORS,
+  UNCHECKED_COLOR,
+  severityColor,
+  severityTextColor,
+} from "../src/city/palette";
+import { contrast, relLum } from "./colourMath";
+import { GLASS_ALPHA_MAX, GLASS_ALPHA_MIN, glassAlphaFor } from "../src/render/backdropLuminance";
 
 /** Der Text einer Quelldatei: Blätter wie Components werden gleich gelesen. */
 const quelle = (rel: string): string =>
@@ -72,6 +79,7 @@ const CHROME = [
   // shell's material rather than its own: one glass, not two recipes.
   ".start-summary",
   ".start-summary-strip",
+  ".panel-context-card",
 ];
 
 /** Die eine Schicht, die jede dieser Flächen tragen muss. */
@@ -565,6 +573,7 @@ const TRAGENDE_TINTEN: Array<{ ink: string; fläche: string }> = [
   { ink: "--meta-strong (.app-shell)", fläche: "scan summary strip" },
   { ink: "strip status line", fläche: "scan summary strip" },
   { ink: "strip show label", fläche: "scan summary strip" },
+  { ink: "strip status line", fläche: "project card" },
 ];
 
 /** The whole read for one set of design files: what rules each surface, and
@@ -670,6 +679,11 @@ const SURFACES: Surface[] = [
     name: "heat channel",
     own: klassen("glass flex items-center gap-1 rounded px-2 py-1.5"),
     ancestors: ebenen("workspace-heatmap", "construction-ui", "app-shell"),
+  },
+  {
+    name: "project card",
+    own: klassen("absolute z-20 pointer-events-auto animate-slide-left panel-context-card"),
+    ancestors: ebenen("construction-ui", "app-shell"),
   },
   {
     name: "scan announcement",
@@ -908,6 +922,96 @@ describe("Das Glas der festen Schale hält seine Lesbarkeit", () => {
     );
   });
 
+  /**
+   * The adaptive stage — Apple's own answer to "can you still see the city?".
+   *
+   * HIG, Materials (updated 9 September 2025): the *regular* variant "blurs and
+   * adjusts the luminosity of background content to maintain legibility", the
+   * *clear* variant is "highly translucent … prioritizing the visibility of the
+   * underlying content", and the dimming layer is prescribed only "if the
+   * underlying content is bright". A single fixed alpha does the opposite: it
+   * films over the dark towers, where nothing needs covering, and it is the
+   * bright plaza that forces the tint at all. Measured, over the grounds this
+   * city can actually paint:
+   *
+   *   Himmel  #e0e9e5  Y 0,798 → α ≥ 0,908
+   *   Plaza   #e6e1d4  Y 0,754 → α ≥ 0,907
+   *   Feldweg #aab6bb  Y 0,456 → α ≥ 0,877
+   *   Straße  #5c6a74  Y 0,139 → α ≥ 0,780
+   *   Fassade (dunkelste der Sprachtafel) Y 0,031 → α ≥ 0,420
+   *   Monolith #17171a Y 0,009 → α ≥ 0,000
+   *   (binding ist jeweils `--meta` #98948a, die leiseste Tinte auf der Schale)
+   *
+   * So the ramp is the only place where "half the city through" and AA are both
+   * true, and this case is what keeps the ramp honest: it walks the same ladder
+   * the sampler will drive at run time and refuses any rung where a listed ink
+   * falls under 4,5 over the ground that produced that rung.
+   */
+  /** The darkest facade the language table can paint — read from the table, so a
+   *  palette change moves the rung it belongs on instead of stranding a literal. */
+  const dunkelsteFassade = (): string =>
+    Object.values(LANGUAGE_COLORS).reduce((a, b) => (relLum(b) < relLum(a) ? b : a));
+
+  it("hält die adaptive Stufe: je heller der Grund, desto dichter das Glas", () => {
+    // Both ends of the ladder, from the palette the city paints with: the four
+    // bright grounds the ink cases already walk, plus the street, the kerb and
+    // the plot edge — the dark rungs are where the glass is allowed to clear,
+    // and they are as much under test as the plaza.
+    const felder = [
+      ...GRÜNDE,
+      { sagt: "Straße", farbe: ENV.road },
+      { sagt: "Kantenstein", farbe: ENV.curb },
+      { sagt: "Plaza-Rand", farbe: ENV.plotEdge },
+      // …and the masses a panel really floats over: a dark facade, the monolith
+      // a folder of unscanned files paints, and the darkest language colour the
+      // palette ships. These are the rungs where the glass is allowed to clear.
+      { sagt: "dunkelste Fassade", farbe: dunkelsteFassade() },
+      { sagt: "Monolith", farbe: "#17171a" },
+      { sagt: "ungeprüft", farbe: UNCHECKED_COLOR },
+    ].map((g) => ({ sagt: g.sagt, farbe: g.farbe, Y: relLum(g.farbe) }));
+    let tiefste = Number.POSITIVE_INFINITY;
+    let klarste = 1;
+    for (const f of felder) {
+      const a = glassAlphaFor(f.Y);
+      const field = toHex(composite(parseColor(`rgba(14, 16, 21, ${a})`), f.farbe));
+      const gewaschen = toHex(composite({ rgb: parseColor("#f2efe8").rgb, alpha: 0.05 }, field));
+      for (const ink of chromeInks(css)) {
+        const parsed = parseColor(ink.colour);
+        const c = contrast(
+          toHex(composite({ rgb: parsed.rgb, alpha: parsed.alpha * ink.opacity }, gewaschen)),
+          gewaschen,
+        );
+        tiefste = Math.min(tiefste, c);
+        expect(
+          c,
+          `${ink.name} auf dem Glas bei α ${a.toFixed(3)} über ${f.sagt} ${f.farbe} (Y ${f.Y.toFixed(
+            3,
+          )}): ${c.toFixed(2)}`,
+        ).toBeGreaterThanOrEqual(STUFE);
+      }
+      if (f.Y < 0.06) klarste = Math.min(klarste, a);
+    }
+    // The point of the whole exercise: over the dark picture the glass really is
+    // clear, not "a little clearer". 0,45 is the measured promise — a tint that
+    // lets more than half the world through.
+    expect(
+      klarste,
+      "über dunklem Grund muss das Glas durchsichtig werden — die Sohle der Kurve",
+    ).toBeLessThanOrEqual(0.45);
+    expect(glassAlphaFor(0), "die Sohle ist die klare Stufe").toBe(GLASS_ALPHA_MIN);
+    // …and over the brightest ground it may not exceed the fixed value it had
+    // before the ramp existed.
+    expect(
+      glassAlphaFor(relLum(ENV.plot)),
+      "die oberste Stufe darf nicht dichter sein als das Token im Blatt",
+    ).toBeLessThanOrEqual(Math.min(0.92, GLASS_ALPHA_MAX));
+    expect(
+      parseColor(rootToken("glass-chrome-bg")).alpha,
+      "das Blatt trägt genau die Decke der Kurve",
+    ).toBe(GLASS_ALPHA_MAX);
+    expect(tiefste, "die Kurve hält jede Tinte über jedem Grund").toBeGreaterThanOrEqual(STUFE);
+  });
+
   it("hält die Alarm-Tinte, wo sie ein Wort ist und nicht ein Signal", () => {
     // The scan announcement colours its own headline by the worst grade it
     // found. Measured on the glass over the plaza that reads 3,88:1 for P0,
@@ -916,8 +1020,18 @@ describe("Das Glas der festen Schale hält seine Lesbarkeit", () => {
     // `severityTextColor` lifts exactly those tones; this case recomputes all
     // six combinations over all four grounds the city can put behind the panel.
     const states = szene();
-    const felder = fläche(states, "scan announcement").fields;
     const rein = fläche(states, "scan announcement");
+    // Not just the ceiling: the stage a panel takes is the ground's own doing, so
+    // every tone is judged over the field that ground and its rung produce.
+    const felder = [
+      ...GRÜNDE,
+      { sagt: "Straße", farbe: ENV.road },
+      { sagt: "Kantenstein", farbe: ENV.curb },
+      { sagt: "Monolith", farbe: "#17171a" },
+    ].map((x) => {
+      const stufe = parseColor(`rgba(14, 16, 21, ${glassAlphaFor(relLum(x.farbe))})`);
+      return toHex(composite(stufe, x.farbe));
+    });
     for (const sev of ["P0", "P1", "P2"] as const) {
       for (const cb of [false, true]) {
         const text = severityTextColor(sev, cb);

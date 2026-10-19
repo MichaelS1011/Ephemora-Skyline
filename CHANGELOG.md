@@ -239,6 +239,38 @@ were run on it as a whole.
 
 ### Changed
 
+- **The glass reads what is behind it.** Apple's Materials page (updated
+  9 September 2025) prescribes the behaviour, not the film: the _regular_ variant
+  "blurs and adjusts the luminosity of background content to maintain legibility",
+  and the dimming layer is asked for only "if the underlying content is bright".
+  A fixed alpha does the opposite of both — it films over the dark towers, where
+  nothing needs covering, while the bright plaza is the only thing that forces
+  the density at all. `render/backdropLuminance.ts` now measures the picture
+  inside each panel's own rectangle (a 12 × 8 downscale of the drawing buffer,
+  on a 450 ms timer with a 0,04 hysteresis so a slow camera drift cannot make the
+  chrome breathe) and writes the stage on that panel: 0,30 over a shadowed
+  facade, where seven tenths of the city passes through, up to 0,92 over the
+  plaza. Measured in the running demo, each panel its own stage: header 0,90
+  (backdrop Y 0,403) · mode bar 0,89 (0,431) · announcement 0,84 (0,223) · dock
+  0,92 (0,482) · project card 0,89 (0,326). 60,1 fps with the sampler running.
+  `glas-chrome.test.ts` walks the ladder over ten real grounds — sky, plaza,
+  floor, field path, kerb, street, plot edge, the darkest facade in the language
+  table, the monolith, the unscanned grey — and refuses any rung where a listed
+  ink falls under AA over the ground that produced it.
+- **The project card is glass now.** It carried `rgba(24,24,22,.94)` inline and a
+  second, later `rgba(32,49,62,.96) !important` in the sheet — an opaque plate
+  over the city, with a blur under it that had nothing to frost. Both are gone;
+  it wears `--glass-chrome-bg` like the rest of the shell, which is also what
+  lets it take a stage of its own. `tests/glas-chrome.test.ts` counts it among
+  the surfaces now (eight) and fails if a second rule draws over it.
+- **Where the ceiling comes from, measured per ink.** The tint cannot thin to
+  0,70 with the shell's current greys: `--meta` (#98948a — the header wordmark,
+  the panels, the search field, the heat channels) needs α 0,907 over the plaza,
+  `--meta-strong` 0,840, the HEAT caption 0,907, the coach hint 0,842. Lifting
+  them to one vibrant step (#c6c2b9 holds 4,5:1 down to 0,70) buys the doubled
+  transparency at the price of the lightness hierarchy on every panel, so that
+  step is the operator's to take and not this change's to sneak.
+
 - **One glass, now including the announcement.** The scan card and the line it
   folds into wore their own recipe (`rgba(18,18,16,.94)` and `.90`, `blur(12px)`
   and `blur(10px)`, no sheen, no specular edge) while the header, the panels,

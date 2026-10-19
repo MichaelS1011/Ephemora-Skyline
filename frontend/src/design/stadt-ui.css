@@ -168,6 +168,21 @@
 }
 
 /* ── Card depth system ─────────────────────────────────────────────────── */
+/* The project card is the largest piece of glass over the city and it used to
+   carry its own film (`rgba(24,24,22,.94)`, `blur(20px)`, a border no other
+   surface has) written inline, where no sheet could reach it. It wears the
+   shell's material now, so the stage the sampler measures behind it is the
+   stage it shows. */
+.panel-context-card {
+  background: var(--glass-chrome-sheen), var(--glass-chrome-bg);
+  border: 1px solid var(--glass-chrome-border);
+  backdrop-filter: var(--glass-chrome-blur);
+  -webkit-backdrop-filter: var(--glass-chrome-blur);
+  box-shadow: var(--glass-chrome-edge), var(--glass-shadow);
+  color: #e8e4da;
+  font-family: var(--font-sans, ui-sans-serif, system-ui, sans-serif);
+}
+
 .panel-card {
   position: absolute;
   background: var(--glass-chrome-sheen), var(--glass-chrome-bg);

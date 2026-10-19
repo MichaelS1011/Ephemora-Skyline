@@ -128,17 +128,7 @@ export function ContextCard() {
   return (
     <div
       className="absolute z-20 pointer-events-auto animate-slide-left panel-context-card"
-      style={{
-        overflowY: "auto",
-        background: "rgba(24, 24, 22, 0.94)",
-        border: "1px solid rgba(150,142,128,0.24)",
-        borderRadius: 12,
-        padding: 18,
-        color: "#e8e4da",
-        fontFamily: "var(--font-sans, ui-sans-serif, system-ui, sans-serif)",
-        boxShadow: "0 12px 36px rgba(0,0,0,0.3)",
-        backdropFilter: "blur(20px)",
-      }}
+      style={{ overflowY: "auto", borderRadius: 12, padding: 18 }}
       role="region"
       tabIndex={-1}
       aria-label={t(lang, isRoot ? "ctx.project" : "ctx.district")}

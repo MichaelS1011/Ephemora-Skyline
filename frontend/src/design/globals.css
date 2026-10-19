@@ -52,6 +52,13 @@
      ladder). The city comes THROUGH instead as depth-of-field: a 24 px blur
      at 1.4× saturation keeps the world behind the chrome present, coloured
      and pushed back, and the lit top edge carries the specular. */
+  /* The stage is not only this constant. `render/backdropLuminance.ts` measures
+     what each panel actually covers and writes the same token on that element
+     with the stage the ground behind it allows — 0,30 over a shadowed facade,
+     where seven tenths of the city passes through, up to this value over the
+     plaza in daylight. The number below is therefore the ceiling the sampler may
+     not exceed and the value a surface keeps when there is nothing to sample:
+     no canvas yet, the scene boundary showing, a test. */
   --glass-chrome-bg: rgba(14, 16, 21, 0.92);
   --glass-chrome-sheen: linear-gradient(
     158deg,
@@ -1693,9 +1700,6 @@ div[role="status"].animate-toast-rise {
 }
 .panel-info button {
   min-width: 30px;
-}
-.panel-context-card {
-  background: rgba(32, 49, 62, 0.96) !important;
 }
 @media (min-width: 1201px) {
   .app-shell:has(.panel-info) .city-canvas {

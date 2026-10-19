@@ -215,6 +215,10 @@ export function ScanSummary({ demo = false }: { demo?: boolean }) {
   // The same grade, two inks. The dot and the rule are signals and may burn at
   // full alarm colour; the line that spells "no findings" or "Scan complete" is
   // 12 px text on glass, where the pure P0 red measured 3,88:1 on the plaza.
+  // The adaptive stage keeps that text on the dark end of its own field at every
+  // rung — bright ground firms the tint to 0,92, dark ground thins it over an
+  // already dark picture — and `tests/glas-chrome.test.ts` walks all six tones
+  // over every rung to prove it.
   const statusInk = clean
     ? "#29d398"
     : unverified

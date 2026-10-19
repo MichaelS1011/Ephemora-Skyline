@@ -23,6 +23,7 @@ import { ActionBar } from "./components/ActionBar";
 import { ShareStudio } from "./components/ShareStudio";
 import { ContextCard } from "./components/ContextCard";
 import { SceneBoundary, SurfaceBoundary, SurfaceFailed } from "./components/SurfaceBoundary";
+import { useGlassStage } from "./render/useGlassStage";
 import { FindingsPanel } from "./components/FindingsPanel";
 import { HeatmapToggle } from "./components/HeatmapToggle";
 import { HelpTipProvider } from "./components/HelpTipProvider";
@@ -212,6 +213,11 @@ export default function App() {
 
   const canvasWrapperRef = useRef<HTMLDivElement | null>(null);
   const lastEscRef = useRef(0);
+  // The glass reads the picture behind it: over a dark facade a panel thins to
+  // 0,30, over the plaza it firms to 0,70 — the measured floor for the inks on
+  // it. `render/backdropLuminance.ts` owns the ramp, `glas-chrome.test.ts` the
+  // floor, and the hysteresis keeps a slow camera drift from breathing.
+  useGlassStage(canvasWrapperRef);
 
   // ── City loading: only ?city=<id> permalinks auto-load. A fresh visit
   // lands on the empty world (the Landing hero), never a prebuilt city. ────
