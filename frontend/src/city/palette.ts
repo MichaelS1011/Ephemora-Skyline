@@ -108,6 +108,29 @@ export function severityColor(sev: Severity, colorblind: boolean): string {
   return colorblind ? SEVERITY_CVD_COLOR[sev] : SEVERITY_COLOR[sev];
 }
 
+/**
+ * The same alarms where they are a WORD rather than a dot, a rule or a beacon.
+ *
+ * Measured on the shell's glass over the brightest ground the city can paint
+ * behind a panel — the plaza at `#e6e1d4`, which composites to `#2a2b2e` under
+ * the tint: `P0` reads 3,88:1, the colour-blind vermilion 3,66:1 and the
+ * colour-blind blue 2,73:1. A 12 px sentence needs 4,5. The mixes below are
+ * the smallest step toward white that clears it on that ground for each tone
+ * (18 % / 0 / 0 and 16 % / 30 % / 0), and `tests/glas-chrome.test.ts` recomputes
+ * every one of the six ratios, so the table cannot quietly drift back under AA.
+ *
+ * The signal itself keeps its pure tone: only the ink that spells a word lifts.
+ */
+const SEVERITY_TEXT_MIX: Record<Severity, number> = { P0: 0.18, P1: 0, P2: 0 };
+const SEVERITY_TEXT_MIX_CVD: Record<Severity, number> = { P0: 0.16, P1: 0.3, P2: 0 };
+
+export function severityTextColor(sev: Severity, colorblind: boolean): string {
+  const mix = colorblind ? SEVERITY_TEXT_MIX_CVD[sev] : SEVERITY_TEXT_MIX[sev];
+  return mix === 0
+    ? severityColor(sev, colorblind)
+    : mixTowardWhite(severityColor(sev, colorblind), mix);
+}
+
 /** Calm beacon colour for fully reviewed files ("nothing left to do here"). */
 export const REVIEWED_BEACON_COLOR = "#29d398";
 

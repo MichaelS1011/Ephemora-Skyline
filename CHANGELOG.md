@@ -239,6 +239,29 @@ were run on it as a whole.
 
 ### Changed
 
+- **One glass, now including the announcement.** The scan card and the line it
+  folds into wore their own recipe (`rgba(18,18,16,.94)` and `.90`, `blur(12px)`
+  and `blur(10px)`, no sheen, no specular edge) while the header, the panels,
+  the dock, the mode bar, the heat bar and the primer all wear the shell's
+  measured material. They are the same surface now: `--glass-chrome-bg` at
+  alpha 0,92 over the brightest ground the city can paint, `blur(24px)
+saturate(1.4)`, the 0,05 sheen and the lit top edge. `glas-chrome.test.ts`
+  resolves the cascade for both and fails if a rule other than the token wins,
+  and the dock's four dead inline declarations — overwritten by the sheet's
+  `!important` since October — are gone, so one place paints that bar.
+  Measured transmission through the strip, same method on the unchanged dock as
+  control: 8,35 % → 8,58 % at a 32 px plate period, dock 2,85 % → 2,85 %.
+- **An alarm that is a word is lighter than an alarm that is a dot.** On the
+  glass over the plaza the shipped P0 red reads **3,88:1**, the colour-blind
+  vermilion **3,66:1** and the colour-blind blue **2,73:1** — under the 4,5 a
+  12 px sentence needs. `severityTextColor` lifts exactly those three (18 %,
+  16 %, 30 % toward white) and only where the tone is spelled as text; the dot,
+  the rule and the beacon keep the pure alarm colour, and `tests/
+farbsichere-alarme.test.ts` now judges both: the rule must carry the switch's
+  signal, the sentence must carry its readable variant, and the switch must
+  reach both. `glas-chrome.test.ts` recomputes all six combinations over the
+  four grounds and says which way it would notice a redundant column.
+
 - **The arrival screen stands on five surfaces, not thirteen.** Measured on the
   running build, same folder, same 1440 × 900, same moment after the build:
   **13 → 5** chrome regions, **251 → 189** words, **37,2 % → 25,6 %** of the

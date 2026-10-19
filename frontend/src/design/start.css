@@ -723,11 +723,16 @@
   gap: 8px;
   max-width: min(620px, 100%);
   padding: 11px 14px 10px 16px;
-  border: 1px solid rgba(242, 239, 232, 0.16);
+  border: 1px solid var(--glass-chrome-border);
   border-radius: 6px;
-  background: rgba(18, 18, 16, 0.94);
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
-  backdrop-filter: blur(12px);
+  /* The shell's one material, not a recipe of its own: the announcement is the
+     surface that arrives by itself, and it is the one the reader looks at while
+     the city is still moving behind it. `tests/glas-chrome.test.ts` holds the
+     inks on it to AA over the brightest ground the picture can show. */
+  background: var(--glass-chrome-sheen), var(--glass-chrome-bg);
+  box-shadow: var(--glass-chrome-edge), var(--glass-shadow);
+  backdrop-filter: var(--glass-chrome-blur);
+  -webkit-backdrop-filter: var(--glass-chrome-blur);
   animation: start-summary-in 0.35s ease-out both;
   font-family: var(--font-ui);
 }
@@ -770,7 +775,7 @@
 .start-summary-files,
 .start-summary-missing {
   font: 400 12px/1.5 var(--font-mono);
-  color: #8f8b82;
+  color: var(--meta-strong);
 }
 .start-summary-missing {
   flex-basis: 100%;
@@ -849,7 +854,7 @@
   border: 1px solid rgba(242, 239, 232, 0.14);
   border-radius: 4px;
   background: transparent;
-  color: #a8a49a;
+  color: var(--meta-strong);
   font: 400 11px/1 var(--font-mono);
   cursor: pointer;
 }
@@ -864,11 +869,12 @@
   align-items: center;
   gap: 9px;
   padding: 6px 8px 6px 10px;
-  border: 1px solid rgba(242, 239, 232, 0.12);
+  border: 1px solid var(--glass-chrome-border);
   border-radius: 999px;
-  background: rgba(18, 18, 16, 0.9);
-  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35);
-  backdrop-filter: blur(10px);
+  background: var(--glass-chrome-sheen), var(--glass-chrome-bg);
+  box-shadow: var(--glass-chrome-edge), var(--glass-shadow);
+  backdrop-filter: var(--glass-chrome-blur);
+  -webkit-backdrop-filter: var(--glass-chrome-blur);
 }
 .start-summary-strip.is-unverified {
   border-style: dashed;
@@ -886,7 +892,7 @@
 }
 .start-summary-strip-meta {
   font: 400 12px/1.4 var(--font-mono);
-  color: #8f8b82;
+  color: var(--meta-strong);
   font-variant-numeric: tabular-nums;
 }
 

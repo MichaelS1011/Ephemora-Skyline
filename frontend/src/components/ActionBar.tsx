@@ -310,12 +310,6 @@ export function ActionBar() {
       <div
         className="action-dock-row flex flex-wrap items-center justify-center gap-1 rounded-xl p-1.5"
         aria-label={t(lang, "actions.cityActionsAria")}
-        style={{
-          background: "rgba(32,32,30,0.96)",
-          border: "1px solid rgba(242,239,232,0.15)",
-          boxShadow: "0 8px 28px rgba(0,0,0,0.3)",
-          backdropFilter: "blur(14px)",
-        }}
       >
         {/* Triage — the primary queue. While it runs the dock becomes a
             stepper: prev position next exit, one finding at a time. */}

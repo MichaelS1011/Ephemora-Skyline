@@ -44,7 +44,7 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "fs";
 import path from "path";
-import { ENV } from "../src/city/palette";
+import { ENV, severityColor, severityTextColor } from "../src/city/palette";
 import { contrast } from "./colourMath";
 
 /** Der Text einer Quelldatei: Blätter wie Components werden gleich gelesen. */
@@ -68,6 +68,10 @@ const CHROME = [
   ".start-coach",
   ".workspace-modes .glass",
   ".workspace-heatmap .glass",
+  // The announcement is the one surface that arrives by itself, so it wears the
+  // shell's material rather than its own: one glass, not two recipes.
+  ".start-summary",
+  ".start-summary-strip",
 ];
 
 /** Die eine Schicht, die jede dieser Flächen tragen muss. */
@@ -464,6 +468,10 @@ const ACTION_BAR = quelle("../src/components/ActionBar.tsx");
 const HEAT_DIM = stateDim(HEAT_TOGGLE);
 const DOCK_DIM = stateDim(ACTION_BAR);
 
+/** Die Literal der Scan-Meldung, read out of start.css rather than retyped. */
+const STRIP_TEXT = ["start.css", /\.start-summary-strip-text\s*\{[^}]*color:\s*([^;]+);/] as const;
+const STRIP_SHOW = ["start.css", /\.start-summary-strip-open\s*\{[^}]*color:\s*([^;]+);/] as const;
+
 /** Every ink that sits on a frosted bar — eine Zeile pro Tinte. The four token
  *  inks are what the shell resolves for a label; the rest is what these surfaces
  *  additionally paint from their own declarations: the coach's hint line, the
@@ -506,6 +514,11 @@ const TINTEN: TintenZeile[] = [
   // field this file composites, so holding the ink to the glass fields is the
   // stricter read, not a different one.
   { sagt: "export menu label", text: [ACTION_BAR, MENU_LABEL], dimm: DOCK_DIM },
+  // The announcement's own literals. It is the surface that appears by itself,
+  // so its inks are measured on the same grounds as the dock's — over the
+  // plaza, not over a desk.
+  { sagt: "strip status line", blatt: STRIP_TEXT },
+  { sagt: "strip show label", blatt: STRIP_SHOW },
 ];
 
 /** Die Lesewege einer Tinte, ein Aufruf. Wo eine Utility-Klasse den Text malt
@@ -546,6 +559,12 @@ const TRAGENDE_TINTEN: Array<{ ink: string; fläche: string }> = [
   { ink: "dock action label", fläche: "action dock" },
   { ink: "dock more label", fläche: "action dock" },
   { ink: "export menu label", fläche: "action dock" },
+  // The announcement's quiet line is the shell's own meta ink now, so it is
+  // judged as one of the four tokens rather than as a fifth literal.
+  { ink: "--meta-strong (.app-shell)", fläche: "scan announcement" },
+  { ink: "--meta-strong (.app-shell)", fläche: "scan summary strip" },
+  { ink: "strip status line", fläche: "scan summary strip" },
+  { ink: "strip show label", fläche: "scan summary strip" },
 ];
 
 /** The whole read for one set of design files: what rules each surface, and
@@ -651,6 +670,16 @@ const SURFACES: Surface[] = [
     name: "heat channel",
     own: klassen("glass flex items-center gap-1 rounded px-2 py-1.5"),
     ancestors: ebenen("workspace-heatmap", "construction-ui", "app-shell"),
+  },
+  {
+    name: "scan announcement",
+    own: klassen("start-summary is-findings"),
+    ancestors: ebenen("start-summary-slot", "construction-ui", "app-shell"),
+  },
+  {
+    name: "scan summary strip",
+    own: klassen("start-summary-strip is-findings"),
+    ancestors: ebenen("start-summary-strip-slot", "construction-ui", "app-shell"),
   },
 ];
 
@@ -877,6 +906,57 @@ describe("Das Glas der festen Schale hält seine Lesbarkeit", () => {
     expect(tiefste, "Tinte auf der festen Schale, ≥ 4,5 über jedem Grund").toBeGreaterThanOrEqual(
       STUFE,
     );
+  });
+
+  it("hält die Alarm-Tinte, wo sie ein Wort ist und nicht ein Signal", () => {
+    // The scan announcement colours its own headline by the worst grade it
+    // found. Measured on the glass over the plaza that reads 3,88:1 for P0,
+    // 3,66:1 for the colour-blind vermilion and 2,73:1 for the colour-blind
+    // blue — a 12 px sentence, so the floor is 4,5 and not the 3,0 of a shape.
+    // `severityTextColor` lifts exactly those tones; this case recomputes all
+    // six combinations over all four grounds the city can put behind the panel.
+    const states = szene();
+    const felder = fläche(states, "scan announcement").fields;
+    const rein = fläche(states, "scan announcement");
+    for (const sev of ["P0", "P1", "P2"] as const) {
+      for (const cb of [false, true]) {
+        const text = severityTextColor(sev, cb);
+        const signal = severityColor(sev, cb);
+        const zellen = felder.map((feld) => ({ feld, r: contrast(text, feld) }));
+        const schwächste = Math.min(...zellen.map((z) => z.r));
+        expect(
+          schwächste,
+          `${sev}${cb ? " (CVD)" : ""} als Wort auf dem Glas: ${text} → ${schwächste.toFixed(2)} — ${zellen
+            .map((z) => `${z.feld} ${z.r.toFixed(2)}`)
+            .join("  ")}`,
+        ).toBeGreaterThanOrEqual(STUFE);
+        // The pure tone stays the signal's own — and the case says why it had
+        // to split: on at least one ground the unmixed alarm colour is not a
+        // readable word. If it ever becomes readable, the split is redundant
+        // and this assertion is where that becomes visible.
+        // Kein Grund, ein Signal zu verdünnen, das schon lesbar ist: wo der
+        // reine Ton überall hält, muss das Wort ihn tragen — und wo er fällt,
+        // muss die Spalte in palette.ts ihn anheben. Beide Richtungen prüft
+        // dieses eine Urteil, darum kann keine der beiden still veralten.
+        const reine = Math.min(...felder.map((feld) => contrast(signal, feld)));
+        if (reine >= STUFE) {
+          expect(
+            text,
+            `${sev}${cb ? " (CVD)" : ""}: reiner Ton hält ${reine.toFixed(
+              2,
+            )} — die Text-Variante darf nicht heller malen als nötig`,
+          ).toBe(signal);
+        } else {
+          expect(
+            text,
+            `${sev}${cb ? " (CVD)" : ""}: reiner Ton fällt auf ${reine.toFixed(
+              2,
+            )}, die Text-Variante muss ihn anheben`,
+          ).not.toBe(signal);
+        }
+      }
+    }
+    expect(rein.worst, "die Fläche selbst hält ihre Tinten").toBeGreaterThanOrEqual(STUFE);
   });
 
   it("fällt, sobald die Konstante heller gemacht wird — der Wächter hat Zähne", () => {

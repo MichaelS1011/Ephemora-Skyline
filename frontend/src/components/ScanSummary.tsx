@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useStore } from "../stores/useStore";
 import { useOrigin } from "../stores/useOrigin";
-import { severityColor } from "../city/palette";
+import { severityColor, severityTextColor } from "../city/palette";
 import { describeGitignoreSkips, scanVerdict } from "../city/provenance";
 import { narrowChromeWindow } from "../city/motion";
 import { formatCount, t, type Lang } from "../i18n";
@@ -212,6 +212,18 @@ export function ScanSummary({ demo = false }: { demo?: boolean }) {
         : f.P1 > 0
           ? severityColor("P1", colorblind)
           : severityColor("P2", colorblind);
+  // The same grade, two inks. The dot and the rule are signals and may burn at
+  // full alarm colour; the line that spells "no findings" or "Scan complete" is
+  // 12 px text on glass, where the pure P0 red measured 3,88:1 on the plaza.
+  const statusInk = clean
+    ? "#29d398"
+    : unverified
+      ? severityTextColor("P2", colorblind)
+      : f.P0 > 0
+        ? severityTextColor("P0", colorblind)
+        : f.P1 > 0
+          ? severityTextColor("P1", colorblind)
+          : severityTextColor("P2", colorblind);
 
   const status = demo
     ? t(lang, "summary.demo")
@@ -294,7 +306,7 @@ export function ScanSummary({ demo = false }: { demo?: boolean }) {
       >
         <span className="start-summary-rule" style={{ background: accent }} aria-hidden="true" />
         <div className="flex flex-wrap start-summary-main">
-          <span className="start-summary-status" style={{ color: accent }}>
+          <span className="start-summary-status" style={{ color: statusInk }}>
             {clean && <ConfettiBurst />}
             {status}
           </span>

@@ -13,7 +13,7 @@ import { act, createElement } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { ScanSummary } from "../src/components/ScanSummary";
 import { useStore } from "../src/stores/useStore";
-import { SEVERITY_COLOR, SEVERITY_CVD_COLOR } from "../src/city/palette";
+import { SEVERITY_COLOR, SEVERITY_CVD_COLOR, severityTextColor } from "../src/city/palette";
 import { city, dir, file, finding, provenance } from "./helpers/cityFixture";
 import type { CityData, CityFile } from "../src/city/types";
 
@@ -106,11 +106,19 @@ async function summary(colorblind: boolean): Promise<string> {
   );
   root = createRoot(container);
   await act(async () => root.render(createElement(ScanSummary)));
-  // Fresh off the scan the verdict is the open card; its status line carries the
-  // accent of the worst severity actually present.
+  // Fresh off the scan the verdict is the open card. It carries the worst
+  // severity present twice over and on purpose differently: the rule at its
+  // edge is the alarm signal and keeps the pure tone, the status line is a
+  // 12 px sentence on glass and takes the AA-safe variant of the same switch
+  // (`severityTextColor` in city/palette.ts, measured in glas-chrome.test.ts).
   const status = container.querySelector<HTMLElement>(".start-summary-status");
+  const rule = container.querySelector<HTMLElement>(".start-summary-rule");
   expect(status, "the summary shows no status line at all").toBeTruthy();
-  return window.getComputedStyle(status!).color;
+  expect(rule, "the summary shows no alarm rule at all").toBeTruthy();
+  return {
+    status: window.getComputedStyle(status!).color,
+    rule: window.getComputedStyle(rule!).backgroundColor,
+  };
 }
 
 beforeEach(() => {
@@ -132,8 +140,15 @@ describe("der Scan-Bescheid schaltet mit", () => {
       const n = parseInt(hex.slice(1), 16);
       return `rgb(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255})`;
     };
-    expect(plain, "the default accent is the shipped red").toContain(asRgb(SEVERITY_COLOR.P0));
-    expect(cvd).not.toBe(plain);
-    expect(cvd).toContain(asRgb(SEVERITY_CVD_COLOR.P0));
+    // The signal: the rule paints the shipped alarm of the switch it is under.
+    expect(plain.rule, "the default alarm is the shipped red").toBe(asRgb(SEVERITY_COLOR.P0));
+    expect(cvd.rule, "the colour-blind alarm is the vermilion").toBe(asRgb(SEVERITY_CVD_COLOR.P0));
+    // The word: the same switch, its readable variant, and still a different
+    // colour per switch position — a switch that reaches the dot but not the
+    // sentence is half a switch.
+    expect(plain.status).toBe(asRgb(severityTextColor("P0", false)));
+    expect(cvd.status).toBe(asRgb(severityTextColor("P0", true)));
+    expect(cvd.status).not.toBe(plain.status);
+    expect(plain.status).not.toBe(plain.rule);
   });
 });
