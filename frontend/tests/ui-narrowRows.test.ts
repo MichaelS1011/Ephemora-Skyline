@@ -156,14 +156,14 @@ describe("the narrow workspace gives every control its own row", () => {
 
   it("clears the dock by its published height, not by a fixed offset", () => {
     // A wrapped dock is taller than the fixed 86px band the panels, the heat
-    // toggle, the shortcut note and the tour used to sit on.
+    // toggle and the tour used to sit on.
     for (const selector of [".panel-info", ".panel-findings", ".security-tour"]) {
       const bottom = applied(selector, "bottom", 320) ?? "none";
       expect(bottom, `${selector} bottom at 320px`).toContain("var(--dock-h");
     }
-    for (const selector of [".workspace-heatmap", ".workspace-shortcuts"]) {
-      expect(applied(selector, "bottom", 320)).toContain("var(--dock-h");
-    }
+    // the heat bar is the last of them still standing on that band; the `[?]`
+    // note it shared it with is one of the surfaces the arrival budget folds
+    expect(applied(".workspace-heatmap", "bottom", 320)).toContain("var(--dock-h");
   });
 
   it("leaves the scan toast on its 128px band", () => {

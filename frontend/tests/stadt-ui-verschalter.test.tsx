@@ -1,12 +1,13 @@
 // @vitest-environment jsdom
-// Three surfaces that were built and never connected, plus the one refusal the
+// Surfaces that were built and never connected, plus the one refusal the
 // landing owed its camera keys:
 // — `toggleUpdateCheck` sat in the store with one reader (`Landing.tsx:563`) and
 //   no row anywhere: declining the version note meant leaving the city;
-// — `ShareHint` was mounted nowhere, so the share feature's own nudge never ran
-//   outside its test file;
 // — on the landing the camera keys moved the picture in silence (measured: 26,
 //   20, 137, 134 and 40 of 1000 screen cells against an idle spread of ≤ 4).
+// The share nudge that used to be the third item here is gone: the arrival
+// budget forbids a card that puts itself on the screen, and the studio it
+// offered is a named row in the dock's own menu.
 import { readFileSync } from "fs";
 import path from "path";
 import { describe, it, expect, afterEach, beforeEach, vi } from "vitest";
@@ -146,19 +147,5 @@ describe("der Versionshinweis hat seinen Schalter im Menü", () => {
   it("is read by the landing it controls", () => {
     expect(src("components/Landing.tsx")).toContain("if (!prefs.updateCheck) return;");
     expect(src("stores/useStore.ts")).toContain('setPref("updateCheck", next)');
-  });
-});
-
-describe("der Share-Hinweis ist montiert", () => {
-  it("steht in der Stadt, nicht nur in seinem Test", () => {
-    const app = src("App.tsx");
-    expect(app).toContain('from "./share/ShareHint"');
-    expect(app).toContain("<ShareHint");
-  });
-
-  it("behält seine eigene Grenze: einmal pro Stadt, und ein Nein gilt für immer", () => {
-    const hint = src("share/ShareHint.tsx");
-    expect(hint).toContain("ephemora-share-hint");
-    expect(hint).toContain("muted");
   });
 });

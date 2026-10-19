@@ -4,6 +4,7 @@ import { topLanguages, languageColor, severityColor } from "../city/palette";
 import { scanVerdict } from "../city/provenance";
 import { BrandWordmark } from "./Landing";
 import { AnalyzePanel } from "./AnalyzePanel";
+import { openSearch } from "./SearchBar";
 import { PHASE_0_MS } from "./CityTree";
 import { t, formatCount, type DictKey, type Lang } from "../i18n";
 import { severityCount, severityTotal } from "../city/facts";
@@ -52,6 +53,8 @@ export function HudOverlay({ apiStatus }: HudOverlayProps) {
   const requestBuildSkip = useStore((s) => s.requestBuildSkip);
   const lang = useStore((s) => s.prefs.lang);
   const colorblind = useStore((s) => s.prefs.colorblind);
+  const showLegend = useStore((s) => s.showLegend);
+  const searchOpen = useStore((s) => s.showSearch);
   if (!cityData) return null;
   const totalFindings = severityTotal(cityData.findingsBySeverity);
 
@@ -123,6 +126,17 @@ export function HudOverlay({ apiStatus }: HudOverlayProps) {
           )}
         </div>
         <div className="workspace-status">
+          <button
+            type="button"
+            onClick={openSearch}
+            aria-label={t(lang, "hud.searchAria")}
+            title={t(lang, "hud.searchTitle")}
+            className="btn-ghost workspace-search-toggle"
+            aria-expanded={searchOpen}
+            aria-controls="workspace-search"
+          >
+            <span aria-hidden="true">⌕</span>
+          </button>
           <span className="workspace-files">
             {formatCount(lang, cityData.totalFiles)} <span>{t(lang, "hud.filesUnit")}</span>
           </span>
@@ -181,16 +195,21 @@ export function HudOverlay({ apiStatus }: HudOverlayProps) {
           <AnalyzePanel />
         </div>
       </header>
-      <div className="city-legend">
-        {topLanguages(cityData.languages, 3).map((language) => (
-          <span key={language.name}>
-            <i style={{ background: languageColor(language.name) }} />
-            {language.name}
-          </span>
-        ))}
-        <span className="legend-explainer">{t(lang, "hud.heightComplexity")}</span>
-        <span className="legend-explainer">{t(lang, "hud.roofFindings")}</span>
-      </div>
+      {/* The colour key is one of the six surfaces the arrival budget folds:
+          it explains the city, but it does not compete with it, and the same
+          key stands in full in the project card. */}
+      {showLegend && (
+        <div className="city-legend">
+          {topLanguages(cityData.languages, 3).map((language) => (
+            <span key={language.name}>
+              <i style={{ background: languageColor(language.name) }} />
+              {language.name}
+            </span>
+          ))}
+          <span className="legend-explainer">{t(lang, "hud.heightComplexity")}</span>
+          <span className="legend-explainer">{t(lang, "hud.roofFindings")}</span>
+        </div>
+      )}
       {constructing && (
         <div
           className="absolute bottom-4 left-1/2 z-40 flex max-w-[calc(100vw-24px)] -translate-x-1/2 flex-wrap

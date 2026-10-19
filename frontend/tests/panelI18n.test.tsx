@@ -8,6 +8,7 @@ import { FINDING_CATEGORIES } from "../src/config/findingCategories";
 import { describeGitignoreSkips } from "../src/city/provenance";
 import { explainDistrictDraw } from "../src/city/layout";
 import { ContextCard } from "../src/components/ContextCard";
+import { HudOverlay } from "../src/components/HudOverlay";
 import { ScanSummary } from "../src/components/ScanSummary";
 import { Minimap } from "../src/components/Minimap";
 import { ProfileChips } from "../src/components/ProfileChips";
@@ -397,7 +398,7 @@ describe("die Panels antworten in der gewählten Sprache", () => {
   });
 
   it("Erstbesuch-Primer: Deutsch inklusive der vier Schritte", async () => {
-    const host = await show(createElement(CoachMarks), "de");
+    const host = await show(createElement(CoachMarks), "de", { showPrimer: true });
     const s = text(host);
     expect(s).toContain("Erkunde deine Codebasis");
     expect(s).toContain("Pfeiltasten drehen die Ansicht");
@@ -406,11 +407,32 @@ describe("die Panels antworten in der gewählten Sprache", () => {
   });
 
   it("Erstbesuch-Primer: Englisch unverändert", async () => {
-    const host = await show(createElement(CoachMarks), "en");
+    const host = await show(createElement(CoachMarks), "en", { showPrimer: true });
     const s = text(host);
     expect(s).toContain("Explore your codebase");
     expect(s).toContain("Arrow keys turn the view");
     expect(s).toContain("Press ? for the full guide");
+  });
+
+  /**
+   * The grade words moved. They used to sit on the scan toast as well, which
+   * is how one screen came to write "Critical / High / Medium" three times;
+   * the header is the surface that says them, and it is the one that filters
+   * the city when clicked. So the translation claim follows them here.
+   */
+  it("Kopfzeile: die Schwere-Wörter in deutscher Schreibweise", async () => {
+    const host = await show(createElement(HudOverlay, { apiStatus: "live" }), "de");
+    const s = text(host);
+    expect(s).toContain("Kritisch");
+    expect(s).toContain("Hoch");
+    expect(offenders(host)).toEqual([]);
+  });
+
+  it("Kopfzeile: dieselben Schwere-Wörter auf Englisch", async () => {
+    const host = await show(createElement(HudOverlay, { apiStatus: "live" }), "en");
+    const s = text(host);
+    expect(s).toContain("Critical");
+    expect(s).toContain("High");
   });
 
   it("Scan-Toast: Deutsch ohne englisches Label", async () => {
@@ -418,7 +440,6 @@ describe("die Panels antworten in der gewählten Sprache", () => {
     const s = text(host);
     expect(s).toContain("92 Dateien analysiert");
     expect(s).toContain("Scan abgeschlossen");
-    expect(s).toContain("Kritisch: 4");
     expect(offenders(host)).toEqual([]);
   });
 
@@ -427,7 +448,6 @@ describe("die Panels antworten in der gewählten Sprache", () => {
     const s = text(host);
     expect(s).toContain("92 files analyzed");
     expect(s).toContain("◈ Scan complete");
-    expect(s).toContain("Critical: 4");
     expect(s).toContain("49 files and 3 folders kept out by .gitignore");
   });
 

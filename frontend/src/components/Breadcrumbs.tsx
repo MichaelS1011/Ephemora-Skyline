@@ -31,6 +31,12 @@ export function Breadcrumbs() {
   // segment disappears together with the focus.
   const focusedLine = selectedFile ? lineSegmentFor(focusedFindingKey, selectedFile) : null;
 
+  // At the root, with nothing chosen, the trail is one chip repeating the
+  // project the header already names — and the ↑ it would carry has no level
+  // to go back to. It arrives with the first drill-in, where it is the only
+  // way to see how deep the reader is.
+  if (focusPath.length === 0 && !selectedFile) return null;
+
   return (
     <nav aria-label={t(lang, "crumbs.navAria")} className="workspace-breadcrumbs">
       {focusPath.length > 0 && (

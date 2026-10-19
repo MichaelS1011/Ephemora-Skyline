@@ -27,7 +27,7 @@
  *   node scripts/first-drive.mjs --fixture    write the target folder and stop
  *   node scripts/first-drive.mjs --expected   print what this file claims, without running
  *   node scripts/first-drive.mjs --replay     re-check a saved capture against the same code, no browser
- *   node scripts/first-drive.mjs --falsify drop|analyzed|findings|finding-line|extra-finding|mask|picker|egress
+ *   node scripts/first-drive.mjs --falsify drop|analyzed|findings|finding-line|extra-finding|grades|mask|picker|egress
  *                                             re-check with one claim made wrong: must go red, no browser
  *
  * Ports belong to this run, and it refuses to start on a busy one:
@@ -329,10 +329,17 @@ function evaluate(obs) {
     add(`the card names the reason it left them out: ${row}`, true, card.includes(row));
   }
 
+  /**
+   * The grade census, read off the header's filter chips. It used to be cut out
+   * of the page's whole text with `/Critical: (\d+)/`, which is how a second
+   * copy of the same three numbers on the announcement could hide a missing
+   * first one. The chips are the surface that states them, and clicking one
+   * filters the city — so they are what the total is tied to.
+   */
   const chips = {
-    Critical: countIn(card, /Critical: (\d+)/),
-    High: countIn(card, /High: (\d+)/),
-    Medium: countIn(card, /Medium: (\d+)/),
+    Critical: obs.gradeChips?.Critical ?? null,
+    High: obs.gradeChips?.High ?? null,
+    Medium: obs.gradeChips?.Medium ?? null,
   };
   const chipSum =
     chips.Critical !== null && chips.High !== null
@@ -342,10 +349,23 @@ function evaluate(obs) {
   const barFindings = countIn(findingsView, /Findings ([\d.,]+)/);
   const rows = Array.isArray(obs.findingRows) ? obs.findingRows.length : null;
 
-  add("critical findings on the card", EXPECT.severities.Critical, chips.Critical);
-  add("high findings on the card", EXPECT.severities.High, chips.High);
-  add("no medium finding was planted, none is claimed", EXPECT.severities.Medium, chips.Medium ?? 0);
+  add("critical findings, said by the header's filter chip", EXPECT.severities.Critical, chips.Critical);
+  add("high findings, said by the header's filter chip", EXPECT.severities.High, chips.High);
+  add(
+    "no medium finding was planted, none is claimed",
+    EXPECT.severities.Medium,
+    chips.Medium ?? 0,
+  );
   add("the severity chips add up to the total", EXPECT.findings, chipSum);
+  /* One surface, one census. The card that used to print "Critical: 2 / High: 2"
+     under "Scan complete" is the reason this is a claim and not a style note:
+     three surfaces said the same grades and the reader could not tell which one
+     to trust. */
+  add(
+    "the announcement itself states no grade of its own",
+    false,
+    /(Critical|High|Medium)\s*:?\s*\d|\d\s*(Critical|High|Medium)/.test(obs.cardOwnText ?? ""),
+  );
   add("the one-line summary counts the same total", EXPECT.findings, stripFindings);
   add("the control over the city counts the same total", EXPECT.findings, barFindings);
   add("the list a person can open has exactly that many rows", EXPECT.findings, rows);
@@ -629,6 +649,24 @@ async function drive() {
     if (pin) await pin.click();
     await sleep(400);
     obs.cardText = text(await page.evaluate(() => document.body.innerText));
+    /* The grade split is stated by the header, in the chips that filter the
+       city when clicked — not by the announcement, which used to print the
+       same three numbers a second time. Read off those controls, and read the
+       card's own text apart from the page's, so the claim below cannot be
+       satisfied by a number that lives somewhere else on the screen. */
+    obs.gradeChips = await page.evaluate(() => {
+      const flat = (s) => String(s ?? "").replace(/\s+/g, " ").trim();
+      const out = {};
+      for (const b of document.querySelectorAll(".workspace-severities button[data-severity]")) {
+        const label = flat(b.querySelector(".severity-label")?.textContent);
+        const digits = flat(b.textContent).match(/(\d[\d.,]*)/);
+        if (label && digits) out[label] = Number(digits[1].replace(/[^\d]/g, ""));
+      }
+      return out;
+    });
+    obs.cardOwnText = text(await page.evaluate(
+      () => document.querySelector(".start-summary")?.innerText ?? "",
+    ));
     await page.screenshot({ path: path.join(OUT, "02-summary-card.png"), animations: "disabled" });
 
     const toggle = await page.$('button[aria-controls="findings-panel"]');
@@ -812,6 +850,10 @@ const FALSIFICATIONS = {
       { path: "src/api/server.ts", line: 2, type: "CONSOLE_USAGE" },
     ]);
     return "a finding joins the list that nobody planted";
+  },
+  grades: (obs) => {
+    obs.cardOwnText = `${obs.cardOwnText} Critical: 2`;
+    return "the announcement states a grade the header already states";
   },
   mask: (obs) => {
     obs.frameText = obs.frameText.replace(HIDDEN, SECRET);

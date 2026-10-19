@@ -421,66 +421,6 @@
   background: rgba(255, 255, 255, 0.06);
 }
 
-/* ── The nudge ────────────────────────────────────────────────────────── */
-.share-hint {
-  position: absolute;
-  z-index: 43;
-  left: 22px;
-  bottom: calc(var(--dock-h, 90px) + 40px);
-  max-width: 286px;
-  padding: 11px 12px;
-  border-radius: 10px;
-  background: rgba(28, 28, 26, 0.97);
-  border: 1px solid rgba(242, 239, 232, 0.16);
-  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.4);
-  color: #dedbd3;
-  font-size: 12px;
-  pointer-events: auto;
-}
-/* R2-09: at 1280×720 the nudge sat directly on the `[?] shortcuts` link
-   (both anchored left, ~6 px apart) — and the measured overlap at 1440×900
-   was 102×8 px of real intersection, so the threshold is 1000 px, not 800.
-   At 1920×1080 (the lane's no-overlap frame) nothing moves. */
-@media (max-height: 1000px) {
-  .share-hint {
-    bottom: calc(var(--dock-h, 90px) + 118px);
-  }
-}
-.share-hint-text {
-  margin: 0 0 9px;
-  color: #f2efe8;
-}
-.share-hint-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-.share-hint-yes {
-  min-height: 30px;
-  padding: 4px 12px;
-  border-radius: 7px;
-  border: 1px solid rgba(232, 80, 60, 0.45);
-  background: rgba(232, 80, 60, 0.18);
-  color: #fff2e9;
-  font-size: 12px;
-  cursor: pointer;
-}
-.share-hint-no {
-  min-height: 30px;
-  padding: 4px 8px;
-  border: 0;
-  background: transparent;
-  color: #8f8b82;
-  font-size: 11px;
-  cursor: pointer;
-  text-decoration: underline;
-  text-decoration-color: rgba(143, 139, 130, 0.5);
-}
-.share-hint-no:hover {
-  color: #dedbd3;
-}
-
 /* The platform row: one line of truth per platform, one click per row. */
 .share-platforms {
   margin: 14px 0 0;
@@ -539,17 +479,5 @@
     width: min(380px, calc(100vw - 24px));
     top: 70px;
     right: 12px;
-  }
-}
-
-/* Narrow desktop windows (the 520 px the header already folds at): the nudge
-   keeps its two buttons and drops its paragraph — at 360 px the card covered
-   9.6 % of the picture for a sentence the buttons already ask about. */
-@media (max-width: 520px) {
-  .share-hint-text {
-    display: none;
-  }
-  .share-hint {
-    padding: 8px 10px;
   }
 }

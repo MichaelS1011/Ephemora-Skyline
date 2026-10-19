@@ -776,19 +776,10 @@
   flex-basis: 100%;
   color: #cbb98f;
 }
-.start-summary-severities {
-  display: flex;
-  gap: 6px;
-}
 .start-summary-test-context {
   flex-basis: 100%;
   font: 400 11px/1.5 var(--font-mono);
   color: #cbb98f;
-}
-.start-summary-chip {
-  font: 400 11px/1 var(--font-mono);
-  padding: 3px 6px;
-  border-radius: 3px;
 }
 .start-summary-drops {
   list-style: none;

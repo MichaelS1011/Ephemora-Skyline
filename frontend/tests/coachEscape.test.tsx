@@ -11,11 +11,16 @@ import { useStore } from "../src/stores/useStore";
  * primer's capture-phase listener keeps the ownership order the tour already
  * uses — menus, modals, the analyze panel and anything being typed into win.
  * Ignoring that took out thirteen control tests in one go.
+ *
+ * It no longer raises itself. `showPrimer` is the dock's "First look" row, and
+ * the store is the only memory the primer has: what Escape ends, ends for the
+ * visit rather than for a version number in localStorage.
  */
 let host: HTMLDivElement;
 let root: Root;
 
-function renderCoach(): void {
+function renderCoach(open = true): void {
+  useStore.getState().setShowPrimer(open);
   host = document.createElement("div");
   document.body.append(host);
   root = createRoot(host);
@@ -37,7 +42,7 @@ describe("Escape against the primer", () => {
     localStorage.clear();
     useStore.getState().resetToLanding();
     renderCoach();
-    expect(primer(), "the primer shows once per profile").toBeTruthy();
+    expect(primer(), "the primer shows while the dock says it is on").toBeTruthy();
   });
 
   afterEach(() => {
@@ -78,11 +83,16 @@ describe("Escape against the primer", () => {
     expect(primer()).toBeTruthy();
   });
 
-  it("does not come back: the dismissal is remembered", () => {
+  it("does not come back: the dismissal is the store's answer, not a remount", () => {
     druecke(window);
     expect(primer()).toBeNull();
     act(() => root.unmount());
-    renderCoach();
+    // the same city, the same visit, no new request: the primer stays folded
+    renderCoach(false);
     expect(primer(), "a fresh mount must not re-show a dismissed primer").toBeNull();
+    // and the row that opened it is the row that brings it back
+    act(() => root.unmount());
+    renderCoach(true);
+    expect(primer()).toBeTruthy();
   });
 });

@@ -307,35 +307,42 @@ export function ContextCard() {
                 ? t(lang, "ctx.findingsOne")
                 : t(lang, "ctx.findingsMany", { count: formatCount(lang, totalFindings) })}
             </div>
-            <div className="flex gap-x-3 gap-y-2 flex-wrap">
-              {(
-                [
-                  { sev: "P0", key: "hud.sevCritical" },
-                  { sev: "P1", key: "hud.sevHigh" },
-                  { sev: "P2", key: "hud.sevMedium" },
-                ] as const
-              ).map(({ sev, key }) =>
-                findings[sev] > 0 ? (
-                  <span
-                    key={sev}
-                    className="inline-flex items-center gap-1.5 text-[12px]"
-                    data-severity={sev}
-                    style={{
-                      color: severityColor(sev, colorblind),
-                      ["--severity" as string]: severityColor(sev, colorblind),
-                    }}
-                  >
-                    <span className="severity-shape" aria-hidden="true">
-                      {SEVERITY_SHAPE[sev]}
+            {/* The grade split belongs to this card only where the header
+                cannot speak for it: at the root the header already says
+                ▲1 ◆1 ●1 for the same city, and a second copy of a census is
+                one more thing to read and no new fact. Inside a district the
+                card is the ONLY place its grades are written. */}
+            {!isRoot && (
+              <div className="flex gap-x-3 gap-y-2 flex-wrap">
+                {(
+                  [
+                    { sev: "P0", key: "hud.sevCritical" },
+                    { sev: "P1", key: "hud.sevHigh" },
+                    { sev: "P2", key: "hud.sevMedium" },
+                  ] as const
+                ).map(({ sev, key }) =>
+                  findings[sev] > 0 ? (
+                    <span
+                      key={sev}
+                      className="inline-flex items-center gap-1.5 text-[12px]"
+                      data-severity={sev}
+                      style={{
+                        color: severityColor(sev, colorblind),
+                        ["--severity" as string]: severityColor(sev, colorblind),
+                      }}
+                    >
+                      <span className="severity-shape" aria-hidden="true">
+                        {SEVERITY_SHAPE[sev]}
+                      </span>
+                      <span style={{ color: "#c5c0b5" }}>{t(lang, key)}</span>
+                      <span className="tabular-nums" style={{ color: "#f2efe8" }}>
+                        {findings[sev]}
+                      </span>
                     </span>
-                    <span style={{ color: "#c5c0b5" }}>{t(lang, key)}</span>
-                    <span className="tabular-nums" style={{ color: "#f2efe8" }}>
-                      {findings[sev]}
-                    </span>
-                  </span>
-                ) : null,
-              )}
-            </div>
+                  ) : null,
+                )}
+              </div>
+            )}
             {inScope && (
               <button
                 onClick={() => navigateToFile(inScope.file.id)}

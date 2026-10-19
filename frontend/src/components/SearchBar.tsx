@@ -25,6 +25,21 @@ type FlatHit =
       optionId: string;
     };
 
+/**
+ * Open the folded search and put the caret in it.
+ *
+ * The field is not on screen when a city arrives (`tests/arrival-budget.test.tsx`),
+ * so every way of asking for it — the header's ⌕, `/`, Cmd/Ctrl+K — has to both
+ * unfold it and land the focus, and it has to do so after React committed the
+ * new branch. Three call sites, one door.
+ */
+export function openSearch(): void {
+  useStore.getState().setShowSearch(true);
+  requestAnimationFrame(() => {
+    document.querySelector<HTMLInputElement>("input[data-search-input]")?.focus();
+  });
+}
+
 export function SearchBar() {
   const lang = useStore((s) => s.prefs.lang);
   const colorblind = useStore((s) => s.prefs.colorblind);

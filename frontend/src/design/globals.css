@@ -1244,17 +1244,6 @@ button:disabled {
   font-size: 12px;
   min-height: 28px;
 }
-.workspace-shortcuts {
-  position: absolute;
-  bottom: 72px;
-  left: 22px;
-  z-index: 20;
-  pointer-events: auto;
-}
-.workspace-shortcuts button {
-  min-height: 30px;
-  font-size: 12px;
-}
 .city-coach {
   /* clear the dock: its 20px offset + its live height (ActionBar publishes
      --dock-h) + a gap. The old fixed 90px landed inside the dock's band on a
@@ -1281,6 +1270,22 @@ div[role="status"].animate-toast-rise {
 }
 .action-dock {
   bottom: 20px !important;
+}
+
+/* The arrival budget's own block inside the dock's More menu. Six surfaces
+   used to paint themselves the moment a city stood; they now come back from
+   rows in here, and the heading names the kind of choice so the rows read as
+   one decision rather than six loose items in a long list. */
+.action-view-group {
+  margin-top: 6px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(150, 142, 128, 0.22);
+}
+.action-view-heading {
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  color: var(--meta-strong);
+  padding: 0 12px 6px;
 }
 
 @media (max-width: 1100px) {
@@ -1410,15 +1415,7 @@ div[role="status"].animate-toast-rise {
     bottom: calc(24px + var(--dock-h, 54px));
     left: 14px;
   }
-  .workspace-shortcuts {
-    bottom: calc(24px + var(--dock-h, 54px));
-    left: auto;
-    right: 14px;
-  }
   .app-shell:has(.panel-info, .panel-findings) .workspace-heatmap {
-    display: none;
-  }
-  .app-shell:has(.panel-info, .panel-findings) .workspace-shortcuts {
     display: none;
   }
   .action-dock {
@@ -1772,10 +1769,6 @@ div[role="status"].animate-toast-rise {
 .city-legend {
   color: #334e60;
   font-size: 12px;
-}
-.workspace-shortcuts > button {
-  color: #334e60 !important;
-  opacity: 1 !important;
 }
 .workspace-modes button {
   min-height: 30px;

@@ -91,6 +91,18 @@ export function ActionBar() {
   const reviews = useStore((s) => s.reviews);
   const threatFilter = useStore((s) => s.threatFilter);
   const ruleFilter = useStore((s) => s.ruleFilter);
+  // The arrival budget: these six surfaces no longer paint themselves when a
+  // city arrives, and this menu is where each one is asked back by name.
+  const showLegend = useStore((s) => s.showLegend);
+  const setShowLegend = useStore((s) => s.setShowLegend);
+  const showMinimap = useStore((s) => s.showMinimap);
+  const setShowMinimap = useStore((s) => s.setShowMinimap);
+  const showHeat = useStore((s) => s.showHeat);
+  const setShowHeat = useStore((s) => s.setShowHeat);
+  const showPrimer = useStore((s) => s.showPrimer);
+  const setShowPrimer = useStore((s) => s.setShowPrimer);
+  const showShortcuts = useStore((s) => s.showShortcuts);
+  const setShowShortcuts = useStore((s) => s.setShowShortcuts);
   const { runTests } = useTestRunner();
   const standalone = useOrigin((s) => s.origin) === "file";
   const [menuOpen, setMenuOpen] = useState(false);
@@ -561,6 +573,77 @@ export function ActionBar() {
                 <span aria-hidden="true">↓</span>
                 {t(lang, "actions.exportHandoff")}
               </button>
+              {/* The arrival budget. These five surfaces no longer put
+                  themselves on the screen when a city arrives — each row
+                  names the thing it brings back, because a glyph-only chip
+                  is not something a first-time reader finds. They stay open
+                  while the menu does, so two of them can be asked for in one
+                  visit. */}
+              <div
+                role="group"
+                aria-label={t(lang, "actions.onScreen")}
+                className="action-view-group"
+              >
+                <div className="action-view-heading">{t(lang, "actions.onScreen")}</div>
+                <button
+                  role="menuitemcheckbox"
+                  type="button"
+                  aria-checked={showLegend}
+                  onClick={() => setShowLegend(!showLegend)}
+                  className="flex min-h-10 w-full items-center gap-3 rounded-lg px-3 text-left hover:bg-white/5"
+                  title={t(lang, "actions.showLegendTitle")}
+                >
+                  <span aria-hidden="true">{showLegend ? "◉" : "○"}</span>
+                  {t(lang, "actions.showLegend")}
+                </button>
+                <button
+                  role="menuitemcheckbox"
+                  type="button"
+                  aria-checked={showMinimap}
+                  onClick={() => setShowMinimap(!showMinimap)}
+                  className="flex min-h-10 w-full items-center gap-3 rounded-lg px-3 text-left hover:bg-white/5"
+                  title={t(lang, "actions.showMapTitle")}
+                >
+                  <span aria-hidden="true">{showMinimap ? "◉" : "○"}</span>
+                  {t(lang, "actions.showMap")}
+                </button>
+                <button
+                  role="menuitemcheckbox"
+                  type="button"
+                  aria-checked={showHeat}
+                  onClick={() => setShowHeat(!showHeat)}
+                  className="flex min-h-10 w-full items-center gap-3 rounded-lg px-3 text-left hover:bg-white/5"
+                  title={t(lang, "actions.showHeatTitle")}
+                >
+                  <span aria-hidden="true">{showHeat ? "◉" : "○"}</span>
+                  {t(lang, "actions.showHeat")}
+                </button>
+                <button
+                  role="menuitemcheckbox"
+                  type="button"
+                  aria-checked={showPrimer}
+                  onClick={() => setShowPrimer(!showPrimer)}
+                  className="flex min-h-10 w-full items-center gap-3 rounded-lg px-3 text-left hover:bg-white/5"
+                  title={t(lang, "actions.firstLookTitle")}
+                >
+                  <span aria-hidden="true">{showPrimer ? "◉" : "○"}</span>
+                  {t(lang, "actions.firstLook")}
+                </button>
+                <button
+                  role="menuitemcheckbox"
+                  type="button"
+                  aria-checked={showShortcuts}
+                  onClick={() => {
+                    setShowShortcuts(!showShortcuts);
+                    closeMenu();
+                  }}
+                  className="flex min-h-10 w-full items-center gap-3 rounded-lg px-3 text-left hover:bg-white/5"
+                  title={t(lang, "actions.shortcutsTitle")}
+                >
+                  <span aria-hidden="true">{showShortcuts ? "◉" : "○"}</span>
+                  {t(lang, "actions.shortcuts")}
+                </button>
+              </div>
               {/* Display preference, not a scan action: it sits before the
                   final "Copy city link" item so End keeps landing on the
                   share action and the scan actions stay grouped on top. */}

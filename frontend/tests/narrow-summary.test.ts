@@ -39,20 +39,3 @@ describe("the narrow-window rule is one shared decision", () => {
     expect(summary).toMatch(/if \(ms <= 0\) setCollapsed\(true\)/);
   });
 });
-
-describe("the share nudge folds to its row below 520 px", () => {
-  it("the paragraph is out of the picture, the two buttons stay", () => {
-    const share = src("design/share.css");
-    const at = share.indexOf("@media (max-width: 520px)");
-    expect(at, "the 520 px block exists").toBeGreaterThan(-1);
-    const block = share.slice(at, share.indexOf("}", share.indexOf(".share-hint-text", at)));
-    expect(block).toMatch(/\.share-hint-text\s*\{[^}]*display:\s*none/);
-  });
-
-  it("the fold is CSS-only — the hint's state and buttons are untouched", () => {
-    const hint = src("share/ShareHint.tsx");
-    expect(hint).toMatch(/className="share-hint-text"/);
-    expect(hint).toMatch(/share-hint-yes/);
-    expect(hint).toMatch(/share-hint-no/);
-  });
-});

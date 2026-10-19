@@ -9,7 +9,7 @@ import { CityScene } from "./components/CityScene";
 import { GfxGovernor } from "./components/GfxGovernor";
 import { Landing } from "./components/Landing";
 import { InfoPanel } from "./components/InfoPanel";
-import { SearchBar } from "./components/SearchBar";
+import { SearchBar, openSearch } from "./components/SearchBar";
 import { KeyboardHints } from "./components/KeyboardHints";
 import { LoadingScreen } from "./components/LoadingScreen";
 import { Tooltip } from "./components/Tooltip";
@@ -21,7 +21,6 @@ import { SecurityTour } from "./components/SecurityTour";
 import { CoachMarks } from "./components/CoachMarks";
 import { ActionBar } from "./components/ActionBar";
 import { ShareStudio } from "./components/ShareStudio";
-import { ShareHint } from "./share/ShareHint";
 import { ContextCard } from "./components/ContextCard";
 import { SceneBoundary, SurfaceBoundary, SurfaceFailed } from "./components/SurfaceBoundary";
 import { FindingsPanel } from "./components/FindingsPanel";
@@ -179,9 +178,15 @@ export default function App() {
   // expensive path; only the manual one is ever persisted.
   const gfxLite = useStore((s) => s.prefs.gfxLite || s.autoGfxLite);
   const lang = useStore((s) => s.prefs.lang);
+  // The arrival budget: which of the folded surfaces the reader has asked back.
+  const showSearch = useStore((s) => s.showSearch);
+  const showMinimap = useStore((s) => s.showMinimap);
+  const showHeat = useStore((s) => s.showHeat);
+  const showPrimer = useStore((s) => s.showPrimer);
+  const showShortcuts = useStore((s) => s.showShortcuts);
+  const setShowShortcuts = useStore((s) => s.setShowShortcuts);
 
   const [apiStatus, setApiStatus] = useState<"connecting" | "live" | "demo">("connecting");
-  const [showKeyboardHints, setShowKeyboardHints] = useState(false);
   // Two failure paths for the world, because there are two places it can die:
   // the DOM boundary below catches a WebGL context the machine cannot give,
   // and only a boundary INSIDE <Canvas> can see the scene graph throw. A scene
@@ -316,8 +321,8 @@ export default function App() {
           cam.exitOrbit();
           return;
         }
-        if (showKeyboardHints) {
-          setShowKeyboardHints(false);
+        if (useStore.getState().showShortcuts) {
+          setShowShortcuts(false);
           return;
         }
         // While the tour runs it owns Escape — the app-level chain (deselect,
@@ -375,9 +380,10 @@ export default function App() {
         return;
       }
 
-      if (e.key === "?" && !isInput) {
+      if (e.key === "?") {
+        if (isInput) return;
         e.preventDefault();
-        setShowKeyboardHints((v) => !v);
+        setShowShortcuts(!useStore.getState().showShortcuts);
         return;
       }
 
@@ -386,16 +392,13 @@ export default function App() {
       // "/" shortcut is input-guarded), and before any other handler.
       if (e.key.toLowerCase() === "k" && (e.metaKey || e.ctrlKey)) {
         e.preventDefault();
-        const searchInput = document.querySelector<HTMLInputElement>("input[data-search-input]");
-        searchInput?.focus();
-        searchInput?.select();
+        openSearch();
         return;
       }
 
       if (e.key === "/" && !isInput && cityData) {
         e.preventDefault();
-        const searchInput = document.querySelector<HTMLInputElement>("input[data-search-input]");
-        searchInput?.focus();
+        openSearch();
         return;
       }
 
@@ -429,7 +432,7 @@ export default function App() {
       }
     },
     [
-      showKeyboardHints,
+      setShowShortcuts,
       selectedUnit,
       setSelectedUnit,
       drillOut,
@@ -600,9 +603,11 @@ export default function App() {
                   <ModeBar />
                 </div>
               )}
-              <div className="workspace-search">
-                <SearchBar />
-              </div>
+              {showSearch && (
+                <div className="workspace-search" id="workspace-search">
+                  <SearchBar />
+                </div>
+              )}
 
               {/* The card is the densest surface in the app and the one a
                   finding can surprise with an unexpected shape. */}
@@ -621,8 +626,8 @@ export default function App() {
               <SecurityTour />
               <ActionBar />
               <ContextCard />
-              <Minimap show />
-              <CoachMarks />
+              <Minimap show={showMinimap} />
+              {showPrimer && <CoachMarks />}
 
               {/* The wheel can throw the pilot past the fog ceiling in eight
                   notches, and from out there the screen is one flat colour
@@ -642,35 +647,24 @@ export default function App() {
                 </div>
               )}
 
-              <div className="workspace-heatmap">
-                <HeatmapToggle />
-              </div>
-
-              <div className="workspace-shortcuts">
-                <button
-                  onClick={() => setShowKeyboardHints((v) => !v)}
-                  aria-label={t(lang, "hud.shortcutsAria")}
-                  aria-expanded={showKeyboardHints}
-                  aria-controls="keyboard-hints-overlay"
-                  className="font-mono text-[length:var(--fs-meta)] text-[color:var(--meta-strong)] hover:text-[color:var(--accent-gold)] transition-colors
-                             focus:outline-none focus:ring-1 focus:ring-[var(--accent-gold)] rounded px-1 py-0.5"
-                >
-                  [?] {t(lang, "hud.shortcutsHint")}
-                </button>
-              </div>
+              {/* The heat channel switch and the standing `[?]` chip were two of
+                  the surfaces an arrival served up unasked. Both come back from
+                  a named control in the dock. */}
+              {showHeat && (
+                <div className="workspace-heatmap">
+                  <HeatmapToggle />
+                </div>
+              )}
             </div>
           </div>
 
           <Breadcrumbs />
           <ShareStudio />
-          {/* The one place the share feature reaches out by itself: once per city, a
-              refusal that holds forever, and it walks away on its own. */}
-          <ShareHint />
         </>
       )}
 
       <div id="keyboard-hints-overlay">
-        <KeyboardHints isOpen={showKeyboardHints} onClose={() => setShowKeyboardHints(false)} />
+        <KeyboardHints isOpen={showShortcuts} onClose={() => setShowShortcuts(false)} />
       </div>
 
       <Tooltip />

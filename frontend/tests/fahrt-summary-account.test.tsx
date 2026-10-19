@@ -3,6 +3,7 @@ import { act, type ReactElement } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ScanSummary } from "../src/components/ScanSummary";
+import { HudOverlay } from "../src/components/HudOverlay";
 import { useStore } from "../src/stores/useStore";
 import type { CityData, CityDir, DroppedFiles } from "../src/city/types";
 
@@ -120,13 +121,22 @@ const numberBefore = (text: string, words: string): number | null => {
   return m ? Number((m[1] ?? "0").replace(/[^\d]/g, "")) : null;
 };
 
-/** the chips read the other way round: "Critical: 2", one element each */
-const chipTotals = (): Record<string, number> => {
+/**
+ * The grade census lives on the header, not on the announcement.
+ *
+ * The card used to repeat ▲/◆/● with their counts right under "Scan complete"
+ * — one more surface stating numbers the header above already stated and the
+ * project card stated again. `tests/arrival-budget.test.tsx` now pins that
+ * exactly one surface says them, so the arithmetic the drive reads is tied to
+ * the header's chips instead.
+ */
+const headerChips = (): Record<string, number> => {
   const out: Record<string, number> = {};
-  for (const el of [...host.querySelectorAll(".start-summary-chip")]) {
-    const label = (el.textContent ?? "").replace(/\s+/g, " ").trim();
-    const m = /:\s*([\d.,]+)$/.exec(label);
-    if (m) out[label.slice(0, label.indexOf(":"))] = Number((m[1] ?? "0").replace(/[^\d]/g, ""));
+  for (const el of [...host.querySelectorAll(".workspace-severities button[data-severity]")]) {
+    const label = el.querySelector(".severity-label")?.textContent?.trim();
+    const count = (el.textContent ?? "").match(/(\d[\d.,]*)/);
+    if (!label || !count) continue;
+    out[label] = Number((count[1] ?? "0").replace(/[^\d]/g, ""));
   }
   return out;
 };
@@ -159,26 +169,31 @@ describe("the sentence the first drive reads", () => {
     const card = seen();
     expect(card).toContain("Scan complete");
     expect(card).toContain("8 files analyzed");
-    expect(card).toContain("Critical: 2");
-    expect(card).toContain("High: 1");
     expect(card).toContain("5 files in a format the scanners do not read");
-    expect(card, "no medium was planted, none is shown").not.toContain("Medium:");
+    // the grades are the header's to state; on a payload that HAS them, the
+    // card staying quiet is the claim (a zero-finding fixture cannot fail this)
+    expect(card, "the announcement no longer repeats the grade census").not.toMatch(
+      /(Critical|High|Medium)\s*:?\s*\d|\d\s*(Critical|High|Medium)/,
+    );
+    expect(card).not.toMatch(/too large or unreadable/);
   });
 
   /**
    * The strip is where the three numbers sit in one line, which is where the
    * arithmetic either closes or does not. Checked by parsing what was rendered,
-   * not by re-reading the payload the render was handed.
+   * not by re-reading the payload the render was handed — and the grade split
+   * is read off the header, which is the surface that now owns it.
    */
   it("adds up on the one line that outlives the card", () => {
     useCity(city({ dropped: DRIVE_DROPS }));
-    render(<ScanSummary />);
+    render(
+      <>
+        <ScanSummary />
+        <HudOverlay apiStatus="live" />
+      </>,
+    );
 
-    // the severity chips the card carries. Read off the chips themselves: in a
-    // DOM without layout the text of two neighbouring blocks glues together
-    // ("High: 1" next to "5 files…" reads as "15"), which is a property of the
-    // test surface and not of what a person sees in a browser.
-    const chips = chipTotals();
+    const chips = headerChips();
     expect(chips).toEqual({ Critical: 2, High: 1 });
     expect(Object.keys(chips).sort(), "no medium was planted, so no chip may carry one").toEqual([
       "Critical",

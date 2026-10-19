@@ -360,6 +360,31 @@ interface AppState {
   showFindings: boolean;
   setShowFindings: (v: boolean) => void;
 
+  /**
+   * The arrival budget: what stands on screen when a city arrives.
+   *
+   * Measured 2026-10-18: 13 chrome regions painted themselves at once, ~36 % of
+   * the window and 250 words. Six of them are useful and none of them is the
+   * point — so they start folded, and each one comes back from a named control
+   * in the dock. `tests/arrival-budget.test.tsx` holds the count, the word
+   * budget and the rule that every deferred surface is reachable by its name.
+   * Session state, not a preference: a new city is a neutral stage again.
+   */
+  showLegend: boolean;
+  setShowLegend: (v: boolean) => void;
+  showMinimap: boolean;
+  setShowMinimap: (v: boolean) => void;
+  showHeat: boolean;
+  setShowHeat: (v: boolean) => void;
+  showSearch: boolean;
+  setShowSearch: (v: boolean) => void;
+  /** The first-look primer, which used to open itself once per version. */
+  showPrimer: boolean;
+  setShowPrimer: (v: boolean) => void;
+  /** The keyboard guide, opened from the dock instead of a standing `[?]` chip. */
+  showShortcuts: boolean;
+  setShowShortcuts: (v: boolean) => void;
+
   // ── Auto-Gfx (perf.ts): the frame budget decides, until a hand doesn't ─
   autoGfxLite: boolean;
   setAutoGfxLite: (v: boolean) => void;
@@ -705,6 +730,14 @@ export const useStore = create<AppState>((set, get) => {
         viewMode: "structure",
         tourActive: false,
         tourIndex: 0,
+        // The deferred surfaces are folded again for a city that has not been
+        // asked about yet — the same law the filter and the lens follow above.
+        showLegend: false,
+        showMinimap: false,
+        showHeat: false,
+        showSearch: false,
+        showPrimer: false,
+        showShortcuts: false,
         triageActive: false,
         triageCursor: 0,
         triageTotal: 0,
@@ -1127,6 +1160,19 @@ export const useStore = create<AppState>((set, get) => {
 
     showFindings: false,
     setShowFindings: (v) => set({ showFindings: v }),
+
+    showLegend: false,
+    setShowLegend: (v) => set({ showLegend: v }),
+    showMinimap: false,
+    setShowMinimap: (v) => set({ showMinimap: v }),
+    showHeat: false,
+    setShowHeat: (v) => set({ showHeat: v }),
+    showSearch: false,
+    setShowSearch: (v) => set({ showSearch: v }),
+    showPrimer: false,
+    setShowPrimer: (v) => set({ showPrimer: v }),
+    showShortcuts: false,
+    setShowShortcuts: (v) => set({ showShortcuts: v }),
 
     autoGfxLite: false,
     setAutoGfxLite: (v) => set({ autoGfxLite: v }),

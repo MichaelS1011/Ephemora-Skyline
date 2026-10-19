@@ -309,29 +309,12 @@ export function ScanSummary({ demo = false }: { demo?: boolean }) {
                   { count: nf(cityData.totalFiles) },
                 )}
           </span>
-          {total > 0 && (
-            <span className="start-summary-severities">
-              {(
-                [
-                  { sev: "P0", key: "hud.sevCritical" },
-                  { sev: "P1", key: "hud.sevHigh" },
-                  { sev: "P2", key: "hud.sevMedium" },
-                ] as const
-              ).map(({ sev, key }) =>
-                f[sev] > 0 ? (
-                  <span
-                    key={sev}
-                    title={t(lang, demo ? "summary.sevSample" : "summary.sevRisk", {
-                      label: t(lang, key),
-                    })}
-                    className={`chip-${sev.toLowerCase()} start-summary-chip`}
-                  >
-                    {t(lang, key)}: {f[sev]}
-                  </span>
-                ) : null,
-              )}
-            </span>
-          )}
+          {/* No grade chips here. The header above carries the census — the
+              same three numbers, in the same order, and it is the one that
+              filters the city when clicked. Repeating them on the card was
+              how "Critical / High / Medium" ended up written three times on
+              one screen. What the announcement owns is the total, in words,
+              and the count of what it read. */}
           {findingsInTests > 0 && total > 0 && (
             <span className="start-summary-test-context">
               {t(lang, "summary.testContext", {

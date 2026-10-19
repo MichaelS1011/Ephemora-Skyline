@@ -180,9 +180,13 @@ async function driveFolder(page, name, claims, chooserBox) {
       p2: chip("P2"),
       dockTriage: inBox(".action-dock", /Triage\s*(\d+)/i),
       dockFindings: inBox(".action-dock", /(\d[\d.,]*)\s+findings?\b/i) ?? inBox(".action-dock", /Findings\s*(\d+)/i),
-      // the summary states no total — it states the critical count, so that
-      // is the number tied to the header chip rather than to the total
-      bannerCritical: inBox(".start-summary", /Critical:\s*(\d+)/),
+      // the announcement states no grade: the census belongs to the chips
+      // above, which are the ones that filter the city when clicked
+      bannerGrades: (
+        (document.querySelector(".start-summary")?.innerText ?? "").match(
+          /(Critical|High|Medium|Kritisch|Hoch|Mittel)\s*:?\s*\d|\d\s*(Critical|High|Medium|Kritisch|Hoch|Mittel)/g,
+        ) ?? []
+      ).length,
       ctxCard: inBox(".panel-context-card", /(\d[\d.,]*)\s+findings?\b/i),
     };
   });
@@ -290,8 +294,10 @@ async function main() {
     claims.every((c) => Object.values(c.modes).every((v) => v === "true")) &&
     claims.every((c) => c.surfaces.dockTriage === c.findings) &&
     // one total, four surfaces: header chips, dock triage, dock findings,
-    // scan banner, context card — and every container must actually be there,
-    // or a null quietly reads as agreement
+    // context card — and every container must actually be there, or a null
+    // quietly reads as agreement. The announcement adds no number to that
+    // circle any more: it states the file count and the total, and stays out
+    // of the grade census, which one surface above already says.
     // jeder Dock-Klick muss ankommen und eine Wirkung haben
     claims.every((c) => Object.values(c.dockClicks).every((d) => d.clicked && d.reacted)) &&
     // jedes sichtbare Schwere-Chip trägt bei 390 px sein Wort
@@ -299,7 +305,8 @@ async function main() {
     claims.every((c) => Object.values(c.surfaces.present).every(Boolean)) &&
     claims.every((c) => c.chipSum === c.findings) &&
     claims.every((c) => c.surfaces.dockFindings === c.findings) &&
-    claims.every((c) => c.surfaces.bannerCritical === c.surfaces.p0) &&
+    // die Meldung nennt keine Schwere: sie wäre die zweite oder dritte Kopie
+    claims.every((c) => c.surfaces.bannerGrades === 0) &&
     claims.every((c) => c.surfaces.ctxCard === c.findings) &&
     consoleErrors.length === 0;
   console.log(ok ? "DREI-ORDNER-DRIVE: PASS" : "DREI-ORDNER-DRIVE: FAIL");

@@ -514,6 +514,8 @@ describe("the boot screen", () => {
 describe("the first look at the city", () => {
   it("starts as a strip and keeps the hints behind one click", () => {
     useCity(city());
+    // the primer is folded until the dock's "First look" row asks for it
+    useStore.getState().setShowPrimer(true);
     render(<CoachMarks />);
     const primer = host.querySelector('[role="region"]');
     expect(primer).toBeTruthy();

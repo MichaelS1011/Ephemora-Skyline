@@ -52,6 +52,30 @@
   font-size: 13px;
   color: var(--brand-ink);
 }
+/* The door to the search field. The field itself is one of the surfaces the
+   arrival budget folds, so the door has to read as a control (32 px, the same
+   tone and rhythm as the chips beside it) and show when it is open. */
+.workspace-search-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 32px;
+  min-width: 32px;
+  border-radius: 6px;
+  border: 1px solid transparent;
+  font-size: 15px;
+  line-height: 1;
+  color: var(--brand-ink);
+  cursor: pointer;
+}
+.workspace-search-toggle:hover {
+  color: var(--accent-gold);
+}
+.workspace-search-toggle[aria-expanded="true"] {
+  border-color: rgba(232, 178, 60, 0.45);
+  background: rgba(232, 178, 60, 0.12);
+  color: var(--accent-gold);
+}
 .workspace-files > span {
   font-size: var(--fs-meta);
   color: var(--meta-strong);

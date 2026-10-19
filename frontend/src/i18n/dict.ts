@@ -426,13 +426,15 @@ export const DICT = {
     en: "Skip city construction",
     de: "Stadtbau überspringen",
   },
-  "hud.shortcutsHint": {
-    en: "shortcuts",
-    de: "Tastenkürzel",
+  // The search field is folded at arrival too; this is the control that brings
+  // it back, and `/` and Cmd/Ctrl+K keep working without it.
+  "hud.searchAria": {
+    en: "Search the city",
+    de: "Stadt durchsuchen",
   },
-  "hud.shortcutsAria": {
-    en: "Toggle keyboard shortcuts (press ? key)",
-    de: "Tastenkürzel ein- oder ausblenden (Taste ?)",
+  "hud.searchTitle": {
+    en: "Find a file by name, path or language",
+    de: "Eine Datei nach Name, Pfad oder Sprache finden",
   },
 
   // ── Action dock ───────────────────────────────────────────────────────────
@@ -548,6 +550,54 @@ export const DICT = {
   "actions.more": {
     en: "More",
     de: "Mehr",
+  },
+  // ── The arrival budget: surfaces that start folded ─────────────────────
+  // Six of them used to paint themselves the moment a city stood. They are
+  // asked for by the name of the thing they bring back — a glyph-only chip is
+  // not a control a first-time reader finds.
+  "actions.onScreen": {
+    en: "On this screen",
+    de: "Auf diesem Bildschirm",
+  },
+  "actions.showLegend": {
+    en: "Colour and height key",
+    de: "Farb- und Höhenschlüssel",
+  },
+  "actions.showLegendTitle": {
+    en: "Show under the city which colour and which height mean what",
+    de: "Zeigt unter der Stadt, welche Farbe und welche Höhe was bedeuten",
+  },
+  "actions.showMap": {
+    en: "City map",
+    de: "Stadtkarte",
+  },
+  "actions.showMapTitle": {
+    en: "Show the map of the city in the corner",
+    de: "Zeigt die Stadtkarte in der Ecke",
+  },
+  "actions.showHeat": {
+    en: "Heat channels",
+    de: "Heatmap-Kanäle",
+  },
+  "actions.showHeatTitle": {
+    en: "Show the switch for what the far-zoom grid is coloured by",
+    de: "Zeigt die Umschaltung, wonach das weite Stadtgitter eingefärbt ist",
+  },
+  "actions.firstLook": {
+    en: "First look",
+    de: "Erster Blick",
+  },
+  "actions.firstLookTitle": {
+    en: "Open the primer that explains what the city is showing",
+    de: "Öffnet den Leitfaden, der erklärt, was die Stadt zeigt",
+  },
+  "actions.shortcuts": {
+    en: "Keyboard shortcuts",
+    de: "Tastenkürzel",
+  },
+  "actions.shortcutsTitle": {
+    en: "List the keys the city answers to",
+    de: "Zeigt die Tasten, auf die die Stadt reagiert",
   },
   "actions.reduceEffects": {
     en: "Reduce effects",
@@ -2700,14 +2750,6 @@ export const DICT = {
   "summary.filesAnalyzedOne": {
     en: "{count} file analyzed",
     de: "{count} Datei analysiert",
-  },
-  "summary.sevRisk": {
-    en: "{label} security risk",
-    de: "Sicherheitsrisiko: {label}",
-  },
-  "summary.sevSample": {
-    en: "{label} sample finding",
-    de: "Beispielfund: {label}",
   },
   "summary.testContext": {
     en: "{inTests} of {total} findings are in test files. Check fixtures before treating them as real risks.",

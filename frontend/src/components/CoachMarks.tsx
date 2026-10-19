@@ -1,14 +1,10 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import type { CSSProperties, ReactNode } from "react";
 import { useStore } from "../stores/useStore";
 import { alarmWindowColors, CYCLE_RING_COLOR, heatLegendGradient } from "../city/palette";
 import { t, type DictKey } from "../i18n";
 import { ts } from "./startCopy";
 import "../design/start.css";
-
-// v3: the arrow keys became the camera turntable, so the primer is shown
-// once more — otherwise nobody discovers the new binding.
-const COACH_KEY = "codecity-coach-v3";
 
 const HINTS: { icon: string; text: DictKey; detail: DictKey }[] = [
   { icon: "↻", text: "coach.hintTurn", detail: "coach.hintTurnDetail" },
@@ -201,7 +197,12 @@ export function CoachMarks() {
   const tourActive = useStore((s) => s.tourActive);
   const focusPath = useStore((s) => s.focusPath);
   const buildPhase = useStore((s) => s.buildPhase);
-  const [visible, setVisible] = useState(false);
+  // The primer is one of the surfaces the arrival budget folds. It used to
+  // raise itself once per version out of localStorage — which is how a first
+  // look at the city became one more card in a pile of thirteen. It now comes
+  // back from the dock's "First look" row and is dismissed like before.
+  const visible = useStore((s) => s.showPrimer);
+  const setVisible = useStore((s) => s.setShowPrimer);
   // Start collapsed: the first look at the city belongs to the city. The
   // strip names what is on offer and stays out of the frame; the four steps
   // and the 13-row marker legend are one click away, never in the way.
@@ -209,28 +210,14 @@ export function CoachMarks() {
   // The marker legend is opt-in detail (progressive disclosure), never a wall.
   const [primerOpen, setPrimerOpen] = useState(false);
 
-  useEffect(() => {
-    let seen = false;
-    try {
-      seen = localStorage.getItem(COACH_KEY) === "1";
-    } catch {
-      /* */
-    }
-    if (!seen) setVisible(true);
-  }, []);
-
-  const dismiss = (): void => {
+  const dismiss = useCallback((): void => {
     setVisible(false);
-    try {
-      localStorage.setItem(COACH_KEY, "1");
-    } catch {
-      /* */
-    }
-  };
+    setExpanded(false);
+  }, [setVisible]);
 
   useEffect(() => {
     if (focusPath.length > 0) dismiss();
-  }, [focusPath.length]);
+  }, [focusPath.length, dismiss]);
 
   // Escape on a visible primer means "I have read this", not "close the panel
   // behind it". Same protocol as the tour: capture phase plus

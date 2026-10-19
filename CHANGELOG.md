@@ -30,8 +30,6 @@ were run on it as a whole.
 - **A version-note switch inside the city.** The store has carried
   `toggleUpdateCheck` since it was built; the row was missing, so declining the
   note meant leaving the city.
-- **The share nudge, mounted.** Once per city, a refusal that holds forever, and
-  it walks away on its own.
 - **Two Escape rows in the shortcut list** — the share studio and the project
   card each close on one `Esc`, and both files are now inside the registry
   guard that checks a list against the handlers.
@@ -240,6 +238,39 @@ were run on it as a whole.
   0 stack traces, and the first backend untouched. `backend/tests/bind-address.test.ts`
 
 ### Changed
+
+- **The arrival screen stands on five surfaces, not thirteen.** Measured on the
+  running build, same folder, same 1440 × 900, same moment after the build:
+  **13 → 5** chrome regions, **251 → 189** words, **37,2 % → 25,6 %** of the
+  window covered. What stays is the header, the mode switch, the dock, the
+  project card and the scan's own announcement; the city map, the colour and
+  height key, the heat channels, the first-look primer, the keyboard guide and
+  the search field now come back from named rows — the last one from a ⌕ in the
+  header, with `/` and Cmd/Ctrl+K still opening it directly. The breadcrumb
+  trail appears with the first drill-in, because at the root it repeated the
+  project the header already names. `frontend/tests/arrival-budget.test.tsx`
+  holds the count, the word budget and the rule that every folded surface is
+  reachable by its own name in both languages; `scripts/arrival-ab-shot.mjs`
+  frames and counts the same state on any port.
+- **The grade census is said once.** Critical / High / Medium stood on the
+  header, on the scan announcement and on the project card — three copies of
+  the same three numbers, none of them wrong, all of them competing. The
+  header keeps them (it is the surface that filters the city when clicked), the
+  announcement states the total and what it read, and the card states a grade
+  split only inside a district, where the header cannot speak for it. The
+  arithmetic claim that rode on the announcement's chips now ties the header's
+  chips to the strip's total: `scripts/first-drive.mjs` reads them off the
+  filter controls, `scripts/drei-ordner-drive.mjs` fails if the announcement
+  names a grade again, and `frontend/tests/fahrt-summary-account.test.tsx`
+  proves the silence on a payload that has findings to repeat.
+- **The share nudge is gone.** It was the one surface that put itself on the
+  screen unasked — once per city, a card in the corner offering to film it. The
+  studio it offered is a named row in the dock's own menu, and nothing arrives
+  by itself any more: `frontend/tests/arrival-budget.test.tsx` fails if a card
+  appears after the arrival without being asked for.
+- **The first-look primer is asked for, not scheduled.** It used to raise
+  itself once per version out of `localStorage`; the row that opens it is in
+  the dock, and Escape still closes it.
 
 - **The folder walls moved from 3.000 files / 40 MB to 10.000 files / 150 MB**
   (2 MB per file, and the request body limit with them at 200 MB), on both sides
