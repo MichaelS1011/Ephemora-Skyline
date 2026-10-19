@@ -174,7 +174,7 @@
    shell's material now, so the stage the sampler measures behind it is the
    stage it shows. */
 .panel-context-card {
-  background: var(--glass-chrome-sheen), var(--glass-chrome-bg);
+  background: var(--glass-chrome-sheen), var(--material-read-bg);
   border: 1px solid var(--glass-chrome-border);
   backdrop-filter: var(--glass-chrome-blur);
   -webkit-backdrop-filter: var(--glass-chrome-blur);
@@ -183,9 +183,22 @@
   font-family: var(--font-sans, ui-sans-serif, system-ui, sans-serif);
 }
 
+/* A scrolling card must not cut a line of text in half at its own edge: the
+   last 18 px of the plate fade, so the reader sees that the sentence continues
+   instead of meeting a clipped glyph. Paint only — hit testing and the
+   scrollbar are untouched, and the fade is inside the plate, not over the city. */
+.panel-scroll {
+  mask-image: linear-gradient(
+    to bottom,
+    transparent 0,
+    #000 18px,
+    #000 calc(100% - 18px),
+    transparent 100%
+  );
+}
 .panel-card {
   position: absolute;
-  background: var(--glass-chrome-sheen), var(--glass-chrome-bg);
+  background: var(--glass-chrome-sheen), var(--material-read-bg);
   border: 1px solid var(--glass-chrome-border);
   border-radius: var(--radius-lg);
   box-shadow:
@@ -766,7 +779,7 @@
   /* the failed canvas can be any colour the GPU left behind, so the sentence
      sits on the same measured floor as the rest of the chrome — the AA numbers
      the panels pass only hold on a floor that is actually there */
-  background: var(--glass-chrome-sheen), var(--glass-chrome-bg);
+  background: var(--glass-chrome-sheen), var(--material-read-bg);
   backdrop-filter: blur(24px) saturate(1.4);
 }
 .surface-failed-title {

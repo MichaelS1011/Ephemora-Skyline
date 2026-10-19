@@ -54,7 +54,9 @@ export function HeatmapToggle() {
       aria-label={t(lang, "heat.groupAria")}
       data-tip={t(lang, "heat.groupTip")}
     >
-      <span className="font-mono text-[12px] tracking-wider text-[#98948a] mr-1">HEAT</span>
+      <span className="font-mono text-[12px] tracking-wider text-[color:var(--meta)] mr-1">
+        HEAT
+      </span>
       {CHANNELS.map(({ id, label, tipKey }) => {
         const unavailable = id === "churn" && !churnAvailable;
         const active = heatChannel === id;

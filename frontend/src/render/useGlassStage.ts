@@ -11,16 +11,18 @@ import {
  * A panel that is not on screen costs nothing; a panel that appears mid-visit
  * (the search field, the map) is picked up on the next tick.
  */
+/* Only the functional layer. The reading surfaces — `.panel-card`, its file and
+ * findings children, `.panel-context-card` — wear `--material-read-bg`, a fixed
+ * thick plate, and the sampler must not touch them: Apple asks the text-heavy
+ * layer for the standard material, and a stage that thins under 245 words of
+ * 12 px text is a legibility regression dressed as a look. */
 const GLASS_SURFACES = [
   ".workspace-header",
   ".workspace-modes .glass",
+  ".workspace-heatmap .glass",
+  ".action-dock-row",
   ".start-summary",
   ".start-summary-strip",
-  ".action-dock-row",
-  ".panel-context-card",
-  ".panel-info",
-  ".city-minimap",
-  ".workspace-heatmap",
   ".city-coach",
 ];
 

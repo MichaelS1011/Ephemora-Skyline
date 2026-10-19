@@ -472,7 +472,7 @@ export function ActionBar() {
             }}
             className="flex min-h-10 items-center gap-2 rounded-lg px-3 text-[13px] font-medium hover:bg-white/5"
             style={{
-              color: menuOpen ? "#f2efe8" : "#bebbb2",
+              color: menuOpen ? "#f2efe8" : "#c8c4bb",
               background: menuOpen ? "rgba(255,255,255,0.07)" : undefined,
             }}
           >

@@ -245,44 +245,102 @@ were run on it as a whole.
   and the dimming layer is asked for only "if the underlying content is bright".
   A fixed alpha does the opposite of both — it films over the dark towers, where
   nothing needs covering, while the bright plaza is the only thing that forces
-  the density at all. `render/backdropLuminance.ts` now measures the picture
+  the density at all. `frontend/src/render/backdropLuminance.ts` now measures the picture
   inside each panel's own rectangle (a 12 × 8 downscale of the drawing buffer,
   on a 450 ms timer with a 0,04 hysteresis so a slow camera drift cannot make the
   chrome breathe) and writes the stage on that panel: 0,30 over a shadowed
-  facade, where seven tenths of the city passes through, up to 0,92 over the
-  plaza. Measured in the running demo, each panel its own stage: header 0,90
-  (backdrop Y 0,403) · mode bar 0,89 (0,431) · announcement 0,84 (0,223) · dock
-  0,92 (0,482) · project card 0,89 (0,326). 60,1 fps with the sampler running.
-  `glas-chrome.test.ts` walks the ladder over ten real grounds — sky, plaza,
+  facade, where seven tenths of the city passes through, up to the ceiling the
+  control inks allow — 0,75, where the split below left it. Measured in the
+  running demo at the arrival pose, each bar at its own stage: header 0,75
+  (backdrop Y 0,403) · mode bar 0,75 (0,431) · announcement 0,75 (0,223) · dock
+  0,75 (0,482) — every one of them capped, because the demo's ground is bright
+  everywhere the chrome floats. 60,1 fps with the sampler running.
+  `frontend/tests/glas-chrome.test.ts` walks the ladder over ten real grounds — sky, plaza,
   floor, field path, kerb, street, plot edge, the darkest facade in the language
   table, the monolith, the unscanned grey — and refuses any rung where a listed
   ink falls under AA over the ground that produced it.
-- **The project card is glass now.** It carried `rgba(24,24,22,.94)` inline and a
-  second, later `rgba(32,49,62,.96) !important` in the sheet — an opaque plate
-  over the city, with a blur under it that had nothing to frost. Both are gone;
-  it wears `--glass-chrome-bg` like the rest of the shell, which is also what
-  lets it take a stage of its own. `tests/glas-chrome.test.ts` counts it among
-  the surfaces now (eight) and fails if a second rule draws over it.
+- **The project card is a plate, not a pane.** It carried `rgba(24,24,22,.94)`
+  inline and a second, later `rgba(32,49,62,.96) !important` in the sheet — an
+  opaque plate over the city, with a blur under it that had nothing to frost.
+  Both are gone; it wears the shell's reading material, `--material-read-bg`,
+  which is also why the sampler no longer touches it: 245 words of 12 px text do
+  not belong on a stage that thins over a bright plaza.
+  `frontend/tests/glas-chrome.test.ts` counts it among the surfaces (nine) and fails if a
+  second rule draws over it or if the sampler's surface list reaches a reading
+  plate.
 - **Where the ceiling comes from, measured per ink.** The tint cannot thin to
-  0,70 with the shell's current greys: `--meta` (#98948a — the header wordmark,
+  0,70 with the shell's old greys: `--meta` (#98948a — the header wordmark,
   the panels, the search field, the heat channels) needs α 0,907 over the plaza,
-  `--meta-strong` 0,840, the HEAT caption 0,907, the coach hint 0,842. Lifting
-  them to one vibrant step (#c6c2b9 holds 4,5:1 down to 0,70) buys the doubled
-  transparency at the price of the lightness hierarchy on every panel, so that
-  step is the operator's to take and not this change's to sneak.
+  `--meta-strong` 0,840, the HEAT caption 0,907, the coach hint 0,842. The step
+  was then taken, and scoped: the four control surfaces wear their own ladder
+  (#c6c2b9 needs 0,73 over the plaza, 0,74 on the sky; the dock's gold count
+  #ffd98a 0,64; the primary #f2efe8 0,59), the reading plates keep the ladder
+  their text was measured against, and the old quiet grey would still have asked
+  0,89 — which is why it is not on a bar any more. The ceiling is the binding
+  ink plus a hundredth, not a round number.
 
 - **One glass, now including the announcement.** The scan card and the line it
   folds into wore their own recipe (`rgba(18,18,16,.94)` and `.90`, `blur(12px)`
   and `blur(10px)`, no sheen, no specular edge) while the header, the panels,
   the dock, the mode bar, the heat bar and the primer all wear the shell's
-  measured material. They are the same surface now: `--glass-chrome-bg` at
-  alpha 0,92 over the brightest ground the city can paint, `blur(24px)
-saturate(1.4)`, the 0,05 sheen and the lit top edge. `glas-chrome.test.ts`
+  measured material. They are the same surface now: `--glass-control-bg` at
+  alpha 0,75 over the brightest ground the city can paint, `blur(24px)
+saturate(1.4)`, the 0,05 sheen and the lit top edge. `frontend/tests/glas-chrome.test.ts`
   resolves the cascade for both and fails if a rule other than the token wins,
   and the dock's four dead inline declarations — overwritten by the sheet's
   `!important` since October — are gone, so one place paints that bar.
   Measured transmission through the strip, same method on the unchanged dock as
   control: 8,35 % → 8,58 % at a 32 px plate period, dock 2,85 % → 2,85 %.
+- **Two materials, because the shell does two different jobs.** Apple's
+  Materials page separates them outright: Liquid Glass is the layer of „controls
+  and navigation elements … that floats above the content layer", and „Don't use
+  Liquid Glass in the content layer"; where a surface carries „a significant
+  amount of text" the thicker standard material is what keeps fine features
+  legible. The shell had one film for both. Counted on the running screen, the
+  split is not a hairline: the dock carries 14 words and 5 controls, the mode bar
+  3 and 3 — the file card 245 words, the findings list 189. So `--glass-chrome-bg`
+  became `--glass-control-bg` (adaptive, ceiling 0,75) and `--material-read-bg`
+  (fixed, 0,94), the sampler's surface list lost the reading plates, and the
+  control ink ladder moved onto the bars only.
+  Measured A/B against the commit before it, same port pair, same pose, same
+  crops, with a grey plate behind the chrome: the light that reaches the eye
+  through a bar went **4 % → 21,5 %** on the dock, **11,3 % → 22,4 %** on the
+  header, **7,6 % → 22,4 %** on the mode bar, **12,3 % → 21,5 %** on the
+  announcement, while the project card moved the other way — from a sampled
+  0,89 to a fixed 0,94, deliberately less transparent, because that is where the
+  sentences live. The frame's own grey level carries a constant of each panel's
+  inner layers (≈ +0,04 in α), so the delta is the number, and it matches the
+  token change within 0,01 on all five. Detail does not come back with the
+  light: at 8, 16 and 32 px plate period the surviving modulation is ≤ 2 %, at or
+  under the panel's own glyph noise, which is what a 24 px frost does to a
+  hairline. At 128 px — a block, a tower's width — it rises from 4–7 % to
+  10–12 % on the dock, header and strip; the mode bar is excluded, its labels are
+  louder than the signal. `frontend/tests/glas-chrome.test.ts` now pairs every surface with
+  the one material it may wear and refuses a reading plate that thins below 0,92.
+- **The scroll edge of the world, and the band that was never painted.** The
+  second legibility mechanism on that page — „Scroll edge effects further enhance
+  legibility by blurring and reducing the opacity of background content" — went
+  in as two masked bands on the canvas wrapper, and the first measurement said it
+  did nothing: 0,3 % of a 64 px edge removed where the reader sees it, the same
+  number a control region outside any band removed. Two causes, both silent. The
+  wrapper is `position: static`, so an unlayered absolute pseudo-element paints
+  **under** the WebGL canvas — proven by putting a red rectangle on the band and
+  watching no pixel change; `z-index: 1` lifts it above the picture and below
+  every panel, and the world's own labels, which sit far higher, stay out of the
+  blur. And a band anchored to the frame spends its whole fade behind the bar:
+  the lower one now starts at the dock's own top edge (`calc(20px +
+var(--dock-h))`) instead of at the bottom of the window. Measured with
+  `scripts/scroll-edge-drive.mjs`, which mounts a synthetic 64 px edge above the
+  canvas and below the bands so the number cannot depend on the camera: **under
+  the header 29,1 %, above the dock 35,6 %, between them 0 %.** Its teeth were
+  checked both ways — remove the `z-index` and both zones read exactly 0 %
+  against the unbanded frame, restore the old geometry and the dock zone falls to
+  5,6 %. An earlier probe reported a 9,6 % cut that was the arrival camera still
+  settling, so the drive refuses to measure until two screenshots are
+  byte-identical. The scrolling card fades its own edge too (18 px at each end of
+  `.panel-scroll`), paint only, so a line is no longer clipped in half. 60,1 fps
+  with both bands running. `frontend/tests/liquid-glass.test.ts` holds the blur's depth, the
+  two masks, `pointer-events: none`, the z-index and the dock-relative anchor.
 - **An alarm that is a word is lighter than an alarm that is a dot.** On the
   glass over the plaza the shipped P0 red reads **3,88:1**, the colour-blind
   vermilion **3,66:1** and the colour-blind blue **2,73:1** — under the 4,5 a
@@ -291,7 +349,7 @@ saturate(1.4)`, the 0,05 sheen and the lit top edge. `glas-chrome.test.ts`
   the rule and the beacon keep the pure alarm colour, and `tests/
 farbsichere-alarme.test.ts` now judges both: the rule must carry the switch's
   signal, the sentence must carry its readable variant, and the switch must
-  reach both. `glas-chrome.test.ts` recomputes all six combinations over the
+  reach both. `frontend/tests/glas-chrome.test.ts` recomputes all six combinations over the
   four grounds and says which way it would notice a redundant column.
 
 - **The arrival screen stands on five surfaces, not thirteen.** Measured on the

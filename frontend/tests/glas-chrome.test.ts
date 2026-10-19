@@ -67,23 +67,44 @@ const css: Sheets = ["globals.css", "stadt-ui.css", "start.css", "city-funktion.
 );
 const allCss = css.map(([, t]) => t).join("\n");
 
-/** Every surface the chrome tint is allowed on. */
-const CHROME = [
-  ".workspace-header",
-  ".panel-card",
-  ".action-dock-row",
-  ".start-coach",
-  ".workspace-modes .glass",
-  ".workspace-heatmap .glass",
-  // The announcement is the one surface that arrives by itself, so it wears the
-  // shell's material rather than its own: one glass, not two recipes.
-  ".start-summary",
-  ".start-summary-strip",
-  ".panel-context-card",
+/** The two materials Apple's Materials page separates: Liquid Glass for the
+ *  functional layer ("controls and navigation elements … that floats above the
+ *  content layer"), and a thicker standard material where a surface carries
+ *  "a significant amount of text". Measured on the running screen, the split is
+ *  not a hairline: the dock carries 14 words and 5 controls, the mode bar 3 and
+ *  3 — the file card 245 words, the findings list 189. */
+const GLAS = "var(--glass-control-bg)";
+const PLATTE = "var(--material-read-bg)";
+
+/** Every surface the shell tints, and the one material it is allowed to wear. */
+const CHROME: Array<[string, string]> = [
+  [".workspace-header", GLAS],
+  [".action-dock-row", GLAS],
+  [".start-coach", GLAS],
+  [".workspace-modes .glass", GLAS],
+  [".workspace-heatmap .glass", GLAS],
+  [".start-summary", GLAS],
+  [".start-summary-strip", GLAS],
+  [".panel-card", PLATTE],
+  [".panel-context-card", PLATTE],
 ];
 
-/** Die eine Schicht, die jede dieser Flächen tragen muss. */
-const TOKEN_BG = "var(--glass-chrome-bg)";
+/** A surface may not wear the other material either — that is the split. */
+const ANDERE = (token: string): string => (token === GLAS ? PLATTE : GLAS);
+
+/** Die Schicht, die eine Fläche tragen muss, nach ihrem Namen in `SURFACES`. */
+const MATERIAL: Record<string, string> = {
+  "workspace header": GLAS,
+  "action dock": GLAS,
+  "first-look coach": GLAS,
+  "mode bar": GLAS,
+  "heat channel": GLAS,
+  "scan announcement": GLAS,
+  "scan summary strip": GLAS,
+  "findings panel": PLATTE,
+  "file panel": PLATTE,
+  "project card": PLATTE,
+};
 
 /** Die Solid-Entscheidung vom 2. Oktober — sie darf nicht neben dem Glas stehen. */
 const SOLIDE_DOCK = /background:\s*#20201e\s*!important/;
@@ -455,7 +476,6 @@ const designFile = (files: Sheets, name: string): string => {
 
 const COACH_HINT = /\.start-coach-strip-hint\s*\{[^}]*color:\s*([^;]+);/;
 const DISABLED_LABEL = /color:\s*unavailable\s*\?\s*["'`]([^"'`]+)["'`]/;
-const HEAT_CAPTION = /text-\[(#[0-9a-f]{6})\][^>]*>HEAT</;
 
 /* The dock's own inks, read off the component rather than typed in here. None
  * of them is a token: the step buttons and the triage start paint a brighter
@@ -496,6 +516,9 @@ type TintenZeile = {
   sagt: string;
   token?: string;
   blatt?: readonly [datei: string, regel: RegExp, gruppe?: number];
+  /** Eine Token-Tinte, die nicht im `.app-shell`-Scope gelesen wird: die
+   *  Funktionsleiter hebt `--meta` nur auf den Bars an. */
+  scope?: readonly [token: string, selektor: string];
   text?: readonly [text: string, regel: RegExp, gruppe?: number];
   klasse?: readonly [text: string, regel: RegExp];
   fest?: string;
@@ -507,10 +530,10 @@ const TINTEN: TintenZeile[] = [
   { sagt: "--meta-strong (.app-shell)", token: "meta-strong" },
   { sagt: "--meta (.app-shell)", token: "meta" },
   { sagt: "--brand-ink", token: "brand-ink" },
-  { sagt: "header caption", fest: "rgb(146, 156, 135)" },
+  { sagt: "header caption", scope: ["--meta", ".workspace-header"] },
   { sagt: "coach hint strip", blatt: ["start.css", COACH_HINT] },
   { sagt: "disabled heat label", text: [HEAT_TOGGLE, DISABLED_LABEL], dimm: HEAT_DIM },
-  { sagt: "HEAT caption", klasse: [HEAT_TOGGLE, HEAT_CAPTION] },
+  { sagt: "HEAT caption", scope: ["--meta", ".workspace-header"] },
   { sagt: "dock step label", text: [ACTION_BAR, STEP_LABEL], dimm: DOCK_DIM },
   { sagt: "dock action label", text: [ACTION_BAR, ACTION_LABEL, 2], dimm: DOCK_DIM },
   // The overflow menu's trigger, closed: the one label on the bar that is
@@ -527,6 +550,10 @@ const TINTEN: TintenZeile[] = [
   // plaza, not over a desk.
   { sagt: "strip status line", blatt: STRIP_TEXT },
   { sagt: "strip show label", blatt: STRIP_SHOW },
+  // The dock's open-count is painted in the shell's accent gold, and gold is the
+  // brightest ink in the whole set — it, not the greys, is what capped the thin
+  // bar: 4,33:1 over the plaza at α 0,75 before the control ladder lifted it.
+  { sagt: "dock gold count", scope: ["--accent-gold", ".workspace-header"] },
 ];
 
 /** Die Lesewege einer Tinte, ein Aufruf. Wo eine Utility-Klasse den Text malt
@@ -534,6 +561,7 @@ const TINTEN: TintenZeile[] = [
  *  alles andere wirft eine Behauptung: die Tinte ist weggelaufen. */
 function tintenfarbe(t: TintenZeile, files: Sheets): string {
   if (t.fest !== undefined) return t.fest;
+  if (t.scope) return inkInScope(files, t.scope[0], t.scope[1]);
   if (t.token !== undefined) return inkInScope(files, `--${t.token}`, ".app-shell");
   if (t.klasse) return withoutComments(t.klasse[0]).match(t.klasse[1])?.[1] ?? "";
   const [quelle, regel, gruppe] = t.blatt
@@ -554,7 +582,7 @@ const TOKEN_TINTEN: TintenZeile[] = [
   { sagt: "--meta-strong", token: "meta-strong" },
   { sagt: "--meta", token: "meta" },
   { sagt: "--brand-ink", token: "brand-ink" },
-  { sagt: "header caption", fest: "rgb(146, 156, 135)" },
+  { sagt: "header caption", scope: ["--meta", ".workspace-header"] },
 ];
 
 /** Welche Tinte auf welcher Fläche liegt — die Liste hinter Fall 10, getippt statt
@@ -574,6 +602,8 @@ const TRAGENDE_TINTEN: Array<{ ink: string; fläche: string }> = [
   { ink: "strip status line", fläche: "scan summary strip" },
   { ink: "strip show label", fläche: "scan summary strip" },
   { ink: "strip status line", fläche: "project card" },
+  { ink: "dock gold count", fläche: "action dock" },
+  { ink: "dock gold count", fläche: "scan announcement" },
 ];
 
 /** The whole read for one set of design files: what rules each surface, and
@@ -740,7 +770,7 @@ const toHex = (c: [number, number, number]): string =>
 describe("Das Glas der festen Schale hält seine Lesbarkeit", () => {
   // Read inside the cases: a token that does not exist yet must fail a test,
   // not the whole file at collection time.
-  const tint = (): ReturnType<typeof parseColor> => parseColor(rootToken("glass-chrome-bg"));
+  const tint = (): ReturnType<typeof parseColor> => parseColor(rootToken("material-read-bg"));
 
   /** Der geteilte Szenenaufbau: was über jeder Fläche regiert, welche Feldfarben
    *  das für die vier Gründe ergibt. */
@@ -777,7 +807,7 @@ describe("Das Glas der festen Schale hält seine Lesbarkeit", () => {
     for (const grund of gründe) {
       const feld = toHex(composite(tint(), grund.farbe));
       for (const t of TOKEN_TINTEN) {
-        const rgb = toHex(parseColor(t.fest ?? rootToken(t.token as string)).rgb);
+        const rgb = toHex(parseColor(tintenfarbe(t, css)).rgb);
         const k = contrast(rgb, feld);
         expect(k, `${t.sagt} über ${grund.sagt} (${feld})`).toBeGreaterThanOrEqual(STUFE);
       }
@@ -804,13 +834,16 @@ describe("Das Glas der festen Schale hält seine Lesbarkeit", () => {
   });
 
   it("legt das Glas auf jede Chrome-Fläche", () => {
-    for (const sel of CHROME) {
+    for (const eintrag of CHROME) {
+      const [sel, material] = eintrag;
       const hits = flächentreffer(sel, css);
       expect(hits.length, `${sel} hat keine Regel mehr`).toBeGreaterThan(0);
       const glas = hatDeklaration(hits, (d) => /backdrop-filter$/.test(d.prop));
       expect(glas, `${sel} bekommt kein Glas`).toBe(true);
-      const token = hatDeklaration(hits, (d) => d.value.includes(TOKEN_BG));
-      expect(token, `${sel} benutzt nicht die eine Token-Schicht`).toBe(true);
+      const token = hatDeklaration(hits, (d) => d.value.includes(material));
+      expect(token, `${sel} benutzt nicht seine Schicht ${material}`).toBe(true);
+      const fremde = hatDeklaration(hits, (d) => d.value.includes(ANDERE(material)));
+      expect(fremde, `${sel} trägt die Schicht der anderen Ebene`).toBe(false);
     }
   });
 
@@ -828,7 +861,7 @@ describe("Das Glas der festen Schale hält seine Lesbarkeit", () => {
   it("widerruft die Accessibility-Entscheidung nicht stillschweigend", () => {
     const dock = (allCss.match(/\.action-dock-row\s*\{([^}]*)\}/g) ?? []).join("\n");
     expect(dock, "Solid-Regel und Glas: zwei Quellen für eine Fläche").not.toMatch(SOLIDE_DOCK);
-    const begründung = css.find(([, t]) => t.includes("glass-chrome-bg"))?.[1] ?? "";
+    const begründung = css.find(([, t]) => t.includes("glass-control-bg"))?.[1] ?? "";
     expect(begründung, "keine Zeile erklärt das Glas wieder da ist").toMatch(/accessibility/i);
   });
 
@@ -858,7 +891,10 @@ describe("Das Glas der festen Schale hält seine Lesbarkeit", () => {
   });
 
   it("hält die Fläche, die diese Regel berechnet, die Tinte über jedem Grund", () => {
-    const token = parseColor(rootToken("glass-chrome-bg")).rgb;
+    // Jede Fläche gegen IHRE Schicht: das Funktionsglas ist dünn, die Leseplatte
+    // dick — einen gemeinsamen Grundton gibt es seit der Spalte nicht mehr.
+    const tonDerFläche = (name: string): string =>
+      rootToken(MATERIAL[name] === GLAS ? "glass-control-bg" : "material-read-bg");
     const sheenStop = (rootToken("glass-chrome-sheen")
       .replace(/\s+/g, " ")
       .match(/rgba?\([^)]*\)/) ?? [""])[0];
@@ -868,9 +904,13 @@ describe("Das Glas der festen Schale hält seine Lesbarkeit", () => {
       const verglast = f.winner?.decl.value.replace(/\s+/g, " ");
       const grundton = parseColor(f.colourLayer).rgb;
       expect(f.winner, sag(f, "hat keine regierende Regel")).not.toBeNull();
-      expect(verglast, `${sag(f, "nicht aus einer Hand verglast")}: ${wer}`).toContain(TOKEN_BG);
+      expect(verglast, `${sag(f, "nicht aus einer Hand verglast")}: ${wer}`).toContain(
+        MATERIAL[f.surface.name],
+      );
       expect(f.colourLayer, sag(f, "kein Grundton zu lesen")).not.toBe("");
-      expect(grundton, `${sag(f, "Grundton rechnet nicht zum Token")}: ${wer}`).toEqual(token);
+      expect(grundton, `${sag(f, "Grundton rechnet nicht zum Token")}: ${wer}`).toEqual(
+        parseColor(tonDerFläche(f.surface.name)).rgb,
+      );
       expect(f.sheen, sag(f, "kein Glanz auf der Fläche")).not.toBeNull();
       // The same declaration carries the sheen, so the field measured here is
       // the field the browser draws: colour first, this gradient's top stop on
@@ -1003,12 +1043,16 @@ describe("Das Glas der festen Schale hält seine Lesbarkeit", () => {
     // before the ramp existed.
     expect(
       glassAlphaFor(relLum(ENV.plot)),
-      "die oberste Stufe darf nicht dichter sein als das Token im Blatt",
-    ).toBeLessThanOrEqual(Math.min(0.92, GLASS_ALPHA_MAX));
+      "die oberste Stufe darf nicht dichter sein als das Funktionsglas im Blatt",
+    ).toBeLessThanOrEqual(GLASS_ALPHA_MAX);
     expect(
-      parseColor(rootToken("glass-chrome-bg")).alpha,
+      parseColor(rootToken("glass-control-bg")).alpha,
       "das Blatt trägt genau die Decke der Kurve",
     ).toBe(GLASS_ALPHA_MAX);
+    expect(
+      parseColor(rootToken("material-read-bg")).alpha,
+      "die Lesefläche bleibt die dicke Platte — dort stehen 245 Wörter",
+    ).toBeGreaterThanOrEqual(0.92);
     expect(tiefste, "die Kurve hält jede Tinte über jedem Grund").toBeGreaterThanOrEqual(STUFE);
   });
 
@@ -1081,14 +1125,24 @@ describe("Das Glas der festen Schale hält seine Lesbarkeit", () => {
     const heller = szene(
       kopie("globals.css", (t) =>
         t.replace(
-          /--glass-chrome-bg:\s*rgba\(14,\s*16,\s*21,\s*0\.92\)/,
-          "--glass-chrome-bg: rgba(14, 16, 21, 0.8)",
+          /--glass-control-bg:\s*rgba\(14,\s*16,\s*21,\s*0\.75\)/,
+          "--glass-control-bg: rgba(14, 16, 21, 0.55)",
         ),
       ),
     );
     for (const [i, f] of heller.entries()) {
-      expect(f.worst, sag(f, "bei 0,80")).toBeLessThan(STUFE);
-      expect(f.worst, sag(f, "fällt nicht gegenüber 0,92")).toBeLessThan(gute[i]?.worst as number);
+      if (MATERIAL[f.surface.name] !== GLAS) continue;
+      expect(f.worst, sag(f, "bei 0,55")).toBeLessThan(STUFE);
+      expect(f.worst, sag(f, "fällt nicht gegenüber 0,75")).toBeLessThan(gute[i]?.worst as number);
+    }
+    // The reading plate must be untouched by a control mutation — that is what
+    // makes the split a split and not a rename.
+    for (const f of heller) {
+      if (MATERIAL[f.surface.name] !== PLATTE) continue;
+      expect(
+        f.worst,
+        sag(f, "die Lesematte ließ sich vom Funktionsglas mitnehmen"),
+      ).toBeGreaterThanOrEqual(STUFE);
     }
   });
 
@@ -1106,6 +1160,14 @@ describe("Das Glas der festen Schale hält seine Lesbarkeit", () => {
     const eigentümer = modus.unlayered.map((o) => `${o.rule.file}:${o.rule.line}`);
     expect(eigentümer, "zweite Regel, aber nur ein Eigentümer gemeldet").toHaveLength(2);
     expect(modus.winner?.colour, "flache Farbe gewinnt, genannt wird das Token").toBe("#243747");
-    expect(modus.worst, "flache Modusleiste hält 4,5 — der Wächter ist blind").toBeLessThan(STUFE);
+    // Not a contrast claim: on a dark flat plate the vibrant ladder still reads
+    // (measured 6,90), so the defect this case exists for is structural — a
+    // second rule that steals the surface and with it the stage. That is what
+    // the two assertions above prove, and this one names the consequence: the
+    // bar no longer takes a stage at all, because no token is left on it.
+    expect(
+      modus.winner?.decl.value,
+      "die flache Platte trägt kein Material-Token mehr — sie kann nicht mehr mit dem Grund gehen",
+    ).not.toMatch(/glass-control-bg|material-read-bg/);
   });
 });

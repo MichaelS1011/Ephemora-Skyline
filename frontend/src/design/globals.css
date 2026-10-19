@@ -52,14 +52,26 @@
      ladder). The city comes THROUGH instead as depth-of-field: a 24 px blur
      at 1.4× saturation keeps the world behind the chrome present, coloured
      and pushed back, and the lit top edge carries the specular. */
-  /* The stage is not only this constant. `render/backdropLuminance.ts` measures
-     what each panel actually covers and writes the same token on that element
-     with the stage the ground behind it allows — 0,30 over a shadowed facade,
-     where seven tenths of the city passes through, up to this value over the
-     plaza in daylight. The number below is therefore the ceiling the sampler may
-     not exceed and the value a surface keeps when there is nothing to sample:
-     no canvas yet, the scene boundary showing, a test. */
-  --glass-chrome-bg: rgba(14, 16, 21, 0.92);
+  /* Two materials, because the shell does two different jobs. Apple's Materials
+     page separates them outright: Liquid Glass is the layer of „controls and
+     navigation elements … that floats above the content layer", and „Don't use
+     Liquid Glass in the content layer"; where a surface carries „a significant
+     amount of text" the thicker standard material is what keeps fine features
+     legible. Measured on the running screen the split is not a hairline: the dock
+     carries 14 words and 5 controls, the mode bar 3 and 3 — the file card 245
+     words, the findings list 189. They were all wearing one film.
+
+     The control glass is the one that adapts. `render/backdropLuminance.ts`
+     measures the picture inside each bar's own rectangle and writes this token
+     on the element with the stage its backdrop allows: 0,30 over a shadowed
+     facade, where seven tenths of the city passes through, up to this ceiling
+     over the plaza. The ceiling is the measured floor of the control ink ladder
+     below — at 0,75 every word on a bar keeps 4,5:1 over the brightest thing the
+     city can put there. The reading plate is fixed and thick: that is where the
+     sentences live, and a stage that thins under 245 words of 12 px text is a
+     legibility regression dressed as a look. */
+  --glass-control-bg: rgba(14, 16, 21, 0.75);
+  --material-read-bg: rgba(18, 18, 16, 0.94);
   --glass-chrome-sheen: linear-gradient(
     158deg,
     rgba(242, 239, 232, 0.05),
@@ -586,6 +598,71 @@ button {
 button:disabled {
   cursor: not-allowed;
 }
+/* The scroll edge of the world. Apple names the mechanism as part of the
+   material: scroll edge effects „further enhance legibility by blurring and
+   reducing the opacity of background content". Measured before this block, the
+   city met the bars at full detail — a window grid or a file plate one pixel
+   away from the header's caption — which is exactly the case where a thin bar
+   loses its labels. So the picture is softened where it passes under a bar and
+   untouched everywhere else: two bands, no veil over the city itself.
+   The blur is weaker than the bars' own (14 px against 24 px) on purpose: the
+   band is depth-of-field at the edge of the frame, not a second frost.
+   Both bands are geometry you can break silently — a band that paints under the
+   canvas, or a fade that is spent behind the bar, leaves a screen that still
+   looks fine. `scripts/scroll-edge-drive.mjs` measures them against a synthetic
+   edge and fails when either stops biting. */
+.city-canvas::before,
+.city-canvas::after {
+  content: "";
+  position: absolute;
+  /* Without this the band is invisible, and not by a little: measured by
+     painting a red rectangle on it, the pixels never changed — the wrapper is
+     `position: static` and its canvas paints over an unlayered absolute
+     pseudo-element. `z-index: 1` lifts the band above the picture and below
+     every panel (the card is 20, the bars 45), and the drei labels, which sit
+     at their own far larger z-index, stay out of its blur: the world's text is
+     not softened, only the world is. */
+  z-index: 1;
+  left: 0;
+  right: 0;
+  pointer-events: none;
+  backdrop-filter: blur(14px) saturate(1.1);
+  -webkit-backdrop-filter: blur(14px) saturate(1.1);
+}
+.city-canvas::before {
+  /* Measured: with the fade ending 96 px from the top of the frame, the strip
+     the reader actually sees under the header (64 px tall at 1440×900) lost
+     0,3 % of its horizontal detail — the same number a control region outside
+     any band lost. The mask had spent itself inside the chrome. So the opaque
+     part runs past the header's own height and the fade happens where the city
+     is visible. `tests/liquid-glass.test.ts` holds the 84 px against the header. */
+  top: 0;
+  height: 190px;
+  mask-image: linear-gradient(
+    to bottom,
+    #000 0,
+    #000 84px,
+    rgba(0, 0, 0, 0.5) 122px,
+    transparent 190px
+  );
+}
+.city-canvas::after {
+  /* The band begins at the dock's own top edge — 20 px of inset plus the height
+     the dock publishes — and not at the bottom of the frame. Measured with
+     `scripts/scroll-edge-drive.mjs`: anchored to the frame it removed 0,1 % of a
+     64 px edge in the strip the reader sees, because its whole fade was spent
+     behind the bar. The dock wraps on narrow screens, so the band follows. */
+  bottom: calc(20px + var(--dock-h, 54px));
+  height: 126px;
+  mask-image: linear-gradient(
+    to top,
+    #000 0,
+    #000 20px,
+    rgba(0, 0, 0, 0.5) 58px,
+    transparent 126px
+  );
+}
+
 .city-canvas:focus-visible {
   outline: 2px solid var(--focus-ring);
   outline-offset: -3px;
@@ -991,6 +1068,29 @@ button:disabled {
   font-size: 12px;
 }
 
+/* The control layer's ink ladder. On a bar that thins to α 0,75 over the plaza,
+   the shell's quiet greys fall to 2,77–3,37:1 — Apple's own example of the wrong
+   label on a material. The two steps below are the measured answer: #c6c2b9
+   holds 4,71:1 over plaza, sky and street together, and stays a clear step under
+   the primary #f2efe8, so the hierarchy survives on lightness as well as on size
+   and weight. Scoped here, not global: the reading plates keep the ladder their
+   245 words were measured against. */
+.workspace-header,
+.workspace-modes,
+.workspace-heatmap,
+.action-dock,
+.start-summary-slot,
+.start-summary-strip-slot,
+.city-coach {
+  --meta: #c6c2b9;
+  --meta-strong: #d6d3cb;
+  /* The count inside a bar is a word too. The brand gold reads 4,33:1 as 12 px
+     text over the plaza behind α 0,75 — the brightest ink on the shell's accent
+     scale, and the one that was not in the list until this line. On the reading
+     plates the brand gold stays what it is. */
+  --accent-gold: #ffd98a;
+}
+
 .workspace-header {
   position: absolute;
   inset: 0 0 auto;
@@ -1002,7 +1102,7 @@ button:disabled {
   padding: 0 22px;
   z-index: 45;
   pointer-events: auto;
-  background: var(--glass-chrome-sheen), var(--glass-chrome-bg);
+  background: var(--glass-chrome-sheen), var(--glass-control-bg);
   backdrop-filter: var(--glass-chrome-blur);
   border-bottom: 1px solid var(--glass-chrome-border);
   box-shadow: var(--glass-chrome-edge);
@@ -1039,7 +1139,7 @@ button:disabled {
 }
 .workspace-project > span {
   display: block;
-  color: #929c87;
+  color: var(--meta);
   font-size: 11px;
   margin-top: 2px;
 }
@@ -1047,7 +1147,7 @@ button:disabled {
 .workspace-project > .project-guess {
   display: inline;
   margin-left: 4px;
-  color: #929c87;
+  color: var(--meta);
   font-size: var(--fs-small);
   cursor: help;
 }
@@ -1476,7 +1576,7 @@ div[role="status"].animate-toast-rise {
    — the dock is restyled from three places and lost the argument before. */
 .action-dock-row {
   backdrop-filter: var(--glass-chrome-blur) !important;
-  background: var(--glass-chrome-sheen), var(--glass-chrome-bg) !important;
+  background: var(--glass-chrome-sheen), var(--glass-control-bg) !important;
   border: 1px solid var(--glass-chrome-border) !important;
   box-shadow:
     var(--glass-chrome-edge),
@@ -1605,7 +1705,7 @@ div[role="status"].animate-toast-rise {
    `tests/glas-chrome.test.ts` now counts the rules that actually rule. */
 .workspace-modes .glass,
 .workspace-heatmap .glass {
-  background: var(--glass-chrome-sheen), var(--glass-chrome-bg);
+  background: var(--glass-chrome-sheen), var(--glass-control-bg);
   border: 1px solid var(--glass-chrome-border);
   backdrop-filter: var(--glass-chrome-blur);
   box-shadow:

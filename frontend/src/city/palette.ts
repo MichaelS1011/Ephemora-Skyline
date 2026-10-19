@@ -111,18 +111,19 @@ export function severityColor(sev: Severity, colorblind: boolean): string {
 /**
  * The same alarms where they are a WORD rather than a dot, a rule or a beacon.
  *
- * Measured on the shell's glass over the brightest ground the city can paint
- * behind a panel — the plaza at `#e6e1d4`, which composites to `#2a2b2e` under
- * the tint: `P0` reads 3,88:1, the colour-blind vermilion 3,66:1 and the
- * colour-blind blue 2,73:1. A 12 px sentence needs 4,5. The mixes below are
+ * Measured on the control glass at its brightest stage — the plaza at
+ * `#e6e1d4` behind α 0,75 composites to `#4d4d4d`, and there `P0` reads 2,18:1,
+ * the colour-blind vermilion 2,24:1 and the colour-blind blue 1,95:1. A 12 px
+ * sentence needs 4,5, so these are the steps that clear it: #ffa7b4, #ffab6f and
+ * the colour-blind set at 4,52–4,56:1 over plaza, sky and street. The mixes below are
  * the smallest step toward white that clears it on that ground for each tone
- * (18 % / 0 / 0 and 16 % / 30 % / 0), and `tests/glas-chrome.test.ts` recomputes
+ * (57 % / 37 % / 0 and 53 % / 59 % / 24 %), and `tests/glas-chrome.test.ts` recomputes
  * every one of the six ratios, so the table cannot quietly drift back under AA.
  *
  * The signal itself keeps its pure tone: only the ink that spells a word lifts.
  */
-const SEVERITY_TEXT_MIX: Record<Severity, number> = { P0: 0.18, P1: 0, P2: 0 };
-const SEVERITY_TEXT_MIX_CVD: Record<Severity, number> = { P0: 0.16, P1: 0.3, P2: 0 };
+const SEVERITY_TEXT_MIX: Record<Severity, number> = { P0: 0.57, P1: 0.37, P2: 0 };
+const SEVERITY_TEXT_MIX_CVD: Record<Severity, number> = { P0: 0.53, P1: 0.59, P2: 0.24 };
 
 export function severityTextColor(sev: Severity, colorblind: boolean): string {
   const mix = colorblind ? SEVERITY_TEXT_MIX_CVD[sev] : SEVERITY_TEXT_MIX[sev];

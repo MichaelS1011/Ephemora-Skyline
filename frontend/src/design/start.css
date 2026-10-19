@@ -729,7 +729,7 @@
      surface that arrives by itself, and it is the one the reader looks at while
      the city is still moving behind it. `tests/glas-chrome.test.ts` holds the
      inks on it to AA over the brightest ground the picture can show. */
-  background: var(--glass-chrome-sheen), var(--glass-chrome-bg);
+  background: var(--glass-chrome-sheen), var(--glass-control-bg);
   box-shadow: var(--glass-chrome-edge), var(--glass-shadow);
   backdrop-filter: var(--glass-chrome-blur);
   -webkit-backdrop-filter: var(--glass-chrome-blur);
@@ -871,7 +871,7 @@
   padding: 6px 8px 6px 10px;
   border: 1px solid var(--glass-chrome-border);
   border-radius: 999px;
-  background: var(--glass-chrome-sheen), var(--glass-chrome-bg);
+  background: var(--glass-chrome-sheen), var(--glass-control-bg);
   box-shadow: var(--glass-chrome-edge), var(--glass-shadow);
   backdrop-filter: var(--glass-chrome-blur);
   -webkit-backdrop-filter: var(--glass-chrome-blur);
@@ -914,7 +914,7 @@
   padding: 11px 11px 12px;
   border: 1px solid rgba(242, 239, 232, 0.14);
   border-radius: 9px;
-  background: var(--glass-chrome-sheen), var(--glass-chrome-bg);
+  background: var(--glass-chrome-sheen), var(--glass-control-bg);
   box-shadow:
     0 12px 30px rgba(0, 0, 0, 0.4),
     var(--glass-chrome-edge);
@@ -954,8 +954,9 @@
   letter-spacing: 0.06em;
   text-transform: uppercase;
   /* The coach is glassed, so this ink is measured against the frosted field by
-     glas-chrome.test.ts — it is the same value as `.start-coach-close`. */
-  color: #a8a49a;
+     glas-chrome.test.ts. It rides the control layer's ladder, because a bar that
+     thins to α 0,75 cannot carry #a8a49a (3,37:1 over the plaza). */
+  color: var(--meta-strong);
 }
 .start-coach-strip:hover .start-coach-strip-hint {
   color: #c8baa1;

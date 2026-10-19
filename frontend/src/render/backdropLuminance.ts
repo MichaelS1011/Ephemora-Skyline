@@ -8,20 +8,23 @@
  * both: it films over the dark towers, where nothing needs covering, and the
  * bright plaza is the only place that actually forces the density.
  *
- * Measured, over the grounds this city paints (the floor `glas-chrome.test.ts`
- * holds to 4,5:1 for the inks on the glass):
+ * Measured, over the grounds this city paints: each number is the lowest stage
+ * at which that ink still reaches 4,5:1 on the frosted field (the tint, then the
+ * 5 % sheen, then the ink — the same composite `glas-chrome.test.ts` builds).
  *
- *   plaza #e6e1d4  Y 0,754 → neutral ink needs α 0,59, the quiet second ink 0,67
- *   nebel #e0e9e5  Y 0,798 → α 0,60 / 0,68
- *   feldweg        Y 0,456 → α 0,47 / 0,58
- *   asphalt        Y 0,049 → α 0,00
- *   fassade        Y 0,033 → α 0,00
+ *   ground            Y       primary  gold   caption
+ *   plaza #e6e1d4     0,754     0,59   0,64     0,73
+ *   sky   #e0e9e5     0,798     0,60   0,65     0,74
+ *   feldweg #aab6bb   0,456     0,47   0,54     0,66
+ *   kerb  #93a2a9     0,349     0,40   0,48     0,61
+ *   asphalt #5c6a74   0,138     0,02   0,15     0,36
+ *   facade  #17171a   0,009     0,00   0,00     0,00
  *
- * So the ramp below is not a taste curve: its top rung is the brightest ground's
- * measured floor, its bottom rung is where the picture behind the panel is dark
- * enough that the ink needs no help at all. `tests/glas-chrome.test.ts` walks
- * the same table against the real grounds and fails any rung that lets an ink
- * fall under AA.
+ * The caption ink is what binds, and the ceiling 0,75 is its worst need (0,74 on
+ * the sky) with a hundredth of margin. The shell's old quiet grey (#929c87) would
+ * have asked 0,89 on the plaza — that is the ink the control ladder was lifted
+ * for, not a decoration change. `tests/glas-chrome.test.ts` walks the same table
+ * against the real grounds and fails any rung that lets an ink fall under AA.
  */
 
 /** Relative luminance of an 8-bit sRGB triplet (WCAG 1.4.1 definition). */
@@ -34,54 +37,57 @@ export function relativeLuminance(r: number, g: number, b: number): number {
 }
 
 /**
- * The measured ladder: for the luminance of the picture behind a panel, the
- * stage that keeps every ink on the shell at 4,5:1. Read it as pairs — the rungs
+ * The measured ladder: for the luminance of the picture behind a control bar,
+ * the stage that keeps every ink on that bar at 4,5:1. Read it as pairs — the rungs
  * are interpolated linearly between them.
  *
- * Each row is the binding ink over a ground the city actually paints, plus a
- * margin of one hundredth: `--meta` (#98948a, the header's caption ink) is the
- * quietest thing that sits on this glass, and it is what the ladder follows.
- * The bright end is today's fixed value; the dark end is where the feature
- * lives — over a shadowed facade seven tenths of the picture passes through.
+ * The ceiling is not a taste value. At 0,75 the quietest word on a bar (the
+ * header caption on the control ladder, `--meta: #c6c2b9`) and the brightest one
+ * (the dock's gold count, `--accent-gold: #ffd98a`) both keep 4,5:1 over the
+ * lightest ground the city paints — the plaza at Y 0,754 — and `tests/glas-chrome
+ * .test.ts` walks every rung against every ground and fails any pair below that.
+ * The floor is where the feature lives: over a shadowed facade two thirds of the
+ * picture passes through. Reading surfaces are not on this ramp —
+ * `--material-read-bg` is a fixed, thick plate, because that is where the
+ * 245-word card lives.
  *
- *   Y      ground behind the panel                     α
- *   0,000  a dark facade, the monolith mass           0,30
- *   0,020                                          0,36
- *   0,040                                          0,50
- *   0,060                                          0,62
- *   0,100                                          0,74
- *   0,140  asphalt (ENV.road #5c6a74)               0,79
- *   0,200                                          0,83
- *   0,300  kerb stone (ENV.curb #93a2a9)            0,87
- *   0,456  the field path (ENV.crosswalk #aab6bb)   0,90
- *   0,600                                          0,92
- *   0,800  the plaza #e6e1d4, the sky #e0e9e5       0,92
+ *   Y      ground behind the panel                        α
+ *   0,000  a dark facade — the monolith #17171a is 0,009 0,30
+ *   0,020                                                0,37
+ *   0,040                                                0,47
+ *   0,060                                                0,55
+ *   0,100                                                0,64
+ *   0,140  asphalt #5c6a74 (0,138)                       0,69
+ *   0,200                                                0,72
+ *   0,300  plaza rim #7d909b (0,267), kerb #93a2a9 (0,349) 0,74
+ *   0,456  field path #aab6bb — the ceiling is reached   0,75
+ *   0,800  plaza #e6e1d4 (0,754), sky #e0e9e5 (0,798)    0,75
  */
 export const GLASS_ALPHA_MIN = 0.3;
-export const GLASS_ALPHA_MAX = 0.92;
+export const GLASS_ALPHA_MAX = 0.75;
 
 const RAMP: ReadonlyArray<readonly [number, number]> = [
   [0, 0.3],
-  [0.02, 0.36],
-  [0.04, 0.5],
-  [0.06, 0.62],
-  [0.1, 0.74],
-  [0.14, 0.79],
-  [0.2, 0.83],
-  [0.3, 0.87],
-  [0.456, 0.9],
-  [0.6, 0.92],
-  [0.8, 0.92],
+  [0.02, 0.37],
+  [0.04, 0.47],
+  [0.06, 0.55],
+  [0.1, 0.64],
+  [0.14, 0.69],
+  [0.2, 0.72],
+  [0.3, 0.74],
+  [0.456, 0.75],
+  [0.8, 0.75],
 ];
 
 /**
  * The stage a panel takes for a backdrop of relative luminance `Y`.
  *
- * Monotone by construction, and clamped to the two ends of the ladder: the
- * floor is where the glass is genuinely clear, the ceiling is today's value, so
- * a panel over the plaza in daylight looks exactly as it did before this file
- * existed. `tests/glas-chrome.test.ts` walks the ladder against the real grounds
- * and fails any rung that lets a listed ink fall under AA.
+ * Monotone by construction, and clamped to the two ends of the ladder: the floor
+ * is where the glass is genuinely clear, the ceiling is the value the fixed sheet
+ * carries, so a panel over the plaza in daylight looks the way the token says and
+ * only the darker grounds make it clearer. `tests/glas-chrome.test.ts` walks the
+ * ladder against the real grounds and fails any rung that lets a listed ink fall
+ * under AA.
  */
 export function glassAlphaFor(Y: number): number {
   if (!Number.isFinite(Y)) return GLASS_ALPHA_MAX;
@@ -184,7 +190,7 @@ export function applyGlassStage(
   const last = seen.get(el);
   if (last !== undefined && Math.abs(last - next) < HYSTERESIS) return false;
   seen.set(el, next);
-  el.style.setProperty("--glass-chrome-bg", `rgba(14, 16, 21, ${next.toFixed(2)})`);
+  el.style.setProperty("--glass-control-bg", `rgba(14, 16, 21, ${next.toFixed(2)})`);
   return true;
 }
 
