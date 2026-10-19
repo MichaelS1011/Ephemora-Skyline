@@ -1039,6 +1039,41 @@ describe("Das Glas der festen Schale hält seine Lesbarkeit", () => {
       "über dunklem Grund muss das Glas durchsichtig werden — die Sohle der Kurve",
     ).toBeLessThanOrEqual(0.45);
     expect(glassAlphaFor(0), "die Sohle ist die klare Stufe").toBe(GLASS_ALPHA_MIN);
+    // The curve must still be moving where the city is bright. Measured on the
+    // running app before the retune: every bar sat at 0,75 in every camera pose,
+    // because the ceiling was already reached at Y 0,456 while the inks only need
+    // 0,675 there — a ceiling with a ramp drawn under it. The four grounds the
+    // chrome actually floats over in the demo sit between Y 0,4 and Y 0,5.
+    const mitte = [0.4, 0.456, 0.5, 0.55].map((y) => glassAlphaFor(y));
+    expect(
+      Math.max(...mitte),
+      `über mittelhellen Gründen darf die Stufe nicht die Decke sein — gemessen ${mitte
+        .map((a) => a.toFixed(3))
+        .join(", ")} gegen die Decke ${GLASS_ALPHA_MAX}`,
+    ).toBeLessThan(GLASS_ALPHA_MAX - 0.01);
+    const stufen = [
+      ...GRÜNDE,
+      { sagt: "Straße", farbe: ENV.road },
+      { sagt: "Kantenstein", farbe: ENV.curb },
+      { sagt: "Plaza-Rand", farbe: ENV.plotEdge },
+    ].map((g) => glassAlphaFor(relLum(g.farbe)));
+    expect(
+      stufen.filter((a) => a < GLASS_ALPHA_MAX - 0.001).length,
+      `die Kurve muss auf echten Gründen unter der Decke bleiben — gemessen ${stufen
+        .map((a) => a.toFixed(3))
+        .join(", ")}`,
+    ).toBeGreaterThanOrEqual(3);
+    // And it must move slowly enough that a flight cannot flicker the chrome: no
+    // twentieth of the luminance range may carry more than a seventh of the stage
+    // range. Measured on this module: the retuned curve's largest such step is
+    // 0,080, the old one's was 0,210, and the running app wrote four stage changes
+    // across a ten-second sweep and none over eight idle seconds.
+    const schritte: number[] = [];
+    for (let y = 0; y <= 0.75; y += 0.01) schritte.push(glassAlphaFor(y + 0.05) - glassAlphaFor(y));
+    expect(
+      Math.max(...schritte),
+      "zu steile Stufen lassen das Chrome beim Fliegen atmen",
+    ).toBeLessThanOrEqual(0.14);
     // …and over the brightest ground it may not exceed the fixed value it had
     // before the ramp existed.
     expect(

@@ -371,6 +371,14 @@ var(--dock-h))`) instead of at the bottom of the window. Measured with
   estimator has a stated limit: on the mode bar its modal green is a chip's own
   fill (102 in both frames, a slope of nothing at all), so that bar is judged by
   the ladder case, not by this instrument.
+- **The retune's own risk, measured before it was pinned.** A curve that finally
+  moves can make the chrome breathe while the camera flies, so it was watched:
+  eight idle seconds wrote **no stage at all** on header, mode bar and dock, and a
+  ten-second flown sweep wrote **four** changes in total. Two invariants went into
+  the ladder case out of that: over the mid-bright grounds the chrome actually
+  floats on (Y 0,40 / 0,456 / 0,50 / 0,55) the stage must sit below the ceiling —
+  the old curve measured 0,750 at all four — and no 0,05 of luminance may carry
+  more than 0,14 of stage, where this curve measures 0,080 and the old one 0,210.
 - **An alarm that is a word is lighter than an alarm that is a dot.** On the
   glass over the plaza the shipped P0 red reads **3,88:1**, the colour-blind
   vermilion **3,66:1** and the colour-blind blue **2,73:1** — under the 4,5 a
