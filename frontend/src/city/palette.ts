@@ -114,16 +114,22 @@ export function severityColor(sev: Severity, colorblind: boolean): string {
  * Measured on the control glass at its brightest stage — the plaza at
  * `#e6e1d4` behind α 0,75 composites to `#4d4d4d`, and there `P0` reads 2,18:1,
  * the colour-blind vermilion 2,24:1 and the colour-blind blue 1,95:1. A 12 px
- * sentence needs 4,5, so these are the steps that clear it: #ffa7b4, #ffab6f and
- * the colour-blind set at 4,52–4,56:1 over plaza, sky and street. The mixes below are
- * the smallest step toward white that clears it on that ground for each tone
- * (57 % / 37 % / 0 and 53 % / 59 % / 24 %), and `tests/glas-chrome.test.ts` recomputes
- * every one of the six ratios, so the table cannot quietly drift back under AA.
+ * sentence needs 4,5, so these are the steps that clear it.
+ *
+ * The binding ground is not the plaza but the horizon haze (`#e0e9e5`, Y 0,798)
+ * under the glass's own 5 % sheen, and the mixes below are the smallest step
+ * toward white that clears 4,5 there for each tone (58 % / 38 % / 0 and
+ * 54 % / 60 % / 25 %). The half-hundredth between the previous table and this one
+ * is a model gap, not a taste gap: the case that judges these words composed the
+ * tint over the ground and forgot the sheen, while the case that judges every
+ * other ink on the shell included it. `frontend/tests/glas-chrome.test.ts` now
+ * washes both fields the same way and recomputes all six ratios, so the two
+ * cannot disagree again.
  *
  * The signal itself keeps its pure tone: only the ink that spells a word lifts.
  */
-const SEVERITY_TEXT_MIX: Record<Severity, number> = { P0: 0.57, P1: 0.37, P2: 0 };
-const SEVERITY_TEXT_MIX_CVD: Record<Severity, number> = { P0: 0.53, P1: 0.59, P2: 0.24 };
+const SEVERITY_TEXT_MIX: Record<Severity, number> = { P0: 0.58, P1: 0.38, P2: 0 };
+const SEVERITY_TEXT_MIX_CVD: Record<Severity, number> = { P0: 0.54, P1: 0.6, P2: 0.25 };
 
 export function severityTextColor(sev: Severity, colorblind: boolean): string {
   const mix = colorblind ? SEVERITY_TEXT_MIX_CVD[sev] : SEVERITY_TEXT_MIX[sev];

@@ -12,19 +12,22 @@
  * at which that ink still reaches 4,5:1 on the frosted field (the tint, then the
  * 5 % sheen, then the ink — the same composite `glas-chrome.test.ts` builds).
  *
- *   ground            Y       primary  gold   caption
- *   plaza #e6e1d4     0,754     0,59   0,64     0,73
- *   sky   #e0e9e5     0,798     0,60   0,65     0,74
- *   feldweg #aab6bb   0,456     0,47   0,54     0,66
- *   kerb  #93a2a9     0,349     0,40   0,48     0,61
- *   asphalt #5c6a74   0,138     0,02   0,15     0,36
- *   facade  #17171a   0,009     0,00   0,00     0,00
+ *   ground            Y       primary  gold   alarm word P0   binding
+ *   plaza #e6e1d4     0,754     0,59   0,64        0,745         P0
+ *   fog   #e0e9e5     0,798     0,60   0,65        0,750         P0
+ *   ground#d1e0bd     0,705     0,56   0,61        0,735         P0
+ *   feldweg #aab6bb   0,456     0,47   0,54        0,675         P0
+ *   kerb  #93a2a9     0,349     0,40   0,48        0,625         P0
+ *   asphalt #5c6a74   0,138     0,02   0,15        0,390         P0
+ *   facade  #17171a   0,009     0,00   0,00        0,000       floor
  *
- * The caption ink is what binds, and the ceiling 0,75 is its worst need (0,74 on
- * the sky) with a hundredth of margin. The shell's old quiet grey (#929c87) would
- * have asked 0,89 on the plaza — that is the ink the control ladder was lifted
- * for, not a decoration change. `tests/glas-chrome.test.ts` walks the same table
- * against the real grounds and fails any rung that lets an ink fall under AA.
+ * The alarm word binds everywhere but on the dark end, so the ramp below is that
+ * column plus two hundredths of margin, clamped to the ceiling the token carries
+ * (0,75 — the word's own need on the horizon haze). The shell's old quiet grey
+ * (#98948a) would have asked 0,907 on the plaza; that ink is not on a bar any
+ * more, which is what let the middle of the curve come down at all.
+ * `tests/glas-chrome.test.ts` walks the same table against the real grounds and
+ * fails any rung that lets an ink fall under AA.
  */
 
 /** Relative luminance of an 8-bit sRGB triplet (WCAG 1.4.1 definition). */
@@ -53,29 +56,37 @@ export function relativeLuminance(r: number, g: number, b: number): number {
  *
  *   Y      ground behind the panel                        α
  *   0,000  a dark facade — the monolith #17171a is 0,009 0,30
- *   0,020                                                0,37
- *   0,040                                                0,47
- *   0,060                                                0,55
- *   0,100                                                0,64
- *   0,140  asphalt #5c6a74 (0,138)                       0,69
- *   0,200                                                0,72
- *   0,300  plaza rim #7d909b (0,267), kerb #93a2a9 (0,349) 0,74
- *   0,456  field path #aab6bb — the ceiling is reached   0,75
- *   0,800  plaza #e6e1d4 (0,754), sky #e0e9e5 (0,798)    0,75
+ *   0,020                                                0,33
+ *   0,040                                                0,36
+ *   0,060                                                0,39
+ *   0,100                                                0,42
+ *   0,138  asphalt #5c6a74                               0,45
+ *   0,200                                                0,52
+ *   0,267  plaza rim #7d909b                             0,59
+ *   0,349  kerb #93a2a9                                  0,645
+ *   0,406  lane dash #b0ab97                             0,675
+ *   0,456  field path #aab6bb                            0,695
+ *   0,600                                                0,72
+ *   0,754  plaza #e6e1d4 — the ceiling from here up      0,75
+ *   0,800  horizon haze #e0e9e5 (0,798), sky zenith      0,75
  */
 export const GLASS_ALPHA_MIN = 0.3;
 export const GLASS_ALPHA_MAX = 0.75;
 
 const RAMP: ReadonlyArray<readonly [number, number]> = [
   [0, 0.3],
-  [0.02, 0.37],
-  [0.04, 0.47],
-  [0.06, 0.55],
-  [0.1, 0.64],
-  [0.14, 0.69],
-  [0.2, 0.72],
-  [0.3, 0.74],
-  [0.456, 0.75],
+  [0.02, 0.33],
+  [0.04, 0.36],
+  [0.06, 0.39],
+  [0.1, 0.42],
+  [0.138, 0.45],
+  [0.2, 0.52],
+  [0.267, 0.59],
+  [0.349, 0.645],
+  [0.406, 0.675],
+  [0.456, 0.695],
+  [0.6, 0.72],
+  [0.754, 0.75],
   [0.8, 0.75],
 ];
 

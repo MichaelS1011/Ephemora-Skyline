@@ -1066,7 +1066,11 @@ describe("Das Glas der festen Schale hält seine Lesbarkeit", () => {
     const states = szene();
     const rein = fläche(states, "scan announcement");
     // Not just the ceiling: the stage a panel takes is the ground's own doing, so
-    // every tone is judged over the field that ground and its rung produce.
+    // every tone is judged over the field that ground and its rung produce. The
+    // field is the washed one — the same 5 % sheen the ladder case composes —
+    // because two cases modelling two different screens is how a half-hundredth
+    // under AA survives a green suite: without the wash the alarm words read
+    // 4,50–4,53 on the horizon, with it 4,46–4,49.
     const felder = [
       ...GRÜNDE,
       { sagt: "Straße", farbe: ENV.road },
@@ -1074,7 +1078,8 @@ describe("Das Glas der festen Schale hält seine Lesbarkeit", () => {
       { sagt: "Monolith", farbe: "#17171a" },
     ].map((x) => {
       const stufe = parseColor(`rgba(14, 16, 21, ${glassAlphaFor(relLum(x.farbe))})`);
-      return toHex(composite(stufe, x.farbe));
+      const grund = toHex(composite(stufe, x.farbe));
+      return toHex(composite({ rgb: parseColor("#f2efe8").rgb, alpha: 0.05 }, grund));
     });
     for (const sev of ["P0", "P1", "P2"] as const) {
       for (const cb of [false, true]) {

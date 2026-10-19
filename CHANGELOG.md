@@ -253,8 +253,8 @@ were run on it as a whole.
   control inks allow — 0,75, where the split below left it. Measured in the
   running demo at the arrival pose, each bar at its own stage: header 0,75
   (backdrop Y 0,403) · mode bar 0,75 (0,431) · announcement 0,75 (0,223) · dock
-  0,75 (0,482) — every one of them capped, because the demo's ground is bright
-  everywhere the chrome floats. 60,1 fps with the sampler running.
+  0,75 (0,482) — every one of them sitting at the cap, which is the finding the
+  retune below answers. 60,1 fps with the sampler running.
   `frontend/tests/glas-chrome.test.ts` walks the ladder over ten real grounds — sky, plaza,
   floor, field path, kerb, street, plot edge, the darkest facade in the language
   table, the monolith, the unscanned grey — and refuses any rung where a listed
@@ -308,9 +308,11 @@ saturate(1.4)`, the 0,05 sheen and the lit top edge. `frontend/tests/glas-chrome
   header, **7,6 % → 22,4 %** on the mode bar, **12,3 % → 21,5 %** on the
   announcement, while the project card moved the other way — from a sampled
   0,89 to a fixed 0,94, deliberately less transparent, because that is where the
-  sentences live. The frame's own grey level carries a constant of each panel's
-  inner layers (≈ +0,04 in α), so the delta is the number, and it matches the
-  token change within 0,01 on all five. Detail does not come back with the
+  sentences live. The delta was always the trustworthy number — the level a frame
+  shows carries each panel's own fills and a sheen that varies across it (≈ +0,04
+  in α read off the token) — and the retune below replaced that estimate with an
+  instrument: two uniform grounds behind the same bar make the fills and the glint
+  cancel, and the response slope returns the stage on its own. Detail does not come back with the
   light: at 8, 16 and 32 px plate period the surviving modulation is ≤ 2 %, at or
   under the panel's own glyph noise, which is what a 24 px frost does to a
   hairline. At 128 px — a block, a tower's width — it rises from 4–7 % to
@@ -341,6 +343,34 @@ var(--dock-h))`) instead of at the bottom of the window. Measured with
   `.panel-scroll`), paint only, so a line is no longer clipped in half. 60,1 fps
   with both bands running. `frontend/tests/liquid-glass.test.ts` holds the blur's depth, the
   two masks, `pointer-events: none`, the z-index and the dock-relative anchor.
+- **The curve was denser than its own inks, and did not know it.** Held against
+  the running app, the adaptive stage wrote one single value in four different
+  camera poses — 0,75 everywhere — so the feature was a ceiling with a ramp drawn
+  under it. The reason is arithmetic, not the scene: the old curve reached 0,75
+  already at Y 0,456, while the measured need of every ink on a bar at that ground
+  is 0,675; between the field path and the plaza the glass was up to 0,15 thicker
+  than anything required. `RAMP` is now that need column plus two hundredths, on
+  fourteen rungs instead of ten. Measured after the change, arrival pose: header
+  0,69 · mode bar 0,66 · dock 0,73, and five distinct stages across the four poses
+  where before there was one. The stage read back off the screen by response slope
+  (see the next line) is 0,693 and 0,729 against those written values.
+- **Two cases, two models of the same screen — that is how a half-hundredth under
+  AA stays green.** The alarm-word case composited the tint over the ground and
+  stopped; the ink-ladder case adds the material's own 5 % sheen on top. Washed
+  the same way, the announcement's P0 word reads **4,46:1** on the horizon haze
+  (Y 0,798) instead of the 4,50 the suite had been reporting as held. Both cases
+  now build one field, and the mixes moved to what that field demands:
+  58 % / 38 % / 0 toward white, and 54 % / 60 % / 25 % for the colour-blind set —
+  half a hundredth on each, which is the whole size of the error.
+- **A stage measured from its response, not its level.** One frame cannot say how
+  transparent a bar is: the grey it shows is the tint, the glint and every control
+  sitting on it at once. Two uniform grounds behind the same bar (223 and 24) make
+  the additive terms cancel, and the slope of the answer is the transmission —
+  header 30,7 %, dock 27,1 % after the retune, against 24,1 % and 25,1 % before it,
+  with the recovered α landing within 0,003 of the value the sampler wrote. The
+  estimator has a stated limit: on the mode bar its modal green is a chip's own
+  fill (102 in both frames, a slope of nothing at all), so that bar is judged by
+  the ladder case, not by this instrument.
 - **An alarm that is a word is lighter than an alarm that is a dot.** On the
   glass over the plaza the shipped P0 red reads **3,88:1**, the colour-blind
   vermilion **3,66:1** and the colour-blind blue **2,73:1** — under the 4,5 a
