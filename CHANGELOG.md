@@ -141,6 +141,35 @@ were run on it as a whole.
 
 ### Fixed
 
+- **The shell asked nothing of a user who asks to be left alone.** Four things a
+  disturbance census on the running screen turned up, each fixed with its own
+  number.
+  · `prefers-reduced-transparency` — the obligation Apple binds to a translucent
+  material — reached nothing: the glass was glass for everyone. `globals.css` now
+  pins both materials opaque and the frost off under that query, and
+  `render/useGlassStage.ts` stands the adaptive sampler off and takes back the
+  inline stage it had written, which would otherwise have beaten the sheet.
+  Verified in the browser with the request emulated over CDP: header, mode bar and
+  dock go `rgb(14, 16, 21)` / `blur: none` with no inline value left; the reading
+  plate goes `rgb(18, 18, 16)`.
+  · Two controls sat under the shell's own 28 px target floor — measured live at
+  91 × 23 px for the strip's “Show again” and 26 × 26 for the card's ✕. Both
+  grew; the census now counts 25 visible targets and none under the floor.
+  · The world gave no sign that it can be dragged: `cursor: auto` on the canvas,
+  so the only hint was the camera moving after the user had already tried. It is
+  `grab`, and `grabbing` while held.
+  · The beacon on a finding tower breathed forever — 1,3 s, 0,8× to 1,4× scale,
+  the only _periodic_ motion in the scene (the fleet and the residents cross and
+  are gone). `layout.ts` already says the pulse is evidence, never decoration, so
+  the breath now holds for 10 s after the building mounts and settles over 6: the
+  marker stays exactly where it was, the movement leaves it. Alarm-shaped pixels
+  changing between frames went 9 → 4,5.
+  What the census did **not** find is worth saying: nothing in the chrome moves,
+  no number ticks (a MutationObserver over six seconds logged zero text writes),
+  no CSS animation loops (`document.getAnimations()` reported one, finished), and
+  the continuous motion is 19 of 360 grid cells — streets, with mean |Δ| 1,5–3,6
+  levels. `frontend/tests/reduced-transparency.test.tsx` and the two new cases in
+  `frontend/tests/motion.test.ts` hold all four.
 - **Two checks read the machine they ran on, not the code they test.** The first
   CI run of this tree (`gh run view 38265309295`) went red on both while every
   gate was green locally. The repository-address check matched its remote out of

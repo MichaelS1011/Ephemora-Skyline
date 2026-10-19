@@ -19,7 +19,7 @@ import {
   ENV,
   type AlarmWindowTones,
 } from "../city/palette";
-import { prefersReducedMotion } from "../city/motion";
+import { beaconIdleScale, prefersReducedMotion } from "../city/motion";
 import {
   HOVER,
   SEAM_COLOUR,
@@ -1042,6 +1042,8 @@ export function Building({
   // Construction cinematic finished — stop touching scale every frame
   const buildDoneRef = useRef(false);
   const settleStartRef = useRef<number | null>(null);
+  // The beacon's own birth, so its idle breath can settle (see `beaconIdleScale`)
+  const beaconBornRef = useRef<number | null>(null);
   // V3: which pulse armings this building has consumed (each armed pulse runs
   // exactly once per mounted instance).
   const pulseConsumedRef = useRef<{ fileId: string; startAt: number } | null>(null);
@@ -1191,7 +1193,8 @@ export function Building({
       }
     }
     if (beaconRef.current) {
-      const idle = 0.8 + Math.abs(Math.sin(t * 2.4 + seed)) * 0.6;
+      if (beaconBornRef.current === null) beaconBornRef.current = t;
+      const idle = beaconIdleScale(t, seed, t - beaconBornRef.current);
       beaconRef.current.scale.setScalar(pulseK > 0 ? idle * (1 + 0.6 * pulseBump) : idle);
       // S-P3 measurement channel: what actually ran, for the headless drive.
       if (typeof window !== "undefined" && pulseK > 0) {

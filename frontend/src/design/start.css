@@ -827,6 +827,12 @@
 }
 .start-summary-pin,
 .start-summary-strip-open {
+  /* Measured on the running strip: 91 × 23 px. The shell's own floor for a
+     target is 28 px on a side — the two that sat under it are these and the ✕
+     below, so both grew instead of the rule being lowered. */
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
   border: 1px solid rgba(242, 239, 232, 0.16);
   border-radius: 4px;
   background: rgba(255, 255, 255, 0.03);
@@ -846,8 +852,9 @@
   color: #f2efe8;
 }
 .start-summary-close {
-  width: 26px;
-  height: 26px;
+  /* 26 × 26 measured — the same 28 px floor as the two controls above. */
+  width: 28px;
+  height: 28px;
   display: inline-flex;
   align-items: center;
   justify-content: center;

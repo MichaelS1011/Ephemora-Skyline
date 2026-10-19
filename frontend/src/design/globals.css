@@ -615,6 +615,28 @@ button:disabled {
      the contrast on bright sky and plaza, gold carries it on the dark */
   box-shadow: inset 0 0 0 2px var(--focus-halo);
 }
+/* The world is draggable and used to say nothing: measured on the running
+   canvas, `cursor: auto` — the only hint that a click-drag orbits the city was
+   the camera moving after the user had already tried it. */
+.city-canvas canvas {
+  cursor: grab;
+}
+.city-canvas canvas:active {
+  cursor: grabbing;
+}
+/* Apple's Materials page carries an obligation with the translucent material:
+   where the user asks for less transparency, the material becomes solid.
+   `prefers-reduced-transparency` is that request, and the shell answers it the
+   way it answers reduced motion — the glass stops being glass. The sampler is
+   stood off in `useGlassStage.ts`, because an inline stage written there would
+   otherwise win over these two tokens. */
+@media (prefers-reduced-transparency: reduce) {
+  :root {
+    --glass-control-bg: rgb(14, 16, 21);
+    --material-read-bg: rgb(18, 18, 16);
+    --glass-chrome-blur: none;
+  }
+}
 .landing-shell {
   position: absolute;
   inset: 0;

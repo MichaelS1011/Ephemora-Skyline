@@ -121,3 +121,58 @@ describe("the shared reduced-motion signal", () => {
     expect(runs).toBe(2);
   });
 });
+
+describe("the beacon's idle breath, and the transparency request", () => {
+  it("keeps the old curve while it breathes and rests the marker afterwards", async () => {
+    // Measured on the running demo: the beacon's 1,3 s breath was the scene's
+    // only *periodic* motion — fleet and residents cross and are gone — and it
+    // never stopped. `layout.ts` already states the rule for the reveal pulse:
+    // evidence, never decoration.
+    const { beaconBreath, beaconIdleScale, BEACON_BREATH_HOLD_S, BEACON_BREATH_DECAY_S } =
+      await import("../src/city/motion");
+    for (const t of [0, 0.31, 0.7, 1.31, 4.9]) {
+      expect(beaconIdleScale(t, 0.4, 0)).toBeCloseTo(
+        0.8 + Math.abs(Math.sin(t * 2.4 + 0.4)) * 0.6,
+        10,
+      );
+    }
+    for (let t = 0; t < 6; t += 0.05) {
+      const v = beaconIdleScale(t, 2.1, 0);
+      expect(v).toBeGreaterThanOrEqual(0.8 - 1e-9);
+      expect(v).toBeLessThanOrEqual(1.4 + 1e-9);
+    }
+    expect(beaconBreath(0)).toBe(1);
+    expect(beaconBreath(BEACON_BREATH_HOLD_S)).toBe(1);
+    expect(beaconBreath(BEACON_BREATH_HOLD_S + BEACON_BREATH_DECAY_S)).toBe(0);
+    expect(beaconBreath(10_000), "a settled marker does not start again").toBe(0);
+    for (const t of [0, 0.5, 1.1, 2.7, 9.9]) {
+      expect(beaconIdleScale(t, 1.3, 999), "settled is a steady 1 at every clock").toBe(1);
+    }
+    let prev = 1;
+    for (
+      let age = BEACON_BREATH_HOLD_S;
+      age <= BEACON_BREATH_HOLD_S + BEACON_BREATH_DECAY_S;
+      age += 0.5
+    ) {
+      const b = beaconBreath(age);
+      expect(b, "the breath lets go monotonically").toBeLessThanOrEqual(prev);
+      prev = b;
+    }
+  });
+
+  it("answers the transparency request, and says no without a matchMedia", async () => {
+    vi.resetModules();
+    const media = installMedia(true);
+    const mod = await import("../src/city/motion");
+    expect(mod.prefersReducedTransparency()).toBe(true);
+    media.set(false);
+    expect(mod.prefersReducedTransparency()).toBe(false);
+    removeMedia();
+    vi.resetModules();
+    const bare = await import("../src/city/motion");
+    expect(
+      bare.prefersReducedTransparency(),
+      "an environment without the query has no request",
+    ).toBe(false);
+  });
+});

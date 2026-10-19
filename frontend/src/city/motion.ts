@@ -69,6 +69,25 @@ export function prefersReducedMotion(): boolean {
 }
 
 /**
+ * The transparency twin of the motion request. Apple's Materials page binds an
+ * obligation to a translucent material: where the user asks for less
+ * transparency, the material goes solid — `globals.css` pins both tokens
+ * opaque on this query, and `render/useGlassStage.ts` stands the adaptive stage
+ * off while it holds. Read per call: the sampler runs on a 450 ms timer, not
+ * per frame, and a flip should reach it without a second cache to keep true.
+ */
+export const REDUCED_TRANSPARENCY_QUERY = "(prefers-reduced-transparency: reduce)";
+
+export function prefersReducedTransparency(): boolean {
+  if (typeof window === "undefined" || typeof window.matchMedia !== "function") return false;
+  try {
+    return window.matchMedia(REDUCED_TRANSPARENCY_QUERY).matches;
+  } catch {
+    return false;
+  }
+}
+
+/**
  * The narrow-window rule, shared by anything that must choose between the
  * wide layout and the compact one (the scan summary opens as a strip below
  * it). 520 px is the breakpoint the header already folds at (stadt-ui.css),
@@ -82,6 +101,31 @@ export function narrowChromeWindow(): boolean {
   } catch {
     return false;
   }
+}
+
+/** How long a beacon may breathe after its building mounts, and how long the
+ *  breath takes to settle. Measured on the running demo: the idle pulse is the
+ *  only *periodic* motion in the scene (everything else — fleet, residents —
+ *  crosses and is gone), with a 1,3 s period and a 0,8×–1,4× swing that never
+ *  stopped. `layout.ts` already states the rule for the reveal pulse: the pulse
+ *  is evidence, never decoration. A pulse that runs forever is decoration. */
+export const BEACON_BREATH_HOLD_S = 10;
+export const BEACON_BREATH_DECAY_S = 6;
+
+/** 1 while the breath is at full swing, 0 once the marker has settled. */
+export function beaconBreath(ageS: number): number {
+  if (!(ageS > BEACON_BREATH_HOLD_S)) return 1;
+  return Math.max(0, 1 - (ageS - BEACON_BREATH_HOLD_S) / BEACON_BREATH_DECAY_S);
+}
+
+/**
+ * The beacon's scale for a clock reading `tS`, its per-building `seed`, and the
+ * building's own `ageS`. While the breath is full this is exactly the curve the
+ * beacon had before (`0,8 + 0,6·|sin|`); once settled it is a steady 1 — the
+ * marker stays where it was, only the movement leaves it.
+ */
+export function beaconIdleScale(tS: number, seed: number, ageS: number): number {
+  return 1 + beaconBreath(ageS) * (Math.abs(Math.sin(tS * 2.4 + seed)) * 0.6 - 0.2);
 }
 
 /** React subscription for anything that must re-render when the flag flips. */
