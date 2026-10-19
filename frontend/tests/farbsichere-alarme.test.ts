@@ -91,7 +91,7 @@ const cityOf = (f: CityFile): CityData =>
 let container: HTMLDivElement;
 let root: Root;
 
-async function summary(colorblind: boolean): Promise<string> {
+async function summary(colorblind: boolean): Promise<{ status: string; rule: string }> {
   if (root) await act(async () => root.unmount());
   container = document.createElement("div");
   document.body.append(container);
