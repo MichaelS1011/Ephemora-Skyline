@@ -1,8 +1,9 @@
 /**
  * Liquid Glass layering (Apple materials, deliberately targeted): the city is
- * never walled off. Measured truth: the AA floor of the existing chrome guard
- * caps the tint alpha at 0.92 — so the see-through quality is bought where
- * the math allows it: depth-of-field blur, saturation, and a specular edge.
+ * never walled off. Measured truth: the AA floor of the chrome guard caps the
+ * control tint at α 0,75 and the reading plate at 0,94 — so the see-through
+ * quality is bought where the math allows it: depth-of-field blur, saturation,
+ * a specular edge, and a stage that thins over dark ground.
  *
  * The guard measures the tokens; glas-chrome.test.ts measures the text on top
  * of them. Both must stay green together — if someone flattens the material
@@ -63,50 +64,46 @@ describe("the chrome is glass, in layers", () => {
     expect(edge, "the lit top edge carries the highlight, ≥ 0.25").toBeGreaterThanOrEqual(0.25);
   });
 
-  it("the world softens where it passes under a bar, and nowhere else", () => {
-    // Apple's second legibility mechanism for a material: „Scroll edge effects
-    // further enhance legibility by blurring and reducing the opacity of
-    // background content." Without it the thin control glass meets the city at
-    // full detail — a window grid one pixel from a caption. Two bands on the
-    // canvas wrapper, each with its own gradient mask, and no veil over the rest
-    // of the picture.
-    const at = globals.indexOf(".city-canvas::before,");
-    expect(at, "die Scroll-Kanten der Stadt fehlen").toBeGreaterThan(-1);
-    // End at the next rule that is not part of the band: `.city-canvas::after {`
-    // also appears in the grouped selector above, and slicing to it stops before
-    // either mask exists — measured, not assumed: the first run of this case read
-    // 243 characters and zero masks.
-    const block = globals.slice(at, globals.indexOf(".city-canvas:focus-visible"));
-    expect(block).toMatch(/backdrop-filter:\s*blur\((\d+)px\)/);
-    const px = Number(block.match(/backdrop-filter:\s*blur\((\d+)px\)/)?.[1] ?? 0);
-    expect(px, "ein weicher Rand braucht echte Tiefe, ≥ 10 px").toBeGreaterThanOrEqual(10);
-    expect(px, "der Rand darf nicht zweite Frostung werden — unter dem Glas selbst").toBeLessThan(
-      24,
-    );
+  it("holds the city unveiled — only the surfaces carry a material", () => {
+    // The operator's rule of 19 October, taken after the bands had been measured
+    // biting (29,4 % of a 64 px edge removed under the header, 35,6 % above the
+    // dock): no haze outside a panel. The frost belongs to the glass, not to the
+    // view — so the canvas wrapper may not paint, filter or mask anything, in any
+    // of its states. Whatever legibility a bar needs has to come from its own
+    // tint, which is what `glas-chrome.test.ts` holds to AA.
+    const forbidden = /\.city-canvas[^{]*::(before|after)\s*\{/;
+    const veil = /backdrop-filter|filter:\s*[^n]|mask-image/;
+    for (const rel of [
+      "globals.css",
+      "stadt-ui.css",
+      "start.css",
+      "city-funktion.css",
+      "griff.css",
+      "learning.css",
+    ]) {
+      const sheet = readFileSync(resolve(here, "../src/design", rel), "utf-8");
+      const at = sheet.search(forbidden);
+      if (at < 0) continue;
+      const block = sheet.slice(at, sheet.indexOf("}", at) + 1);
+      expect(
+        veil.test(block),
+        `${rel} legt einen Filter über die Stadt — ${block.slice(0, 90)}`,
+      ).toBe(false);
+    }
+    // The wrapper's own rule stays plain too.
+    const at = globals.indexOf(".city-canvas {");
+    expect(at, "die Stadt hätte gern ihre Wrapper-Regel").toBeGreaterThan(-1);
     expect(
-      block.match(/mask-image:\s*linear-gradient/g) ?? [],
-      "beide Bänder müssen auslaufen",
-    ).toHaveLength(2);
-    expect(block, "ein Rand, der Klicks fängt, ist kein Rand").toMatch(/pointer-events:\s*none/);
+      globals.slice(at, globals.indexOf("}", at) + 1),
+      "der Wrapper selbst trägt kein Material",
+    ).not.toMatch(veil);
+    // Teeth: the pattern has to see the block that stood here today.
     expect(
-      block,
-      "das untere Band folgt der Dock-Höhe (--dock-h), nicht einer geratenen Zahl",
-    ).toMatch(/var\(--dock-h/);
-    // Two silent failures this case has to catch, both measured on the running
-    // screen with `scripts/scroll-edge-drive.mjs`:
-    // · without a z-index the band paints under the WebGL canvas — a red test
-    //   rectangle on it never reached a pixel, and the drive read 0 % on both
-    //   zones;
-    // · anchored to the frame (`bottom: 0`) the lower band spends its whole fade
-    //   behind the dock — 5,6 % on the strip the reader sees against 35,6 % when
-    //   it starts at the dock's own top edge.
-    expect(block, "ein Band ohne z-index liegt unter der Stadt und macht nichts").toMatch(
-      /z-index:\s*([1-9]\d*)/,
-    );
-    expect(
-      block.slice(block.indexOf(".city-canvas::after")),
-      "das untere Band darf nicht am Rahmen anfangen, sondern an der Dockkante",
-    ).not.toMatch(/bottom:\s*0/);
+      /\.city-canvas[^{]*::(before|after)\s*\{/.test(
+        ".city-canvas::before,\n.city-canvas::after {\n  backdrop-filter: blur(14px);\n}",
+      ),
+      "der Wächter muss ein Band wiedererkennen, das hier entfernt wurde",
+    ).toBe(true);
   });
 
   it("a scrolling card fades its own edge instead of cutting a line", () => {

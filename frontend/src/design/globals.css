@@ -598,71 +598,16 @@ button {
 button:disabled {
   cursor: not-allowed;
 }
-/* The scroll edge of the world. Apple names the mechanism as part of the
-   material: scroll edge effects „further enhance legibility by blurring and
-   reducing the opacity of background content". Measured before this block, the
-   city met the bars at full detail — a window grid or a file plate one pixel
-   away from the header's caption — which is exactly the case where a thin bar
-   loses its labels. So the picture is softened where it passes under a bar and
-   untouched everywhere else: two bands, no veil over the city itself.
-   The blur is weaker than the bars' own (14 px against 24 px) on purpose: the
-   band is depth-of-field at the edge of the frame, not a second frost.
-   Both bands are geometry you can break silently — a band that paints under the
-   canvas, or a fade that is spent behind the bar, leaves a screen that still
-   looks fine. `scripts/scroll-edge-drive.mjs` measures them against a synthetic
-   edge and fails when either stops biting. */
-.city-canvas::before,
-.city-canvas::after {
-  content: "";
-  position: absolute;
-  /* Without this the band is invisible, and not by a little: measured by
-     painting a red rectangle on it, the pixels never changed — the wrapper is
-     `position: static` and its canvas paints over an unlayered absolute
-     pseudo-element. `z-index: 1` lifts the band above the picture and below
-     every panel (the card is 20, the bars 45), and the drei labels, which sit
-     at their own far larger z-index, stay out of its blur: the world's text is
-     not softened, only the world is. */
-  z-index: 1;
-  left: 0;
-  right: 0;
-  pointer-events: none;
-  backdrop-filter: blur(14px) saturate(1.1);
-  -webkit-backdrop-filter: blur(14px) saturate(1.1);
-}
-.city-canvas::before {
-  /* Measured: with the fade ending 96 px from the top of the frame, the strip
-     the reader actually sees under the header (64 px tall at 1440×900) lost
-     0,3 % of its horizontal detail — the same number a control region outside
-     any band lost. The mask had spent itself inside the chrome. So the opaque
-     part runs past the header's own height and the fade happens where the city
-     is visible. `tests/liquid-glass.test.ts` holds the 84 px against the header. */
-  top: 0;
-  height: 190px;
-  mask-image: linear-gradient(
-    to bottom,
-    #000 0,
-    #000 84px,
-    rgba(0, 0, 0, 0.5) 122px,
-    transparent 190px
-  );
-}
-.city-canvas::after {
-  /* The band begins at the dock's own top edge — 20 px of inset plus the height
-     the dock publishes — and not at the bottom of the frame. Measured with
-     `scripts/scroll-edge-drive.mjs`: anchored to the frame it removed 0,1 % of a
-     64 px edge in the strip the reader sees, because its whole fade was spent
-     behind the bar. The dock wraps on narrow screens, so the band follows. */
-  bottom: calc(20px + var(--dock-h, 54px));
-  height: 126px;
-  mask-image: linear-gradient(
-    to top,
-    #000 0,
-    #000 20px,
-    rgba(0, 0, 0, 0.5) 58px,
-    transparent 126px
-  );
-}
-
+/* Nothing between the bars and the city. The shell softens its own edges — the
+   reading plates fade their last 18 px inside the plate (`.panel-scroll` in
+   `stadt-ui.css`) — but no haze lies over the world outside a panel. That was
+   tried here as two masked bands on the canvas wrapper and measured at 29,4 %
+   and 35,6 % of a 64 px edge removed in the strips above and below the dock,
+   which is exactly the complaint: a picture seen through a veil is a picture you
+   cannot see. The bars keep their own frost (24 px, `--glass-chrome-blur`) —
+   that is the milk glass — and the legibility they needed is inside the panel,
+   not in front of the city. `tests/liquid-glass.test.ts` fails if a filter, a
+   mask or a painted pseudo-element lands on `.city-canvas` again. */
 .city-canvas:focus-visible {
   outline: 2px solid var(--focus-ring);
   outline-offset: -3px;

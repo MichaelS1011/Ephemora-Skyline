@@ -319,30 +319,31 @@ saturate(1.4)`, the 0,05 sheen and the lit top edge. `frontend/tests/glas-chrome
   10–12 % on the dock, header and strip; the mode bar is excluded, its labels are
   louder than the signal. `frontend/tests/glas-chrome.test.ts` now pairs every surface with
   the one material it may wear and refuses a reading plate that thins below 0,92.
-- **The scroll edge of the world, and the band that was never painted.** The
-  second legibility mechanism on that page — „Scroll edge effects further enhance
-  legibility by blurring and reducing the opacity of background content" — went
-  in as two masked bands on the canvas wrapper, and the first measurement said it
-  did nothing: 0,3 % of a 64 px edge removed where the reader sees it, the same
-  number a control region outside any band removed. Two causes, both silent. The
-  wrapper is `position: static`, so an unlayered absolute pseudo-element paints
-  **under** the WebGL canvas — proven by putting a red rectangle on the band and
-  watching no pixel change; `z-index: 1` lifts it above the picture and below
-  every panel, and the world's own labels, which sit far higher, stay out of the
-  blur. And a band anchored to the frame spends its whole fade behind the bar:
-  the lower one now starts at the dock's own top edge (`calc(20px +
-var(--dock-h))`) instead of at the bottom of the window. Measured with
-  `scripts/scroll-edge-drive.mjs`, which mounts a synthetic 64 px edge above the
-  canvas and below the bands so the number cannot depend on the camera: **under
-  the header 29,1 %, above the dock 35,6 %, between them 0 %.** Its teeth were
-  checked both ways — remove the `z-index` and both zones read exactly 0 %
-  against the unbanded frame, restore the old geometry and the dock zone falls to
-  5,6 %. An earlier probe reported a 9,6 % cut that was the arrival camera still
-  settling, so the drive refuses to measure until two screenshots are
-  byte-identical. The scrolling card fades its own edge too (18 px at each end of
-  `.panel-scroll`), paint only, so a line is no longer clipped in half. 60,1 fps
-  with both bands running. `frontend/tests/liquid-glass.test.ts` holds the blur's depth, the
-  two masks, `pointer-events: none`, the z-index and the dock-relative anchor.
+- **A scroll edge over the city was built, measured — and taken out again.**
+  Apple's second legibility mechanism („Scroll edge effects further enhance
+  legibility by blurring and reducing the opacity of background content") went in
+  as two masked bands on the canvas wrapper. The first measurement said it did
+  nothing: 0,3 % of a 64 px edge removed where the reader sees it, the same number
+  a control region outside any band removed. Two silent causes, both worth
+  remembering: the wrapper is `position: static`, so an unlayered absolute
+  pseudo-element paints **under** the WebGL canvas — proved by putting a red
+  rectangle on the band and watching no pixel change — and a band anchored to the
+  frame spends its whole fade behind the bar. With `z-index: 1` and a
+  dock-relative anchor it bit, measured against a synthetic 64 px edge so the
+  camera could not lie: 29,1 % under the header, 35,6 % above the dock, 0 %
+  between them, teeth checked in both directions (no z-index → exactly 0 %, old
+  geometry → 5,6 %). An earlier probe had reported a 9,6 % cut that was the
+  arrival camera still settling, which is why the measurement waited for two
+  byte-identical frames. **Then the operator looked at the screen: no haze
+  outside a panel — a picture seen through a veil is a picture you cannot see.**
+  The bands are gone and the drive that measured them went with them. What stays
+  is the guard, turned around: it fails if a filter, a mask or a painted
+  pseudo-element ever lands on `.city-canvas` again, and the legibility the bands
+  were meant to buy now has to come from the panels' own tint, which
+  `frontend/tests/glas-chrome.test.ts` holds to AA. Inside the surfaces the same idea
+  stayed, where it belongs to the surface and not to the world: a scrolling card
+  fades its own last 18 px (`.panel-scroll`), paint only, so a line is no longer
+  clipped in half.
 - **The curve was denser than its own inks, and did not know it.** Held against
   the running app, the adaptive stage wrote one single value in four different
   camera poses — 0,75 everywhere — so the feature was a ceiling with a ramp drawn
