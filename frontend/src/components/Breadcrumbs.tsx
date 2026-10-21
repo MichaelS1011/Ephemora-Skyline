@@ -1,3 +1,4 @@
+import { useEffect, useRef } from "react";
 import { useStore } from "../stores/useStore";
 import { findFileById } from "../city/layout";
 import { t } from "../i18n";
@@ -22,14 +23,33 @@ export function Breadcrumbs() {
   // Re-flies the camera to the focused finding's voxel (store action).
   const refocusVoxel = useStore((s) => s.refocusVoxel);
 
-  if (!cityData) return null;
-
   const selectedFile =
-    selectedUnit?.kind === "file" ? (findFileById(cityData, selectedUnit.id)?.file ?? null) : null;
+    cityData && selectedUnit?.kind === "file"
+      ? (findFileById(cityData, selectedUnit.id)?.file ?? null)
+      : null;
   // Line of the triage-focused finding — only shown while the focus belongs
   // to the selected file (lineSegmentFor returns null otherwise), so the
   // segment disappears together with the focus.
   const focusedLine = selectedFile ? lineSegmentFor(focusedFindingKey, selectedFile) : null;
+  const navRef = useRef<HTMLElement>(null);
+  const activeRef = useRef<HTMLButtonElement>(null);
+
+  // At 1024 the trail is wider than its cap and the active file is appended
+  // last, so the one segment that answers "where am I" sat outside the visible
+  // strip. Bring it in when the selection changes; the root stays reachable by
+  // scrolling back, and no new control is added.
+  useEffect(() => {
+    const nav = navRef.current;
+    const active = activeRef.current;
+    if (!nav || !active) return;
+    const navRect = nav.getBoundingClientRect();
+    const activeRect = active.getBoundingClientRect();
+    if (activeRect.left >= navRect.left && activeRect.right <= navRect.right) return;
+    if (typeof nav.scrollTo !== "function") return;
+    nav.scrollTo({ left: Math.max(0, nav.scrollLeft + activeRect.left - navRect.left - 8) });
+  }, [selectedFile?.id, focusedLine]);
+
+  if (!cityData) return null;
 
   // At the root, with nothing chosen, the trail is one chip repeating the
   // project the header already names — and the ↑ it would carry has no level
@@ -38,7 +58,7 @@ export function Breadcrumbs() {
   if (focusPath.length === 0 && !selectedFile) return null;
 
   return (
-    <nav aria-label={t(lang, "crumbs.navAria")} className="workspace-breadcrumbs">
+    <nav ref={navRef} aria-label={t(lang, "crumbs.navAria")} className="workspace-breadcrumbs">
       {focusPath.length > 0 && (
         <button
           onClick={drillOut}
@@ -111,6 +131,7 @@ export function Breadcrumbs() {
             ›
           </span>
           <button
+            ref={activeRef}
             onClick={() => navigateToFile(selectedFile.id)}
             aria-current="location"
             aria-label={t(lang, "crumb.fileActive", { name: selectedFile.name })}

@@ -7,7 +7,7 @@ import { UNCHECKED_COLOR } from "../src/city/palette";
 /**
  * BELEG-02 — two numbers the README prints that no test had held still.
  *
- * README.md:74 promises the excluded-folders field "caps the list at fifty", and
+ * README.md:75 promises the excluded-folders field "caps the list at fifty", and
  * README.md:65 names the grey for ground no scanner looked at as `#6b6a63`.
  * The suite already walks both mechanisms — `frontend/tests/scan-excludes.test.tsx:101`
  * and the heat-grid tests — but each of them compares behaviour against the module's

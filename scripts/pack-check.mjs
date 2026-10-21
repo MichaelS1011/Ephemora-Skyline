@@ -13,9 +13,10 @@
  * the page → stop. Exit 1 on any failure, printing the line that failed.
  */
 import { execFileSync, spawn } from "node:child_process";
-import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
+import { stagePackage } from "./package-stage.mjs";
 
 const repo = path.resolve(import.meta.dirname, "..");
 const step = (msg) => console.log(`  · ${msg}`);
@@ -31,20 +32,10 @@ function fail(msg) {
 
 const work = mkdtempSync(path.join(tmpdir(), "ephemora-pack-"));
 try {
-  step("build both workspaces");
-  run("npm", ["run", "build"], repo);
-
-  step("assemble the package folder");
+  step("assemble the package folder (builds both workspaces)");
   const stage = path.join(work, "package");
-  mkdirSync(path.join(stage, "scripts"), { recursive: true });
-  cpSync(path.join(repo, "package.publish.json"), path.join(stage, "package.json"));
-  cpSync(path.join(repo, "scripts", "ephemora-skyline.mjs"), path.join(stage, "scripts", "ephemora-skyline.mjs"));
-  for (const dir of ["backend/dist", "frontend/dist"]) {
-    cpSync(path.join(repo, dir), path.join(stage, dir), { recursive: true });
-  }
-  for (const file of ["README.md", "LICENSE", "NOTICE"]) {
-    if (existsSync(path.join(repo, file))) cpSync(path.join(repo, file), path.join(stage, file));
-  }
+  const built = stagePackage(stage);
+  step(`${built.files} files, ${built.mb} MB unpacked`);
 
   step("pack");
   const packed = JSON.parse(run("npm", ["pack", "--json"], stage))[0];
@@ -57,11 +48,18 @@ try {
   execFileSync("npm", ["init", "-y"], { cwd: consumer, stdio: "ignore" });
   execFileSync("npm", ["install", "--no-audit", "--no-fund", tarball], { cwd: consumer, stdio: "ignore" });
 
-  step("start the launcher");
+  step("start the launcher through the installed bin");
   const port = String(4200 + Math.floor(Math.random() * 300));
-  const bin = path.join(consumer, "node_modules", "ephemora-skyline", "scripts", "ephemora-skyline.mjs");
-  if (!existsSync(bin)) fail("the installed package has no launcher script");
-  const child = spawn(process.execPath, [bin], {
+  // The bin shim is what `npx ephemora-skyline` resolves to. Running the script
+  // directly proved the code but not the package's one command.
+  const bin = path.join(
+    consumer,
+    "node_modules",
+    ".bin",
+    process.platform === "win32" ? "ephemora-skyline.cmd" : "ephemora-skyline",
+  );
+  if (!existsSync(bin)) fail("the installed package has no ephemora-skyline bin shim");
+  const child = spawn(bin, [], {
     cwd: consumer,
     env: { ...process.env, PORT: port, EPHEMORA_NO_OPEN: "1" },
     stdio: ["ignore", "pipe", "pipe"],

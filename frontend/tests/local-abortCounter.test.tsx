@@ -189,6 +189,9 @@ describe("an abort aborts", () => {
 
     await pick([withPath("a.ts"), withPath("b.ts")], 0);
 
+    // The reader now hashes before it uploads; give the real Web Crypto task
+    // its moment instead of assuming the old text()-only timing.
+    await vi.waitFor(() => expect(urlOf("/api/analyze-local")).toBeDefined());
     const upload = urlOf("/api/analyze-local");
     expect(upload, "no upload was started").toBeDefined();
     expect(upload!.signal, "the upload was sent without an abort signal").toBeInstanceOf(
@@ -306,7 +309,7 @@ describe("reading a folder counts", () => {
     expect(latest.collected.files).toBe(60);
   });
 
-  it("answers the file wall with the found number, before opening a file", async () => {
+  it("opens a folder over the wall as a preview and reads only its sample", async () => {
     let uploaded = false;
     responses["*"] = () => {
       uploaded = true;
@@ -315,12 +318,13 @@ describe("reading a folder counts", () => {
 
     await pick(many(10_001), 120);
 
-    expect(latest.state).toBe("error");
-    expect(latest.errorMessage).toContain("10.001 Quelldateien gefunden, Grenze ist 10.000");
-    expect(latest.errorMessage).toContain("Ordner ausschließen statt aufgeben");
-    expect(reads.length, `${reads.length} files were read before the wall answered`).toBe(0);
-    expect(uploaded, "an upload was started for a folder over the cap").toBe(false);
-    expect(latest.foundFiles).toBe(10_001);
+    // Reading 2,000 files now includes a real hash per file; wait for the read
+    // to finish instead of assuming the old text()-only timing under load.
+    await vi.waitFor(() => expect(reads.length).toBe(2_000), { timeout: 10_000 });
+    expect(latest.state).not.toBe("error");
+    expect(uploaded, "an upload was started for the preview").toBe(true);
+    expect(latest.foundFiles).toBe(2_000);
+    expect(latest.dropped?.preview).toBe(8_001);
   });
 
   it("counts the paths the scan cannot take, and sends the number along", async () => {

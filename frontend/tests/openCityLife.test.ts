@@ -264,13 +264,31 @@ describe("the street plates and the traffic they carry", () => {
     const boxParts = VEHICLE_BOXES.length + 1; // + the sign board
     const cylParts = VEHICLE_WHEELS.length + 1; // + the sign post
     expect(boxParts).toBeLessThanOrEqual(6);
-    expect(cylParts).toBeLessThanOrEqual(6);
+    // Four wheels per vehicle: the pair on the near side used to be missing, so
+    // a cab seen from the kerb drove on two discs. The ceiling grew by exactly
+    // those four wheels; anything beyond ten round parts is a new draw surface.
+    expect(cylParts).toBeLessThanOrEqual(10);
     expect(world.plates.length).toBeGreaterThan(150);
     // This ceiling bounds the two instance buffers, not the draw calls: closing
     // the grid with a beltway grew the painted network and the browser still
     // measures the same 27 draws per frame with these two meshes inside it.
     // What may not happen is a third mesh for street paint.
     expect(world.plates.length + boxParts).toBeLessThanOrEqual(400);
+  });
+
+  it("gives each vehicle four wheels, one on every corner", () => {
+    for (const vehicle of ["taxi", "bus"] as const) {
+      const wheels = VEHICLE_WHEELS.filter((w) => w.vehicle === vehicle);
+      expect(wheels, `${vehicle} wheel count`).toHaveLength(4);
+      expect(wheels.filter((w) => w.x > 0)).toHaveLength(2);
+      expect(wheels.filter((w) => w.x < 0)).toHaveLength(2);
+      expect(new Set(wheels.map((w) => w.z)).size).toBe(2);
+      for (const w of wheels) {
+        // wheels sit below the body and under its edge, not on the centreline
+        expect(w.y).toBeGreaterThan(0);
+        expect(Math.abs(w.x)).toBeGreaterThan(0.3);
+      }
+    }
   });
 
   it("has block interiors that are actually enclosed by kerbs", () => {
@@ -338,10 +356,10 @@ describe("the empty world is wired to its streets", () => {
     expect(crowd).not.toContain("taxiRef");
     expect(crowd).not.toContain("busRef");
     expect(crowd).not.toContain("stopRef");
-    // 9 before the figures got a contact patch; the tenth is that disc, and it is
-    // instanced for the same reason as everything else here — the crowd is one
-    // draw call per body part, never one mesh per figure.
-    expect((crowd.match(/<instancedMesh/g) ?? []).length).toBe(10);
+    // 9 before the figures got a contact patch; the tenth is that disc, and the
+    // eleventh is the single selection ring. All three are instanced for the
+    // same reason: one draw for the whole city, never one mesh per figure.
+    expect((crowd.match(/<instancedMesh/g) ?? []).length).toBe(11);
   });
 
   it("honours reduced motion for the traffic too", () => {

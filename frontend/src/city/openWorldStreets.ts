@@ -89,11 +89,18 @@ export interface VehicleBox {
 
 export interface VehicleWheel {
   vehicle: VehicleId;
+  /** Local X — the wheel sits at the body's side, not on its centreline. */
+  x: number;
   y: number;
   z: number;
   r: number;
   t: number;
   color: string;
+}
+
+/** Metres driven over the radius, signed so the tread moves with the vehicle. */
+export function wheelRoll(odometer: number, dir: number, radius: number): number {
+  return ((-odometer / Math.max(0.01, radius)) * dir) % (Math.PI * 2);
 }
 
 export interface Transit {
@@ -180,10 +187,14 @@ export const VEHICLE_BOXES: VehicleBox[] = [
 ];
 
 export const VEHICLE_WHEELS: VehicleWheel[] = [
-  { vehicle: "taxi", y: 0.16, z: 1.0, r: 0.16, t: 0.12, color: "#0c0c0b" },
-  { vehicle: "taxi", y: 0.16, z: -1.0, r: 0.16, t: 0.12, color: "#0c0c0b" },
-  { vehicle: "bus", y: 0.22, z: 1.6, r: 0.24, t: 0.14, color: "#0c0c0b" },
-  { vehicle: "bus", y: 0.22, z: -1.6, r: 0.24, t: 0.14, color: "#0c0c0b" },
+  { vehicle: "taxi", x: 0.52, y: 0.16, z: 1.0, r: 0.16, t: 0.12, color: "#0c0c0b" },
+  { vehicle: "taxi", x: -0.52, y: 0.16, z: 1.0, r: 0.16, t: 0.12, color: "#0c0c0b" },
+  { vehicle: "taxi", x: 0.52, y: 0.16, z: -1.0, r: 0.16, t: 0.12, color: "#0c0c0b" },
+  { vehicle: "taxi", x: -0.52, y: 0.16, z: -1.0, r: 0.16, t: 0.12, color: "#0c0c0b" },
+  { vehicle: "bus", x: 0.72, y: 0.22, z: 1.6, r: 0.24, t: 0.14, color: "#0c0c0b" },
+  { vehicle: "bus", x: -0.72, y: 0.22, z: 1.6, r: 0.24, t: 0.14, color: "#0c0c0b" },
+  { vehicle: "bus", x: 0.72, y: 0.22, z: -1.6, r: 0.24, t: 0.14, color: "#0c0c0b" },
+  { vehicle: "bus", x: -0.72, y: 0.22, z: -1.6, r: 0.24, t: 0.14, color: "#0c0c0b" },
 ];
 
 /**

@@ -6,10 +6,22 @@ import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import { surfaceMatrix, surfaceStreetSegments } from "../city/worldSurface";
 import { SurfaceAnchor, useWorldSurface } from "../render/WorldSurface";
-import type { DirLayout } from "../city/layout";
+import type { DirLayout, StreetLine } from "../city/layout";
 import { CURB_OFFSET, type SidewalkNetwork } from "../city/sidewalks";
 import { ENV } from "../city/palette";
-import { CAR_SHAPE, FLEET_LIVERY } from "../city/openWorldStreets";
+import { CAR_SHAPE, FLEET_LIVERY, deriveTransit, wheelRoll } from "../city/openWorldStreets";
+import { ramp } from "../city/epheGait";
+import {
+  FLEET_ACCEL,
+  FLEET_BRAKE,
+  FLEET_LOOK,
+  chooseContinuation,
+  followSpeed,
+  streetContinuations,
+  turnDuration,
+} from "../city/fleetMotion";
+
+export { wheelRoll };
 import { COMPLEXITY_TICKS, heightForComplexity } from "../city/mapping";
 import { reducedSettle } from "../city/motion";
 import { formatDecimal, t } from "../i18n";
@@ -31,20 +43,66 @@ const AXIS_Y = new THREE.Vector3(0, 1, 0);
 const AXIS_Z = new THREE.Vector3(0, 0, 1);
 const rollQ = new THREE.Quaternion();
 
-/**
- * How far a wheel has turned, in radians: metres driven over the radius, signed
- * so the tread moves with the car rather than against it.
- *
- * A still frame cannot show a spinning wheel, and "the wheels spin" is exactly
- * the kind of claim that survives review when nobody has to hold it — so the rule
- * is a function here, and `roadFleet.test.ts` holds its sign and its rate.
- */
-export function wheelRoll(odometer: number, dir: 1 | -1, radius: number): number {
-  return ((-odometer / Math.max(0.01, radius)) * dir) % (Math.PI * 2);
+const LANE_OFFSET = 0.95; // car center offset from the street centerline
+/** How close a car must be to a junction before the right-of-way check. */
+const JUNCTION_LOOK = 3.2;
+const CROSSWALK_BARS = [-1.65, -1.1, -0.55, 0, 0.55, 1.1, 1.65];
+
+/** A smooth corner: a quadratic curve from the outgoing end of one street,
+ *  through the junction, to the entry lane of the next. */
+interface FleetBend {
+  kind: "bend";
+  k: number;
+  dur: number;
+  speed: number;
+  fromX: number;
+  fromZ: number;
+  controlX: number;
+  controlZ: number;
+  toX: number;
+  toZ: number;
+  nextSeg: number;
+  nextT: number;
+  nextDir: 1 | -1;
+  nodeX: number;
+  nodeZ: number;
 }
 
-const LANE_OFFSET = 0.95; // car center offset from the street centerline
-const CROSSWALK_BARS = [-1.65, -1.1, -0.55, 0, 0.55, 1.1, 1.65];
+/** The dead-end turnaround: a half circle around the node, so a car that has
+ *  nowhere to go comes back on the other side of the street instead of
+ *  reversing on the spot. */
+interface FleetArc {
+  kind: "arc";
+  k: number;
+  dur: number;
+  speed: number;
+  centerX: number;
+  centerZ: number;
+  ux: number;
+  uz: number;
+  dir: 1 | -1;
+  nodeX: number;
+  nodeZ: number;
+}
+
+type FleetTurn = FleetBend | FleetArc;
+
+interface FleetCar {
+  lane: number;
+  t: number;
+  cruise: number;
+  v: number;
+  dir: 1 | -1;
+  color: THREE.Color;
+  /** A fleet of identical cars is a stamp. This one is ±8 %. */
+  scale: number;
+  /** Metres driven — what turns the wheels, so they spin with the car. */
+  odometer: number;
+  turn: FleetTurn | null;
+}
+
+const laneLength = (lane: StreetLine): number =>
+  Math.max(Math.hypot(lane.x2 - lane.x1, lane.z2 - lane.z1), 0.001);
 
 /** Top of the measuring mast — the saturated end of the mapping height rail. */
 const MAST_TOP = heightForComplexity(1);
@@ -358,29 +416,32 @@ export function RoadSystem({
       const lb = Math.hypot(b.x2 - b.x1, b.z2 - b.z1);
       return lb - la;
     });
-    const items: Array<{
-      lane: number;
-      t: number;
-      speed: number;
-      dir: 1 | -1;
-      color: THREE.Color;
-      /** A fleet of identical cars is a stamp. This one is ±8 %. */
-      scale: number;
-      /** metres driven — what turns the wheels, so they spin with the car */
-      odometer: number;
-    }> = [];
-    for (let i = 0; i < Math.min(24, lanes.length * 2); i++) {
+    // The cab and the bus work two of these streets. Background traffic stays
+    // off them: a car cannot see a vehicle owned by another component, and a
+    // queue driving through the bus would give that away every few seconds.
+    // Derive the transit from the UNSORTED list: `deriveTransit` picks the cab
+    // street with `find`, so a sorted copy can reserve a different street than
+    // the one the cab actually drives.
+    const transit = deriveTransit(layout.streets);
+    const reserved = new Set<StreetLine | undefined>([transit?.taxiLane, transit?.busLane]);
+    const withoutTransit = lanes.filter((lane) => !reserved.has(lane));
+    const drivable = withoutTransit.length > 1 ? withoutTransit : lanes;
+    const items: FleetCar[] = [];
+    for (let i = 0; i < Math.min(24, drivable.length * 2); i++) {
+      const cruise = 3.5 + ((i * 13) % 40) / 10;
       items.push({
-        lane: i % Math.max(1, lanes.length),
+        lane: i % Math.max(1, drivable.length),
         t: (i * 0.37) % 1,
-        speed: 3.5 + ((i * 13) % 40) / 10,
+        cruise,
+        v: cruise,
         dir: i % 2 === 0 ? 1 : -1,
         color: new THREE.Color(FLEET_LIVERY[i % FLEET_LIVERY.length]!),
         scale: 0.92 + ((i * 7) % 17) / 100,
         odometer: 0,
+        turn: null,
       });
     }
-    return { lanes, items };
+    return { lanes: drivable, lengths: drivable.map(laneLength), items };
   }, [layout]);
 
   const carRef = useRef<THREE.InstancedMesh>(null);
@@ -413,48 +474,205 @@ export function RoadSystem({
     const cabins = cabinRef.current;
     const wheels = wheelRef.current;
     if (!mesh || !cabins) return;
-    carData.items.forEach((c, i) => {
-      const lane = carData.lanes[c.lane];
-      if (!lane) return;
-      const len = Math.hypot(lane.x2 - lane.x1, lane.z2 - lane.z1);
-      c.t += ((dt * c.speed) / Math.max(len, 1)) * c.dir;
-      // U-turn at the end of the street instead of wrapping through traffic
-      if (c.t > 1) {
-        c.t = 1;
-        c.dir = -1;
-      } else if (c.t < 0) {
-        c.t = 0;
-        c.dir = 1;
+    const cars = carData.items;
+    const lanes = carData.lanes;
+    const lengths = carData.lengths;
+
+    for (let i = 0; i < cars.length; i++) {
+      const c = cars[i]!;
+      const lane = lanes[c.lane];
+      if (!lane) continue;
+      const len = lengths[c.lane]!;
+
+      // A corner is a scripted pose: no following, no new decisions until done.
+      if (c.turn) {
+        const turn = c.turn;
+        turn.k = Math.min(1, turn.k + dt / turn.dur);
+        c.odometer += turn.speed * dt;
+        if (turn.k >= 1) {
+          if (turn.kind === "bend") {
+            c.lane = turn.nextSeg;
+            c.t = turn.nextT;
+            c.dir = turn.nextDir;
+          } else {
+            c.dir = turn.dir > 0 ? -1 : 1;
+            c.t = turn.dir > 0 ? 1 : 0;
+          }
+          c.turn = null;
+        }
+        continue;
       }
+
+      // The nearest car on this side of the street: keep a real gap.
+      let gap = Infinity;
+      let aheadSpeed = 0;
+      for (let j = 0; j < cars.length; j++) {
+        if (j === i) continue;
+        const o = cars[j]!;
+        if (o.lane !== c.lane || o.dir !== c.dir) continue;
+        const g = (o.t - c.t) * len * c.dir;
+        if (g > 0.01 && g < gap) {
+          gap = g;
+          aheadSpeed = o.turn ? 0 : o.v;
+        }
+      }
+      let target = gap < FLEET_LOOK ? followSpeed(c.cruise, gap, aheadSpeed) : c.cruise;
+
+      // Right of way at a junction: when two cars arrive at the same node, the
+      // closer one goes first, and equal distances are broken by fleet index.
+      // The rule is a strict order, so two cars can never wait for each other.
+      if (target > 0) {
+        const distToNode = (c.dir > 0 ? 1 - c.t : c.t) * len;
+        if (distToNode < JUNCTION_LOOK) {
+          const nodeX = c.dir > 0 ? lane.x2 : lane.x1;
+          const nodeZ = c.dir > 0 ? lane.z2 : lane.z1;
+          for (let j = 0; j < cars.length; j++) {
+            if (j === i) continue;
+            const o = cars[j]!;
+            const ol = lanes[o.lane];
+            if (!ol) continue;
+            const otherX = o.turn ? o.turn.nodeX : o.dir > 0 ? ol.x2 : ol.x1;
+            const otherZ = o.turn ? o.turn.nodeZ : o.dir > 0 ? ol.z2 : ol.z1;
+            if (Math.hypot(otherX - nodeX, otherZ - nodeZ) > 0.9) continue;
+            const otherDist = o.turn ? 0 : (o.dir > 0 ? 1 - o.t : o.t) * lengths[o.lane]!;
+            if (o.turn || otherDist < distToNode - 0.3) {
+              target = 0;
+              break;
+            }
+            if (Math.abs(otherDist - distToNode) <= 0.3 && j < i) {
+              target = 0;
+              break;
+            }
+          }
+        }
+      }
+
+      c.v = ramp(c.v, target, target < c.v ? FLEET_BRAKE : FLEET_ACCEL, dt);
+      const step = c.v * dt;
+      if (step > 0) {
+        c.odometer += step;
+        c.t += (step / len) * c.dir;
+      }
+      if (c.t > 0 && c.t < 1) continue;
+
+      // End of the segment: follow the network where it continues, and turn
+      // around on a half circle where it does not. Never flip direction in
+      // place — that was the one motion that made the fleet read as a toy.
+      const atEnd = c.t >= 1;
+      c.t = atEnd ? 1 : 0;
+      const nodeX = atEnd ? lane.x2 : lane.x1;
+      const nodeZ = atEnd ? lane.z2 : lane.z1;
       const ux = (lane.x2 - lane.x1) / len;
       const uz = (lane.z2 - lane.z1) / len;
-      // right-hand side of the travel direction
-      const lx = lane.x1 + (lane.x2 - lane.x1) * c.t + uz * LANE_OFFSET * c.dir;
-      const lz = lane.z1 + (lane.z2 - lane.z1) * c.t - ux * LANE_OFFSET * c.dir;
-      const rotY = -Math.atan2(uz * c.dir, ux * c.dir);
+      const fromX = lane.x1 + (lane.x2 - lane.x1) * c.t + uz * LANE_OFFSET * c.dir;
+      const fromZ = lane.z1 + (lane.z2 - lane.z1) * c.t - ux * LANE_OFFSET * c.dir;
+      const pick = chooseContinuation(streetContinuations(lanes, c.lane, nodeX, nodeZ), c.odometer);
+      if (pick) {
+        const next = lanes[pick.seg]!;
+        const nlen = lengths[pick.seg]!;
+        const nux = (next.x2 - next.x1) / nlen;
+        const nuz = (next.z2 - next.z1) / nlen;
+        const toX = next.x1 + (next.x2 - next.x1) * pick.entryT + nuz * LANE_OFFSET * pick.dir;
+        const toZ = next.z1 + (next.z2 - next.z1) * pick.entryT - nux * LANE_OFFSET * pick.dir;
+        c.turn = {
+          kind: "bend",
+          k: 0,
+          dur: turnDuration(Math.hypot(toX - fromX, toZ - fromZ)),
+          speed: Math.min(c.v, 4.2),
+          fromX,
+          fromZ,
+          controlX: nodeX,
+          controlZ: nodeZ,
+          toX,
+          toZ,
+          nextSeg: pick.seg,
+          nextT: pick.entryT,
+          nextDir: pick.dir,
+          nodeX,
+          nodeZ,
+        };
+        c.v = Math.min(c.v, 4.2);
+      } else {
+        c.turn = {
+          kind: "arc",
+          k: 0,
+          dur: Math.max(0.55, (Math.PI * LANE_OFFSET) / Math.max(2, c.v)),
+          speed: Math.min(c.v, 3.2),
+          centerX: nodeX,
+          centerZ: nodeZ,
+          ux,
+          uz,
+          dir: c.dir,
+          nodeX,
+          nodeZ,
+        };
+        c.v = Math.min(c.v, 3.2);
+      }
+    }
+
+    cars.forEach((c, i) => {
+      const lane = lanes[c.lane];
+      if (!lane) return;
+      let x: number;
+      let z: number;
+      let rotY: number;
+      const turn = c.turn;
+      if (turn) {
+        const k = turn.k * turn.k * (3 - 2 * turn.k);
+        if (turn.kind === "bend") {
+          const a = (1 - k) * (1 - k);
+          const b = 2 * (1 - k) * k;
+          const d = k * k;
+          x = a * turn.fromX + b * turn.controlX + d * turn.toX;
+          z = a * turn.fromZ + b * turn.controlZ + d * turn.toZ;
+          const dx =
+            2 * (1 - k) * (turn.controlX - turn.fromX) + 2 * k * (turn.toX - turn.controlX);
+          const dz =
+            2 * (1 - k) * (turn.controlZ - turn.fromZ) + 2 * k * (turn.toZ - turn.controlZ);
+          rotY = -Math.atan2(dz, dx);
+        } else {
+          const theta = k * Math.PI;
+          const cos = Math.cos(theta);
+          const sin = Math.sin(theta);
+          const rx = turn.uz * turn.dir;
+          const rz = -turn.ux * turn.dir;
+          x = turn.centerX + LANE_OFFSET * (cos * rx + sin * turn.ux * turn.dir);
+          z = turn.centerZ + LANE_OFFSET * (cos * rz + sin * turn.uz * turn.dir);
+          const tx = -sin * rx + cos * turn.ux * turn.dir;
+          const tz = -sin * rz + cos * turn.uz * turn.dir;
+          rotY = -Math.atan2(tz, tx);
+        }
+      } else {
+        const len = lengths[c.lane] ?? laneLength(lane);
+        const ux = (lane.x2 - lane.x1) / len;
+        const uz = (lane.z2 - lane.z1) / len;
+        x = lane.x1 + (lane.x2 - lane.x1) * c.t + uz * LANE_OFFSET * c.dir;
+        z = lane.z1 + (lane.z2 - lane.z1) * c.t - ux * LANE_OFFSET * c.dir;
+        rotY = -Math.atan2(uz * c.dir, ux * c.dir);
+      }
       const bodyScale = c.scale;
-      dummy.position.set(lx, CAR_SHAPE.body.y * bodyScale, lz);
+      dummy.position.set(x, CAR_SHAPE.body.y * bodyScale, z);
       dummy.rotation.set(0, rotY, 0);
       dummy.scale.setScalar(bodyScale);
       dummy.updateMatrix();
       mesh.setMatrixAt(i, surfaceMatrix(surface, dummy.matrix));
-      dummy.position.set(lx, CAR_SHAPE.cabin.y * bodyScale, lz);
+      dummy.position.set(x, CAR_SHAPE.cabin.y * bodyScale, z);
       dummy.updateMatrix();
       cabins.setMatrixAt(i, surfaceMatrix(surface, dummy.matrix));
       if (wheels) {
-        // Four wheels per car, each at the car's own corners: the yaw turns the
-        // offsets with it, and the roll spins the wheel about its own axle.
-        c.odometer += Math.abs((dt * c.speed) / Math.max(len, 1)) * len;
-        const roll = wheelRoll(c.odometer, c.dir, CAR_SHAPE.wheel.r * bodyScale);
+        // Four wheels per car, each at the car's own corners. The wheel and
+        // the car share a yaw, so forward roll is always the same local sign —
+        // passing `dir` here spun them backwards on every return trip.
+        const roll = wheelRoll(c.odometer, 1, CAR_SHAPE.wheel.r * bodyScale);
         const cos = Math.cos(rotY);
         const sin = Math.sin(rotY);
         for (let w = 0; w < 4; w++) {
           const along = w < 2 ? CAR_SHAPE.wheel.x : -CAR_SHAPE.wheel.x;
           const across = w % 2 === 0 ? CAR_SHAPE.wheel.z : -CAR_SHAPE.wheel.z;
           dummy.position.set(
-            lx + (along * cos + across * sin) * bodyScale,
+            x + (along * cos + across * sin) * bodyScale,
             CAR_SHAPE.wheel.y * bodyScale,
-            lz + (-along * sin + across * cos) * bodyScale,
+            z + (-along * sin + across * cos) * bodyScale,
           );
           dummy.rotation.set(0, 0, 0);
           dummy.quaternion

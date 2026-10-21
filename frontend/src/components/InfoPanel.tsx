@@ -38,8 +38,32 @@ export function InfoPanel() {
   const triageActive = useStore((s) => s.triageActive);
   const triageCursor = useStore((s) => s.triageCursor);
   const closeRef = useRef<HTMLButtonElement>(null);
+  const headingRef = useRef<HTMLHeadingElement>(null);
+  const wasTriage = useRef(false);
   const [linkCopied, setLinkCopied] = useState(false);
+  /** A finding's line the reader asked to open; drives the source scroll. */
+  const [sourceLine, setSourceLine] = useState<number | null>(null);
   const selectedId = selectedUnit?.kind === "file" ? selectedUnit.id : null;
+
+  // Starting a triage moves the city and opens this panel, but keyboard focus
+  // stayed on the document body. Once per triage, put it on the file the queue
+  // landed on; later steps speak through TriageAnnouncer instead of stealing
+  // focus from the Next button.
+  useEffect(() => {
+    const started = triageActive && !wasTriage.current;
+    wasTriage.current = triageActive;
+    if (!started) return;
+    headingRef.current?.focus({ preventScroll: true });
+  }, [triageActive]);
+
+  useEffect(() => {
+    setSourceLine(null);
+  }, [selectedId]);
+
+  useEffect(() => {
+    if (sourceLine == null) return;
+    document.querySelector("[data-source-block]")?.scrollIntoView({ block: "nearest" });
+  }, [sourceLine]);
 
   useEffect(() => {
     if (!selectedId) return;
@@ -197,7 +221,9 @@ export function InfoPanel() {
           </div>
 
           {/* Filename */}
-          <h3 className="panel-file-name font-jetbrains">{file.name}</h3>
+          <h3 ref={headingRef} tabIndex={-1} className="panel-file-name font-jetbrains">
+            {file.name}
+          </h3>
           <p className="panel-file-path font-jetbrains">{file.path}</p>
         </div>
 
@@ -229,6 +255,127 @@ export function InfoPanel() {
         </p>
       )}
 
+      {/* Divider */}
+      <div className="panel-rule" />
+
+      {/* Findings */}
+      {hasFindings ? (
+        <>
+          <div className="panel-section-head flex items-center justify-between mb-2.5">
+            <span
+              className="font-jetbrains text-[length:var(--fs-meta)] tracking-[0.2em] uppercase"
+              style={{ color: severityColor(worstSeverity!, colorblind) }}
+            >
+              {t(
+                lang,
+                file.findings.length === 1 ? "panel.findingsCountOne" : "panel.findingsCountMany",
+                { count: file.findings.length },
+              )}
+            </span>
+            <span
+              className="font-jetbrains text-[length:var(--fs-meta)]"
+              style={{ color: "var(--meta-strong)" }}
+              title={t(lang, "panel.provTitle")}
+            >
+              {[...new Set(file.findings.map((f) => f.provenance ?? "unknown"))].join(" · ")}
+            </span>
+          </div>
+          <div className="flex flex-col gap-1">
+            {file.findings.map((f, i) => {
+              const key = reviewKeyFor(file, i, f);
+              return (
+                <FindingRow
+                  key={i}
+                  finding={f}
+                  index={i}
+                  filePath={file.path}
+                  reviewKey={key}
+                  review={reviews[key] ?? null}
+                  demo={cityData.analysisId === "demo-001"}
+                  // The focus channel is positional and stays that way: every
+                  // writer (triage, search, findings list) names the entry as
+                  // `${fileId}#${index}`. A verdict is keyed by fingerprint.
+                  // Comparing the focused finding against the verdict key meant
+                  // no row ever lit up on a scan whose findings carry
+                  // fingerprints — which is every scan the city mapper maps.
+                  focused={focusedFindingKey === findingKey(file.id, i)}
+                  onOpenLine={setSourceLine}
+                />
+              );
+            })}
+          </div>
+          {/* The write failed, so every verdict on this screen is a verdict that
+              dies with the tab. The store has carried that flag since the catch
+              was closed; nothing on screen said it — a day of triage looked
+              saved. */}
+          {verdictsBlocked && (
+            <p className="panel-note" role="alert" data-verdicts-blocked="true">
+              ⚠ {t(lang, "panel.verdictsBlocked")}
+            </p>
+          )}
+        </>
+      ) : unchecked ? (
+        /* The same file hovers grey in the city and its heat tile is grey:
+           engines that cover this language never ran on it, so "no finding"
+           is an unprovable claim, not a result. Green here would contradict
+           two other surfaces that are already right. */
+        <div
+          className="file-verdict file-verdict-unchecked flex items-start gap-2 px-3 py-2.5 rounded-sm"
+          data-file-verdict="unchecked"
+          style={{
+            color: UNCHECKED_COLOR,
+            background: "rgba(107,106,99,0.10)",
+            border: `1px solid ${UNCHECKED_COLOR}55`,
+          }}
+        >
+          <span aria-hidden="true" className="file-verdict-mark">
+            ⊘
+          </span>
+          <span className="min-w-0">
+            <span className="font-jetbrains text-[length:var(--fs-meta)] block leading-relaxed">
+              {t(
+                lang,
+                engines.length === 1 ? "panel.noFindingsUncheckedOne" : "panel.noFindingsUnchecked",
+                { n: engines.length },
+              )}
+            </span>
+            <span
+              className="font-jetbrains text-[length:var(--fs-meta)] block mt-1"
+              style={{ opacity: 0.85 }}
+            >
+              {engines.join(" · ")}
+            </span>
+          </span>
+        </div>
+      ) : (
+        <div
+          className="file-verdict file-verdict-checked flex items-center gap-2 px-3 py-2.5 rounded-sm"
+          data-file-verdict="checked"
+          style={{ background: "rgba(41,211,152,0.07)", border: "1px solid rgba(41,211,152,0.2)" }}
+        >
+          <span aria-hidden="true" className="file-verdict-mark" style={{ color: "#29d398" }}>
+            ✓
+          </span>
+          <span
+            className="font-jetbrains text-[length:var(--fs-meta)]"
+            style={{ color: "#29d398" }}
+          >
+            {t(lang, "panel.noFindingsChecked")}
+          </span>
+        </div>
+      )}
+      {/* The coverage line sits in the same slot the verdict is read — for
+          every file, found or not: which engines examined it, and where no
+          security scanner even opens the format. */}
+      {coverage && (
+        <div
+          className="file-coverage font-jetbrains text-[length:var(--fs-meta)] mt-1.5"
+          data-file-coverage={coverage.kind}
+          style={{ color: "#8f8b82" }}
+        >
+          {coverage.text}
+        </div>
+      )}
       <PanelAdvice advice={file.advice} lang={lang} />
 
       <nav className="file-learning-return" aria-label={learningCopy(lang, "overview")}>
@@ -429,7 +576,7 @@ export function InfoPanel() {
         {cityOnDisk(cityData) && (
           <OpenInIde
             filePath={file.path}
-            line={focusedLine ?? firstLiveFindingLine}
+            line={sourceLine ?? focusedLine ?? firstLiveFindingLine}
             repoKey={`${cityData.repo.owner}/${cityData.repo.name}`}
           />
         )}
@@ -456,126 +603,6 @@ export function InfoPanel() {
         </span>
       </div>
 
-      {/* Divider */}
-      <div className="panel-rule" />
-
-      {/* Findings */}
-      {hasFindings ? (
-        <>
-          <div className="panel-section-head flex items-center justify-between mb-2.5">
-            <span
-              className="font-jetbrains text-[length:var(--fs-meta)] tracking-[0.2em] uppercase"
-              style={{ color: severityColor(worstSeverity!, colorblind) }}
-            >
-              {t(
-                lang,
-                file.findings.length === 1 ? "panel.findingsCountOne" : "panel.findingsCountMany",
-                { count: file.findings.length },
-              )}
-            </span>
-            <span
-              className="font-jetbrains text-[length:var(--fs-meta)]"
-              style={{ color: "var(--meta-strong)" }}
-              title={t(lang, "panel.provTitle")}
-            >
-              {[...new Set(file.findings.map((f) => f.provenance ?? "unknown"))].join(" · ")}
-            </span>
-          </div>
-          <div className="flex flex-col gap-1">
-            {file.findings.map((f, i) => {
-              const key = reviewKeyFor(file, i, f);
-              return (
-                <FindingRow
-                  key={i}
-                  finding={f}
-                  index={i}
-                  filePath={file.path}
-                  reviewKey={key}
-                  review={reviews[key] ?? null}
-                  demo={cityData.analysisId === "demo-001"}
-                  // The focus channel is positional and stays that way: every
-                  // writer (triage, search, findings list) names the entry as
-                  // `${fileId}#${index}`. A verdict is keyed by fingerprint.
-                  // Comparing the focused finding against the verdict key meant
-                  // no row ever lit up on a scan whose findings carry
-                  // fingerprints — which is every scan the city mapper maps.
-                  focused={focusedFindingKey === findingKey(file.id, i)}
-                />
-              );
-            })}
-          </div>
-          {/* The write failed, so every verdict on this screen is a verdict that
-              dies with the tab. The store has carried that flag since the catch
-              was closed; nothing on screen said it — a day of triage looked
-              saved. */}
-          {verdictsBlocked && (
-            <p className="panel-note" role="alert" data-verdicts-blocked="true">
-              ⚠ {t(lang, "panel.verdictsBlocked")}
-            </p>
-          )}
-        </>
-      ) : unchecked ? (
-        /* The same file hovers grey in the city and its heat tile is grey:
-           engines that cover this language never ran on it, so "no finding"
-           is an unprovable claim, not a result. Green here would contradict
-           two other surfaces that are already right. */
-        <div
-          className="file-verdict file-verdict-unchecked flex items-start gap-2 px-3 py-2.5 rounded-sm"
-          data-file-verdict="unchecked"
-          style={{
-            color: UNCHECKED_COLOR,
-            background: "rgba(107,106,99,0.10)",
-            border: `1px solid ${UNCHECKED_COLOR}55`,
-          }}
-        >
-          <span aria-hidden="true" className="file-verdict-mark">
-            ⊘
-          </span>
-          <span className="min-w-0">
-            <span className="font-jetbrains text-[length:var(--fs-meta)] block leading-relaxed">
-              {t(
-                lang,
-                engines.length === 1 ? "panel.noFindingsUncheckedOne" : "panel.noFindingsUnchecked",
-                { n: engines.length },
-              )}
-            </span>
-            <span
-              className="font-jetbrains text-[length:var(--fs-meta)] block mt-1"
-              style={{ opacity: 0.85 }}
-            >
-              {engines.join(" · ")}
-            </span>
-          </span>
-        </div>
-      ) : (
-        <div
-          className="file-verdict file-verdict-checked flex items-center gap-2 px-3 py-2.5 rounded-sm"
-          data-file-verdict="checked"
-          style={{ background: "rgba(41,211,152,0.07)", border: "1px solid rgba(41,211,152,0.2)" }}
-        >
-          <span aria-hidden="true" className="file-verdict-mark" style={{ color: "#29d398" }}>
-            ✓
-          </span>
-          <span
-            className="font-jetbrains text-[length:var(--fs-meta)]"
-            style={{ color: "#29d398" }}
-          >
-            {t(lang, "panel.noFindingsChecked")}
-          </span>
-        </div>
-      )}
-      {/* The coverage line sits in the same slot the verdict is read — for
-          every file, found or not: which engines examined it, and where no
-          security scanner even opens the format. */}
-      {coverage && (
-        <div
-          className="file-coverage font-jetbrains text-[length:var(--fs-meta)] mt-1.5"
-          data-file-coverage={coverage.kind}
-          style={{ color: "#8f8b82" }}
-        >
-          {coverage.text}
-        </div>
-      )}
       <div className="mt-4">
         <RunTestsButton filePath={file.path} analysisOnDisk={cityOnDisk(cityData)} />
         <TestResultsBlock filePath={file.path} />
@@ -590,10 +617,12 @@ export function InfoPanel() {
           finding's line is scrolled into view. */}
         <SourceBlock
           file={file}
-          analysisId={analysisId}
+          // The demo city has no staged copy behind its id: asking for source
+          // answers 404. No id means no button that can only fail.
+          analysisId={cityOnDisk(cityData) ? analysisId : null}
           key={file.id}
-          autoLoad={focusedLine !== null}
-          scrollToLine={focusedLine}
+          autoLoad={focusedLine !== null || hasFindings}
+          scrollToLine={sourceLine ?? focusedLine ?? firstLiveFindingLine}
         />
       </div>
     </div>

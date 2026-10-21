@@ -178,6 +178,31 @@ describe("the sentence the first drive reads", () => {
     expect(card).not.toMatch(/too large or unreadable/);
   });
 
+  it("labels a live delta as live even when it carries findings", () => {
+    useCity(
+      city({
+        scanProvenance: {
+          regex: true,
+          gitleaks: true,
+          semgrep: true,
+          live: {
+            at: "2026-10-20T10:00:00.000Z",
+            fullScanAt: "2026-10-20T09:00:00.000Z",
+            changed: 1,
+            added: 0,
+            removed: 0,
+            refreshed: 1,
+            stale: ["semgrep"],
+          },
+        },
+      }),
+      "de",
+    );
+    render(<ScanSummary />);
+    expect(seen()).toContain("Live — nur eingebaute Regeln · 3 Funde");
+    expect(seen()).not.toContain("Scan complete");
+  });
+
   /**
    * The strip is where the three numbers sit in one line, which is where the
    * arithmetic either closes or does not. Checked by parsing what was rendered,

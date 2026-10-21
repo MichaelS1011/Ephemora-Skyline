@@ -278,7 +278,7 @@ export function District({ placement, appearAt, skylineAt, constructing }: Distr
       {/* The ONE bundled street sign for this plot: name + risk, the
           underground tally (865 of 900 files — no longer hover-only), and
           the tallest file's complexity, in the measuring mast's coordinates. */}
-      <Html center distanceFactor={52} position={[0, 0.6, d / 2 + 2.2]} zIndexRange={[8, 0]}>
+      <Html center position={[0, 0.6, d / 2 + 2.2]} zIndexRange={[8, 0]}>
         <div
           className={`cf-plate${hasP0 ? " cf-plate-alarm" : ""}`}
           style={{ background: "#121210" }}

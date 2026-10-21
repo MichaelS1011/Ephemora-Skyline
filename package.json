@@ -13,6 +13,9 @@
   "scripts": {
     "dev": "turbo run dev",
     "build": "turbo run build",
+    "start": "npm run build --silent && node scripts/ephemora-skyline.mjs",
+    "package:build": "node scripts/package-stage.mjs",
+    "pack:check": "node scripts/pack-check.mjs",
     "lint": "turbo run lint",
     "type-check": "turbo run type-check",
     "test": "turbo run test",

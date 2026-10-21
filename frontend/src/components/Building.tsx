@@ -15,6 +15,7 @@ import {
   REVIEWED_BEACON_COLOR,
   TEST_FAIL_COLOR,
   TEST_PASS_COLOR,
+  BUILDING_SELECTION,
   CYCLE_RING_COLOR,
   ENV,
   type AlarmWindowTones,
@@ -1037,7 +1038,6 @@ export function Building({
   const ringRef = useRef<THREE.Mesh>(null);
   const glowRef = useRef<THREE.Mesh>(null);
   const findingGlowRef = useRef<THREE.Mesh>(null);
-  const cycleRef = useRef<THREE.Mesh>(null);
   const groupRef = useRef<THREE.Group>(null);
   // Construction cinematic finished — stop touching scale every frame
   const buildDoneRef = useRef(false);
@@ -1227,9 +1227,6 @@ export function Building({
     }
     if (ringRef.current) {
       ringRef.current.rotation.z = t * 0.6;
-    }
-    if (cycleRef.current) {
-      cycleRef.current.rotation.z = t * 1.4;
     }
     if (glowRef.current) {
       const gm = glowRef.current.material as THREE.MeshBasicMaterial;
@@ -1570,15 +1567,16 @@ export function Building({
         </mesh>
       )}
 
-      {/* Circular import warning: slowly rotating red ring at the base */}
+      {/* Circular import warning: a thin line on the plinth, not a second
+          ring competing with the selection. */}
       {inCycle && (
-        <mesh ref={cycleRef} position={[0, 0.12, 0]} rotation={[Math.PI / 2, 0, 0]}>
-          <torusGeometry args={[Math.max(w, d) * 0.95, 0.09, 8, 40]} />
-          <meshStandardMaterial
+        <mesh position={[0, 0.11, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+          <ringGeometry args={[Math.max(w, d) * 0.9, Math.max(w, d) * 0.935, 40]} />
+          <meshBasicMaterial
             color={CYCLE_RING_COLOR}
-            emissive={CYCLE_RING_COLOR}
-            emissiveIntensity={0.9}
-            toneMapped={false}
+            transparent
+            opacity={0.8}
+            side={THREE.DoubleSide}
           />
         </mesh>
       )}
@@ -1763,7 +1761,7 @@ export function Building({
           <mesh ref={ringRef} position={[0, 0.09, 0]} rotation={[-Math.PI / 2, 0, 0]}>
             <ringGeometry args={[Math.max(w, d) * 0.72, Math.max(w, d) * 0.95, 40]} />
             <meshBasicMaterial
-              color={ENV.selection}
+              color={BUILDING_SELECTION}
               transparent
               opacity={0.85}
               side={THREE.DoubleSide}
@@ -1773,7 +1771,7 @@ export function Building({
             <planeGeometry args={[Math.max(w, d) * 3.4, Math.max(w, d) * 3.4]} />
             <meshBasicMaterial
               map={getGroundGlowTexture()}
-              color={ENV.selection}
+              color={BUILDING_SELECTION}
               transparent
               opacity={0.4}
               blending={THREE.AdditiveBlending}
@@ -1789,7 +1787,7 @@ export function Building({
         <mesh ref={findingGlowRef} position={[0, 0.08, 0]} rotation={[-Math.PI / 2, 0, 0]}>
           <ringGeometry args={[Math.max(w, d) * 0.65, Math.max(w, d) * 0.88, 40]} />
           <meshBasicMaterial
-            color={ENV.selection}
+            color={BUILDING_SELECTION}
             transparent
             opacity={0.55}
             side={THREE.DoubleSide}

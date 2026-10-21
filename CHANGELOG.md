@@ -14,6 +14,82 @@ were run on it as a whole.
 
 ### Added
 
+- **A finished folder scan stays live.** With the native folder picker, the scan
+  keeps the handle and watches metadata (name, size, mtime) every 3 s — 8 s
+  above 5,000 files — debounced by 700 ms. A change sends a complete path+SHA
+  manifest plus the bytes of only the changed and new files; the server reuses
+  every unchanged analysis by hash, removes the findings of deleted paths and
+  folds the delta into the same result. The delta runs **built-in rules only**;
+  semgrep, gitleaks, the dependency audit, churn, duplicates and coverage keep
+  their answers from the full scan, and the permanent band names that boundary:
+  `Live — built-in rules only; external engines from the last full scan`. A
+  re-read file's card says the same about itself, and a live city with zero
+  findings no longer says `No findings`. **Full scan** in the band re-reads the
+  same folder through every engine and starts watching the new result. A file
+  that changed without its size or mtime moving is the documented blind spot of
+  a metadata watch; the full scan is the way to settle it. Measured on the
+  running app against a 31-file fixture: one changed file produced one P0
+  (`EVAL_USAGE`) with `live.changed = 1`; deleting one file and adding another
+  kept 31 files with `added = 1, removed = 1`; **Full scan** produced a new
+  analysis id with `live: null`, the same 31 files and the same P0.
+  `backend/tests/live-delta.test.ts`, `frontend/tests/live-watch.test.tsx`
+- **Large folders open as a preview instead of refusing.** A folder above the
+  full-read walls (10,000 files / 150 MB) is sampled across its top-level
+  districts — up to 2,000 files and 60 MB — and the rest is counted, not
+  silently dropped. The announcement says `Preview · 2,000 of 12,000 files
+read` and names the way to a full read; the header says `2,000 sampled files`
+  with the total in its title; the project card adds `Preview sample of
+12,000`; a zero-finding preview says `Preview — not every file was read`,
+  never `No findings`. Measured on a 12,000-file, 12-district fixture: 2,000
+  read, 10,000 left out, 12 districts rendered, no page errors.
+  `frontend/tests/preview-sample.test.ts`, `frontend/tests/arrival-budget.test.tsx`
+- **One command starts it.** `npm start` builds both workspaces once, starts the
+  backend and serves the built app and the API from one address on
+  **http://127.0.0.1:4173**, then opens the browser; a checkout no longer needs
+  a dev server to be read. The package path shares one stage with the check:
+  `npm run package:build` writes `dist-package/` (250 files, 2.98 MB unpacked),
+  `npm run pack:check` installs its 0.93 MB tarball into an empty folder and
+  starts the installed `ephemora-skyline` bin, and `npx ephemora-skyline`
+  becomes the one-liner when the package is published. README and
+  GETTING_STARTED lead with `npm start`; `npm run dev` remains the hot-reload
+  path for contributors.
+- **The finished card hands the tour to a resident.** The city's announcement
+  now ends with a resident line — _Your project is a city. Shall I walk you to
+  the findings?_ — and one verb, _Show findings_, which starts the existing
+  security tour and folds the card. A resident already on the street stops,
+  turns to the reader and waves for 3.4 s once per scan; there is no second
+  prompt, no spawned actor and no new surface. The arrival card stays inside its
+  measured word budget (171 in the fixture); the room came from deleting the
+  duplicated "what the shipped rules cannot see" lead, the countdown sentence
+  and the long pin label, not from raising the budget.
+  `frontend/tests/arrival-budget.test.tsx`, `frontend/tests/epheArtDirection.test.ts`
+- **Traffic follows the street instead of the block.** The 24 background cars
+  now keep a bumper distance to the car ahead, take a junction in a strict
+  near-first order, follow connected street segments through quadratic bends,
+  and turn around on a half circle only where the network ends — the old code
+  flipped direction in place at every block. The cab stands on the right-hand
+  kerb of its own direction, runs to the lane end and turns around there; the
+  bus aligns to its projected stop, brakes for anyone on the asphalt and turns
+  on a curve. Each vehicle has four wheels, and the roll sign is taken in the
+  vehicle's frame, not from its world heading. `frontend/tests/fleetMotion.test.ts`,
+  `frontend/tests/transitMotion.test.ts`, `frontend/tests/openCityLife.test.ts`
+- **The city answers a call.** `C` (or a click on a resident's body) calls one
+  visible foreground resident: it stops, turns to the reader, raises a hand and
+  leaves a small card with exactly one verb — _Show me the risk_. The card names
+  the highest **open** finding from the existing triage order; the resident turns
+  and points at its building, then the existing camera flight opens the file.
+  Escape or the close button dismisses the card and puts the resident back on
+  the sidewalk. The visitor is found by a screen-space pick with a mesh-only
+  visibility ray (the chat sprites are not occluders), and the selection ring is
+  a UI mark above the plates (`depthTest: false`), not a second body.
+  `frontend/tests/arrival-budget.test.tsx`
+- **The city can stand alone.** A frame control in the header, with a named twin
+  in the More menu, hides the header, dock, project card, reading panels and the
+  height rail; the canvas takes the whole window and escapes through `Esc` or the
+  one chip that stays. The measured jump is 1284 → 1600 px on a 1600 px window,
+  and the panel state is untouched, so leaving restores the finding that was
+  open. `frontend/tests/arrival-budget.test.tsx`
+
 - **Excluded folders field.** The entry screen's scan settings and the in-city
   scan panel now hold the field the file-cap refusal had been pointing at since
   it was written. Names are stored, normalised, capped at fifty, and every file
@@ -141,13 +217,86 @@ were run on it as a whole.
 
 ### Fixed
 
+- **A folder of only docs and fixtures says so before it uploads.** `README.md`
+  and `notes.txt` are staged for the project's own test runner, so the picker
+  counted them as a folder to scan; the upload succeeded and the server then
+  answered `No analyzable files`, which the screen hid behind `Analysis failed
+on the server`. The upload gate now asks the scan's own `isScanCandidate`
+  whether any admitted path can become a city. Measured on the running app
+  against a two-document folder: no POST, the `no-source` card with the
+  supported extensions, `Pick a folder that holds source code`, one **Choose
+  another folder** action, no floating count and no `Show the server's words`
+  opening on the reader's own drop tally.
+  `frontend/tests/picker-file-size-cap.test.ts`
+- **A triage verdict says what it decides.** `Reviewed` read as "seen" while
+  the queue counted it as finished; the segment now reads **Kein
+  Handlungsbedarf** / **No action needed**. The stepper's second number names
+  the set it counts — `1 / 8 · 7 offen` instead of `1 / 8 · 7 Funde` — and a
+  `role="status"` line announces every step with position, file, line, severity
+  and rule class, while a started triage puts keyboard focus on the file name
+  once instead of leaving it on `BODY`. Measured on the demo: focus on
+  `auth-service.ts`, announcement `Triage 1 von 8 … Zeile 23, Kritisch`, and
+  the counter fell from `8 offen` to `7 offen` after the first verdict.
+  `frontend/tests/triageAnnounce.test.tsx`,
+  `frontend/tests/local-triageVerdicts.test.tsx`
+- **The resting scan strip stays in the free stage.** At 1024 the 676 px strip
+  was centred over the 400 px file panel — measured 248 × 40 px of overlap, the
+  panel's top row behind the glass. With a file or findings panel open the
+  strip now starts at the left edge of the free stage, wraps its words, and
+  leaves the card it describes uncovered. Below 1200 the crumb chip also stops
+  at 344 px, eight pixels before the German mode bar at 352, where the measured
+  4 px used to sit behind the control, and the trail scrolls its active file
+  segment into view instead of hiding it at the end of a clipped row. The same
+  round stops the demo's file
+  card from requesting source under an id that has no staged copy: no 404, no
+  retry button that can only fail, the existing `sourceUnavailable` sentence
+  instead.
+  `frontend/src/design/start.css`, `frontend/src/components/InfoPanel.tsx`
+- **The city's grammar is on screen where it is read.** The two lines that
+  explain height and roof were hidden in the bottom-left legend, and the world
+  mast disappears below 1200 px and behind an open panel. The compact grammar
+  now sits in the project card exactly when the mast cannot be seen, the legend
+  explains again, and district nameplates keep a screen-fixed size instead of
+  shrinking to 4–7 px in the overview.
+- **The file card leads with the finding.** Findings or the honest verdict now
+  come before navigation, SARIF and copy; a finding's line is a button
+  (`Zeile 210 öffnen`) that loads the source for any file with findings and
+  scrolls to that line, instead of only during triage.
+- **The dock says what its doors do, and triage stays one row.** `Triage` /
+  `Security tour` / `Findings` carry the visible subtitles decide / fly / filter;
+  while triage runs the other doors live in **More**, and the announcement
+  folds to its strip when triage, the tour or the list starts. At 1024 the
+  labels shorten through matchMedia, not a hidden duplicate in the DOM.
+- **Selection is gold; cycles are a base line.** The building selection and its
+  ground glow no longer use the alarm red that P0 findings and import cycles
+  own; a cycle is a thin line on the plinth instead of a second rotating ring.
+- **The build phase no longer prints the result before the city exists.** The
+  file count and severity chips appear with `buildPhase === "built"`; Skip is a
+  36 px target. The reveal animation itself is unchanged.
+- **German copy stops contradicting itself.** The security tour uses `fixDe`;
+  a console finding says `Konsolenausgabe — geloggte Werte prüfen; kein
+Datenabfluss bewiesen` instead of the hygiene line `Keine Schwachstelle`; and
+  the construction note says `Die Ephe ziehen ein` / `The Ephe are moving in`.
+  `frontend/tests/ux-wave.test.ts`, `frontend/tests/stadt-ui-verdicts.test.tsx`,
+  `frontend/tests/live-watch.test.tsx`
+
+- **A live delta no longer calls itself "Scan complete".** The arrival card
+  checked findings before the live state, so a city with one finding still read
+  `Scan complete` while semgrep, gitleaks and the dependency audit were from the
+  full scan; it now says `Live — built-in rules only · 1 finding` and keeps the
+  red findings grade. The live band gained **Pause / Resume** (the snapshot and
+  the session survive; changes made while paused are folded in on resume), and
+  the breadcrumb trail steps below the band by its measured height instead of
+  being covered by it. `frontend/tests/fahrt-summary-account.test.tsx`,
+  `frontend/tests/live-watch.test.tsx`
+
 - **The shell asked nothing of a user who asks to be left alone.** Four things a
   disturbance census on the running screen turned up, each fixed with its own
   number.
   · `prefers-reduced-transparency` — the obligation Apple binds to a translucent
   material — reached nothing: the glass was glass for everyone. `globals.css` now
   pins both materials opaque and the frost off under that query, and
-  `render/useGlassStage.ts` stands the adaptive sampler off and takes back the
+  `frontend/src/render/useGlassStage.ts` stands the adaptive sampler off and takes back the
   inline stage it had written, which would otherwise have beaten the sheet.
   Verified in the browser with the request emulated over CDP: header, mode bar and
   dock go `rgb(14, 16, 21)` / `blur: none` with no inline value left; the reading
@@ -268,6 +417,41 @@ were run on it as a whole.
 
 ### Changed
 
+- **Residents keep their distance.** A pure personal-space step gives every
+  walker a **0.9-unit** bubble. A resident ahead or beside pushes it up to
+  **0.30 units away from the side it is on** — someone on the right moves the
+  walker left, someone on the left moves it right; only an exactly centred pair
+  uses the right-hand pass, so a head-on meeting still passes on opposite sides
+  instead of stopping nose to nose. A resident behind gets no push; a follower
+  is the follower's problem, not a reason for the leader to drift off the kerb.
+  A resident standing still, or walking the same way ahead, sets a pace floor
+  of **0.25** and is eased behind; a walker coming the other way is passed, not
+  queued. The offset is smoothed and applied to the drawing only — `e.x/e.z`
+  stay on the sidewalk graph, so the crosswalk, door and construction-site
+  contracts are untouched. Reduced motion skips the pass.
+  `frontend/tests/ephe-gait.test.ts`
+- **The residents walk; they no longer scurry.** At the old 2.3 units/s a
+  1.35-unit resident took **4.0 steps a second** — a run everywhere, including
+  at a bus stop. The walk is now **1.35 units/s** and **2.4 steps/s**, and the
+  foot cycle has a real stance and swing: the stance foot cancels exactly the
+  ground the body covers (measured world drift **< 1e-9 units**, against a
+  0.571-unit half-cycle the old 0.26-unit foot stroke could not cover), so the
+  planted foot holds its spot instead of gliding. The stride opens from
+  **0.26 to 0.57 units**; the swing foot lifts **0.055** and the knee leads only
+  in the air. The upper body now shifts **0.022 units** over the stance foot,
+  the visor leads a corner by up to **0.6 rad** before the shoulders, waiting
+  residents glance around, and arm swing varies per figure (0.85–1.15) instead
+  of one shared pendulum. `frontend/tests/ephe-gait.test.ts`
+- **The first screen holds in one view.** At 1024×768 the landing stayed a
+  one-column stack, so the illustration began below the fold and only its top
+  edge was visible. The two-column layout now holds down to 960 px: measured
+  at 1024×768, the plate ends at 551 px, the footer still sits inside the
+  768 px window and the page has no horizontal overflow. The scan profile is a
+  44 px hairline row instead of a 54 px bordered field, so it no longer reads
+  as a third primary action. The recently-opened rail shares the hero's
+  1280 px measure (it started 72 px left of the headline), and its cards are
+  320 × 54 px with the action on the card's own axis instead of a third row.
+  `frontend/src/design/start.css`, `frontend/src/design/globals.css`
 - **The glass reads what is behind it.** Apple's Materials page (updated
   9 September 2025) prescribes the behaviour, not the film: the _regular_ variant
   "blurs and adjusts the luminosity of background content to maintain legibility",

@@ -219,6 +219,7 @@ describe("the reader's count and the scanner's count are summed, not chosen", ()
       gitIgnored: 0,
       gitBudget: 0,
       unsupportedFormat: 5,
+      preview: 0,
     });
     expect(unreadOf(merged)).toBe(37);
   });

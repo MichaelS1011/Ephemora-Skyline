@@ -45,6 +45,8 @@ import {
   pruneStaleUploadDirs,
   uploadsRoot,
 } from "./routes/local-analyze.js";
+import { handleLiveDelta } from "./routes/live-analyze.js";
+import { RegexAdapter } from "../services/security/adapters/regex-adapter.js";
 import { handleHandoff, handleVerify } from "./routes/agent.js";
 import { handleGetVerdicts, handlePutVerdicts, handleResetVerdicts } from "./routes/verdicts.js";
 import { handleSource } from "./routes/source.js";
@@ -90,6 +92,14 @@ const localModel = readLocalModel();
 const createOrchestrator = (config: ResolvedScanConfig): AnalysisOrchestrator =>
   new AnalysisOrchestrator(new SecurityScanner(undefined, config));
 
+/**
+ * The live delta's rule scope, stated by construction: a regex-only adapter
+ * list. No gitleaks, semgrep, dependency, osv or ruff adapter exists on this
+ * scanner, so "built-in rules only" is not a label someone remembered to set.
+ */
+const createLiveOrchestrator = (config: ResolvedScanConfig): AnalysisOrchestrator =>
+  new AnalysisOrchestrator(new SecurityScanner([new RegexAdapter()], config));
+
 // ── Rate limiting ─────────────────────────────────────────────────────────
 // Read endpoints get a generous budget (browsing a city should never lock
 // a user out); the expensive analysis endpoint stays strictly limited.
@@ -128,6 +138,21 @@ const localAnalyzeLimiter = rateLimit({
   legacyHeaders: false,
   message: (_req: Request, res: Response) => ({
     error: "Too many analyses — take a short break.",
+    code: "rate_limited",
+    retryAfterSeconds: resetSeconds(res, Math.ceil(READ_WINDOW_MS / 1000)),
+  }),
+});
+
+// A live delta is a save, not a scan: an editor that saves every few seconds
+// must not exhaust the analysis budget after eight minutes. The payload is
+// still bounded by the route's own file count, byte and path checks.
+const liveDeltaLimiter = rateLimit({
+  windowMs: READ_WINDOW_MS,
+  max: 600,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: (_req: Request, res: Response) => ({
+    error: "Too many live updates — pause the watcher or run a full scan.",
     code: "rate_limited",
     retryAfterSeconds: resetSeconds(res, Math.ceil(READ_WINDOW_MS / 1000)),
   }),
@@ -264,6 +289,17 @@ app.post(
   localAnalyzeLimiter,
   async (req: Request, res: Response): Promise<void> => {
     await handleLocalAnalyze(req, res, createOrchestrator, analysisStore);
+  },
+);
+
+// POST /api/analyze-local/:id/live — fold a content-hash delta into a finished
+// local scan. Built-in rules only; project-wide engines stay from the full scan.
+app.post(
+  "/api/analyze-local/:id/live",
+  localOnlyRoute,
+  liveDeltaLimiter,
+  async (req: Request, res: Response): Promise<void> => {
+    await handleLiveDelta(req, res, createLiveOrchestrator, analysisStore);
   },
 );
 

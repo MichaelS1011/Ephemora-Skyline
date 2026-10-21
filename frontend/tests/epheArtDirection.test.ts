@@ -144,6 +144,20 @@ describe("inhabited architectural model", () => {
     expect(other.handZ).toBe(carry.handZ);
   });
 
+  it("raises the greeting hand above the stroll, and only on one side", () => {
+    const idle = pose();
+    writeEpheLimbPose(idle, 0, 1, "idle");
+    const greet = pose();
+    writeEpheLimbPose(greet, 0, 1, "greet", 0.4);
+    expect(greet.handY).toBeGreaterThan(idle.handY + 0.5);
+    expect(greet.handZ).toBeGreaterThan(0); // in front of the body, not behind
+    expect(greet.handX).toBeGreaterThan(0);
+    // the other arm keeps hanging: a wave, not a jumping jack
+    const other = pose();
+    writeEpheLimbPose(other, 0, -1, "greet", 0.4);
+    expect(other.handY).toBe(idle.handY);
+  });
+
   it("keeps faces and jackets visible without assigning residents a finding colour", () => {
     for (const shell of EPHE_PALETTE.shells) {
       expect(contrast(shell, EPHE_PALETTE.visor)).toBeGreaterThan(7);

@@ -25,6 +25,8 @@ export interface FetchCityDataDeps {
   setCityData: (data: CityData) => void;
   setAnalysisId: (id: string) => void;
   setDropped: (d: DroppedFiles | null) => void;
+  /** The city is on screen — a folder picked by handle may now be watched. */
+  onLoaded?: (id: string) => void;
 }
 
 export async function fetchCityData(
@@ -67,6 +69,7 @@ export async function fetchCityData(
     // The scan's own counts win over the reader's: they include what only
     // the server could see.
     deps.setDropped(data.dropped ?? null);
+    deps.onLoaded?.(id);
     deps.setState("success");
   } catch (err) {
     if (err instanceof Error && err.name === "AbortError") return;

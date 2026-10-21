@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   MAX_FILE_BYTES,
   classifyCandidate,
+  hasAnalyzableCandidate,
   isSourceShaped,
   noSourceTooLargeLine,
   onlyTooLarge,
@@ -110,5 +111,38 @@ describe("the picker's per-file wall is the one the docs sell", () => {
     expect(onlyTooLarge(plan.dropped)).toBe(false);
     const allZero = { ...plan.dropped, unsupportedFormat: 0 };
     expect(onlyTooLarge(allZero)).toBe(true);
+  });
+});
+
+/**
+ * UX 2026-10-21: a docs-only folder (README.md + notes.txt) was staged for the
+ * test runner, uploaded, and only then failed on the server. The same files are
+ * still allowed to travel when code travels with them; they just cannot carry
+ * the scan on their own.
+ */
+describe("the upload gate asks whether the scan can build anything", () => {
+  const planFor = (paths: string[]): FolderPlan => {
+    const plan = emptyPlan();
+    for (const rel of paths)
+      classifyCandidate(rel, file(rel.split("/").pop()!, 12), [], plan, null);
+    return plan;
+  };
+
+  it("does not send a folder of docs and fixtures alone", () => {
+    const plan = planFor(["README.md", "notes.txt"]);
+    expect(plan.candidates, "test support still stages").toHaveLength(2);
+    expect(hasAnalyzableCandidate(plan)).toBe(false);
+  });
+
+  it("does not count .git internals as analyzable", () => {
+    expect(hasAnalyzableCandidate(planFor([".git/HEAD"]))).toBe(false);
+  });
+
+  it("sends docs when one source file rides along", () => {
+    expect(hasAnalyzableCandidate(planFor(["README.md", "src/mod.ts"]))).toBe(true);
+  });
+
+  it("accepts a dotenv file, the one extensionless thing the server reads", () => {
+    expect(hasAnalyzableCandidate(planFor([".env.production"]))).toBe(true);
   });
 });

@@ -42,6 +42,7 @@ backend/src/
 │   ├── local-only.ts        # refuses writes that a foreign web page sent
 │   └── routes/
 │       ├── local-analyze.ts # POST /api/analyze-local — staging + job start
+│       ├── live-analyze.ts  # POST /api/analyze-local/:id/live — hash delta, built-in rules
 │       ├── status.ts        # GET /api/status/:id (polled)
 │       ├── job-progress.ts  # progress map, skeleton, failure marking
 │       ├── source.ts        # GET /api/result/:id/source/:fileId

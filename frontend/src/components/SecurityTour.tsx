@@ -152,7 +152,7 @@ export function SecurityTour() {
                 border: "1px solid rgba(41,211,152,0.15)",
               }}
             >
-              ✓ {worst.fix}
+              ✓ {lang === "de" ? (worst.fixDe ?? worst.fix) : worst.fix}
             </div>
           )}
         </div>

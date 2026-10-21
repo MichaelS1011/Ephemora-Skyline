@@ -34,7 +34,34 @@ if (!existsSync(path.join(web, "index.html"))) {
   process.exit(2);
 }
 
-const port = process.env.PORT ?? "4173";
+const args = process.argv.slice(2);
+let port = process.env.PORT ?? "4173";
+let open = process.env.EPHEMORA_NO_OPEN !== "1";
+const usage = (code = 0) => {
+  const out = code === 0 ? console.log : console.error;
+  out(
+    "Usage: ephemora-skyline [--port <n>] [--no-open]\n\n" +
+      "  Starts the local backend, serves the built app from the same address\n" +
+      "  and opens it. PORT (default 4173) and EPHEMORA_NO_OPEN=1 do the same\n" +
+      "  through the environment. The server binds loopback only.",
+  );
+  process.exit(code);
+};
+for (let i = 0; i < args.length; i += 1) {
+  const arg = args[i];
+  if (arg === "--help" || arg === "-h") usage(0);
+  else if (arg === "--no-open") open = false;
+  else if (arg === "--port") {
+    port = args[++i] ?? "";
+    if (!/^\d+$/.test(port) || Number(port) < 1 || Number(port) > 65535) {
+      console.error(`ephemora-skyline: --port needs a number from 1 to 65535, got "${port}"`);
+      process.exit(2);
+    }
+  } else {
+    console.error(`ephemora-skyline: unknown option "${arg}"`);
+    usage(2);
+  }
+}
 const host = process.env.HOST ?? "127.0.0.1";
 const url = `http://${host === "0.0.0.0" ? "127.0.0.1" : host}:${port}/`;
 
@@ -57,7 +84,7 @@ const timer = setInterval(async () => {
     if (!res.ok) return;
     clearInterval(timer);
     console.log(`\n  Ephemora Skyline is open at ${url}  (started in ${Date.now() - started} ms)\n`);
-    if (process.env.EPHEMORA_NO_OPEN !== "1") {
+    if (open) {
       spawn(opener, [url], { stdio: "ignore", detached: true, shell: process.platform === "win32" }).unref();
     }
   } catch {

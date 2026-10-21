@@ -25,11 +25,14 @@ import {
   publishStage as publishStageFlow,
   setReadingLine as setReadingLineFlow,
 } from "./useLocalAnalysis/progress";
+import { applyPreview } from "./useLocalAnalysis/preview";
+import { fileToBase64, hasSubtleCrypto } from "../live/files";
+import type { LiveFileMeta } from "../live/types";
 
 export type AnalysisState = "idle" | "picking" | "collecting" | "analyzing" | "success" | "error";
 
 /** Must mirror the backend pipeline's SUPPORTED_EXTENSIONS */
-const SUPPORTED_EXTENSIONS = new Set([
+export const SUPPORTED_EXTENSIONS = new Set([
   ".ts",
   ".tsx",
   ".js",
@@ -65,7 +68,7 @@ const SUPPORTED_EXTENSIONS = new Set([
  * credentials must not be the one file the scan admits it never opened.
  * Mirrored from ENV_FILE in the backend metrics — pinned by a test.
  */
-const ENV_FILE = /(^|\/)\.env(\.|$)/;
+export const ENV_FILE = /(^|\/)\.env(\.|$)/;
 
 /** Directory names that never contain relevant source code */
 export const SKIP_DIRS =
@@ -112,17 +115,6 @@ const TEST_SUPPORT_FILENAMES = new Set(["LICENSE", "NOTICE"]);
 
 const isGitPath = (rel: string): boolean => rel === ".git" || rel.startsWith(".git/");
 
-/** ArrayBuffer → base64 (binary-safe for .git packfiles) */
-async function fileToBase64(file: File): Promise<string> {
-  const bytes = new Uint8Array(await file.arrayBuffer());
-  let binary = "";
-  const chunk = 0x8000;
-  for (let i = 0; i < bytes.length; i += chunk) {
-    binary += String.fromCharCode(...bytes.subarray(i, i + chunk));
-  }
-  return btoa(binary);
-}
-
 /**
  * Read one file as its upload payload: source files as utf-8 text, .git
  * internals as base64 so git history survives the roundtrip byte-exact.
@@ -145,8 +137,8 @@ async function readPayload(
  * 1,600 files and the file cap was never the limit it claimed to be. 10,000 files
  * and 150 MB is one promise instead of two.
  */
-const MAX_FILES = 10_000;
-const MAX_TOTAL_BYTES = 150 * 1024 * 1024;
+export const MAX_FILES = 10_000;
+export const MAX_TOTAL_BYTES = 150 * 1024 * 1024;
 /**
  * The per-file wall, and it is the one the docs sell: README and GETTING_STARTED
  * both promise 2 MB per file, and the backend route accepts 2 MB
@@ -197,6 +189,18 @@ export interface FolderPlan {
   /** set as soon as the folder is known to be over the file cap */
   overCap: boolean;
   /**
+   * Set when the folder was too large for a full read and a balanced sample was
+   * taken instead. `totalFiles` and `totalBytes` are what the folder offered;
+   * `sampledFiles` and `sampledBytes` are what the scan actually read.
+   */
+  preview?: {
+    totalFiles: number;
+    totalBytes: number;
+    sampledFiles: number;
+    sampledBytes: number;
+    districts: number;
+  };
+  /**
    * The first ignored ancestor of every path set aside by the project's own
    * .gitignore. Held as a set so one ignored folder is one number, and so both
    * pickers arrive at the same count on the same rule.
@@ -214,11 +218,12 @@ function emptyDropped(): DroppedFiles {
     gitIgnored: 0,
     gitBudget: 0,
     unsupportedFormat: 0,
+    preview: 0,
   };
 }
 
 function addDropped(dropped: DroppedFiles, key: keyof DroppedFiles, by = 1): DroppedFiles {
-  return { ...dropped, [key]: dropped[key] + by };
+  return { ...dropped, [key]: (dropped[key] ?? 0) + by };
 }
 
 export function isSourceShaped(rel: string): boolean {
@@ -236,6 +241,32 @@ export function isSourceShaped(rel: string): boolean {
     MANIFEST_BASENAMES.has(base) ||
     IGNORE_FILENAMES.has(base)
   );
+}
+
+/**
+ * The files the BACKEND analyzes (as opposed to everything the reader stages
+ * for the test runner). Must mirror `isScanCandidate` in the orchestrator:
+ * a source-shaped extension or an env file, inside no artifact segment.
+ */
+const ARTIFACT_SEGMENT =
+  /^(?:node_modules|\.git|dist|build|out|\.next|\.nuxt|coverage|\.nyc_output|\.turbo|\.vscode|\.idea|__pycache__|\.venv|venv|target|vendor|\.pytest_cache|\.mypy_cache|\.gradle|Pods|bin|obj|playwright-report|test-results|blob-report|storybook-static)$/i;
+
+export function isAnalyzedByServer(rel: string): boolean {
+  const dot = rel.lastIndexOf(".");
+  const ext = dot > rel.lastIndexOf("/") ? rel.slice(dot).toLowerCase() : "";
+  if (!SUPPORTED_EXTENSIONS.has(ext) && !ENV_FILE.test(rel)) return false;
+  return !rel.split("/").some((segment) => ARTIFACT_SEGMENT.test(segment));
+}
+
+/**
+ * Would the scan find anything to build a city from? Docs and fixtures are
+ * staged so the test runner can read them, but a folder of only README.md and
+ * notes.txt uploads successfully and then fails server-side with "No analyzable
+ * files" — a wall the reader could see before spending the roundtrip. The gate
+ * is the same predicate the server uses, so it cannot drift from what is read.
+ */
+export function hasAnalyzableCandidate(plan: Pick<FolderPlan, "candidates">): boolean {
+  return plan.candidates.some((candidate) => !candidate.git && isAnalyzedByServer(candidate.rel));
 }
 
 /**
@@ -306,7 +337,7 @@ export function classifyCandidate(
   plan.candidates.push({ rel, file, git: false });
 }
 
-function emptyPlan(): FolderPlan {
+export function emptyPlan(): FolderPlan {
   return {
     candidates: [],
     found: 0,
@@ -416,8 +447,21 @@ export function useLocalAnalysis() {
   const budgetWaitRef = useRef(0);
   /** true once the upload is home and the wait belongs to the scanner */
   const waitingRef = useRef(false);
+  /**
+   * What a live watch needs after this scan: the handle (only the native
+   * picker gives one), the folder's display name, the excludes it was read
+   * under, and the manifest of analyzed hashes. The file-list fallback has no
+   * handle, so its scans are not watched.
+   */
+  const liveSourceRef = useRef<{
+    handle: DirHandle;
+    name: string;
+    excludes: string[];
+  } | null>(null);
+  const liveManifestRef = useRef<LiveFileMeta[] | null>(null);
 
   const setCityData = useStore((s) => s.setCityData);
+  const setPendingLive = useStore((s) => s.setPendingLive);
   const setAnalysisProgress = useStore((s) => s.setAnalysisProgress);
   const setAnalysisStage = useStore((s) => s.setAnalysisStage);
   const setAnalysisId = useStore((s) => s.setAnalysisId);
@@ -509,6 +553,23 @@ export function useLocalAnalysis() {
     [publishStage],
   );
 
+  const onCityLoaded = useCallback(
+    (id: string) => {
+      const source = liveSourceRef.current;
+      const manifest = liveManifestRef.current;
+      if (!source || !manifest || manifest.length === 0) return;
+      if (!hasSubtleCrypto()) return;
+      setPendingLive({
+        analysisId: id,
+        name: source.name,
+        handle: source.handle,
+        manifest,
+        excludes: source.excludes,
+      });
+    },
+    [setPendingLive],
+  );
+
   const fetchCityData = useCallback(
     (id: string, run: number) =>
       fetchCityDataFlow(
@@ -523,11 +584,12 @@ export function useLocalAnalysis() {
           setCityData,
           setAnalysisId,
           setDropped,
+          onLoaded: onCityLoaded,
         },
         id,
         run,
       ),
-    [setAnalysisId, setCityData],
+    [onCityLoaded, setAnalysisId, setCityData],
   );
 
   const pollStatus = useCallback(
@@ -598,8 +660,8 @@ export function useLocalAnalysis() {
    * the reader cannot open lands in a bucket that travels with the upload.
    */
   const readAndUpload = useCallback(
-    (plan: FolderPlan, rootName: string, run: number) =>
-      readAndUploadFlow(
+    async (plan: FolderPlan, rootName: string, run: number) => {
+      const manifest = await readAndUploadFlow(
         {
           langRef,
           cancelledRef,
@@ -616,6 +678,7 @@ export function useLocalAnalysis() {
           bytesLine,
           noSourceLine,
           readPayload,
+          isAnalyzedByServer,
           maxTotalBytes: MAX_TOTAL_BYTES,
           maxPathLen: MAX_PATH_LEN,
           gitMaxTotalBytes: GIT_MAX_TOTAL_BYTES,
@@ -623,7 +686,9 @@ export function useLocalAnalysis() {
         plan,
         rootName,
         run,
-      ),
+      );
+      if (manifest) liveManifestRef.current = manifest;
+    },
     [setReadingLine, uploadAndAnalyze],
   );
 
@@ -666,6 +731,9 @@ export function useLocalAnalysis() {
 
   const collectFromFileList = useCallback(
     async (fileList: File[], rootName: string, run: number) => {
+      // A file list is a snapshot, not a handle: there is nothing to watch.
+      liveSourceRef.current = null;
+      liveManifestRef.current = null;
       const excludes = loadExcludes();
       const plan = emptyPlan();
       // webkitRelativePath = "<root>/<...path>" — strip the root segment
@@ -696,6 +764,7 @@ export function useLocalAnalysis() {
         if (cancelledRef.current || runRef.current !== run) return;
         classifyCandidate(relOf(file), file, excludes, plan, matcher);
       }
+      applyPreview(plan);
       setCollected({ files: 0, bytes: plan.bytes, total: plan.candidates.length });
       setFoundFiles(plan.found);
       setDropped(plan.dropped);
@@ -703,7 +772,7 @@ export function useLocalAnalysis() {
         refuseOverCap(plan.found);
         return;
       }
-      if (plan.candidates.length === 0) {
+      if (!hasAnalyzableCandidate(plan)) {
         nothingFound(plan);
         return;
       }
@@ -748,6 +817,8 @@ export function useLocalAnalysis() {
   const collectFromDirectoryHandle = useCallback(
     async (dir: DirHandle, run: number) => {
       const excludes = loadExcludes();
+      liveSourceRef.current = { handle: dir, name: dir.name, excludes };
+      liveManifestRef.current = null;
       const plan = emptyPlan();
       const ignores = new IgnoreMatcher();
       const walk = async (dirHandle: DirHandle, prefix: string): Promise<void> => {
@@ -759,6 +830,9 @@ export function useLocalAnalysis() {
          */
         const entries: DirEntry[] = [];
         for await (const entry of dirHandle.values()) entries.push(entry);
+        // Deterministic order matters twice: the city's ids and the preview
+        // sample must not move because a directory listing came back shuffled.
+        entries.sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
         const rule = entries.find((e) => e.kind !== "directory" && e.name === ".gitignore");
         if (rule?.getFile) {
           try {
@@ -783,7 +857,7 @@ export function useLocalAnalysis() {
               continue;
             }
             await walk(entry as unknown as DirHandle, `${rel}/`);
-            if (plan.overCap || cancelledRef.current || runRef.current !== run) return;
+            if (cancelledRef.current || runRef.current !== run) return;
             continue;
           }
           const filePromise = entry.getFile?.();
@@ -793,7 +867,6 @@ export function useLocalAnalysis() {
             continue;
           }
           classifyCandidate(rel, file, excludes, plan, ignores);
-          if (plan.overCap) return;
           const seen = plan.candidates.length;
           if (seen % COUNTER_EVERY === 0 && seen > 0) {
             setCollected({ files: seen, bytes: plan.bytes, total: seen });
@@ -804,6 +877,7 @@ export function useLocalAnalysis() {
       };
       await walk(dir, "");
       if (cancelledRef.current || runRef.current !== run) return;
+      applyPreview(plan);
       setCollected({ files: 0, bytes: plan.bytes, total: plan.candidates.length });
       setFoundFiles(plan.found);
       setDropped(plan.dropped);
@@ -811,7 +885,7 @@ export function useLocalAnalysis() {
         refuseOverCap(plan.found);
         return;
       }
-      if (plan.candidates.length === 0) {
+      if (!hasAnalyzableCandidate(plan)) {
         nothingFound(plan);
         return;
       }
@@ -821,6 +895,7 @@ export function useLocalAnalysis() {
   );
 
   const pickFolder = useCallback(async () => {
+    setPendingLive(null);
     await pickFolderFlow({
       stateRef,
       runRef,
@@ -869,6 +944,9 @@ export function useLocalAnalysis() {
   const cancel = useCallback(() => {
     runRef.current += 1;
     cancelledRef.current = true;
+    liveSourceRef.current = null;
+    liveManifestRef.current = null;
+    setPendingLive(null);
     finishPicker();
     stateRef.current = "idle";
     const controller = abortRef.current;

@@ -128,7 +128,16 @@ async function dock(findings: number, lang: "de" | "en"): Promise<string> {
   await act(async () => root.render(createElement(ActionBar)));
   const titles = [...container.querySelectorAll("[title]")].map((e) => e.getAttribute("title"));
   const labels = [...container.querySelectorAll("button")].map((b) => b.textContent);
-  return [...titles, ...labels].join(" | ");
+  // The three doors live in More while triage runs; open it so the labels the
+  // test names are the ones the reader can reach.
+  const more = [...container.querySelectorAll("button")].find(
+    (b) => b.getAttribute("aria-haspopup") === "menu",
+  );
+  await act(async () => {
+    (more as HTMLButtonElement | undefined)?.click();
+  });
+  const menu = container.querySelector("#city-more-menu")?.textContent ?? "";
+  return [...titles, ...labels, menu].join(" | ");
 }
 
 afterEach(async () => {

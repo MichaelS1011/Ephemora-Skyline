@@ -304,7 +304,12 @@ export function SourceBlock({
   );
 
   return (
-    <div ref={blockRef} className="mb-3" aria-label={t(lang, "panel.sourceHeader")}>
+    <div
+      ref={blockRef}
+      data-source-block
+      className="mb-3"
+      aria-label={t(lang, "panel.sourceHeader")}
+    >
       <div className="flex items-center justify-between gap-2 mb-1.5">
         <button
           type="button"

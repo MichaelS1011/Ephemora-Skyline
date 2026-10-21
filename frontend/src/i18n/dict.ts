@@ -341,6 +341,14 @@ export const DICT = {
     en: "files",
     de: "Dateien",
   },
+  "hud.filesSampled": {
+    en: "{count} sampled files",
+    de: "{count} gelesene Dateien",
+  },
+  "hud.filesPreviewTitle": {
+    en: "of {total} source files — this city is a preview sample",
+    de: "von {total} Quelldateien — diese Stadt ist eine Vorschau",
+  },
   "hud.filterBySeverityAria": {
     en: "Filter city by severity",
     de: "Stadt nach Schweregrad filtern",
@@ -389,6 +397,18 @@ export const DICT = {
     en: "No findings",
     de: "Keine Funde",
   },
+  "hud.preview": {
+    en: "Preview — not every file was read",
+    de: "Vorschau — nicht jede Datei gelesen",
+  },
+  "hud.liveStale": {
+    en: "Live — built-in rules only",
+    de: "Live — nur eingebaute Regeln",
+  },
+  "ctx.previewOf": {
+    en: "Preview sample of {total}",
+    de: "Vorschau aus {total}",
+  },
   /**
    * The HUD carries the same condition as the panel: an empty list only means
    * clean when every scanner ran. One engine missing reads "lief nicht", two
@@ -411,8 +431,8 @@ export const DICT = {
     de: "Dach = was hier gefunden wurde",
   },
   "hud.phase0": {
-    en: "The Ephe's are moving in…",
-    de: "Die Ephe's ziehen ein…",
+    en: "The Ephe are moving in…",
+    de: "Die Ephe ziehen ein…",
   },
   "hud.building": {
     en: "Building {name} · {done}/{total}",
@@ -446,22 +466,42 @@ export const DICT = {
     en: "Triage",
     de: "Triage",
   },
+  "actions.triageHint": {
+    en: "decide",
+    de: "entscheiden",
+  },
+  "actions.tourHint": {
+    en: "fly",
+    de: "durchfliegen",
+  },
+  "actions.tourShort": {
+    en: "Tour",
+    de: "Tour",
+  },
+  "actions.findingsHint": {
+    en: "filter",
+    de: "filtern",
+  },
+  "actions.findingsShort": {
+    en: "Findings {count}",
+    de: "Funde {count}",
+  },
   "actions.triageStartAria": {
     en: "Start triage",
     de: "Triage starten",
   },
   /**
-   * The word the dock puts after the triage's count. The dock shows the triage
-   * count and the findings button side by side, so both name the counted thing
-   * with the same term — findings/Funde, never two words for one object.
+   * The word after the stepper's second number. It counts what still needs a
+   * decision, not the queue's size — "1 / 8 · 7 Funde" read like a sum that
+   * did not add up. "offen" names the same set the Next button walks.
    */
   "actions.triageOpenWord": {
-    en: "findings",
-    de: "Funde",
+    en: "open",
+    de: "offen",
   },
   "actions.triageOpenWordOne": {
-    en: "finding",
-    de: "Fund",
+    en: "open",
+    de: "offen",
   },
   "actions.triageOpenTitle": {
     en: "{open} findings in this queue still need a verdict",
@@ -598,6 +638,66 @@ export const DICT = {
   "actions.shortcutsTitle": {
     en: "List the keys the city answers to",
     de: "Zeigt die Tasten, auf die die Stadt reagiert",
+  },
+  "actions.cityOnly": {
+    en: "City only",
+    de: "Nur die Stadt",
+  },
+  "actions.cityOnlyTitle": {
+    en: "Hide every control and let the city take the frame — Esc brings them back",
+    de: "Blendet jede Bedienfläche aus und lässt die Stadt das Bild tragen — Esc holt sie zurück",
+  },
+  "cityOnly.exit": {
+    en: "Back",
+    de: "Zurück",
+  },
+  "cityOnly.exitAria": {
+    en: "Leave city-only view and bring the controls back",
+    de: "Nur-die-Stadt-Ansicht verlassen und die Bedienflächen zurückholen",
+  },
+  "resident.kicker": {
+    en: "Resident",
+    de: "Bewohner",
+  },
+  "resident.region": {
+    en: "A resident",
+    de: "Ein Bewohner",
+  },
+  "resident.title": {
+    en: "This resident can show you the way.",
+    de: "Dieser Bewohner kann dir den Weg zeigen.",
+  },
+  "resident.risk": {
+    en: "Show me the risk",
+    de: "Zeig mir das Risiko",
+  },
+  "resident.riskTitle": {
+    en: "Take me to the highest open finding",
+    de: "Zum höchsten offenen Fund",
+  },
+  "resident.highest": {
+    en: "Highest open finding",
+    de: "Höchster offener Fund",
+  },
+  "resident.allReviewed": {
+    en: "Everything is reviewed — no open finding.",
+    de: "Alles bewertet — kein offener Fund.",
+  },
+  "resident.close": {
+    en: "Dismiss the resident",
+    de: "Bewohner entlassen",
+  },
+  "resident.call": {
+    en: "Call a resident",
+    de: "Bewohner rufen",
+  },
+  "resident.callTitle": {
+    en: "Call a resident — C",
+    de: "Ruft einen Bewohner — C",
+  },
+  "hints.callResident": {
+    en: "Call a resident and ask for the way",
+    de: "Einen Bewohner rufen und nach dem Weg fragen",
   },
   "actions.reduceEffects": {
     en: "Reduce effects",
@@ -1032,9 +1132,14 @@ export const DICT = {
   },
 
   // ── Info panel — finding rows ─────────────────────────────────────────────
+  /**
+   * The verdict that removes a finding from the queue. "Reviewed" read like
+   * "I have seen it" while the queue counted it as decided; the label now says
+   * the decision it actually stores.
+   */
   "panel.reviewReviewed": {
-    en: "Reviewed ✓",
-    de: "Geprüft ✓",
+    en: "No action needed",
+    de: "Kein Handlungsbedarf",
   },
   "panel.reviewFalsePositive": {
     en: "False positive",
@@ -1298,6 +1403,10 @@ export const DICT = {
     en: "{count} Finding",
     de: "{count} Fund",
   },
+  "panel.openLine": {
+    en: "Open line {line}",
+    de: "Zeile {line} öffnen",
+  },
   "panel.findingsCountMany": {
     en: "{count} Findings",
     de: "{count} Funde",
@@ -1359,6 +1468,14 @@ export const DICT = {
   "panel.coverageNoScanner": {
     en: "No security scanner opens this format — only the pattern baseline read it",
     de: "Kein Sicherheits-Scanner öffnet dieses Format — nur die Mustergrundlage hat es gelesen",
+  },
+  "panel.consoleUsageLine": {
+    en: "Console output — review the logged values; no data leak is proven.",
+    de: "Konsolenausgabe — geloggte Werte prüfen; kein Datenabfluss bewiesen.",
+  },
+  "panel.coverageLive": {
+    en: "Re-read live — built-in rules only; external engines last saw the full scan",
+    de: "Live neu gelesen — nur eingebaute Regeln; externe Engines sahen zuletzt den vollen Scan",
   },
   "panel.coverageUnread": {
     en: "No scanner read this file at all — the city shows only its measured shape",
@@ -1486,6 +1603,15 @@ export const DICT = {
   "panel.triageFirstFinding": {
     en: "{summary} — here is the first one",
     de: "{summary} — hier ist der erste",
+  },
+  /**
+   * WCAG 4.1.3: every triage step moves the camera and the panel, but a screen
+   * reader heard none of it. The sentence names position, file, line, severity
+   * and the rule class — the same facts a sighted reader gets from the card.
+   */
+  "panel.triageAnnounce": {
+    en: "Triage {index} of {total}: {name}, line {line}, {severity} — {label}",
+    de: "Triage {index} von {total}: {name}, Zeile {line}, {severity} — {label}",
   },
   // The card's teaching block — what the tower's height already showed, in
   // words, with the benefit named. Numbers come from the file's own metrics.
@@ -1686,8 +1812,8 @@ export const DICT = {
     de: "{name} zeigen, Zeile {line}",
   },
   "findings.reviewLabelReviewed": {
-    en: "Reviewed",
-    de: "Geprüft",
+    en: "No action needed",
+    de: "Kein Handlungsbedarf",
   },
   "findings.reviewLabelFalsePositive": {
     en: "False positive",
@@ -2470,8 +2596,8 @@ export const DICT = {
     de: "Was die mitgelieferten Regeln nicht sehen",
   },
   "ctx.classCoverage": {
-    en: "What the shipped rules cannot see: authorisation/IDOR and race conditions have no rule at all. SSRF, weak randomness, server-side response sinks, path traversal and credential literals are matched by shape heuristics only — they catch the obvious line, not the clever one. No finding in these classes means un-checked, not clean",
-    de: "Was die mitgelieferten Regeln nicht sehen: Autorisierung/IDOR und Race-Conditions haben überhaupt keine Regel. SSRF, schwache Zufälligkeit, serverseitige Antwort-Senken, Pfadtraversierung und Credential-Literale erkennt nur eine Form-Heuristik — sie greift die offensichtliche Zeile, nicht die clevere. Kein Befund heißt hier ungeprüft, nicht sauber",
+    en: "Authorisation/IDOR and race conditions have no rule at all. SSRF, weak randomness, server-side response sinks, path traversal and credential literals are matched by shape heuristics only — they catch the obvious line, not the clever one. No finding in these classes means un-checked, not clean",
+    de: "Autorisierung/IDOR und Race-Conditions haben überhaupt keine Regel. SSRF, schwache Zufälligkeit, serverseitige Antwort-Senken, Pfadtraversierung und Credential-Literale erkennt nur eine Form-Heuristik — sie greift die offensichtliche Zeile, nicht die clevere. Kein Befund heißt hier ungeprüft, nicht sauber",
   },
   "ctx.classCoverageTip": {
     en: "A statement about the shipped rules, not about your code: these classes can still be present — unseen.",
@@ -2742,6 +2868,112 @@ export const DICT = {
   "summary.demoFiles": {
     en: "{count} sample files",
     de: "{count} Beispieldateien",
+  },
+  // The finished card speaks once in a resident's voice. It is a line on the
+  // card the scan already owns — not a second tour prompt or a new panel.
+  "summary.guideWho": {
+    en: "A resident",
+    de: "Ein Ephe",
+  },
+  "summary.guideLine": {
+    en: "Your project is a city. Shall I walk you to the findings?",
+    de: "Dein Projekt ist eine Stadt. Soll ich dich zu den Funden führen?",
+  },
+  "summary.guideGo": {
+    en: "Show findings",
+    de: "Zeig mir die Funde",
+  },
+  "summary.preview": {
+    en: "◈ Preview · {sampled} of {total} files read",
+    de: "◈ Vorschau · {sampled} von {total} Dateien gelesen",
+  },
+  "summary.guidePreviewLine": {
+    en: "This is a preview of your city. Shall I show you the sampled findings?",
+    de: "Das ist eine Vorschau deiner Stadt. Soll ich dir die gelesenen Funde zeigen?",
+  },
+  "summary.live": {
+    en: "Live — built-in rules only; external engines from the last full scan",
+    de: "Live — nur eingebaute Regeln; externe Engines vom letzten vollen Scan",
+  },
+  "summary.liveFound": {
+    en: "Live — built-in rules only · {count} findings",
+    de: "Live — nur eingebaute Regeln · {count} Funde",
+  },
+  "summary.liveFoundOne": {
+    en: "Live — built-in rules only · {count} finding",
+    de: "Live — nur eingebaute Regeln · {count} Fund",
+  },
+  "live.watching": {
+    en: "Live — waiting for a change",
+    de: "Live — wartet auf eine Änderung",
+  },
+  "live.paused": {
+    en: "Live — paused",
+    de: "Live — pausiert",
+  },
+  "live.pause": {
+    en: "Pause",
+    de: "Pausieren",
+  },
+  "live.resume": {
+    en: "Resume",
+    de: "Weiter",
+  },
+  "live.pauseTitle": {
+    en: "Stop watching this folder until you resume — the city keeps the last delta",
+    de: "Diesen Ordner bis zum Fortsetzen nicht beobachten — die Stadt behält den letzten Stand",
+  },
+  "live.resumeTitle": {
+    en: "Watch the folder again — changes made while paused are folded in on the next check",
+    de: "Den Ordner wieder beobachten — Änderungen aus der Pause werden beim nächsten Abgleich übernommen",
+  },
+  "live.stale": {
+    en: "Live — built-in rules only; external engines from the last full scan",
+    de: "Live — nur eingebaute Regeln; externe Engines vom letzten vollen Scan",
+  },
+  "live.lastDelta": {
+    en: "{changed} changed · {added} added · {removed} removed",
+    de: "{changed} geändert · {added} neu · {removed} entfernt",
+  },
+  "live.fullScan": {
+    en: "Full scan",
+    de: "Voller Scan",
+  },
+  "live.fullScanTitle": {
+    en: "Re-run every engine on the current folder — replaces this live state with a full result",
+    de: "Alle Engines erneut auf den aktuellen Ordner anwenden — ersetzt den Live-Stand durch ein volles Ergebnis",
+  },
+  "live.rescanning": {
+    en: "Full scan running… {progress}%",
+    de: "Voller Scan läuft… {progress}%",
+  },
+  "live.failed": {
+    en: "Live update failed — {error}",
+    de: "Live-Abgleich fehlgeschlagen — {error}",
+  },
+  "live.rateLimited": {
+    en: "Live update paused — too many updates; resuming in {s} s",
+    de: "Live-Abgleich pausiert — zu viele Änderungen; weiter in {s} s",
+  },
+  "live.ended": {
+    en: "Live session ended — start a full scan",
+    de: "Live-Sitzung beendet — starte einen vollen Scan",
+  },
+  "drop.preview": {
+    en: "{n} source files were left out of the preview sample — open a top-level folder for a full read",
+    de: "{n} Quelldateien blieben außerhalb der Vorschau — öffne einen Top-Level-Ordner für einen vollständigen Scan",
+  },
+  "drop.previewOne": {
+    en: "{n} source file was left out of the preview sample — open a top-level folder for a full read",
+    de: "{n} Quelldatei blieb außerhalb der Vorschau — öffne einen Top-Level-Ordner für einen vollständigen Scan",
+  },
+  "summary.pinShort": {
+    en: "Pin",
+    de: "Anheften",
+  },
+  "summary.unpinShort": {
+    en: "Unpin",
+    de: "Lösen",
   },
   "summary.filesAnalyzed": {
     en: "{count} files analyzed",

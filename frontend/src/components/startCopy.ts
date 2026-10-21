@@ -12,6 +12,10 @@ const BRIDGE: Record<string, { en: string; de: string }> = {
   "start.nextStep": { en: "What happens next", de: "Wie es weitergeht" },
   "start.retry": { en: "Try again", de: "Erneut versuchen" },
   "start.pickAnother": { en: "Choose another folder", de: "Anderen Ordner wählen" },
+  "start.pickSourceFolder": {
+    en: "Pick a folder that holds source code.",
+    de: "Wähle einen Ordner, der Quellcode enthält.",
+  },
   "start.serverWords": { en: "Show the server's words", de: "Wortlaut des Servers zeigen" },
   "start.settingsNext": {
     en: "Open the scan settings and exclude folders",
@@ -69,8 +73,8 @@ const BRIDGE: Record<string, { en: string; de: string }> = {
     de: "{n} Datei wurde nicht gelesen",
   },
   "summary.dwell": {
-    en: "closes in {s} s · hover to hold",
-    de: "schließt in {s} s · zum Halten darüber",
+    en: "{s} s",
+    de: "{s} s",
   },
   "summary.noScanner": {
     en: "No scanner ran — nothing here was checked.",

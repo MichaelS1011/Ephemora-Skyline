@@ -20,10 +20,13 @@ import { t } from "../i18n";
 import { cityLinkNotice } from "../cityLifetime";
 import { openStudio } from "../share/studioBus";
 import { tx } from "../share/fallbackCopy";
+import { useCompactChrome } from "../hooks/useCompactChrome";
 import { severityTotal } from "../city/facts";
 
 interface ActionButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   label: string;
+  /** A visible second line that says what the verb does, not what it is called. */
+  hint?: string;
   icon: string;
   active?: boolean;
   /** Why the button is blocked. "Already running" is said by the label itself,
@@ -39,7 +42,15 @@ interface ActionButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 const struck = (unavailable: boolean): CSSProperties | undefined =>
   unavailable ? { textDecoration: "line-through" } : undefined;
 
-function ActionButton({ label, icon, active, running, disabled, ...props }: ActionButtonProps) {
+function ActionButton({
+  label,
+  hint,
+  icon,
+  active,
+  running,
+  disabled,
+  ...props
+}: ActionButtonProps) {
   return (
     <button
       {...props}
@@ -57,7 +68,14 @@ function ActionButton({ label, icon, active, running, disabled, ...props }: Acti
       <span aria-hidden="true" className="text-base leading-none">
         {icon}
       </span>
-      <span>{label}</span>
+      <span className="action-copy">
+        <span>{label}</span>
+        {hint && (
+          <span className="action-hint" aria-hidden="true">
+            {hint}
+          </span>
+        )}
+      </span>
     </button>
   );
 }
@@ -76,6 +94,7 @@ export function ActionBar() {
   const analysisId = useStore((s) => s.analysisId);
   const testRun = useStore((s) => s.testRun);
   const lang = useStore((s) => s.prefs.lang);
+  const compact = useCompactChrome();
   const gfxLite = useStore((s) => s.prefs.gfxLite);
   const updateCheck = useStore((s) => s.prefs.updateCheck);
   const toggleUpdateCheck = useStore((s) => s.toggleUpdateCheck);
@@ -103,6 +122,9 @@ export function ActionBar() {
   const setShowPrimer = useStore((s) => s.setShowPrimer);
   const showShortcuts = useStore((s) => s.showShortcuts);
   const setShowShortcuts = useStore((s) => s.setShowShortcuts);
+  const cityOnly = useStore((s) => s.cityOnly);
+  const setCityOnly = useStore((s) => s.setCityOnly);
+  const requestResidentCall = useStore((s) => s.requestResidentCall);
   const { runTests } = useTestRunner();
   const standalone = useOrigin((s) => s.origin) === "file";
   const [menuOpen, setMenuOpen] = useState(false);
@@ -409,51 +431,95 @@ export function ActionBar() {
               ...struck(totalFindings === 0),
             }}
           >
-            {t(lang, "actions.triage")}
-            {/* The count that survived the last round: a re-scan of the same
-                folder starts on what is left, and this is the only place that
-                says so before the queue is opened. */}
-            {queue && queue.total > 0 && (
-              <span
-                className="font-mono text-xs tabular-nums"
-                style={{ color: queue.open > 0 ? "var(--accent-gold)" : "#29d398" }}
-              >
-                {queue.open}{" "}
-                {t(lang, queue.open === 1 ? "actions.triageOpenWordOne" : "actions.triageOpenWord")}
+            <span className="action-copy">
+              <span className="flex items-center gap-2">
+                {t(lang, "actions.triage")}
+                {/* The count that survived the last round: a re-scan of the same
+                    folder starts on what is left, and this is the only place that
+                    says so before the queue is opened. */}
+                {queue && queue.total > 0 && (
+                  <span
+                    className="font-mono text-xs tabular-nums"
+                    style={{ color: queue.open > 0 ? "var(--accent-gold)" : "#29d398" }}
+                  >
+                    {compact ? (
+                      queue.open
+                    ) : (
+                      <>
+                        {queue.open}{" "}
+                        {t(
+                          lang,
+                          queue.open === 1 ? "actions.triageOpenWordOne" : "actions.triageOpenWord",
+                        )}
+                      </>
+                    )}
+                  </span>
+                )}
+                <span aria-hidden="true">▶</span>
               </span>
-            )}
-            <span aria-hidden="true">▶</span>
+              {!compact && (
+                <span className="action-hint" aria-hidden="true">
+                  {t(lang, "actions.triageHint")}
+                </span>
+              )}
+            </span>
           </button>
         )}
 
-        <ActionButton
-          onClick={startTour}
-          disabled={tourActive || totalFindings === 0}
-          running={tourActive}
-          label={tourActive ? t(lang, "actions.tourActive") : t(lang, "actions.tour")}
-          icon="⚑"
-          title={
-            totalFindings === 0 ? t(lang, "actions.tourEmptyTitle") : t(lang, "actions.tourTitle")
-          }
-          active={tourActive}
-        />
-        <ActionButton
-          onClick={handleFindings}
-          label={t(lang, totalFindings === 1 ? "actions.findingsOne" : "actions.findings", {
-            count: totalFindings,
-          })}
-          icon="≡"
-          title={t(lang, "actions.findingsTitle")}
-          aria-pressed={showFindings}
-          aria-controls="findings-panel"
-          active={showFindings}
-        />
-        <ActionButton
-          onClick={resetFocus}
-          label={t(lang, "actions.overview")}
-          icon="⌂"
-          title={t(lang, "actions.overviewTitle")}
-        />
+        {!triageActive && (
+          <>
+            <ActionButton
+              onClick={startTour}
+              disabled={tourActive || totalFindings === 0}
+              running={tourActive}
+              icon="⚑"
+              title={
+                totalFindings === 0
+                  ? t(lang, "actions.tourEmptyTitle")
+                  : t(lang, "actions.tourTitle")
+              }
+              active={tourActive}
+              label={
+                compact
+                  ? t(lang, "actions.tourShort")
+                  : tourActive
+                    ? t(lang, "actions.tourActive")
+                    : t(lang, "actions.tour")
+              }
+              aria-label={tourActive ? t(lang, "actions.tourActive") : t(lang, "actions.tour")}
+              hint={compact ? undefined : t(lang, "actions.tourHint")}
+            />
+            <ActionButton
+              onClick={handleFindings}
+              icon="≡"
+              title={t(lang, "actions.findingsTitle")}
+              aria-pressed={showFindings}
+              aria-controls="findings-panel"
+              active={showFindings}
+              label={
+                compact
+                  ? t(lang, "actions.findingsShort", { count: totalFindings })
+                  : t(lang, totalFindings === 1 ? "actions.findingsOne" : "actions.findings", {
+                      count: totalFindings,
+                    })
+              }
+              aria-label={t(
+                lang,
+                totalFindings === 1 ? "actions.findingsOne" : "actions.findings",
+                {
+                  count: totalFindings,
+                },
+              )}
+              hint={compact ? undefined : t(lang, "actions.findingsHint")}
+            />
+            <ActionButton
+              onClick={resetFocus}
+              label={t(lang, "actions.overview")}
+              icon="⌂"
+              title={t(lang, "actions.overviewTitle")}
+            />
+          </>
+        )}
         <div className="relative" ref={moreRef}>
           <button
             ref={moreButtonRef}
@@ -470,13 +536,14 @@ export function ActionBar() {
                 setMenuOpen(true);
               }
             }}
+            aria-label={t(lang, "actions.more")}
             className="flex min-h-10 items-center gap-2 rounded-lg px-3 text-[13px] font-medium hover:bg-white/5"
             style={{
               color: menuOpen ? "#f2efe8" : "#c8c4bb",
               background: menuOpen ? "rgba(255,255,255,0.07)" : undefined,
             }}
           >
-            <span aria-hidden="true">•••</span> {t(lang, "actions.more")}
+            <span aria-hidden="true">•••</span> {!compact && <span>{t(lang, "actions.more")}</span>}
           </button>
           {menuOpen && (
             <div
@@ -493,6 +560,48 @@ export function ActionBar() {
                 color: "#f2efe8",
               }}
             >
+              {triageActive && (
+                <>
+                  <button
+                    role="menuitem"
+                    type="button"
+                    onClick={() => {
+                      closeMenu();
+                      startTour();
+                    }}
+                    className="flex min-h-10 w-full items-center gap-3 rounded-lg px-3 text-left hover:bg-white/5"
+                  >
+                    <span aria-hidden="true">⚑</span>
+                    {t(lang, "actions.tour")}
+                  </button>
+                  <button
+                    role="menuitem"
+                    type="button"
+                    onClick={() => {
+                      closeMenu();
+                      handleFindings();
+                    }}
+                    className="flex min-h-10 w-full items-center gap-3 rounded-lg px-3 text-left hover:bg-white/5"
+                  >
+                    <span aria-hidden="true">≡</span>
+                    {t(lang, totalFindings === 1 ? "actions.findingsOne" : "actions.findings", {
+                      count: totalFindings,
+                    })}
+                  </button>
+                  <button
+                    role="menuitem"
+                    type="button"
+                    onClick={() => {
+                      closeMenu();
+                      resetFocus();
+                    }}
+                    className="flex min-h-10 w-full items-center gap-3 rounded-lg px-3 text-left hover:bg-white/5"
+                  >
+                    <span aria-hidden="true">⌂</span>
+                    {t(lang, "actions.overview")}
+                  </button>
+                </>
+              )}
               <button
                 role="menuitem"
                 type="button"
@@ -566,6 +675,39 @@ export function ActionBar() {
               >
                 <span aria-hidden="true">↓</span>
                 {t(lang, "actions.exportHandoff")}
+              </button>
+              {/* One step further than folding a surface: every instrument
+                  leaves, and the city keeps the frame. The header and this
+                  dock are gone a moment later, so the exit is the small
+                  Escape chip that App renders while the mode stands. */}
+              <button
+                role="menuitemcheckbox"
+                type="button"
+                aria-checked={cityOnly}
+                onClick={() => {
+                  setCityOnly(!cityOnly);
+                  closeMenu();
+                }}
+                className="flex min-h-10 w-full items-center gap-3 rounded-lg px-3 text-left hover:bg-white/5"
+                title={t(lang, "actions.cityOnlyTitle")}
+              >
+                <span aria-hidden="true">{cityOnly ? "◉" : "○"}</span>
+                {t(lang, "actions.cityOnly")}
+              </button>
+              {/* One named door to the crowd; C is the same request without
+                  opening this menu. The card itself is the resident. */}
+              <button
+                role="menuitem"
+                type="button"
+                onClick={() => {
+                  closeMenu();
+                  requestResidentCall();
+                }}
+                className="flex min-h-10 w-full items-center gap-3 rounded-lg px-3 text-left hover:bg-white/5"
+                title={t(lang, "resident.callTitle")}
+              >
+                <span aria-hidden="true">◉</span>
+                {t(lang, "resident.call")}
               </button>
               {/* The arrival budget. These five surfaces no longer put
                   themselves on the screen when a city arrives — each row

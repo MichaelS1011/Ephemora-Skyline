@@ -11,6 +11,7 @@ import { MarkerLegend } from "./CoachMarks";
 import { SinceLastScan } from "./SinceLastScan";
 import { CityLearningGuide } from "./CityLearningGuide";
 import { learningCopy } from "./learningCopy";
+import { useCompactChrome } from "../hooks/useCompactChrome";
 import "../design/stadt-ui.css";
 
 const startCollapsed = () =>
@@ -40,6 +41,8 @@ export function ContextCard() {
   // that way, and a panel that returns unasked covers the city again.
   // The card watches the findings panel through one one-way effect below.
   const showFindings = useStore((s) => s.showFindings);
+  const selectedUnit = useStore((s) => s.selectedUnit);
+  const compact = useCompactChrome();
   useEffect(() => {
     if (showFindings) setCollapsed(true);
   }, [showFindings]);
@@ -84,6 +87,7 @@ export function ContextCard() {
   const skipped = describeGitignoreSkips(cityData.skippedByGitignore, lang);
   const findingsInTests = dir.findingsInTests ?? 0;
   const unverified = dir.unverifiedFiles ?? 0;
+  const previewOmitted = cityData.dropped?.preview ?? 0;
   const engines = cityData.unverifiedEngines ?? [];
   // The demo city declares every engine off — then the honest sentence is not
   // "semgrep was switched off" but "nobody looked at any of this".
@@ -172,6 +176,18 @@ export function ContextCard() {
         </button>
       </div>
 
+      {/* The mast explains height and roof on a wide screen; below 1200 px
+          and while a file or the findings list is open it is hidden. This is
+          the same two-line grammar in the card that remains on screen. It is
+          only IN the DOM when it can be seen, so the arrival word budget does
+          not count hidden text. */}
+      {(compact || selectedUnit !== null || showFindings) && (
+        <div className="ctx-grammar" aria-label={t(lang, "ctx.legendToggle")}>
+          <span>{t(lang, "hud.heightComplexity")}</span>
+          <span>{t(lang, "hud.roofFindings")}</span>
+        </div>
+      )}
+
       <CityLearningGuide />
 
       <dl
@@ -184,6 +200,16 @@ export function ContextCard() {
           </dt>
           <dd className="text-[22px] font-semibold leading-none tabular-nums">
             {formatCount(lang, dir.fileCount)}
+            {isRoot && previewOmitted > 0 && (
+              <span
+                className="block mt-1 text-[length:var(--fs-meta)] font-normal"
+                style={{ color: "#cbb98f" }}
+              >
+                {t(lang, "ctx.previewOf", {
+                  total: formatCount(lang, cityData.totalFiles + previewOmitted),
+                })}
+              </span>
+            )}
           </dd>
         </div>
         <div title={t(lang, "ctx.codeLinesTip")}>

@@ -300,7 +300,7 @@ describe("the project's own .gitignore is honoured before counting", () => {
     expect(latest.errorMessage, latest.errorMessage).toBe("");
   });
 
-  it("still refuses a folder that is over the cap on its own source", async () => {
+  it("opens a dense folder as a preview and names the files it left out", async () => {
     const dense: ChosenFile[] = [
       Object.assign(fakeFile("repo/.gitignore", "notes/\n"), {
         webkitRelativePath: "repo/.gitignore",
@@ -312,7 +312,10 @@ describe("the project's own .gitignore is honoured before counting", () => {
       ),
     ];
     await pickFlat(dense);
-    expect(uploadBody(), "an over-cap folder was uploaded").toBeNull();
-    expect(latest.errorMessage).toContain("Grenze ist 10.000");
+    const body = uploadBody();
+    expect(body, "the preview sample was not uploaded").not.toBeNull();
+    expect(body!.files.length).toBe(2_000);
+    expect(body!.dropped.preview).toBe(8_002);
+    expect(latest.errorMessage, latest.errorMessage).toBe("");
   });
 });

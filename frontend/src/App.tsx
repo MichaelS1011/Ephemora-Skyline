@@ -18,10 +18,13 @@ import { Minimap } from "./components/Minimap";
 import { HudOverlay } from "./components/HudOverlay";
 import { Breadcrumbs } from "./components/Breadcrumbs";
 import { SecurityTour } from "./components/SecurityTour";
+import { TriageAnnouncer } from "./components/TriageAnnouncer";
 import { CoachMarks } from "./components/CoachMarks";
 import { ActionBar } from "./components/ActionBar";
+import { ResidentCard } from "./components/ResidentCard";
 import { ShareStudio } from "./components/ShareStudio";
 import { ContextCard } from "./components/ContextCard";
+import { LiveBridge } from "./live/LiveBridge";
 import { SceneBoundary, SurfaceBoundary, SurfaceFailed } from "./components/SurfaceBoundary";
 import { useGlassStage } from "./render/useGlassStage";
 import { FindingsPanel } from "./components/FindingsPanel";
@@ -167,6 +170,8 @@ function VisitCamera() {
 export default function App() {
   const cityData = useStore((s) => s.cityData);
   const setCityData = useStore((s) => s.setCityData);
+  const liveStatus = useStore((s) => s.live.status);
+  const liveAnalysisId = useStore((s) => s.live.analysisId);
   const resetFocus = useStore((s) => s.resetFocus);
   const setIsLoading = useStore((s) => s.setIsLoading);
   const selectedUnit = useStore((s) => s.selectedUnit);
@@ -186,6 +191,9 @@ export default function App() {
   const showPrimer = useStore((s) => s.showPrimer);
   const showShortcuts = useStore((s) => s.showShortcuts);
   const setShowShortcuts = useStore((s) => s.setShowShortcuts);
+  const cityOnly = useStore((s) => s.cityOnly);
+  const setCityOnly = useStore((s) => s.setCityOnly);
+  const selectedResident = useStore((s) => s.selectedResident);
 
   const [apiStatus, setApiStatus] = useState<"connecting" | "live" | "demo">("connecting");
   // Two failure paths for the world, because there are two places it can die:
@@ -212,7 +220,15 @@ export default function App() {
   const [permalinkError, setPermalinkError] = useState("");
 
   const canvasWrapperRef = useRef<HTMLDivElement | null>(null);
+  const cityOnlyExitRef = useRef<HTMLButtonElement | null>(null);
   const lastEscRef = useRef(0);
+
+  // The menu row that turns the instruments off is itself gone a moment later;
+  // focus has to land on the one control that is still there, or the next Tab
+  // starts from the top of a page whose controls are invisible.
+  useEffect(() => {
+    if (cityOnly) cityOnlyExitRef.current?.focus();
+  }, [cityOnly]);
   // The glass reads the picture behind it: over a dark facade a panel thins to
   // 0,30, over the plaza it firms to 0,70 — the measured floor for the inks on
   // it. `render/backdropLuminance.ts` owns the ramp, `glas-chrome.test.ts` the
@@ -306,6 +322,20 @@ export default function App() {
         target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable;
 
       if (e.key === "Escape") {
+        // City only owns Escape while it stands: the header and the dock that
+        // would otherwise be the way out are the surfaces it turned off.
+        if (useStore.getState().cityOnly) {
+          setCityOnly(false);
+          canvasWrapperRef.current?.focus();
+          return;
+        }
+        // A called resident owns the next Escape: dismiss the card and give
+        // the city back before the normal panel → district → overview chain.
+        if (useStore.getState().selectedResident !== null) {
+          useStore.getState().selectResident(null);
+          canvasWrapperRef.current?.focus();
+          return;
+        }
         // While the construction cinematic runs, Escape only skips it —
         // ahead of the triage/hints/tour/deselect/drill-out chain
         if (useStore.getState().buildPhase === "constructing") {
@@ -360,6 +390,19 @@ export default function App() {
       // dialogs (keyboard hints, confirm dialogs) swallow shortcuts — no
       // triage behind them. toLowerCase() so Shift/CapsLock still work.
       const modalOpen = !!document.querySelector('[aria-modal="true"], .panel-share-studio');
+      if (
+        e.key.toLowerCase() === "c" &&
+        !isInput &&
+        !modalOpen &&
+        cityData &&
+        !useStore.getState().tourActive &&
+        !useStore.getState().triageActive &&
+        !useStore.getState().cityOnly
+      ) {
+        e.preventDefault();
+        useStore.getState().requestResidentCall();
+        return;
+      }
       if (
         e.key.toLowerCase() === "n" &&
         !isInput &&
@@ -439,6 +482,7 @@ export default function App() {
     },
     [
       setShowShortcuts,
+      setCityOnly,
       selectedUnit,
       setSelectedUnit,
       drillOut,
@@ -464,9 +508,15 @@ export default function App() {
     return () => window.clearTimeout(id);
   }, [sceneRebuilding]);
   const buildPhase = useStore((s) => s.buildPhase);
+  const hasLiveBand = liveStatus !== "off" && !!cityData && liveAnalysisId === cityData.analysisId;
 
   return (
-    <div className={`app-shell ${selectedUnit ? "has-selection" : ""}`}>
+    <div
+      className={`app-shell ${selectedUnit ? "has-selection" : ""} ${cityOnly ? "is-city-only" : ""} ${hasLiveBand ? "has-live-band" : ""}`}
+    >
+      {/* The watch loop outlives the Landing: it is started from the store,
+          not from the scan hook that unmounts when the city arrives. */}
+      <LiveBridge />
       {/* WCAG 2.4.1: the first tab stop is this skip link, not the 3D stage.
           sr-only hides it visually without dropping it from the tab order
           (display:none would); focus:not-sr-only pins it to the top-left with
@@ -546,6 +596,7 @@ export default function App() {
             </Canvas>
           </SurfaceBoundary>
         )}
+        <div className="city-vignette" aria-hidden="true" />
       </div>
 
       {/* Landing hero — only on the empty world */}
@@ -630,7 +681,9 @@ export default function App() {
               <FindingsPanel />
               <ScanSummary demo={apiStatus === "demo"} />
               <SecurityTour />
+              <TriageAnnouncer />
               <ActionBar />
+              {selectedResident !== null && <ResidentCard />}
               <ContextCard />
               <Minimap show={showMinimap} />
               {showPrimer && <CoachMarks />}
@@ -666,6 +719,25 @@ export default function App() {
 
           <Breadcrumbs />
           <ShareStudio />
+          {cityOnly && (
+            <div className="city-only-exit">
+              {cityData && <span className="city-only-exit-city">{cityData.repo.name}</span>}
+              <button
+                ref={cityOnlyExitRef}
+                type="button"
+                className="city-only-exit-button"
+                onClick={() => {
+                  setCityOnly(false);
+                  canvasWrapperRef.current?.focus();
+                }}
+                aria-label={t(lang, "cityOnly.exitAria")}
+                title={t(lang, "cityOnly.exitAria")}
+              >
+                <kbd aria-hidden="true">Esc</kbd>
+                <span aria-hidden="true">{t(lang, "cityOnly.exit")}</span>
+              </button>
+            </div>
+          )}
         </>
       )}
 

@@ -327,6 +327,7 @@ describe("Englisch bleibt, was vor der Übersetzung im DOM stand", () => {
     expect(new Set(kopien)).toEqual(
       new Set([
         "actions.triage",
+        "actions.tourShort",
         "hints.catNavigation",
         "hints.catTriage",
         "profile.standard",

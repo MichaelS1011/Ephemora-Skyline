@@ -330,6 +330,12 @@ export type ScanVerdict =
   | { kind: "clear" }
   /** zero findings, but engines that could have contributed did not run */
   | { kind: "shallow"; missing: string[] }
+  /**
+   * A live delta replaced part of the result. Project-wide engines were not
+   * re-run, so their answer belongs to the full scan — even when every
+   * switched-on engine is listed as having run.
+   */
+  | { kind: "live"; stale: string[] }
   /** the result carries no provenance at all — nothing to vouch for */
   | { kind: "unknown" };
 
@@ -342,6 +348,7 @@ export function scanVerdict(
 ): ScanVerdict {
   if (findingsTotal > 0) return { kind: "findings" };
   if (!provenance) return { kind: "unknown" };
+  if (provenance.live) return { kind: "live", stale: provenance.live.stale };
   const missing = missingEnginesForProject(provenance, languages, files);
   return missing.length > 0 ? { kind: "shallow", missing } : { kind: "clear" };
 }
@@ -400,10 +407,15 @@ export function fileCoverage(
  * card has nothing to vouch for and says nothing, as everywhere else.
  */
 export function coverageLine(
-  file: { language?: string; path?: string },
+  file: { language?: string; path?: string; liveRefreshed?: boolean },
   provenance: ScanProvenance | undefined,
   lang: Lang,
 ): { kind: "examined" | "no-scanner"; text: string } | null {
+  // A file a live delta re-read has only been through the built-in rules in
+  // this state; naming semgrep from the full scan would be a false witness.
+  if (file.liveRefreshed) {
+    return { kind: "no-scanner", text: t(lang, "panel.coverageLive") };
+  }
   const cov = fileCoverage(file, provenance);
   if (!cov) return null;
   if (cov.noSecurityScan)

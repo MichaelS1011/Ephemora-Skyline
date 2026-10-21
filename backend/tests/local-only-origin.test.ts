@@ -78,6 +78,28 @@ describe("a browser request for a route that runs code", () => {
     ).toBe(true);
   });
 
+  it("does not mistake a rebound foreign host for this port", () => {
+    // DNS rebinding makes Origin and Host agree on the attacker's own name;
+    // only a loopback Host proves the page is this app on this machine.
+    expect(
+      isForeignBrowserRequest({ origin: "http://evil.example:4000", host: "evil.example:4000" }, [
+        OWN,
+      ]),
+    ).toBe(true);
+    expect(
+      isForeignBrowserRequest(
+        { origin: "http://localhost.evil.example:4000", host: "localhost.evil.example:4000" },
+        [OWN],
+      ),
+    ).toBe(true);
+    expect(
+      isForeignBrowserRequest({ origin: "http://localhost:4000", host: "localhost:4000" }, [OWN]),
+    ).toBe(false);
+    expect(
+      isForeignBrowserRequest({ origin: "http://[::1]:4000", host: "[::1]:4000" }, [OWN]),
+    ).toBe(false);
+  });
+
   /**
    * `cors()` used to receive the raw `FRONTEND_ORIGIN` string while the guard
    * parsed it as a list: a second origin, the app opened on 127.0.0.1, or the

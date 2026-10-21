@@ -118,6 +118,20 @@ afterEach(async () => {
 const text = () => (container.textContent ?? "").replace(/\s+/g, " ");
 
 describe("grün im Panel heißt: ein Engine hätte es finden können", () => {
+  it("puts the finding before the handover, with its line one click away", async () => {
+    const hit = file("src/auth.js", [secret()]);
+    await show(createElement(InfoPanel), city([hit]));
+    await act(async () => useStore.getState().setSelectedUnit({ kind: "file", id: hit.id }));
+    const body = text();
+    expect(body.indexOf("1 Fund")).toBeGreaterThan(-1);
+    expect(body.indexOf("1 Fund")).toBeLessThan(body.indexOf("SARIF-Export"));
+    const lineButton = [...container.querySelectorAll("button")].find(
+      (b) => b.getAttribute("title") === "Zeile 2 öffnen",
+    );
+    expect(lineButton, "the finding's line has no open button").toBeTruthy();
+    await act(async () => (lineButton as HTMLButtonElement).click());
+  });
+
   it("shows the checked-clean sentence only where nothing was kept out", async () => {
     const clean = file("src/checked.js", []);
     expect(isUncheckedClean(clean)).toBe(false);

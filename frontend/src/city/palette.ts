@@ -155,6 +155,8 @@ export const REVIEWED_BEACON_COLOR = "#29d398";
 export const TEST_FAIL_COLOR = "#ff2e4d";
 export const TEST_PASS_COLOR = "#29d398";
 export const CYCLE_RING_COLOR = "#ff2e4d";
+/** Chosen is gold; alarm red belongs to findings and cycles. */
+export const BUILDING_SELECTION = "#e8b23c";
 
 /**
  * The alarm band of the 3D city, as a function of the switch.
@@ -361,6 +363,8 @@ export const EPHE_PALETTE = {
   helmet: "#c7b888",
   /** The contact patch a figure puts on the ground. Neutral, no hue to key. */
   contact: "#1c2126",
+  /** The one gold selection mark; UI, never a finding grade. */
+  selection: "#e8b23c",
 } as const;
 
 // One coherent day, and the one place it is not allowed to go.

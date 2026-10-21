@@ -8,12 +8,14 @@ Ephemora Skyline renders a local folder as an interactive 3D city: folders becom
 git clone https://github.com/MichaelS1011/Ephemora-Skyline.git
 cd Ephemora-Skyline
 npm install
-npm run dev
+npm start
 ```
 
-Open **http://localhost:3010** and click **Choose project folder** to pick any folder on your machine. Ephemora Skyline scans it locally (code quality, secrets, CVEs) and builds the city. No account, no token, no upload.
+Open **http://127.0.0.1:4173** and click **Choose project folder** to pick any folder on your machine. Ephemora Skyline scans it locally (code quality, secrets, CVEs) and builds the city. No account, no token, no upload. `npm start` builds once, starts the backend and serves the built app from the same address; `EPHEMORA_NO_OPEN=1` keeps the browser closed, and `PORT=` moves the address. For hot reload while developing, use `npm run dev` (Vite on :3010, API on :4000) — see [Start developing](#4-start-developing).
 
-A folder is read up to **10,000 files, 150 MB in total, 2 MB per file**. Whatever does not join the scan is counted on screen by the reason it left — including the paths your own `.gitignore` sets aside, which the browser skips before it counts anything, so a checkout with large local tooling folders still reads as the project inside it.
+A folder is read up to **10,000 files, 150 MB in total, 2 MB per file**. A larger folder still opens: the city becomes a **preview sample of up to 2,000 files across its top-level districts**, and both numbers — what was read and what the folder holds — are printed on the announcement and in the header. Whatever does not join a full scan is counted on screen by the reason it left — including the paths your own `.gitignore` sets aside, which the browser skips before it counts anything, so a checkout with large local tooling folders still reads as the project inside it.
+
+**Keep it live.** After a folder picked with the native picker builds its city, the app watches the folder by metadata (name, size, mtime) and folds saves into the same city in place. Only changed and new files are re-read, and only by the **built-in rules**; semgrep, gitleaks, the dependency audit, churn, duplicates and coverage keep their answers from the full scan. The band under the header says `Live — built-in rules only; external engines from the last full scan` and names the delta (`1 changed · 0 added · 1 removed`). **Full scan** in that band re-reads the whole folder through every engine and starts watching the new result. A file that changes without its size or mtime moving is the blind spot of a metadata watch; run the full scan after such a change.
 
 No folder handy? Click **Explore demo** to see the full experience with sample data.
 
@@ -51,22 +53,68 @@ This installs all workspaces (root, frontend, backend) via npm workspaces. For a
 
 Two facts the install itself does not say: the repo ships an `.npmrc` with `legacy-peer-deps=true`, so every `npm install` and `npm ci` here resolves peer dependencies in npm 6's relaxed mode — nothing in the command output hints that this file is the reason. And a fresh install prints `7 vulnerabilities (2 moderate, 5 high)` while the gate stays green: all five high findings trace to one advisory the audit gate accepts by name (`GHSA-vfj7-8cjw-p6xm`, braces, no fixed release upstream) reached through five build-time package paths — braces, chokidar, fast-glob, micromatch, tailwindcss — and `node scripts/audit-gate.mjs` prints exactly that arithmetic and fails on anything else.
 
-### 3. Start developing
+### 3. Start
+
+```bash
+npm start
+```
+
+One build, one address: the backend serves the built frontend and the API on
+**http://127.0.0.1:4173**, then the browser opens. `PORT=4200 npm start` moves
+the address; `EPHEMORA_NO_OPEN=1` leaves the browser closed for a headless run.
+This is the same launcher the package uses, so a checkout and a package run the
+same code.
+
+Verify the backend responds:
+
+```bash
+curl http://127.0.0.1:4173/api/health
+```
+
+### 4. Start developing
 
 ```bash
 npm run dev
 ```
 
-Turborepo starts both workspaces in parallel:
+Turborepo starts both workspaces in parallel, with Vite's hot reload:
 
 - **Frontend** (Vite) → `http://localhost:3010`
 - **Backend** (Express + tsx watch) → `http://localhost:4000`
 
-Verify the backend responds:
+`npm run dev` is the contributor path; `npm start` is the user path. A dev run
+and a packaged run can stand side by side, because they use different ports
+(:3010/:4000 vs :4173) — but only one of them should own the backend port at a
+time.
+
+### 5. Run from a package (release path)
+
+The publishable package is assembled from `package.publish.json`; it carries
+the launcher, both built workspaces, the licences and the README, and nothing
+else. `npm run pack:check` builds, packs, installs the tarball into an empty
+folder, starts the installed `ephemora-skyline` bin and asks `/api/health` and
+`/` — measured on 2026-10-20: **0.93 MB packed, 250 files, health ok, app
+served, version 0.1.0 matches the package**.
 
 ```bash
-curl http://localhost:4000/api/health
+npm run package:build   # writes dist-package/ (250 files, 2.98 MB unpacked)
+npm run pack:check      # proves that same stage installs and boots
 ```
+
+The registry listing is the release step:
+
+```bash
+npm publish dist-package
+```
+
+Once it is on npm, the same launcher is
+
+```bash
+npx ephemora-skyline
+npx ephemora-skyline --port 4200 --no-open   # another address, no browser
+```
+
+Until then, `npm start` is the one-command path from this checkout.
 
 ## Configuration
 
@@ -79,7 +127,7 @@ The one place a GitHub token is used at all is the maintainer script that reads 
 ### Switching the network off
 
 ```bash
-SKYLINE_OFFLINE=1 npm run dev
+SKYLINE_OFFLINE=1 npm start
 ```
 
 That answers the update check offline, keeps the OSV and dependency checks from running, and keeps Semgrep off unless you selected a rule pack that is already on disk. The update check needs to be asked for in the first place: it runs only while **Ask about new versions** is switched on in the More menu of a city, and that switch is off by default, so a first run reaches neither `api.github.com` nor any other host before you click. The city then reports what it could not check through `scanProvenance` and paints those buildings the colour of ground no scanner looked at. It is an environment variable; there is no switch for it in the interface yet.
@@ -114,7 +162,7 @@ Every explanation the cards show is written by this program. The one thing it ca
 ```bash
 export EPHEMORA_LLM_URL=http://127.0.0.1:8100/v1     # llama.cpp, Ollama, LM Studio, vLLM
 export EPHEMORA_LLM_MODEL=Qwen3.5-9B                  # what the card signs its answer with
-npm run dev
+npm start
 ```
 
 Then open a finding's details and press **Ask … on this machine**. What the model receives is the flagged line (masked, clipped to 500 characters) and the rule facts already printed on the card: no file, no surrounding lines, no path. `EPHEMORA_LLM_URL` must be `127.0.0.1`, `localhost` or `::1` — a hosted address is refused when the server starts, and the card offers nothing rather than a click that fails. `EPHEMORA_LLM_TIMEOUT_MS` raises the 45-second wait for a cold or large model.

@@ -155,6 +155,8 @@ export interface CityFile {
   inCycle?: boolean;
   /** Line coverage 0..100 parsed from a lcov-style report, if present */
   coveragePct?: number;
+  /** This file's current bytes were seen by a live delta (built-in rules only) */
+  liveRefreshed?: boolean;
   /** Files sharing ≥6 normalized duplicated lines with this one (top 3) */
   clonePartners?: Array<{ id: string; path: string; lines: number }>;
   /** Voxel sections (CodeBlocks) — capped at 24 in the analyzer, absent for demo data */
@@ -610,6 +612,10 @@ export function mapResultToCityData(result: AnalysisResult): CityData {
     missingByLanguage.set(language, missing);
     return missing;
   };
+  // Engines whose answer is from the full scan. A file re-read by a live
+  // delta was seen by built-in rules only, so these names join its
+  // `unverifiedBy` even though the project flags are still true.
+  const liveStale = result.summary.scanProvenance?.live?.stale ?? [];
 
   const allIds = new Map<string, string>();
   // Stable ids for every analyzed file (detail or not — dir-level
@@ -745,6 +751,7 @@ export function mapResultToCityData(result: AnalysisResult): CityData {
           circular,
           allIds,
           missingFor,
+          liveStale,
         ),
       );
     dirNode.detailFiles = detail;
@@ -780,6 +787,7 @@ export function mapResultToCityData(result: AnalysisResult): CityData {
           circular,
           allIds,
           missingFor,
+          liveStale,
         ),
       );
 
@@ -879,6 +887,7 @@ export function mapResultToCityData(result: AnalysisResult): CityData {
           circular,
           allIds,
           missingFor,
+          liveStale,
         ),
       ),
     totalFiles: tree.fileCount,
@@ -930,8 +939,11 @@ function mapCityFile(
   circular: Set<string>,
   idByPath?: Map<string, string>,
   missingFor?: (language: string) => string[],
+  liveStale: readonly string[] = [],
 ): CityFile {
-  const unverifiedBy = missingFor?.(f.language) ?? [];
+  const unverifiedBy = [
+    ...new Set([...(missingFor?.(f.language) ?? []), ...(f.liveRefreshed ? liveStale : [])]),
+  ];
   const findings = [...f.vulnerabilities]
     .sort((a, b) => (SEVERITY_SCORE[b.severity] ?? 0) - (SEVERITY_SCORE[a.severity] ?? 0))
     // the file itself carries the role
@@ -965,6 +977,7 @@ function mapCityFile(
     deadCodeCandidate: deadCodeCandidates.has(f.path) || undefined,
     inCycle: circular.has(f.path) || undefined,
     coveragePct: f.coveragePct,
+    liveRefreshed: f.liveRefreshed || undefined,
     clonePartners: clonePartners && clonePartners.length > 0 ? clonePartners : undefined,
     sections: f.sections && f.sections.length > 0 ? f.sections : undefined,
     unverifiedBy: unverifiedBy.length > 0 ? unverifiedBy : undefined,

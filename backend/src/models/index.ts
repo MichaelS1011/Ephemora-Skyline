@@ -82,6 +82,12 @@ export interface FileAnalysis {
     depth: number;
   }>;
   content?: string;
+  /**
+   * This file was re-read by a live delta and therefore only saw the built-in
+   * rules. Every project-wide engine (semgrep, gitleaks, the dependency audit,
+   * churn, duplicates, coverage) still holds its answer from the full scan.
+   */
+  liveRefreshed?: boolean;
   vulnerabilities: SecurityIssue[];
 }
 
@@ -155,6 +161,8 @@ export interface AnalysisResult {
   directories: DirectorySummary[];
   summary: ProjectSummary;
   createdAt: string;
+  /** Last live delta that changed this result. Absent for a pure full scan. */
+  updatedAt?: string;
   status: "pending" | "analyzing" | "complete" | "failed";
   error?: string;
 }
@@ -169,7 +177,7 @@ export interface DirectorySummary {
 }
 
 /**
- * The six ways a file that exists in the picked folder can end up unread.
+ * The nine ways a file that exists in the picked folder can end up unread.
  * Every field is a count of real paths, and every one of them is produced where
  * the path actually left: `pathTooLong`/`unsafePath`/`tooLarge`/`excluded` at the
  * upload boundary, `unreadable`/`tooLarge` while the pipeline reads, and
@@ -200,6 +208,12 @@ export interface DroppedFiles {
   gitBudget: number;
   /** Shape the scan does not read: pictures, text without a known extension */
   unsupportedFormat: number;
+  /**
+   * Source files a large folder offered but the preview sample left out. Not a
+   * failure: the scan never opened them. Counted so a sampled city cannot pass
+   * its 2,000 files off as the whole folder.
+   */
+  preview: number;
 }
 
 export interface ProjectSummary {
@@ -243,7 +257,27 @@ export interface ProjectSummary {
     duplicates?: boolean;
     /** a lcov-style coverage report was found and parsed */
     coverage?: boolean;
+    /**
+     * Present once a live delta has replaced part of the result. The flags
+     * above still describe the full scan; `stale` names the engines whose
+     * answer belongs to that full scan and was NOT re-run for this state.
+     */
+    live?: LiveScanInfo;
   };
+}
+
+export interface LiveScanInfo {
+  /** When the delta landed (ISO) */
+  at: string;
+  /** When the full scan this result grew out of finished (ISO) */
+  fullScanAt: string;
+  changed: number;
+  added: number;
+  removed: number;
+  /** Files re-read by the delta — built-in rules only */
+  refreshed: number;
+  /** Engines whose answer is from the full scan, not from this state */
+  stale: string[];
 }
 
 /**

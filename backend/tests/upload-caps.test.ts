@@ -256,7 +256,9 @@ describe("drop accounting", () => {
       gitIgnored: 0,
       gitBudget: 0,
       unsupportedFormat: 0,
+      preview: 0,
     });
+    expect(sanitizeDropped({ preview: 12 }).preview).toBe(12);
     expect(sanitizeDropped("nope").pathTooLong).toBe(0);
     expect(sanitizeDropped(undefined).unreadable).toBe(0);
   });

@@ -442,9 +442,10 @@ function ScanErrorCard({
       retry: "start.retry",
     },
     "no-source": {
-      // the sentence names the count and the extensions it tried — nothing to add
+      // the sentence names the extensions it tried; the next line says what to
+      // look for instead of repeating the button's own label
       measured: message || ts(lang, "err.noSource"),
-      next: ts(lang, "start.pickAnother"),
+      next: ts(lang, "start.pickSourceFolder"),
       retry: "start.pickAnother",
     },
     "upload-too-large": {
@@ -487,11 +488,11 @@ function ScanErrorCard({
       kind={kind}
       measured={c.measured}
       next={c.next}
-      raw={detail}
+      // "Show the server's words" must not open on the reader's own drop
+      // tally: a no-source answer has no server sentence behind it.
+      raw={kind === "no-source" ? undefined : detail}
       number={
-        (kind === "cap" || kind === "no-source") && !message.includes(nfLang(lang, foundFiles))
-          ? foundFiles
-          : undefined
+        kind === "cap" && !message.includes(nfLang(lang, foundFiles)) ? foundFiles : undefined
       }
       action={
         <button type="button" className="start-state-action" onClick={onRetry}>

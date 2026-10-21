@@ -15,6 +15,7 @@ import { deleteJobProgress } from "./job-progress.js";
 import { makeSkeleton, makeProgressWriter, failJob } from "./job-progress.js";
 import { resolveConfig, type ResolvedScanConfig } from "../../services/security/scan-config.js";
 import { isOffline } from "../../services/security/network-policy.js";
+import { deleteLiveSession, registerLiveManifest } from "../live-sessions.js";
 
 /**
  * Upload caps — a local dev folder should always fit comfortably.
@@ -111,6 +112,7 @@ function markCancelled(analysisId: string): void {
 /** Unregister a staged copy and delete it; true when the directory is gone. */
 async function discardStagedDir(analysisId: string): Promise<boolean> {
   const entry = STAGED_DIRS.get(analysisId);
+  deleteLiveSession(analysisId);
   if (!entry) return false;
   STAGED_DIRS.delete(analysisId);
   return fs
@@ -164,6 +166,7 @@ export function pruneStaleUploadDirs(now: number = Date.now()): Promise<void> {
   for (const [id, entry] of STAGED_DIRS) {
     if (now - entry.lastUsed > STAGED_TTL_MS) {
       STAGED_DIRS.delete(id);
+      deleteLiveSession(id);
       jobs.push(fs.rm(entry.dir, { recursive: true, force: true }).catch(() => {}));
     }
   }
@@ -183,6 +186,7 @@ export function pruneStaleUploadDirs(now: number = Date.now()): Promise<void> {
               const dir = path.join(uploadsRoot(), e.name);
               const stat = await fs.stat(dir).catch(() => null);
               if (!stat || now - stat.mtimeMs <= STAGED_TTL_MS) return;
+              deleteLiveSession(e.name);
               return fs.rm(dir, { recursive: true, force: true }).catch(() => {});
             }),
         ),
@@ -290,6 +294,7 @@ export async function purgeStaleCopies(): Promise<{
       .catch(() => false);
     if (!gone) continue;
     STAGED_DIRS.delete(c.name);
+    deleteLiveSession(c.name);
     removed += 1;
   }
   const after = await footprintSnapshot();
@@ -533,6 +538,9 @@ export async function handleLocalAnalyze(
     status: "analyzing",
     statusUrl: `/api/status/${analysisId}`,
     dropped,
+    // The manifest is registered when the scan finishes; the client may start
+    // its watch as soon as the city arrives.
+    live: true,
   });
 
   void runLocalAnalysis(
@@ -590,6 +598,10 @@ async function runLocalAnalysis(
     // server left out, summed before the city is published.
     result.summary.dropped = sumDroppedFiles(uploadDropped, result.summary.dropped);
     analysisStore.set(result.id, result);
+    // The content-hash manifest a live delta is measured against. Hashing the
+    // staged copy after the city is available keeps the wait unchanged; a scan
+    // that cannot be hashed simply has no live mode.
+    void registerLiveManifest(result.id, uploadDir, result.files, config).catch(() => {});
   } catch (error) {
     deleteJobProgress(analysisId);
     if (error instanceof ScanCancelledError || isJobCancelled(analysisId)) {

@@ -170,16 +170,16 @@ describe("the dock states how much of the round is left", () => {
 
   it("shows the open count before the queue is opened, and drops it as verdicts land", async () => {
     await act(async () => root.render(<ActionBar />));
-    expect(text("5 findings")?.textContent).toContain("5 findings");
+    expect(text("5 open")?.textContent).toContain("5 open");
     await act(async () => useStore.getState().setReview(keyOf(queue[0]!), "reviewed"));
-    expect(text("4 findings")?.textContent).toContain("4 findings");
-    expect(text("5 findings")).toBeUndefined();
+    expect(text("4 open")?.textContent).toContain("4 open");
+    expect(text("5 open")).toBeUndefined();
   });
 
   it("says so when the folder holds nothing left to judge", async () => {
     useStore.setState({ reviews: Object.fromEntries(queue.map((e) => [keyOf(e), "reviewed"])) });
     await act(async () => root.render(<ActionBar />));
-    expect(text("0 findings")?.textContent).toContain("0 findings");
+    expect(text("0 open")?.textContent).toContain("0 open");
   });
 
   it("disables the step that has no unjudged finding in it", async () => {

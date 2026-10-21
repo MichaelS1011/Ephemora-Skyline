@@ -129,7 +129,10 @@ describe("the cascade replay sees the file the way the browser does", () => {
   it("reads the wide-screen layout", () => {
     // Calibration: if these read wrong, every assertion below reads wrong too.
     expect(applied(".workspace-modes", "top", 1600)).toBe("78px");
-    expect(applied(".workspace-breadcrumbs", "max-width", 1024)).toBe("calc(50% - 178px)");
+    // 1024 sits in the 761–1200 band: the German mode bar starts at 352 and the
+    // crumb chip used to run to 356. The wider cap below keeps an 8 px gap.
+    expect(applied(".workspace-breadcrumbs", "max-width", 1024)).toBe("calc(50% - 190px)");
+    expect(applied(".workspace-breadcrumbs", "max-width", 1600)).toBe("calc(50% - 178px)");
     expect(applied(".search-control", "width", 1600)).toBe("320px");
     expect(applied(".city-coach", "bottom", 1600)).toContain("var(--dock-h");
   });
@@ -146,7 +149,8 @@ describe("the narrow workspace gives every control its own row", () => {
   it("keeps the breadcrumb cap wide-screen only", () => {
     expect(applied(".workspace-breadcrumbs", "max-width", 320)).toMatch(/^calc\(100%/);
     expect(applied(".workspace-breadcrumbs", "max-width", 760)).toMatch(/^calc\(100%/);
-    expect(applied(".workspace-breadcrumbs", "max-width", 761)).toBe("calc(50% - 178px)");
+    expect(applied(".workspace-breadcrumbs", "max-width", 761)).toBe("calc(50% - 190px)");
+    expect(applied(".workspace-breadcrumbs", "max-width", 1201)).toBe("calc(50% - 178px)");
   });
 
   it("lets the action dock wrap instead of running off both edges", () => {

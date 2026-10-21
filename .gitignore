@@ -6,6 +6,7 @@ node_modules/
 
 # Build outputs
 dist/
+dist-package/
 build/
 .next/
 out/
@@ -50,6 +51,8 @@ Thumbs.db
 # Stale tsc -b output that must never live next to sources again
 *.d.ts.map
 frontend/src/**/*.d.ts
+# This one is hand-written source: the Window globals the offline city reads.
+!frontend/src/env.d.ts
 
 # Prettier cache
 .prettier-cache

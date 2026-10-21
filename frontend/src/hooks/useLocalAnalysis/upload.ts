@@ -3,6 +3,8 @@ import { configPayload, loadExcludes } from "../../config/scanProfiles";
 import { useStore } from "../../stores/useStore";
 import type { DroppedFiles } from "../../city/types";
 import type { AnalysisState, FolderPlan, LocalFile } from "../useLocalAnalysis";
+import type { LiveFileMeta } from "../../live/types";
+import { hasSubtleCrypto, sha256Hex } from "../../live/files";
 
 /**
  * The upload half of the local flow, split out of `useLocalAnalysis.ts` (K3):
@@ -40,30 +42,57 @@ export interface ReadAndUploadDeps {
   bytesLine: (lang: Lang, files: number, bytes: number) => string;
   noSourceLine: (lang: Lang) => string;
   readPayload: (file: File, rel: string) => Promise<{ content: string; encoding?: "base64" }>;
+  /** Does the backend analyze this path? Support files ride along but are never in the live manifest. */
+  isAnalyzedByServer: (rel: string) => boolean;
   maxTotalBytes: number;
   maxPathLen: number;
   gitMaxTotalBytes: number;
+}
+
+function buildLiveManifest(
+  sources: ReadonlyArray<{ path: string; content: string; size: number; mtime: number }>,
+): Promise<LiveFileMeta[]> {
+  if (!hasSubtleCrypto()) return Promise.resolve([]);
+  return (async () => {
+    const manifest: LiveFileMeta[] = [];
+    for (const source of sources) {
+      manifest.push({
+        path: source.path,
+        // The server hashes the staged UTF-8 bytes of exactly this content.
+        sha: await sha256Hex(new TextEncoder().encode(source.content).buffer as ArrayBuffer),
+        size: source.size,
+        mtime: source.mtime,
+      });
+    }
+    return manifest;
+  })();
 }
 
 /**
  * Read the classified candidates and upload them. One loop for both pickers,
  * so the counter moves the same way however the folder was picked — and a file
  * the reader cannot open lands in a bucket that travels with the upload.
+ *
+ * The hashes for the live manifest are computed in parallel with the upload:
+ * the scan never waits for a feature it may not use, and by the time the
+ * poller returns a city the manifest is ready.
  */
 export async function readAndUpload(
   deps: ReadAndUploadDeps,
   plan: FolderPlan,
   rootName: string,
   run: number,
-): Promise<void> {
+): Promise<LiveFileMeta[] | null> {
   const l = deps.langRef.current;
   const payload: LocalFile[] = [];
+  /** Content whose hash becomes the manifest a live watch starts from */
+  const manifestSources: Array<{ path: string; content: string; size: number; mtime: number }> = [];
   let accounting = plan.dropped;
   let totalBytes = 0;
   let gitBytes = 0;
   const total = plan.candidates.length;
   for (const { rel, file, git } of plan.candidates) {
-    if (deps.cancelledRef.current || deps.runRef.current !== run) return;
+    if (deps.cancelledRef.current || deps.runRef.current !== run) return null;
     if (git) {
       /**
        * Two different reasons, two different numbers. A 9 MB pack file is
@@ -88,10 +117,23 @@ export async function readAndUpload(
         `over ${Math.round(deps.maxTotalBytes / 1024 / 1024)} MB of source — ${t(l, "cap.excludeLabel")}`,
       );
       deps.setState("error");
-      return;
+      return null;
     }
     try {
-      payload.push({ path: rel, ...(await deps.readPayload(file, rel)) });
+      const read = await deps.readPayload(file, rel);
+      payload.push({
+        path: rel,
+        content: read.content,
+        ...(read.encoding ? { encoding: read.encoding } : {}),
+      });
+      if (!git && deps.isAnalyzedByServer(rel)) {
+        manifestSources.push({
+          path: rel,
+          content: read.content,
+          size: file.size,
+          mtime: file.lastModified,
+        });
+      }
     } catch {
       accounting = deps.addDropped(accounting, "unreadable");
       continue;
@@ -105,7 +147,7 @@ export async function readAndUpload(
       deps.setReadingLine(l, read, total);
     }
   }
-  if (deps.cancelledRef.current || deps.runRef.current !== run) return;
+  if (deps.cancelledRef.current || deps.runRef.current !== run) return null;
   deps.setCollected({ files: payload.length, bytes: totalBytes, total });
   deps.setFoundFiles(plan.found);
   deps.setDropped(accounting);
@@ -115,9 +157,11 @@ export async function readAndUpload(
       `${accounting.pathTooLong} over ${deps.maxPathLen} chars, ${accounting.unreadable} unreadable`,
     );
     deps.setState("error");
-    return;
+    return null;
   }
+  const manifestPromise = buildLiveManifest(manifestSources);
   await deps.uploadAndAnalyze(rootName, payload, accounting, run);
+  return manifestPromise;
 }
 
 /** Upper bound of the upload body in bytes, for the 413 sentence. */

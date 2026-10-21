@@ -8,6 +8,7 @@ import { openSearch } from "./SearchBar";
 import { PHASE_0_MS } from "./CityTree";
 import { t, formatCount, type DictKey, type Lang } from "../i18n";
 import { severityCount, severityTotal } from "../city/facts";
+import { LiveBand } from "./LiveBand";
 import "../design/stadt-ui.css";
 
 interface HudOverlayProps {
@@ -29,6 +30,7 @@ export function cleanStatement(
   lang: Lang,
   verdict: ReturnType<typeof scanVerdict>,
 ): { key: DictKey; vars: Record<string, string | number> } {
+  if (verdict.kind === "live") return { key: "hud.liveStale", vars: {} };
   if (verdict.kind === "shallow") {
     const n = verdict.missing.length;
     return {
@@ -53,8 +55,10 @@ export function HudOverlay({ apiStatus }: HudOverlayProps) {
   const requestBuildSkip = useStore((s) => s.requestBuildSkip);
   const lang = useStore((s) => s.prefs.lang);
   const colorblind = useStore((s) => s.prefs.colorblind);
+  const liveState = useStore((s) => s.live);
   const showLegend = useStore((s) => s.showLegend);
   const searchOpen = useStore((s) => s.showSearch);
+  const setCityOnly = useStore((s) => s.setCityOnly);
   if (!cityData) return null;
   const totalFindings = severityTotal(cityData.findingsBySeverity);
 
@@ -65,7 +69,22 @@ export function HudOverlay({ apiStatus }: HudOverlayProps) {
   const phase0 = constructing && Date.now() < buildStartedAt + PHASE_0_MS;
   const pct = constructionTotal > 0 ? Math.round((constructionDone / constructionTotal) * 100) : 0;
   const verdict = scanVerdict(cityData.scanProvenance, totalFindings, cityData.languages);
-  const statement = cleanStatement(lang, verdict);
+  // A preview reads a sample; the header must not present the sample size as
+  // the folder's size. The announcement carries the full arithmetic, the
+  // header carries the suffix on every screen after it.
+  const previewOmitted = cityData.dropped?.preview ?? 0;
+  const preview = previewOmitted > 0;
+  const previewTotal = cityData.totalFiles + previewOmitted;
+  // A sampled city that happened to contain no findings is not a clean one:
+  // most of its files were never opened. That sentence outranks the missing
+  // engine's qualification.
+  const statement = preview
+    ? { key: "hud.preview" as DictKey, vars: {} }
+    : cleanStatement(lang, verdict);
+  // The live band is the permanent half of the promise the summary card only
+  // says while it is open: the changed files were read by built-in rules, and
+  // every external engine's answer belongs to the last full scan.
+  const liveVisible = liveState.status !== "off" && liveState.analysisId === cityData.analysisId;
 
   return (
     <>
@@ -137,64 +156,99 @@ export function HudOverlay({ apiStatus }: HudOverlayProps) {
           >
             <span aria-hidden="true">⌕</span>
           </button>
-          <span className="workspace-files">
-            {formatCount(lang, cityData.totalFiles)} <span>{t(lang, "hud.filesUnit")}</span>
-          </span>
-          <div className="workspace-severities" aria-label={t(lang, "hud.filterBySeverityAria")}>
-            {SEVERITIES.map(
-              ({ id, labelKey, shape }) =>
-                cityData.findingsBySeverity[id] > 0 && (
-                  <button
-                    key={id}
-                    data-severity={id}
-                    onClick={() => setThreatFilter(threatFilter === id ? "all" : id)}
-                    aria-pressed={threatFilter === id}
-                    aria-label={(() => {
-                      const count = severityCount(cityData.findingsBySeverity, id);
-                      const label = t(lang, labelKey);
-                      // "1 Funde" was what the header read out on every single
-                      // finding — the singular variants are dictionary keys now.
-                      if (threatFilter === id)
-                        return t(lang, count === 1 ? "hud.sevAriaOnOne" : "hud.sevAriaOn", {
-                          label,
-                          count,
-                        });
-                      return t(lang, count === 1 ? "hud.sevAriaOffOne" : "hud.sevAriaOff", {
-                        label,
-                        count,
-                      });
-                    })()}
-                    title={
-                      threatFilter === id
-                        ? t(lang, "hud.sevTitleOn", { label: t(lang, labelKey) })
-                        : t(lang, "hud.sevTitleOff", { label: t(lang, labelKey) })
-                    }
-                    style={{ "--severity": severityColor(id, colorblind) } as React.CSSProperties}
+          {/* The city can stand without its instruments; this is the one-click
+              door, with the dock's More row as the named twin. */}
+          <button
+            type="button"
+            onClick={() => setCityOnly(true)}
+            aria-label={t(lang, "actions.cityOnly")}
+            title={t(lang, "actions.cityOnlyTitle")}
+            className="btn-ghost workspace-search-toggle"
+          >
+            <span aria-hidden="true">⛶</span>
+          </button>
+          {!constructing && (
+            <>
+              <span className="workspace-files">
+                {preview ? (
+                  <span
+                    title={t(lang, "hud.filesPreviewTitle", {
+                      total: formatCount(lang, previewTotal),
+                    })}
                   >
-                    {/* shape carries the grade where colour cannot: the
-                        colour-blind switch reaches --severity, and this glyph
-                        is the same order the list and the panel print */}
-                    <span aria-hidden="true" className="severity-shape">
-                      {shape}
-                    </span>
-                    {cityData.findingsBySeverity[id]}
-                    <span className="severity-label">{t(lang, labelKey)}</span>
-                  </button>
-                ),
-            )}
-            {totalFindings === 0 && (
-              <span
-                className="clean-status"
-                data-city-verdict={verdict.kind}
-                title={verdict.kind === "clear" ? undefined : t(lang, "ctx.blindTip")}
-              >
-                {t(lang, statement.key, statement.vars)}
+                    {t(lang, "hud.filesSampled", {
+                      count: formatCount(lang, cityData.totalFiles),
+                    })}
+                  </span>
+                ) : (
+                  <>
+                    {formatCount(lang, cityData.totalFiles)} <span>{t(lang, "hud.filesUnit")}</span>
+                  </>
+                )}
               </span>
-            )}
-          </div>
+              <div
+                className="workspace-severities"
+                aria-label={t(lang, "hud.filterBySeverityAria")}
+              >
+                {SEVERITIES.map(
+                  ({ id, labelKey, shape }) =>
+                    cityData.findingsBySeverity[id] > 0 && (
+                      <button
+                        key={id}
+                        data-severity={id}
+                        onClick={() => setThreatFilter(threatFilter === id ? "all" : id)}
+                        aria-pressed={threatFilter === id}
+                        aria-label={(() => {
+                          const count = severityCount(cityData.findingsBySeverity, id);
+                          const label = t(lang, labelKey);
+                          // "1 Funde" was what the header read out on every single
+                          // finding — the singular variants are dictionary keys now.
+                          if (threatFilter === id)
+                            return t(lang, count === 1 ? "hud.sevAriaOnOne" : "hud.sevAriaOn", {
+                              label,
+                              count,
+                            });
+                          return t(lang, count === 1 ? "hud.sevAriaOffOne" : "hud.sevAriaOff", {
+                            label,
+                            count,
+                          });
+                        })()}
+                        title={
+                          threatFilter === id
+                            ? t(lang, "hud.sevTitleOn", { label: t(lang, labelKey) })
+                            : t(lang, "hud.sevTitleOff", { label: t(lang, labelKey) })
+                        }
+                        style={
+                          { "--severity": severityColor(id, colorblind) } as React.CSSProperties
+                        }
+                      >
+                        {/* shape carries the grade where colour cannot: the
+                          colour-blind switch reaches --severity, and this glyph
+                          is the same order the list and the panel print */}
+                        <span aria-hidden="true" className="severity-shape">
+                          {shape}
+                        </span>
+                        {cityData.findingsBySeverity[id]}
+                        <span className="severity-label">{t(lang, labelKey)}</span>
+                      </button>
+                    ),
+                )}
+                {totalFindings === 0 && (
+                  <span
+                    className="clean-status"
+                    data-city-verdict={verdict.kind}
+                    title={verdict.kind === "clear" ? undefined : t(lang, "ctx.blindTip")}
+                  >
+                    {t(lang, statement.key, statement.vars)}
+                  </span>
+                )}
+              </div>
+            </>
+          )}
           <AnalyzePanel />
         </div>
       </header>
+      {liveVisible && <LiveBand live={liveState} lang={lang} />}
       {/* The colour key is one of the six surfaces the arrival budget folds:
           it explains the city, but it does not compete with it, and the same
           key stands in full in the project card. */}
@@ -250,7 +304,7 @@ export function HudOverlay({ apiStatus }: HudOverlayProps) {
           <button
             onClick={requestBuildSkip}
             aria-label={t(lang, "hud.skipAria")}
-            className="shrink-0 rounded px-1 py-0.5 font-mono text-[length:var(--fs-meta)] text-[color:var(--meta-strong)]
+            className="shrink-0 rounded px-3 min-h-9 flex items-center font-mono text-[length:var(--fs-meta)] text-[color:var(--meta-strong)]
                        transition-colors hover:text-[color:var(--accent-gold)] focus:outline-none focus:ring-1 focus:ring-[var(--accent-gold)]"
           >
             {t(lang, "hud.skip")} ⏭

@@ -409,11 +409,97 @@ describe("what the reader still gets without asking", () => {
     expect(text).toContain("5 files in a format the scanners do not read");
   });
 
+  it("lets a resident offer the tour, on the card the scan already owns", () => {
+    arrive();
+    // the wave is armed after the arrival camera has had time to stand still
+    act(() => vi.advanceTimersByTime(1500));
+    // one greet per scan, fired by the card itself — not a second prompt
+    expect(useStore.getState().residentGreet).toBe(1);
+    const summary = host!.querySelector(".start-summary")!;
+    const text = (summary.textContent ?? "").replace(/\s+/g, " ");
+    expect(text).toContain("A resident");
+    expect(text).toContain("Shall I walk you to the findings?");
+    expect(clickByName(/Show findings/), "the card offers the guided verb").toBe(true);
+    expect(useStore.getState().tourActive, "the verb starts the existing tour").toBe(true);
+  });
+
+  it("calls a sampled city a preview, and never a complete scan", () => {
+    const previewCity = {
+      ...ARRIVAL_CITY,
+      totalFiles: 2_000,
+      dropped: { ...ARRIVAL_CITY.dropped!, preview: 46_000 },
+    };
+    act(() => useStore.setState({ cityData: previewCity }));
+    arrive();
+    const summary = host!.querySelector(".start-summary")!;
+    const text = (summary.textContent ?? "").replace(/\s+/g, " ");
+    expect(text).toContain("Preview");
+    expect(text).toContain("2,000 of 48,000");
+    expect(text).not.toContain("Scan complete");
+    expect(text).toContain("left out of the preview sample");
+  });
+
   it("keeps a district's own grade split where the header cannot speak for it", () => {
     intoDistrict(["src"]);
     arrive();
     const card = host!.querySelector(".panel-context-card");
     expect(card, "the card is the only place a district's grades are written").not.toBeNull();
     expect(GRADE_CENSUS.test((card!.textContent ?? "").replace(/\s+/g, " "))).toBe(true);
+  });
+});
+
+describe("city only", () => {
+  it("steps every instrument back, and Escape brings it all back", () => {
+    arrive();
+    openMore();
+    expect(clickByName(/City only|Nur die Stadt/)).toBe(true);
+    expect(
+      host!.querySelector(".app-shell")!.classList.contains("is-city-only"),
+      "the shell carries the mode so CSS can fold every surface at once",
+    ).toBe(true);
+    expect(
+      host!.querySelector(".city-only-exit"),
+      "the header and dock are gone; the exit has to stand on its own",
+    ).not.toBeNull();
+    act(() => {
+      window.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+    });
+    expect(host!.querySelector(".app-shell")!.classList.contains("is-city-only")).toBe(false);
+    expect(host!.querySelector(".city-only-exit")).toBeNull();
+  });
+
+  it("resets when the city is left", () => {
+    arrive();
+    act(() => useStore.getState().setCityOnly(true));
+    expect(useStore.getState().cityOnly).toBe(true);
+    act(() => useStore.getState().resetToLanding());
+    expect(useStore.getState().cityOnly).toBe(false);
+  });
+});
+
+describe("a called resident", () => {
+  it("offers one guided verb, and Escape gives the city back", () => {
+    arrive();
+    act(() => useStore.getState().selectResident(0));
+    const card = host!.querySelector(".resident-card");
+    expect(card, "the card only exists while a resident is called").not.toBeNull();
+    const primary = [...card!.querySelectorAll("button")].find((b) =>
+      /Show me the risk|Zeig mir das Risiko/.test(b.textContent ?? ""),
+    );
+    expect(primary, "one verb, named on the button").toBeTruthy();
+    act(() => {
+      window.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+    });
+    expect(useStore.getState().selectedResident).toBeNull();
+    expect(host!.querySelector(".resident-card")).toBeNull();
+  });
+
+  it("asks the canvas for a resident on C", () => {
+    arrive();
+    const before = useStore.getState().residentCall;
+    act(() => {
+      window.dispatchEvent(new KeyboardEvent("keydown", { key: "c", bubbles: true }));
+    });
+    expect(useStore.getState().residentCall).toBe(before + 1);
   });
 });

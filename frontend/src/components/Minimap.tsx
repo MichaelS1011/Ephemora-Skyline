@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useStore } from "../stores/useStore";
 import { getDirLayout, type DirLayout } from "../city/layout";
-import { languageColor, ENV, severityColor } from "../city/palette";
+import { languageColor, severityColor } from "../city/palette";
 import { t } from "../i18n";
 import { resolve } from "../interaction/shortcuts";
 import { getKeyboardMark } from "../interaction/keyboardMark";
@@ -21,8 +21,7 @@ import "../design/griff.css";
 
 const MAP_SIZE = 190;
 const PADDING = 12;
-/** Gold, and deliberately not `ENV.selection`: that colour already means
- *  "chosen" in the world, and here it marks the camera itself. */
+/** Gold marks the camera itself; the alarm red belongs to findings and cycles. */
 const MARKER_COLOR = "#e8b23c";
 
 /** The one mapping between world and plate — click and keyboard aim through it. */
@@ -164,7 +163,7 @@ export function Minimap({ show = true }: { show?: boolean }) {
     ctx.save();
     ctx.translate(cx, cy);
     ctx.rotate(-cameraInfo.angle + Math.PI);
-    ctx.fillStyle = ENV.selection;
+    ctx.fillStyle = MARKER_COLOR;
     ctx.beginPath();
     ctx.moveTo(0, -6);
     ctx.lineTo(4.4, 4.4);

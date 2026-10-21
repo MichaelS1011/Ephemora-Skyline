@@ -253,6 +253,7 @@ export function file(
     deadCodeCandidate: field(overrides, "deadCodeCandidate", undefined),
     inCycle: field(overrides, "inCycle", undefined),
     coveragePct: field(overrides, "coveragePct", undefined),
+    liveRefreshed: field(overrides, "liveRefreshed", undefined),
     clonePartners: field(overrides, "clonePartners", undefined),
     sections: field(overrides, "sections", undefined),
     unverifiedBy:
@@ -433,6 +434,7 @@ export function provenance(overrides: Partial<ScanProvenance> = {}): ScanProvena
     churn: field(overrides, "churn", undefined),
     duplicates: field(overrides, "duplicates", undefined),
     coverage: field(overrides, "coverage", undefined),
+    live: field(overrides, "live", undefined),
   };
   return payload<ScanProvenance>(base);
 }

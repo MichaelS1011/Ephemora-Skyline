@@ -1,8 +1,9 @@
 "use client";
 
-import { useLayoutEffect, useMemo, useRef } from "react";
-import { useFrame } from "@react-three/fiber";
+import { useEffect, useLayoutEffect, useMemo, useRef } from "react";
+import { useFrame, useThree, type ThreeEvent } from "@react-three/fiber";
 import * as THREE from "three";
+import { useStore } from "../stores/useStore";
 import { approachNode, graphPath, nearestNode, type SidewalkNetwork } from "../city/sidewalks";
 import {
   STOP_BOARD,
@@ -10,12 +11,23 @@ import {
   VEHICLE_BOXES,
   VEHICLE_WHEELS,
   deriveTransit,
+  distanceToSegment,
+  wheelRoll,
   standOnLane,
   type StreetPlate,
   type Transit,
 } from "../city/openWorldStreets";
 import { prefersReducedMotion, reducedSettle } from "../city/motion";
-import { ACCEL, pivotMarch, ramp, strideBlend } from "../city/epheGait";
+import {
+  ACCEL,
+  footCycle,
+  GAIT_RATE,
+  pivotMarch,
+  ramp,
+  socialStep,
+  strideAmplitude,
+  strideBlend,
+} from "../city/epheGait";
 import type { BuildSite } from "../city/layout";
 import { EPHE_PALETTE } from "../city/palette";
 import { surfaceMatrix, surfacePoint } from "../city/worldSurface";
@@ -59,6 +71,7 @@ export interface HomeSpot {
 
 type Mode =
   | "walk"
+  | "called"
   | "enter"
   | "inside"
   | "exit"
@@ -101,6 +114,8 @@ interface Ephe {
   anim: number; // grow/shrink 0..1
   chatPartner: number;
   chatUntil: number;
+  /** Simulation time until which the resident stands and waves at the reader. */
+  greetUntil: number;
   hidden: boolean; // inside a building / in a vehicle
   ride: "taxi" | "bus" | null;
   // sidewalk graph state
@@ -111,11 +126,21 @@ interface Ephe {
   finalZ: number;
   siteIndex: number; // build site currently worked, -1 otherwise
   hustle: number; // builders hurry; everyone else strolls
+  /** Facing offset while turning: the visor leads the shoulders into a corner. */
+  look: number;
+  /** Arm-swing personality; a crowd of identical pendulums reads mechanical. */
+  armStyle: number;
+  /** Smoothed personal-space side-step, applied to the drawing only. The path
+   *  stays on the sidewalk graph, so crosswalks and doors keep their contract. */
+  px: number;
+  pz: number;
+  /** Pace through a crowd: 1 alone, lower behind a slower resident. */
+  avoid: number;
 }
 
 const WALKER_COLORS = EPHE_PALETTE.jackets;
 
-export type EpheGesture = "idle" | "chat" | "carry" | "lift";
+export type EpheGesture = "idle" | "chat" | "carry" | "lift" | "greet" | "point";
 
 /**
  * The body plan of one resident, in units of the 1.35-tall person.
@@ -172,19 +197,32 @@ export function writeEpheLimbPose(
   side: -1 | 1,
   gesture: EpheGesture,
   gesturePhase = 0,
+  gaitPhase?: number,
+  strideAmp = 0.13,
+  blend = 1,
 ): void {
   const step = Math.max(-1, Math.min(1, stride)) * side;
   out.footX = side * 0.12;
-  out.footY = 0.078 + Math.max(0, step) * 0.045;
-  out.footZ = step * 0.13;
-  // A knee never bends backwards: it leads as the leg comes forward and pushes
-  // off behind, and stays slightly bent while standing so the leg is not a pole.
-  out.kneeForward = 0.022 + Math.max(0, step) * 0.05;
+  if (gaitPhase !== undefined) {
+    // The planted path: stance is linear against the distance the body covers,
+    // swing lifts and returns the foot, and both ease with the start/stop blend.
+    const cycle = footCycle(gaitPhase, side, strideAmp * blend);
+    out.footZ = cycle.z;
+    out.footY = 0.078 + cycle.lift * blend;
+    out.kneeForward = 0.022 + (cycle.kneeLead - 0.022) * blend;
+  } else {
+    // The pose-only path (tests and task gestures) keeps its original shape.
+    out.footY = 0.078 + Math.max(0, step) * 0.045;
+    out.footZ = step * 0.13;
+    // A knee never bends backwards: it leads as the leg comes forward and pushes
+    // off behind, and stays slightly bent while standing so the leg is not a pole.
+    out.kneeForward = 0.022 + Math.max(0, step) * 0.05;
+  }
   out.handX = side * 0.28;
   // A hanging arm ends below the hip, not at it: 0.45 put the hands beside the
   // waistband, where they read as two extra lumps on a snowman.
   out.handY = 0.5;
-  out.handZ = -step * 0.1;
+  out.handZ = -step * 0.13;
   if (gesture === "carry") {
     out.handX = side * 0.25;
     out.handY = 0.74;
@@ -196,6 +234,14 @@ export function writeEpheLimbPose(
   } else if (gesture === "chat" && side === 1) {
     out.handY = 0.86 + Math.sin(gesturePhase) * 0.025;
     out.handZ = 0.19;
+  } else if (gesture === "greet" && side === 1) {
+    out.handY = 1.12 + Math.sin(gesturePhase * 1.6) * 0.035;
+    out.handZ = 0.12;
+    out.handX = side * 0.27;
+  } else if (gesture === "point" && side === 1) {
+    out.handY = 1.02;
+    out.handZ = 0.36;
+    out.handX = side * 0.16;
   }
 }
 /**
@@ -230,7 +276,19 @@ export function crowdFor(plots: number, capacity: number, openWorld = false): nu
  *  city's frame — leaves the street. */
 export const BUS_MIN_PLOTS = 12;
 
-const WALK_SPEED = 2.3;
+/**
+ * A 1.35-unit resident at 2.3 units/s took four steps a second: the crowd was
+ * running everywhere, including while standing at a bus stop. 1.35 is a walk;
+ * the planted foot cycle below is calibrated against the same distance.
+ */
+const WALK_SPEED = 1.35;
+
+const TAXI_SPEED = 6;
+const BUS_SPEED = 5.5;
+const VEHICLE_ACCEL = 4;
+const VEHICLE_BRAKE = 8;
+const VEHICLE_TURN = 3.2;
+const STOP_ALIGN = 0.22;
 
 const TURN_SPEED = 3.4;
 const ARRIVE = 0.55;
@@ -263,6 +321,10 @@ const DIRECT_STEP_UNITS = 12;
  *  middle one is the kerb `deriveTransit` picked, so the cab arrives where the
  *  crowd expects a taxi, and then it keeps driving instead of parking forever. */
 const TAXI_STANDS = [0.18, 0.5, 0.82];
+/** Kerb offset of a cab stand — the right-hand edge of its lane. */
+const TAXI_STAND_OFFSET = 1.7;
+/** Speed on the half circle at the end of the lane, so its wheels still turn. */
+const TAXI_TURN_SPEED = 3.2;
 /** How far the bus has to get from its stop before it may stop again — further
  *  than the 3 units that trigger a dwell, nearer than the length of its street. */
 const BUS_LEAVE_STOP = 8;
@@ -302,6 +364,7 @@ function makeEphe(
     anim: 1,
     chatPartner: -1,
     chatUntil: 0,
+    greetUntil: 0,
     hidden: false,
     ride: null,
     node: 0,
@@ -311,6 +374,11 @@ function makeEphe(
     finalZ: 0,
     siteIndex: -1,
     hustle: 1,
+    look: 0,
+    armStyle: 0.85 + (((i * 53) % 100) / 100) * 0.3,
+    px: 0,
+    pz: 0,
+    avoid: 1,
   };
   if (net && net.nodes.length > 0) {
     // Spread the population across the whole sidewalk network. `nodes` is
@@ -402,6 +470,14 @@ export function Pedestrians({
   directStep?: number;
 }) {
   const surface = useWorldSurface();
+  const { camera, scene } = useThree();
+  const selectedResident = useStore((s) => s.selectedResident);
+  const selectResident = useStore((s) => s.selectResident);
+  const residentCall = useStore((s) => s.residentCall);
+  const residentGreet = useStore((s) => s.residentGreet);
+  const residentGreeted = useStore((s) => s.residentGreeted);
+  const markResidentGreeted = useStore((s) => s.markResidentGreeted);
+  const residentRingRef = useRef<THREE.InstancedMesh | null>(null);
   const bodyRef = useRef<THREE.InstancedMesh>(null);
   const headRef = useRef<THREE.InstancedMesh>(null);
   const faceRef = useRef<THREE.InstancedMesh>(null);
@@ -441,6 +517,110 @@ export function Pedestrians({
     () => Array.from({ length: crowd }, (_, i) => makeEphe(i, bounds, network, homes, crowd)),
     [crowd, bounds, network, homes],
   );
+
+  // Scratch space for the personal-space pass: one neighbour record per figure
+  // and one output object, reused every frame. No allocation in the loop.
+  const socialNeighbors = useMemo(
+    () =>
+      Array.from({ length: count }, () => ({
+        x: 0,
+        z: 0,
+        angle: 0,
+        moving: false,
+      })),
+    [count],
+  );
+  const socialOut = useMemo(() => ({ pushX: 0, pushZ: 0, pace: 1 }), []);
+
+  // The canvas owns the crowd: a call request picks the nearest stroller and
+  // reports the chosen index back to the store, where the card and ring read it.
+  const lastCall = useRef(residentCall);
+  useEffect(() => {
+    if (residentCall === lastCall.current) return;
+    lastCall.current = residentCall;
+    // Pick a resident the reader can actually see: inside the quiet middle of
+    // the frame, away from the left card, the mode bar and the dock. A ray
+    // rejects anyone a tower hides. Only if nobody qualifies does the camera
+    // distance decide, so C still answers when the pilot is at street level.
+    const projected = new THREE.Vector3();
+    const target = new THREE.Vector3();
+    const ray = new THREE.Raycaster();
+    // Sprites (the chat bubbles) demand a Raycaster.camera and are no
+    // occluders; only solid meshes can hide a resident from the camera.
+    const occluders: THREE.Object3D[] = [];
+    scene.traverse((o) => {
+      if ((o as THREE.Mesh).isMesh) occluders.push(o);
+    });
+    let best = -1;
+    let bestScore = Infinity;
+    let fallback = -1;
+    let fallbackDistance = Infinity;
+    for (let i = 0; i < walkers.length; i++) {
+      const e = walkers[i]!;
+      if (e.hidden || e.mode !== "walk") continue;
+      const d = Math.hypot(e.x - camera.position.x, e.z - camera.position.z);
+      if (d < fallbackDistance) {
+        fallbackDistance = d;
+        fallback = i;
+      }
+      projected.set(e.x, 1, e.z).project(camera);
+      // The lower free band is where the foreground resident is largest and
+      // where the card does not cover it; the upper centre is often a facade.
+      if (
+        projected.z < -1 ||
+        projected.z > 1 ||
+        Math.abs(projected.x) > 0.6 ||
+        projected.y < -0.52 ||
+        projected.y > -0.02
+      )
+        continue;
+      target.set(e.x, 1, e.z);
+      const distance = target.distanceTo(camera.position);
+      ray.set(camera.position, target.sub(camera.position).normalize());
+      const hit = ray.intersectObjects(occluders, false)[0];
+      if (hit && hit.distance < distance - 0.9) continue;
+      const score = projected.x * projected.x + (projected.y + 0.25) * (projected.y + 0.25);
+      if (score < bestScore) {
+        bestScore = score;
+        best = i;
+      }
+    }
+    selectResident(best >= 0 ? best : fallback);
+  }, [residentCall, walkers, camera, selectResident]);
+
+  // A called resident leaves the everyday loop, stands and turns to the reader.
+  // Deselect restores a normal stroller; no path or schedule state is lost
+  // because the call is only offered for a resident that was walking.
+  const previousSelected = useRef<number | null>(null);
+  useEffect(() => {
+    const prev = previousSelected.current;
+    if (prev !== null && prev !== selectedResident) {
+      const old = walkers[prev];
+      if (old && old.mode === "called") {
+        old.mode = "walk";
+        old.path = [];
+        old.finalX = null;
+        old.pause = 0;
+        old.look = 0;
+      }
+    }
+    if (selectedResident !== null) {
+      const e = walkers[selectedResident];
+      if (!e || e.hidden || e.mode !== "walk") {
+        selectResident(null);
+      } else {
+        e.mode = "called";
+        e.tx = e.x;
+        e.tz = e.z;
+        e.path = [];
+        e.finalX = null;
+        e.pause = 0;
+        e.vel = 0;
+        e.look = 0;
+      }
+    }
+    previousSelected.current = selectedResident;
+  }, [selectedResident, walkers, selectResident]);
 
   // Builders on the stage at once: most of the population, because the plots
   // that rise in the same second are scattered all over the city.
@@ -482,10 +662,51 @@ export function Pedestrians({
     // taxi state: 0 drive, 1 dwell, 2 drive-off pause. `stand` is which kerb it
     // is working (see TAXI_STANDS) — a cab that only ever drives to one point
     // arrives once and then stands still for the rest of the session.
-    taxi: { mode: 0, timer: 6, phase: 0, passenger: -1, stand: 1 },
+    taxi: {
+      mode: 0,
+      timer: 6,
+      phase: 0,
+      passenger: -1,
+      stand: 1,
+      /** Travel direction along the lane; stands keep to its right-hand kerb. */
+      dir: 1 as 1 | -1,
+      /** True while the cab runs to the lane end to turn around there. */
+      toEnd: false,
+      turn: null as null | {
+        k: number;
+        dur: number;
+        centerX: number;
+        centerZ: number;
+        ux: number;
+        uz: number;
+        dir: 1 | -1;
+      },
+      speed: 0,
+      odometer: 0,
+    },
     // bus state: 0 drive, 1 dwell. `canDwell` is the departure latch: once the
     // bus has served a stop it may not dwell again on the same approach.
-    bus: { mode: 0, timer: 0, seg: 0, t: 0.2, dir: 1, dropped: 0, canDwell: true },
+    bus: {
+      mode: 0,
+      timer: 0,
+      seg: 0,
+      t: 0.2,
+      dir: 1,
+      dropped: 0,
+      canDwell: true,
+      speed: 0,
+      odometer: 0,
+      turn: null as null | {
+        t: number;
+        dur: number;
+        fromX: number;
+        fromZ: number;
+        fromRot: number;
+        toX: number;
+        toZ: number;
+        toRot: number;
+      },
+    },
     // Where the two vehicles actually are, written onto their instances by
     // placeTraffic(). The cab waits at the edge of its lane until it is called
     // to the curb; the bus starts a fifth of the way down the stop's street.
@@ -533,9 +754,100 @@ export function Pedestrians({
     sim.current.bus.t = 0.2;
     sim.current.bus.dir = 1;
     sim.current.bus.mode = 0;
+    sim.current.bus.speed = 0;
+    sim.current.bus.odometer = 0;
+    sim.current.bus.turn = null;
     sim.current.bus.canDwell = true;
     sim.current.traffic.placed = false;
+    sim.current.taxi.speed = 0;
+    sim.current.taxi.odometer = 0;
+    sim.current.taxi.dir = 1;
+    sim.current.taxi.stand = 1;
+    sim.current.taxi.toEnd = false;
+    sim.current.taxi.turn = null;
   }
+
+  // When the finished city announces itself, one resident in the middle of the
+  // frame stops, turns to the reader and waves. It is the same crowd as always —
+  // no actor is spawned for it, and nothing is selected or focused. The greeted
+  // nonce lives in the store: this component can mount after the card has
+  // already spoken (the build skip does exactly that), and a remount must not
+  // wave a second time. The camera arrives over a flight, so a resident is only
+  // chosen once one actually projects into the frame; measured on the running
+  // demo, the first instant had the camera pointed elsewhere and six eligible
+  // residents projected to zero pixels.
+  useEffect(() => {
+    if (residentGreet === 0 || residentGreeted === residentGreet) return;
+    if (prefersReducedMotion()) {
+      markResidentGreeted(residentGreet);
+      return;
+    }
+    const projected = new THREE.Vector3();
+    const target = new THREE.Vector3();
+    const ray = new THREE.Raycaster();
+    const occluders: THREE.Object3D[] = [];
+    scene.traverse((o) => {
+      if ((o as THREE.Mesh).isMesh) occluders.push(o);
+    });
+    const pick = (): boolean => {
+      // A timer runs between frames; the camera's inverse world matrix is only
+      // refreshed by the renderer. Without this the position was current and
+      // the projection still pointed along the previous leg of the arrival.
+      camera.updateMatrixWorld();
+      let best = -1;
+      let bestDistance = Infinity;
+      for (let i = 0; i < walkers.length; i++) {
+        const e = walkers[i]!;
+        if (e.hidden || e.mode !== "walk" || e.greetUntil > sim.current.time) continue;
+        projected.set(e.x, 1, e.z).project(camera);
+        // The announcement card covers the top centre of the same frame; a
+        // resident waving behind it is as invisible as one behind a tower.
+        const behindCard = projected.y > 0.32 && Math.abs(projected.x) < 0.42;
+        if (
+          projected.z < -1 ||
+          projected.z > 1 ||
+          Math.abs(projected.x) > 0.65 ||
+          projected.y < -0.8 ||
+          projected.y > 0.55 ||
+          behindCard
+        )
+          continue;
+        // A resident behind a tower or a tree cannot wave at anybody. The call
+        // pick has rejected these since it was built; a greeting that happens
+        // behind a trunk is the same no-op.
+        target.set(e.x, 1, e.z);
+        const distance = target.distanceTo(camera.position);
+        ray.set(camera.position, target.sub(camera.position).normalize());
+        const hit = ray.intersectObjects(occluders, false)[0];
+        if (hit && hit.distance < distance - 0.9) continue;
+        // The nearest visible resident, not the closest to the vanishing point:
+        // a wave from twenty-seven metres away is a few pixels of arm.
+        if (distance < bestDistance) {
+          bestDistance = distance;
+          best = i;
+        }
+      }
+      if (best < 0) return false;
+      walkers[best]!.greetUntil = sim.current.time + 3.4;
+      return true;
+    };
+    let attempts = 0;
+    let timer = 0;
+    let cancelled = false;
+    const run = (): void => {
+      if (cancelled) return;
+      if (pick() || ++attempts >= 8) {
+        markResidentGreeted(residentGreet);
+        return;
+      }
+      timer = window.setTimeout(run, 350);
+    };
+    run();
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [residentGreet, residentGreeted, markResidentGreeted, walkers, camera, scene]);
 
   const dummy = useMemo(() => new THREE.Object3D(), []);
   const scratchColor = useMemo(() => new THREE.Color(), []);
@@ -598,6 +910,13 @@ export function Pedestrians({
   // One full-size building block, not a pebble: at the framing the build
   // plays in, a 0.3-unit cube is three pixels and the choreography is lost.
   const cargoGeo = useMemo(() => new THREE.BoxGeometry(0.82, 0.82, 0.82), []);
+  // One ring for the called resident, flat in the ground plane. Instanced like
+  // the rest of the HUD-in-world marks: one draw for the whole city, not one.
+  const selectionGeo = useMemo(() => {
+    const g = new THREE.RingGeometry(0.4, 0.5, 40);
+    g.rotateX(-Math.PI / 2);
+    return g;
+  }, []);
   // The street is two geometries and no more: a unit box and a unit cylinder,
   // scaled and coloured per instance. Asphalt, kerb, zebra bars, lane dashes,
   // block pads, both vehicle bodies, the sign board are boxes; the sign post and
@@ -607,6 +926,8 @@ export function Pedestrians({
   const postGeo = useMemo(() => new THREE.CylinderGeometry(1, 1, 1, 10), []);
   const trafficDummy = useMemo(() => new THREE.Object3D(), []);
   const rollQ = useMemo(() => new THREE.Quaternion(), []);
+  const spinQ = useMemo(() => new THREE.Quaternion(), []);
+  const AXIS_X = useMemo(() => new THREE.Vector3(1, 0, 0), []);
   const AXIS_Y = useMemo(() => new THREE.Vector3(0, 1, 0), []);
   const AXIS_Z = useMemo(() => new THREE.Vector3(0, 0, 1), []);
 
@@ -773,14 +1094,20 @@ export function Pedestrians({
         }
         const pose = wheel.vehicle === "taxi" ? S.traffic.taxi : S.traffic.bus;
         td.position.set(
-          pose.x + Math.sin(pose.rot) * wheel.z,
+          pose.x + Math.sin(pose.rot) * wheel.z + Math.cos(pose.rot) * wheel.x,
           wheel.y,
-          pose.z + Math.cos(pose.rot) * wheel.z,
+          pose.z + Math.cos(pose.rot) * wheel.z - Math.sin(pose.rot) * wheel.x,
         );
-        // laid on its side (axle along X), then yawed with the vehicle
+        // laid on its side (axle along X), yawed with the vehicle, then rolled
+        // by the distance its odometer has covered. The same cylinder is a
+        // Z-axle wheel on the background fleet, hence the opposite sign here;
+        // the sign is a property of the vehicle frame, not of its heading.
+        const odometer = wheel.vehicle === "taxi" ? S.taxi.odometer : S.bus.odometer;
+        const spin = -wheelRoll(odometer, 1, wheel.r);
         td.quaternion
           .setFromAxisAngle(AXIS_Y, pose.rot)
-          .multiply(rollQ.setFromAxisAngle(AXIS_Z, Math.PI / 2));
+          .multiply(rollQ.setFromAxisAngle(AXIS_Z, Math.PI / 2))
+          .multiply(spinQ.setFromAxisAngle(AXIS_X, spin));
         td.scale.set(wheel.r, wheel.t, wheel.r);
         td.updateMatrix();
         posts.setMatrixAt(wi++, surfaceMatrix(surface, td.matrix));
@@ -800,7 +1127,12 @@ export function Pedestrians({
     const len = Math.max(Math.hypot(l.x2 - l.x1, l.z2 - l.z1), 0.001);
     const ux = (l.x2 - l.x1) / len;
     const uz = (l.z2 - l.z1) / len;
-    sim.current.traffic.taxi = { x: st.taxiCurb.x, z: st.taxiCurb.z, rot: Math.atan2(ux, uz) };
+    const taxiT = TAXI_STANDS[1]!;
+    sim.current.traffic.taxi = {
+      x: l.x1 + (l.x2 - l.x1) * taxiT + uz * TAXI_STAND_OFFSET,
+      z: l.z1 + (l.z2 - l.z1) * taxiT - ux * TAXI_STAND_OFFSET,
+      rot: Math.atan2(ux, uz),
+    };
     const b = st.busLane;
     const bl = Math.max(Math.hypot(b.x2 - b.x1, b.z2 - b.z1), 0.001);
     const bux = (b.x2 - b.x1) / bl;
@@ -837,6 +1169,12 @@ export function Pedestrians({
       z: l.z1 + (l.z2 - l.z1) * startT - ux * 0.95 * dir,
       rot: Math.atan2((l.x2 - l.x1) * dir, (l.z2 - l.z1) * dir),
     };
+    // The staged end decides which way the cab faces; the first stand must be
+    // ahead of it, or it would drive backwards down the street to reach it.
+    S.taxi.dir = dir;
+    S.taxi.stand = 1;
+    S.taxi.toEnd = false;
+    S.taxi.turn = null;
     const b = st.busLane;
     const bl = Math.max(Math.hypot(b.x2 - b.x1, b.z2 - b.z1), 0.001);
     const bux = (b.x2 - b.x1) / bl;
@@ -853,11 +1191,39 @@ export function Pedestrians({
    *  there; a figure turning by more than `TURN_IN_PLACE` stands and pivots
    *  first instead of cutting the corner, so its feet stay on the ground the
    *  street network actually has. */
+  /**
+   * A resident on the carriageway in front of a vehicle. Crossing happens on
+   * zebras, so a figure within the asphalt's half width is either crossing or
+   * about to; the car waits. Sidewalk figures (CURB_OFFSET ≈ 2.1) do not count.
+   */
+  const pedestrianOnRoadAhead = (x: number, z: number, rot: number): boolean => {
+    const fx = Math.sin(rot);
+    const fz = Math.cos(rot);
+    const rx = Math.cos(rot);
+    const rz = -Math.sin(rot);
+    for (const e of walkers) {
+      if (e.hidden) continue;
+      if (e.mode !== "walk" && e.mode !== "waitBus" && e.mode !== "toTaxi") continue;
+      const dx = e.x - x;
+      const dz = e.z - z;
+      const ahead = dx * fx + dz * fz;
+      if (ahead < 0.4 || ahead > 7) continue;
+      if (Math.abs(dx * rx + dz * rz) > 1.35) continue;
+      for (const s of streets ?? []) {
+        if (distanceToSegment(e.x, e.z, s) < 1.8) return true;
+      }
+    }
+    return false;
+  };
+
   const walkToward = (e: Ephe, dt: number, arrive = ARRIVE): boolean => {
     const dx = e.tx - e.x;
     const dz = e.tz - e.z;
     const dist = Math.hypot(dx, dz);
-    if (dist < arrive) return true;
+    if (dist < arrive) {
+      e.look = ramp(e.look, 0, 4, dt);
+      return true;
+    }
     const want = Math.atan2(dx, dz);
     let diff = want - e.angle;
     while (diff > Math.PI) diff -= Math.PI * 2;
@@ -865,8 +1231,12 @@ export function Pedestrians({
     e.angle += Math.max(-TURN_SPEED * dt, Math.min(TURN_SPEED * dt, diff));
     const turning = Math.abs(diff) > TURN_IN_PLACE;
     e.pivot = turning;
-    // A start is a ramp, not a switch.
-    e.vel = ramp(e.vel, turning ? 0 : e.speed * e.hustle, ACCEL, dt);
+    // The eyes arrive before the shoulders do: the visor looks into the corner
+    // while the body is still coming round, then eases back to the road.
+    e.look = ramp(e.look, Math.abs(diff) > 0.04 ? Math.max(-0.6, Math.min(0.6, diff)) : 0, 5, dt);
+    // A start is a ramp, not a switch. `avoid` is the crowd pace for this
+    // frame: full ahead, easing behind someone slower.
+    e.vel = ramp(e.vel, turning ? 0 : e.speed * e.hustle * e.avoid, ACCEL, dt);
     if (turning) return false;
     const step = Math.min(e.vel * dt, dist);
     e.x += Math.sin(e.angle) * step;
@@ -1056,6 +1426,10 @@ export function Pedestrians({
     const bodies = bodyRef.current;
     const heads = headRef.current;
     if (!bodies || !heads) return;
+    // The frame loop outlives the render that selected a resident; these live
+    // reads keep the greeting, the pointing arm and the ring on the right body.
+    const liveResident = useStore.getState().selectedResident;
+    const livePoint = useStore.getState().residentPoint;
     const S = sim.current;
     const st = S.transit;
     // Build choreography runs on the REAL clock (site `at` is epoch-ms,
@@ -1185,63 +1559,137 @@ export function Pedestrians({
     if (transitReady && vehiclesActive && st?.taxiCurb) {
       const taxi = S.taxi;
       const pose = S.traffic.taxi;
-      const target = standOnLane(st.taxiLane, TAXI_STANDS[taxi.stand]!);
+      const lane = st.taxiLane;
+      const len = Math.max(Math.hypot(lane.x2 - lane.x1, lane.z2 - lane.z1), 0.001);
+      const ux = (lane.x2 - lane.x1) / len;
+      const uz = (lane.z2 - lane.z1) / len;
       taxi.timer -= dt;
-      if (taxi.mode === 0) {
-        // driving along its lane to the kerb it is working
+
+      if (taxi.turn) {
+        // Half circle around the lane end: the cab comes back on the other
+        // kerb instead of spinning on the spot or driving on the wrong side.
+        const turn = taxi.turn;
+        turn.k = Math.min(1, turn.k + dt / turn.dur);
+        const e = turn.k * turn.k * (3 - 2 * turn.k);
+        const theta = e * Math.PI;
+        const cos = Math.cos(theta);
+        const sin = Math.sin(theta);
+        const rx = turn.uz * turn.dir;
+        const rz = -turn.ux * turn.dir;
+        pose.x = turn.centerX + TAXI_STAND_OFFSET * (cos * rx + sin * turn.ux * turn.dir);
+        pose.z = turn.centerZ + TAXI_STAND_OFFSET * (cos * rz + sin * turn.uz * turn.dir);
+        const tx = -sin * rx + cos * turn.ux * turn.dir;
+        const tz = -sin * rz + cos * turn.uz * turn.dir;
+        pose.rot = -Math.atan2(tz, tx);
+        taxi.odometer += TAXI_TURN_SPEED * dt;
+        if (turn.k >= 1) {
+          taxi.dir = turn.dir > 0 ? -1 : 1;
+          taxi.stand = taxi.dir > 0 ? 0 : TAXI_STANDS.length - 1;
+          taxi.toEnd = false;
+          taxi.turn = null;
+          taxi.speed = 0;
+          taxi.mode = 0;
+        }
+      } else if (taxi.mode === 0) {
+        const targetT = taxi.toEnd ? (taxi.dir > 0 ? 1 : 0) : TAXI_STANDS[taxi.stand]!;
+        const target = standOnLane(lane, targetT, -TAXI_STAND_OFFSET * taxi.dir);
         const dx = target.x - pose.x;
         const dz = target.z - pose.z;
-        const d = Math.hypot(dx, dz);
-        if (d < 0.4 || taxi.timer <= 0) {
+        let d = Math.hypot(dx, dz);
+        const want = Math.atan2(dx, dz);
+        let diff = want - pose.rot;
+        while (diff > Math.PI) diff -= Math.PI * 2;
+        while (diff < -Math.PI) diff += Math.PI * 2;
+        pose.rot += Math.max(-VEHICLE_TURN * dt, Math.min(VEHICLE_TURN * dt, diff));
+        const align = 1 - Math.min(0.65, Math.abs(diff) / Math.PI);
+        const brakeSpeed = Math.sqrt(2 * VEHICLE_BRAKE * Math.max(0, d - 0.1));
+        const yieldAhead = pedestrianOnRoadAhead(pose.x, pose.z, pose.rot);
+        const targetSpeed = yieldAhead ? 0 : Math.min(TAXI_SPEED, brakeSpeed) * align;
+        taxi.speed = ramp(
+          taxi.speed,
+          targetSpeed,
+          targetSpeed < taxi.speed ? VEHICLE_BRAKE : VEHICLE_ACCEL,
+          dt,
+        );
+        const step = Math.min(taxi.speed * dt, d);
+        if (step > 0) {
+          pose.x += Math.sin(pose.rot) * step;
+          pose.z += Math.cos(pose.rot) * step;
+          taxi.odometer += step;
+        }
+        d = Math.hypot(target.x - pose.x, target.z - pose.z);
+        if (d < 0.16 && taxi.speed < 0.55) {
           pose.x = target.x;
           pose.z = target.z;
-          taxi.mode = 1;
-          taxi.timer = 6.5;
-          taxi.phase = taxi.phase === 0 ? 1 : 0; // alternate pickup / dropoff
-          if (taxi.phase === 1) {
-            const i = randomVisibleWalker(
-              (e) => e.mode === "walk" && e.pause <= 0 && e.chatPartner < 0,
-            );
-            if (i >= 0) {
-              const e = walkers[i]!;
-              e.mode = "toTaxi";
-              e.ride = "taxi";
-              routeTo(e, target.x, target.z);
-              taxi.passenger = i;
-            }
+          pose.rot = want;
+          taxi.speed = 0;
+          if (taxi.toEnd) {
+            const endX = taxi.dir > 0 ? lane.x2 : lane.x1;
+            const endZ = taxi.dir > 0 ? lane.z2 : lane.z1;
+            taxi.turn = {
+              k: 0,
+              dur: 1.2,
+              centerX: endX,
+              centerZ: endZ,
+              ux,
+              uz,
+              dir: taxi.dir,
+            };
           } else {
-            // step-out: a hidden passenger appears at the kerb
-            const i = randomVisibleWalker((e) => e.mode === "inTaxi" && e.ride === "taxi");
-            if (i >= 0) {
-              const e = walkers[i]!;
-              e.mode = "exit";
-              e.ride = null;
-              e.x = target.x;
-              e.z = target.z;
-              e.anim = 0;
-              e.hidden = false;
+            taxi.mode = 1;
+            taxi.timer = 6.5;
+            taxi.phase = taxi.phase === 0 ? 1 : 0; // alternate pickup / dropoff
+            if (taxi.phase === 1) {
+              const i = randomVisibleWalker(
+                (e) => e.mode === "walk" && e.pause <= 0 && e.chatPartner < 0,
+              );
+              if (i >= 0) {
+                const e = walkers[i]!;
+                e.mode = "toTaxi";
+                e.ride = "taxi";
+                routeTo(e, target.x, target.z);
+                taxi.passenger = i;
+              }
+            } else {
+              const i = randomVisibleWalker((e) => e.mode === "inTaxi" && e.ride === "taxi");
+              if (i >= 0) {
+                const e = walkers[i]!;
+                e.mode = "exit";
+                e.ride = null;
+                e.x = target.x;
+                e.z = target.z;
+                e.anim = 0;
+                e.hidden = false;
+              }
+              taxi.passenger = -1;
             }
-            taxi.passenger = -1;
           }
-        } else {
-          const ang = Math.atan2(dx, dz);
-          pose.x += Math.sin(ang) * Math.min(6 * dt, d);
-          pose.z += Math.cos(ang) * Math.min(6 * dt, d);
-          pose.rot = ang;
         }
-      } else if (taxi.mode === 1 && taxi.timer <= 0) {
-        taxi.mode = 2;
-        taxi.timer = 3 + Math.random() * 3;
-      } else if (taxi.mode === 2 && taxi.timer <= 0) {
-        taxi.mode = 0;
-        taxi.timer = 20;
-        taxi.stand = (taxi.stand + 1) % TAXI_STANDS.length;
-        taxi.passenger = -1;
+      } else if (taxi.mode === 1) {
+        taxi.speed = ramp(taxi.speed, 0, VEHICLE_BRAKE, dt);
+        if (taxi.timer <= 0) {
+          taxi.mode = 2;
+          taxi.timer = 3 + Math.random() * 3;
+        }
+      } else if (taxi.mode === 2) {
+        taxi.speed = 0;
+        if (taxi.timer <= 0) {
+          taxi.mode = 0;
+          taxi.timer = 20;
+          const next = taxi.stand + taxi.dir;
+          if (next < 0 || next >= TAXI_STANDS.length) {
+            // No more stands this way: run to the end and turn around there.
+            taxi.toEnd = true;
+          } else {
+            taxi.stand = next;
+          }
+          taxi.passenger = -1;
+        }
       }
       // passengers walk to the taxi during dwell
       if (taxi.passenger >= 0) {
         const e = walkers[taxi.passenger]!;
-        if (e.mode === "toTaxi" && Math.hypot(e.x - target.x, e.z - target.z) < 0.8) {
+        if (e.mode === "toTaxi" && Math.hypot(e.x - pose.x, e.z - pose.z) < 0.8) {
           e.mode = "inTaxi";
           e.hidden = true;
         }
@@ -1253,55 +1701,120 @@ export function Pedestrians({
       const bus = S.bus;
       const pose = S.traffic.bus;
       if (bus.mode === 0) {
-        const seg = S.busSeg;
-        if (seg) {
-          const len = Math.max(Math.hypot(seg.x2 - seg.x1, seg.z2 - seg.z1), 0.001);
-          bus.t += ((dt * 5.5) / len) * bus.dir;
-          if (bus.t > 1 || bus.t < 0) {
-            // pick a connected segment
-            const endX = bus.dir > 0 ? seg.x2 : seg.x1;
-            const endZ = bus.dir > 0 ? seg.z2 : seg.z1;
-            const nexts = (streets ?? []).filter(
-              (s) =>
-                (Math.hypot(s.x1 - endX, s.z1 - endZ) < 2 && s !== seg) ||
-                (Math.hypot(s.x2 - endX, s.z2 - endZ) < 2 && s !== seg),
-            );
-            if (nexts.length > 0) {
-              const n = nexts[Math.floor(Math.random() * nexts.length)]!;
-              const fromStart = Math.hypot(n.x1 - endX, n.z1 - endZ) < 2;
-              S.busSeg = n;
-              bus.t = fromStart ? 0 : 1;
-              bus.dir = fromStart ? 1 : -1;
-            } else {
-              bus.dir *= -1;
-              bus.t = THREE.MathUtils.clamp(bus.t, 0, 1);
-            }
+        if (bus.turn) {
+          const turn = bus.turn;
+          turn.t = Math.min(1, turn.t + dt / turn.dur);
+          const k = turn.t * turn.t * (3 - 2 * turn.t);
+          const oldX = pose.x;
+          const oldZ = pose.z;
+          pose.x = THREE.MathUtils.lerp(turn.fromX, turn.toX, k);
+          pose.z = THREE.MathUtils.lerp(turn.fromZ, turn.toZ, k);
+          let dr = turn.toRot - turn.fromRot;
+          while (dr > Math.PI) dr -= Math.PI * 2;
+          while (dr < -Math.PI) dr += Math.PI * 2;
+          pose.rot = turn.fromRot + dr * k;
+          bus.odometer += Math.hypot(pose.x - oldX, pose.z - oldZ);
+          if (turn.t >= 1) {
+            pose.x = turn.toX;
+            pose.z = turn.toZ;
+            pose.rot = turn.toRot;
+            bus.turn = null;
           }
-          const x = seg.x1 + (seg.x2 - seg.x1) * bus.t;
-          const z = seg.z1 + (seg.z2 - seg.z1) * bus.t;
-          // keep to the right lane of the travel direction
-          const ux = (seg.x2 - seg.x1) / len;
-          const uz = (seg.z2 - seg.z1) / len;
-          pose.x = x + uz * 1.0 * bus.dir;
-          pose.z = z - ux * 1.0 * bus.dir;
-          pose.rot = Math.atan2(seg.x2 - seg.x1, seg.z2 - seg.z1) + (bus.dir > 0 ? 0 : Math.PI);
-          // arrive at the stop?
-          const dStop = Math.hypot(x - st.stopPoint.x, z - st.stopPoint.z);
-          // The departure latch: a crowd that keeps refilling at the kerb would
-          // otherwise re-trigger the dwell on the very next frame and the bus
-          // would stand at its own sign for the rest of the session (measured:
-          // 0.1 units travelled in eight seconds). It has to clear the stop
-          // before it may stop again.
-          if (!bus.canDwell && dStop > BUS_LEAVE_STOP) bus.canDwell = true;
-          const waiting = walkers.filter((e) => e.mode === "waitBus").length;
-          if (bus.canDwell && dStop < 3 && (waiting > 0 || bus.dropped <= 0)) {
-            bus.mode = 1;
-            bus.timer = 5.5;
-            bus.canDwell = false;
-            bus.dropped = (bus.dropped + 1) % 3;
+        } else {
+          const seg = S.busSeg;
+          if (seg) {
+            const len = Math.max(Math.hypot(seg.x2 - seg.x1, seg.z2 - seg.z1), 0.001);
+            const ux = (seg.x2 - seg.x1) / len;
+            const uz = (seg.z2 - seg.z1) / len;
+            const waiting = walkers.filter((e) => e.mode === "waitBus").length;
+            const onStopLane = seg === st.busLane;
+            const stopT = onStopLane
+              ? ((st.stopPoint.x - seg.x1) * ux + (st.stopPoint.z - seg.z1) * uz) / len
+              : 0;
+            const along = onStopLane ? (stopT - bus.t) * bus.dir * len : Infinity;
+            const wantsStop = bus.canDwell && (waiting > 0 || bus.dropped <= 0);
+            let targetSpeed = BUS_SPEED;
+            if (wantsStop && onStopLane && along > -0.2 && along < 8) {
+              targetSpeed =
+                along < 0.2
+                  ? 0
+                  : Math.min(BUS_SPEED, Math.sqrt(2 * VEHICLE_BRAKE * Math.max(0, along - 0.1)));
+            }
+            if (pedestrianOnRoadAhead(pose.x, pose.z, pose.rot)) targetSpeed = 0;
+            bus.speed = ramp(
+              bus.speed,
+              targetSpeed,
+              targetSpeed < bus.speed ? VEHICLE_BRAKE : VEHICLE_ACCEL,
+              dt,
+            );
+            bus.t += ((bus.speed * dt) / len) * bus.dir;
+            bus.odometer += bus.speed * dt;
+
+            if (bus.t > 1 || bus.t < 0) {
+              const endX = bus.dir > 0 ? seg.x2 : seg.x1;
+              const endZ = bus.dir > 0 ? seg.z2 : seg.z1;
+              const nexts = (streets ?? []).filter(
+                (s) =>
+                  (Math.hypot(s.x1 - endX, s.z1 - endZ) < 2 && s !== seg) ||
+                  (Math.hypot(s.x2 - endX, s.z2 - endZ) < 2 && s !== seg),
+              );
+              const next =
+                nexts.length > 0 ? nexts[Math.floor(Math.random() * nexts.length)]! : seg;
+              const nlen = Math.max(Math.hypot(next.x2 - next.x1, next.z2 - next.z1), 0.001);
+              const nux = (next.x2 - next.x1) / nlen;
+              const nuz = (next.z2 - next.z1) / nlen;
+              const fromStart =
+                next === seg ? bus.t > 1 : Math.hypot(next.x1 - endX, next.z1 - endZ) < 2;
+              const entryT = fromStart ? 0 : 1;
+              const newDir = fromStart ? 1 : -1;
+              const toX = next.x1 + (next.x2 - next.x1) * entryT + nuz * 1.0 * newDir;
+              const toZ = next.z1 + (next.z2 - next.z1) * entryT - nux * 1.0 * newDir;
+              const toRot =
+                Math.atan2(next.x2 - next.x1, next.z2 - next.z1) + (newDir > 0 ? 0 : Math.PI);
+              bus.turn = {
+                t: 0,
+                dur: 0.65,
+                fromX: pose.x,
+                fromZ: pose.z,
+                fromRot: pose.rot,
+                toX,
+                toZ,
+                toRot,
+              };
+              S.busSeg = next;
+              bus.t = entryT;
+              bus.dir = newDir;
+              bus.speed = Math.min(bus.speed, 2.5);
+            } else {
+              const x = seg.x1 + (seg.x2 - seg.x1) * bus.t;
+              const z = seg.z1 + (seg.z2 - seg.z1) * bus.t;
+              pose.x = x + uz * 1.0 * bus.dir;
+              pose.z = z - ux * 1.0 * bus.dir;
+              pose.rot = Math.atan2(seg.x2 - seg.x1, seg.z2 - seg.z1) + (bus.dir > 0 ? 0 : Math.PI);
+
+              const alongAfter = onStopLane ? (stopT - bus.t) * bus.dir * len : Infinity;
+              if (wantsStop && onStopLane && alongAfter < STOP_ALIGN && bus.speed < 0.45) {
+                bus.t = THREE.MathUtils.clamp(stopT, 0, 1);
+                const sx = seg.x1 + (seg.x2 - seg.x1) * bus.t;
+                const sz = seg.z1 + (seg.z2 - seg.z1) * bus.t;
+                pose.x = sx + uz * 1.0 * bus.dir;
+                pose.z = sz - ux * 1.0 * bus.dir;
+                bus.speed = 0;
+                bus.mode = 1;
+                bus.timer = 5.5;
+                bus.canDwell = false;
+                bus.dropped = (bus.dropped + 1) % 3;
+              } else if (
+                !bus.canDwell &&
+                Math.hypot(pose.x - st.stopPoint.x, pose.z - st.stopPoint.z) > BUS_LEAVE_STOP
+              ) {
+                bus.canDwell = true;
+              }
+            }
           }
         }
       } else {
+        bus.speed = ramp(bus.speed, 0, VEHICLE_BRAKE, dt);
         bus.timer -= dt;
         // boarding: waiting Ephe's walk in and vanish
         for (const e of walkers) {
@@ -1334,12 +1847,7 @@ export function Pedestrians({
           }
         }
         if (bus.timer <= 0) {
-          bus.mode = 0; // riders without a stop stay on board until the next pass
-          // The kerb is empty the instant the bus leaves. On the idle tick
-          // alone it stayed empty for seconds (measured: someone waiting in
-          // 45.8% of frames, 64.3% with a 2.5–5 s tick), so a departure hands
-          // the queue straight to the refill — which is what a real stop does:
-          // the next passenger walks up while the bus is still pulling out.
+          bus.mode = 0;
           S.tStopRefill = Math.min(S.tStopRefill, 0.6 + Math.random() * 0.9);
         }
       }
@@ -1439,6 +1947,42 @@ export function Pedestrians({
       }
     }
 
+    // ── personal space ─────────────────────────────────────────────────────
+    // One pass over the current positions before anyone steps: walkers ease
+    // behind residents ahead, and every nearby resident gives them a side-step
+    // to the right. The side-step is smoothed and applied to the drawing only;
+    // e.x/e.z stay on the sidewalk graph, so the crosswalk and door contracts
+    // are untouched. The pass is skipped under reduced motion (dt = 0).
+    if (dt > 0) {
+      let nearby = 0;
+      for (const o of walkers) {
+        if (o.hidden) continue;
+        const slot = socialNeighbors[nearby]!;
+        slot.x = o.x;
+        slot.z = o.z;
+        slot.angle = o.angle;
+        slot.moving =
+          o.pause <= 0 &&
+          o.vel > 0.05 &&
+          (o.mode === "walk" || o.mode === "waitBus" || o.mode === "toSite" || o.mode === "toTaxi");
+        nearby++;
+      }
+      for (const e of walkers) {
+        const walking =
+          e.mode === "walk" || e.mode === "waitBus" || e.mode === "toSite" || e.mode === "toTaxi";
+        if (!walking) {
+          e.avoid = 1;
+          e.px = ramp(e.px, 0, 5, dt);
+          e.pz = ramp(e.pz, 0, 5, dt);
+          continue;
+        }
+        socialStep(e.x, e.z, e.angle, socialNeighbors, socialOut, nearby);
+        e.avoid = socialOut.pace;
+        e.px = ramp(e.px, socialOut.pushX, 6, dt);
+        e.pz = ramp(e.pz, socialOut.pushZ, 6, dt);
+      }
+    }
+
     // ── walkers ────────────────────────────────────────────────────────────
     walkers.forEach((e, i) => {
       const previousX = e.x;
@@ -1452,7 +1996,17 @@ export function Pedestrians({
       }
 
       if (e.mode === "walk" || e.mode === "waitBus" || e.mode === "toTaxi") {
-        if (e.pause > 0) {
+        if (e.greetUntil > now) {
+          // Let go of the stroll for a wave: turn to the reader, plant the feet,
+          // then walk on. The path is untouched, so no route is lost.
+          const want = Math.atan2(camera.position.x - e.x, camera.position.z - e.z);
+          let diff = want - e.angle;
+          while (diff > Math.PI) diff -= Math.PI * 2;
+          while (diff < -Math.PI) diff += Math.PI * 2;
+          e.angle += Math.max(-4 * dt, Math.min(4 * dt, diff));
+          e.vel = ramp(e.vel, 0, ACCEL, dt);
+          e.look = 0;
+        } else if (e.pause > 0) {
           e.pause -= dt;
         } else if (planStep(e, dt)) {
           // plan exhausted: waitBus stands at its slot, walkers stroll on
@@ -1463,6 +2017,18 @@ export function Pedestrians({
             graphWander(e);
           }
         }
+      } else if (e.mode === "called") {
+        // Stand, turn to the person who called, and wait. Once the guide card
+        // has chosen a destination, the same body turns and points at it.
+        const want = livePoint
+          ? Math.atan2(livePoint.x - e.x, livePoint.z - e.z)
+          : Math.atan2(camera.position.x - e.x, camera.position.z - e.z);
+        let diff = want - e.angle;
+        while (diff > Math.PI) diff -= Math.PI * 2;
+        while (diff < -Math.PI) diff += Math.PI * 2;
+        e.angle += Math.max(-4 * dt, Math.min(4 * dt, diff));
+        e.vel = ramp(e.vel, 0, ACCEL, dt);
+        e.look = 0;
       } else if (e.mode === "enter") {
         if (planStep(e, dt)) {
           e.anim -= dt * 1.5;
@@ -1486,6 +2052,7 @@ export function Pedestrians({
           while (diff > Math.PI) diff -= Math.PI * 2;
           while (diff < -Math.PI) diff += Math.PI * 2;
           e.angle += Math.max(-2 * dt, Math.min(2 * dt, diff));
+          e.look = ramp(e.look, 0, 4, dt);
         }
       } else if (e.mode === "boarding") {
         // handled in the bus block (shrink)
@@ -1536,7 +2103,7 @@ export function Pedestrians({
       // ── render transform ─────────────────────────────────────────────────
       const travelled = Math.hypot(e.x - previousX, e.z - previousZ);
       const moving = dt > 0 && travelled > 0.00001;
-      if (moving) e.gait += (travelled * 5.5) / e.tall;
+      if (moving) e.gait += (travelled * GAIT_RATE) / e.tall;
       // A pivot flag left over from a walk must not make a chatting or
       // working figure march, so the mode has to agree.
       const turning = !moving && e.pivot && e.mode === "walk";
@@ -1563,7 +2130,23 @@ export function Pedestrians({
       const y = (FIGURE.bodyY + bob) * e.tall * grow;
       const vScale = e.tall * grow * visibleScale;
 
-      dummy.position.set(e.x, y, e.z);
+      // A walk is a weight shifting from one foot to the other, not a body
+      // gliding above them. The stance foot stays planted; the hips, chest,
+      // head and arms lean a little over it. Waiting figures keep a smaller,
+      // slower version of the same shift so the square does not freeze.
+      const forwardX = Math.sin(e.angle);
+      const forwardZ = Math.cos(e.angle);
+      const sway = moving
+        ? Math.sin(e.gait) * 0.022 * e.blend
+        : Math.sin(now * 0.8 + e.phase) * 0.012;
+      const swayX = forwardZ * sway;
+      const swayZ = -forwardX * sway;
+      // Personal space is a drawing offset: the path, crosswalk and door
+      // contracts still read e.x/e.z. Everything the viewer sees moves.
+      const renderX = e.x + e.px;
+      const renderZ = e.z + e.pz;
+
+      dummy.position.set(renderX + swayX, y, renderZ + swayZ);
       dummy.rotation.set(
         moving
           ? stride * 0.04
@@ -1586,7 +2169,7 @@ export function Pedestrians({
       // shoulders. One damped width factor, used by head, face and eyes alike.
       const headW = (1 + (e.fat - 1) * 0.25) * grow * visibleScale;
       const headY = y + (FIGURE.headY - FIGURE.bodyY) * e.tall * grow;
-      dummy.position.set(e.x, headY, e.z);
+      dummy.position.set(renderX + swayX, headY, renderZ + swayZ);
       dummy.scale.set(headW, e.tall * grow * visibleScale, headW);
       dummy.updateMatrix();
       heads.setMatrixAt(i, surfaceMatrix(surface, dummy.matrix));
@@ -1594,25 +2177,43 @@ export function Pedestrians({
       // Ceramic heads, an ink visor and two pearl eyes carry the facing direction.
       // Limbs reuse a single instanced sphere mesh for boots, thighs, shins,
       // sleeves and hands.
-      const forwardX = Math.sin(e.angle);
-      const forwardZ = Math.cos(e.angle);
       const width = e.fat * grow * visibleScale;
-      dummy.rotation.set(0, e.angle, 0);
+      const strideAmp = strideAmplitude(e.tall, width);
+      // The visor leads a corner; standing figures glance around instead of
+      // staring down the same axis for as long as the page is open.
+      const look =
+        e.mode === "chat"
+          ? 0
+          : e.look * 0.6 + (!moving ? Math.sin(now * 0.35 + e.phase) * 0.12 : 0);
+      const faceAngle = e.angle + look;
+      const faceForwardX = Math.sin(faceAngle);
+      const faceForwardZ = Math.cos(faceAngle);
+      dummy.rotation.set(0, faceAngle, 0);
       // The visor sits ON the head: the head is 0.15 across, so the face band
       // goes at 0.11 in front of the centre, not at 0.2 where it floated off the
       // skull as soon as the head stopped being a melon.
-      dummy.position.set(e.x + forwardX * 0.082 * headW, headY, e.z + forwardZ * 0.082 * headW);
+      dummy.position.set(
+        renderX + swayX + faceForwardX * 0.082 * headW,
+        headY,
+        renderZ + swayZ + faceForwardZ * 0.082 * headW,
+      );
       dummy.scale.set(0.085 * headW, 0.055 * vScale, 0.03 * headW);
       dummy.updateMatrix();
       faceRef.current?.setMatrixAt(i, surfaceMatrix(surface, dummy.matrix));
       const gesture: EpheGesture =
-        e.mode === "chat"
-          ? "chat"
-          : e.mode === "work"
-            ? "lift"
-            : e.mode === "toSite"
-              ? "carry"
-              : "idle";
+        e.mode === "called"
+          ? livePoint
+            ? "point"
+            : "greet"
+          : e.greetUntil > now
+            ? "greet"
+            : e.mode === "chat"
+              ? "chat"
+              : e.mode === "work"
+                ? "lift"
+                : e.mode === "toSite"
+                  ? "carry"
+                  : "idle";
       /** A limb is a stretched sphere between two joints, so the leg and the arm
        *  share one helper: mid-point, direction, half-length. */
       const writeBone = (
@@ -1636,19 +2237,29 @@ export function Pedestrians({
       for (let side = 0; side < 2; side++) {
         const lateral = side === 0 ? -1 : 1;
         dummy.position.set(
-          e.x + (forwardX * 0.098 + forwardZ * lateral * 0.038) * headW,
+          renderX + swayX + (faceForwardX * 0.098 + faceForwardZ * lateral * 0.038) * headW,
           headY + 0.02 * vScale,
-          e.z + (forwardZ * 0.098 - forwardX * lateral * 0.038) * headW,
+          renderZ + swayZ + (faceForwardZ * 0.098 - faceForwardX * lateral * 0.038) * headW,
         );
         // Pearl eyes at 0.7 of their old size: on a 0.15 head two full-size
         // spheres read as googly eyes rather than a face.
         dummy.scale.setScalar(vScale * 0.5);
         dummy.updateMatrix();
         eyeRef.current?.setMatrixAt(i * 2 + side, surfaceMatrix(surface, dummy.matrix));
-        writeEpheLimbPose(limbPose, stride, lateral, gesture, now * 2.8 + e.phase);
-        const footX = e.x + (forwardZ * limbPose.footX + forwardX * limbPose.footZ) * width;
+        writeEpheLimbPose(
+          limbPose,
+          stride,
+          lateral,
+          gesture,
+          now * 2.8 + e.phase,
+          e.gait,
+          strideAmp,
+          e.blend,
+        );
+        if (gesture === "idle") limbPose.handZ *= e.armStyle;
+        const footX = renderX + (forwardZ * limbPose.footX + forwardX * limbPose.footZ) * width;
         const footYw = limbPose.footY * vScale;
-        const footZ = e.z + (-forwardX * limbPose.footX + forwardZ * limbPose.footZ) * width;
+        const footZ = renderZ + (-forwardX * limbPose.footX + forwardZ * limbPose.footZ) * width;
         dummy.rotation.set(0, e.angle, 0);
         dummy.scale.set(0.1 * width, 0.075 * vScale, 0.17 * width);
         dummy.position.set(footX, footYw, footZ);
@@ -1658,8 +2269,8 @@ export function Pedestrians({
         // The leg: hip → knee → ankle. The knee holds its own height and leads
         // the hip→ankle line to the side that is striding, which is what turns
         // two spheres into a bending leg instead of a hanging one.
-        const hipX = e.x + forwardZ * lateral * FIGURE.hipWidth * width;
-        const hipZ = e.z - forwardX * lateral * FIGURE.hipWidth * width;
+        const hipX = renderX + swayX * 0.6 + forwardZ * lateral * FIGURE.hipWidth * width;
+        const hipZ = renderZ + swayZ * 0.6 - forwardX * lateral * FIGURE.hipWidth * width;
         const hipYw = FIGURE.hipY * vScale;
         const kneeLead = limbPose.kneeForward * width;
         const kneeX = (hipX + footX) / 2 + forwardX * kneeLead;
@@ -1669,12 +2280,14 @@ export function Pedestrians({
         writeBone(i * 10 + 6 + side, hipX, hipYw, hipZ, kneeX, kneeY, kneeZ, 0.085 * width);
         writeBone(i * 10 + 8 + side, kneeX, kneeY, kneeZ, footX, ankleYw, footZ, 0.07 * width);
 
-        const handX = e.x + (forwardZ * limbPose.handX + forwardX * limbPose.handZ) * width;
+        const handX =
+          renderX + swayX + (forwardZ * limbPose.handX + forwardX * limbPose.handZ) * width;
         const handY = (limbPose.handY + bob) * vScale;
-        const handZ = e.z + (-forwardX * limbPose.handX + forwardZ * limbPose.handZ) * width;
-        const shoulderX = e.x + forwardZ * lateral * FIGURE.shoulderWidth * width;
+        const handZ =
+          renderZ + swayZ + (-forwardX * limbPose.handX + forwardZ * limbPose.handZ) * width;
+        const shoulderX = renderX + swayX + forwardZ * lateral * FIGURE.shoulderWidth * width;
         const shoulderY = y + FIGURE.shoulderY * vScale;
-        const shoulderZ = e.z - forwardX * lateral * FIGURE.shoulderWidth * width;
+        const shoulderZ = renderZ + swayZ - forwardX * lateral * FIGURE.shoulderWidth * width;
         writeBone(
           i * 10 + 2 + side,
           shoulderX,
@@ -1696,7 +2309,7 @@ export function Pedestrians({
         // The contact patch, flat on the ground under the figure's own feet.
         const reach = visibleScale > 0 ? 0.95 * width : 0;
         dummy.rotation.set(0, 0, 0);
-        dummy.position.set(e.x, 0.016, e.z);
+        dummy.position.set(renderX, 0.016, renderZ);
         dummy.scale.set(reach, reach, 1);
         dummy.updateMatrix();
         shadows.setMatrixAt(i, surfaceMatrix(surface, dummy.matrix));
@@ -1705,7 +2318,7 @@ export function Pedestrians({
       if (hats) {
         // only builders wear the hat; everyone else collapses to scale 0
         const builder = (e.mode === "work" || e.mode === "toSite") && visibleScale > 0;
-        dummy.position.set(e.x, headY + 0.1 * vScale, e.z);
+        dummy.position.set(renderX + swayX, headY + 0.1 * vScale, renderZ + swayZ);
         dummy.rotation.set(0, 0, 0);
         dummy.scale.set(builder ? width : 0, builder ? vScale : 0, builder ? width : 0);
         dummy.updateMatrix();
@@ -1729,9 +2342,9 @@ export function Pedestrians({
           const overhead = e.mode === "work";
           const reach = overhead ? 0.12 : 0.62;
           const hand = {
-            x: e.x + Math.sin(e.angle) * reach * width,
+            x: renderX + swayX + Math.sin(e.angle) * reach * width,
             y: (overhead ? 1.46 : 0.62) * vScale,
-            z: e.z + Math.cos(e.angle) * reach * width,
+            z: renderZ + swayZ + Math.cos(e.angle) * reach * width,
           };
           if (k <= 0) {
             dummy.position.set(hand.x, hand.y, hand.z);
@@ -1759,6 +2372,27 @@ export function Pedestrians({
     if (hats) hats.instanceMatrix.needsUpdate = true;
     if (cargos) cargos.instanceMatrix.needsUpdate = true;
     if (shadows) shadows.instanceMatrix.needsUpdate = true;
+
+    // The ring is one mesh, not one per resident; it follows the called figure
+    // including the personal-space side-step.
+    const ring = residentRingRef.current;
+    if (ring) {
+      const marked = liveResident !== null ? walkers[liveResident] : undefined;
+      if (marked && !marked.hidden) {
+        ring.count = 1;
+        // The city's visible plates sit on y=0 even where the terrain function
+        // dips below it; the ring has to clear the plate, not follow the dip.
+        dummy.position.set(marked.x + marked.px, 0.08, marked.z + marked.pz);
+        dummy.rotation.set(0, 0, 0);
+        dummy.scale.set(1, 1, 1);
+        dummy.updateMatrix();
+        ring.setMatrixAt(0, surfaceMatrix(surface, dummy.matrix));
+        ring.instanceMatrix.needsUpdate = true;
+      } else {
+        ring.count = 0;
+      }
+    }
+
     // the sign and the two vehicles, written from their poses every frame so a
     // still frame (dt = 0) is still a complete frame
     placeTraffic();
@@ -1766,7 +2400,19 @@ export function Pedestrians({
 
   return (
     <group frustumCulled={false}>
-      <instancedMesh ref={bodyRef} args={[bodyGeo, undefined, count]} frustumCulled={false}>
+      <instancedMesh
+        ref={bodyRef}
+        args={[bodyGeo, undefined, count]}
+        frustumCulled={false}
+        onClick={(event: ThreeEvent<MouseEvent>) => {
+          const id = event.instanceId;
+          if (id == null) return;
+          const e = walkers[id];
+          if (!e || e.hidden || e.mode !== "walk") return;
+          event.stopPropagation();
+          selectResident(id);
+        }}
+      >
         <meshStandardMaterial roughness={0.85} metalness={0.02} />
       </instancedMesh>
       <instancedMesh ref={headRef} args={[headGeo, undefined, count]} frustumCulled={false}>
@@ -1795,6 +2441,25 @@ export function Pedestrians({
           transparent
           opacity={0.26}
           depthWrite={false}
+        />
+      </instancedMesh>
+
+      {/* One gold ring marks the resident the reader called. Not a second body:
+          one mesh, no per-figure label, no new permanent surface. */}
+      <instancedMesh
+        ref={residentRingRef}
+        args={[selectionGeo, undefined, 1]}
+        count={0}
+        frustumCulled={false}
+        renderOrder={10}
+      >
+        <meshBasicMaterial
+          color={EPHE_PALETTE.selection}
+          transparent
+          opacity={0.95}
+          depthWrite={false}
+          depthTest={false}
+          side={THREE.DoubleSide}
         />
       </instancedMesh>
 

@@ -47,6 +47,13 @@ function dropRows(
   if (!dropped) return [];
   const nf = (n: number) => formatCount(lang, n);
   const rows: { key: string; text: string }[] = [];
+  if ((dropped.preview ?? 0) > 0)
+    rows.push({
+      key: "preview",
+      text: tsCount(lang, "drop.preview", "drop.previewOne", dropped.preview ?? 0, {
+        n: nf(dropped.preview ?? 0),
+      }),
+    });
   if (dropped.pathTooLong > 0)
     rows.push({
       key: "pathTooLong",
@@ -117,6 +124,11 @@ function dropRows(
 
 /** The card closes on its own, but only while nobody is reading it. */
 const DWELL_MS = 9000;
+/** The camera has to be standing before a resident waves at it. Measured in
+ *  the running demo: firing with the card selected a figure 197 units away and
+ *  behind the frame; after the arrival pose lands the nearest visible one is
+ *  within a few metres. */
+const RESIDENT_GREET_DELAY_MS = 1400;
 
 export function ScanSummary({ demo = false }: { demo?: boolean }) {
   const lang = useStore((s) => s.prefs.lang);
@@ -124,11 +136,17 @@ export function ScanSummary({ demo = false }: { demo?: boolean }) {
   const analysisId = useStore((s) => s.analysisId);
   const cityData = useStore((s) => s.cityData);
   const buildPhase = useStore((s) => s.buildPhase);
+  const requestResidentGreet = useStore((s) => s.requestResidentGreet);
+  const startTour = useStore((s) => s.startTour);
   const [open, setOpen] = useState(false);
   const [pinned, setPinned] = useState(false);
   const [held, setHeld] = useState(false);
   const [left, setLeft] = useState(0);
   const [collapsed, setCollapsed] = useState(false);
+  const triageActive = useStore((s) => s.triageActive);
+  const tourActive = useStore((s) => s.tourActive);
+  const showFindings = useStore((s) => s.showFindings);
+  const selectedUnit = useStore((s) => s.selectedUnit);
   // A file answers the city and nothing else — its banner may not speak of a
   // scan it never ran, nor of a test it cannot start.
   const standalone = useOrigin((s) => s.origin) === "file";
@@ -154,6 +172,8 @@ export function ScanSummary({ demo = false }: { demo?: boolean }) {
       setCollapsed(true);
       return;
     }
+    // One resident in the city waves as the finished card arrives; the summary
+    // then speaks in that same voice. Fired once per scan, like the card.
     remaining.current = DWELL_MS;
     setOpen(true);
     // Narrow windows see the strip first — the card covered a fifth of the
@@ -163,6 +183,28 @@ export function ScanSummary({ demo = false }: { demo?: boolean }) {
     setPinned(false);
     setLeft(Math.round(DWELL_MS / 1000));
   }, [analysisId, cityData, buildPhase, standalone]);
+
+  // The wave is armed separately: `cityData` arrives as a fresh reference while
+  // the card settles, and a timer living in that effect was cancelled by its own
+  // re-run before it ever fired. The camera also needs the arrival pose first —
+  // measured on the running demo, firing at the instant of the announcement
+  // picked a resident 197 units away, outside the frame.
+  const greetedFor = useRef<string | null>(null);
+  useEffect(() => {
+    if (!analysisId || buildPhase !== "built" || standalone) return;
+    if (greetedFor.current === analysisId) return;
+    greetedFor.current = analysisId;
+    const timer = window.setTimeout(requestResidentGreet, RESIDENT_GREET_DELAY_MS);
+    return () => window.clearTimeout(timer);
+  }, [analysisId, buildPhase, standalone, requestResidentGreet]);
+
+  // A guided flow owns the stage: once triage, the tour or the findings list
+  // starts, the announcement folds to its strip instead of lying over it.
+  useEffect(() => {
+    if (!triageActive && !tourActive && !showFindings && selectedUnit === null) return;
+    setCollapsed(true);
+    setPinned(false);
+  }, [triageActive, tourActive, showFindings, selectedUnit]);
 
   useEffect(() => {
     if (!open || pinned || held || collapsed) return;
@@ -184,6 +226,11 @@ export function ScanSummary({ demo = false }: { demo?: boolean }) {
   const f = cityData.findingsBySeverity;
   const total = severityTotal(f);
   const findingsInTests = cityData.findingsInTests ?? 0;
+  // A sampled city is not a finished scan. Both numbers travel together: what
+  // the folder offered and what the preview read.
+  const previewOmitted = cityData.dropped?.preview ?? 0;
+  const preview = previewOmitted > 0;
+  const previewTotal = cityData.totalFiles + previewOmitted;
   // The scan is only complete for what the project itself called source.
   // Say what the .gitignore kept out while the user is still reading this.
   const skipped = describeGitignoreSkips(cityData.skippedByGitignore, lang);
@@ -195,23 +242,30 @@ export function ScanSummary({ demo = false }: { demo?: boolean }) {
     ? Object.values(cityData.dropped).reduce((sum, n) => sum + (Number.isFinite(n) ? n : 0), 0)
     : 0;
   const verdict = scanVerdict(cityData.scanProvenance, total, cityData.languages);
-  const clean = verdict.kind === "clear";
+  // A live state is a qualifier on the scan itself, not a footnote under a
+  // finding: the card must not call a delta "Scan complete" just because the
+  // city happens to carry findings.
+  const liveInfo = cityData.scanProvenance?.live;
+  const clean = verdict.kind === "clear" && !preview;
   // "no findings" is only a result if something looked. An unverified scan
   // must not wear the green of a clean one.
-  const unverified = verdict.kind === "shallow" || verdict.kind === "unknown";
+  const unverified =
+    verdict.kind === "shallow" || verdict.kind === "unknown" || verdict.kind === "live";
   // Spec §15 color hierarchy: red MEANS critical — a toast with only
   // medium findings must not scream in P0 red. Grade the accent by the
   // worst severity actually present, and let the colour-blind switch reach
   // this surface like it reaches the beacons.
-  const accent = clean
-    ? "#29d398"
-    : unverified
-      ? severityColor("P2", colorblind)
-      : f.P0 > 0
-        ? severityColor("P0", colorblind)
-        : f.P1 > 0
-          ? severityColor("P1", colorblind)
-          : severityColor("P2", colorblind);
+  const accent = preview
+    ? severityColor("P2", colorblind)
+    : clean
+      ? "#29d398"
+      : unverified
+        ? severityColor("P2", colorblind)
+        : f.P0 > 0
+          ? severityColor("P0", colorblind)
+          : f.P1 > 0
+            ? severityColor("P1", colorblind)
+            : severityColor("P2", colorblind);
   // The same grade, two inks. The dot and the rule are signals and may burn at
   // full alarm colour; the line that spells "no findings" or "Scan complete" is
   // 12 px text on glass, where the pure P0 red measured 3,88:1 on the plaza.
@@ -219,36 +273,50 @@ export function ScanSummary({ demo = false }: { demo?: boolean }) {
   // rung — bright ground firms the tint to 0,92, dark ground thins it over an
   // already dark picture — and `tests/glas-chrome.test.ts` walks all six tones
   // over every rung to prove it.
-  const statusInk = clean
-    ? "#29d398"
-    : unverified
-      ? severityTextColor("P2", colorblind)
-      : f.P0 > 0
-        ? severityTextColor("P0", colorblind)
-        : f.P1 > 0
-          ? severityTextColor("P1", colorblind)
-          : severityTextColor("P2", colorblind);
+  const statusInk = preview
+    ? severityTextColor("P2", colorblind)
+    : clean
+      ? "#29d398"
+      : unverified
+        ? severityTextColor("P2", colorblind)
+        : f.P0 > 0
+          ? severityTextColor("P0", colorblind)
+          : f.P1 > 0
+            ? severityTextColor("P1", colorblind)
+            : severityTextColor("P2", colorblind);
 
   const status = demo
     ? t(lang, "summary.demo")
-    : standalone
-      ? t(lang, "summary.exported")
-      : verdict.kind === "clear"
-        ? ts(lang, "summary.noneFound")
-        : verdict.kind === "shallow"
-          ? t(
-              lang,
-              verdict.missing.length === 1
-                ? "summary.noFindingsMissing"
-                : "summary.noFindingsMissingMany",
-              { missing: verdict.missing.join(", ") },
-            )
-          : verdict.kind === "unknown"
-            ? t(lang, "summary.depthUnknown")
-            : t(lang, "summary.complete");
+    : preview
+      ? t(lang, "summary.preview", {
+          sampled: formatCount(lang, cityData.totalFiles),
+          total: formatCount(lang, previewTotal),
+        })
+      : standalone
+        ? t(lang, "summary.exported")
+        : liveInfo
+          ? total > 0
+            ? tsCount(lang, "summary.liveFound", "summary.liveFoundOne", total, {
+                count: formatCount(lang, total),
+              })
+            : t(lang, "summary.live")
+          : verdict.kind === "clear"
+            ? ts(lang, "summary.noneFound")
+            : verdict.kind === "shallow"
+              ? t(
+                  lang,
+                  verdict.missing.length === 1
+                    ? "summary.noFindingsMissing"
+                    : "summary.noFindingsMissingMany",
+                  { missing: verdict.missing.join(", ") },
+                )
+              : verdict.kind === "unknown"
+                ? t(lang, "summary.depthUnknown")
+                : t(lang, "summary.complete");
   // Three honest states, three shapes: a clean sweep is solid, an unverified
   // one is dashed (the border says what the fill cannot), a finding is red.
-  const shape = demo || unverified || standalone ? "unverified" : clean ? "clear" : "findings";
+  const shape =
+    demo || unverified || standalone || preview ? "unverified" : clean ? "clear" : "findings";
   const nf = (n: number) => formatCount(lang, n);
 
   if (collapsed) {
@@ -341,6 +409,26 @@ export function ScanSummary({ demo = false }: { demo?: boolean }) {
           )}
         </div>
 
+        {total > 0 && (
+          <div className="start-summary-guide">
+            <span className="start-summary-guide-who">{t(lang, "summary.guideWho")}</span>
+            <p className="start-summary-guide-line">
+              {t(lang, preview ? "summary.guidePreviewLine" : "summary.guideLine")}
+            </p>
+            <button
+              type="button"
+              className="start-summary-guide-go"
+              onClick={() => {
+                startTour();
+                setOpen(false);
+                setCollapsed(true);
+              }}
+            >
+              {t(lang, "summary.guideGo")} <span aria-hidden="true">→</span>
+            </button>
+          </div>
+        )}
+
         {(skipped !== "" || drops.length > 0) && (
           <ul
             className="start-summary-drops"
@@ -371,7 +459,7 @@ export function ScanSummary({ demo = false }: { demo?: boolean }) {
             title={pinned ? ts(lang, "summary.unpin") : ts(lang, "summary.pin")}
             onClick={() => setPinned((p) => !p)}
           >
-            {pinned ? "◉" : "○"} {pinned ? ts(lang, "summary.unpin") : ts(lang, "summary.pin")}
+            {pinned ? "◉" : "○"} {t(lang, pinned ? "summary.unpinShort" : "summary.pinShort")}
           </button>
           <button
             onClick={() => {

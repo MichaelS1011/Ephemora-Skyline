@@ -145,7 +145,7 @@ describe("TypeScript: the one number the documents may not disagree about", () =
   });
 });
 
-describe("the gates the README tells a reader to run (README.md:74-86)", () => {
+describe("the gates the README tells a reader to run (README.md:75-87)", () => {
   const root = json<{ scripts: Record<string, string> }>("package.json");
   const gateCommands = ["lint", "type-check", "test", "build"];
 
@@ -173,7 +173,7 @@ describe("the gates the README tells a reader to run (README.md:74-86)", () => {
       ),
     ];
     expect(accepted).toEqual(["GHSA-vfj7-8cjw-p6xm"]);
-    // README.md:87 "except those explicitly accepted … with a reason and a re-check date"
+    // README.md:88 "except those explicitly accepted … with a reason and a re-check date"
     expect(allowed).toContain("why:");
     expect(allowed).toContain("recheck:");
     // …and the tree carries the fixed release the override asks for

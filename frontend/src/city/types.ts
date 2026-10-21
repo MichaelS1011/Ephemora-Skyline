@@ -110,6 +110,11 @@ export interface CityFile {
   inCycle?: boolean;
   /** Line coverage 0..100 parsed from a lcov-style report, if present */
   coveragePct?: number;
+  /**
+   * This file was re-read by a live delta: only the built-in rules saw this
+   * version. External-engine answers still on the card belong to the full scan.
+   */
+  liveRefreshed?: boolean;
   /** Files sharing ≥6 normalized duplicated lines with this one (top 3) */
   clonePartners?: Array<{ id: string; path: string; lines: number }>;
   /** Named code regions feeding the voxel packing (absent in old payloads) */
@@ -191,6 +196,17 @@ export interface ScanProvenance {
   churn?: boolean;
   duplicates?: boolean;
   coverage?: boolean;
+  /** Present once a live delta replaced part of the result. */
+  live?: {
+    at: string;
+    fullScanAt: string;
+    changed: number;
+    added: number;
+    removed: number;
+    refreshed: number;
+    /** Engines whose answer is from the full scan, not from this state */
+    stale: string[];
+  };
 }
 
 export interface CityData {
@@ -260,7 +276,7 @@ export interface CityData {
   dropped?: DroppedFiles;
 }
 
-/** The six ways a path in the picked folder can end up unread. */
+/** The nine ways a path in the picked folder can end up unread. */
 export interface DroppedFiles {
   /** Path longer than the upload's character bound */
   pathTooLong: number;
@@ -285,6 +301,13 @@ export interface DroppedFiles {
   gitBudget: number;
   /** Shape the scan does not read: pictures, text without a known extension */
   unsupportedFormat: number;
+  /**
+   * Source files a large folder offered but the preview sample left out. This
+   * is not a read failure: the scan never promised to open them. It is kept in
+   * the accounting so "2,000 files" cannot stand for "2,000 of 48,000" without
+   * the second number being reachable.
+   */
+  preview?: number;
 }
 
 /** Which unit is currently selected (a rendered file building or a block). */

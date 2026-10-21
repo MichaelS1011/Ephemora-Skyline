@@ -125,6 +125,7 @@ export function emptyDroppedFiles(): DroppedFiles {
     gitIgnored: 0,
     gitBudget: 0,
     unsupportedFormat: 0,
+    preview: 0,
   };
 }
 
@@ -272,57 +273,7 @@ export class AnalysisOrchestrator {
               // Skip oversized files
               if (content.length > MAX_FILE_SIZE) return "tooLarge";
 
-              const lines = countLines(content);
-              const language = detectLanguage(relativePath);
-              // Data has lines but no behaviour: no control flow to score, no
-              // functions to name, no imports to draw edges from.
-              const dataFile = isDataFile(relativePath, language);
-              const cyclomatic = dataFile ? 1 : estimateCyclomaticComplexity(content, language);
-              // The card's teaching notes. Monolith counts every line (a wall of
-              // text is a wall whatever the language), height counts code lines —
-              // see analyzer/structure-advice for why these are notes not findings.
-              const advice = dataFile
-                ? []
-                : structureNotes({
-                    lines: lines.total,
-                    longestLine: content
-                      .split(/\r?\n/)
-                      .reduce((max, l) => (l.length > max ? l.length : max), 0),
-                    cyclomatic,
-                  });
-              const vulnerabilities = await this.scanner.scanFile(relativePath, content);
-              const { imports: rawImports, exports: fileExports } = dataFile
-                ? { imports: [], exports: [] }
-                : this.scanner.scanFileStructure(relativePath, content);
-              const imports = rawImports.map((imp) => ({ ...imp, line: 0 }));
-
-              // Extract functions (simple regex-based)
-              const functions = dataFile ? [] : extractFunctions(content);
-              const classes = dataFile ? [] : extractClasses(content);
-              // Voxel sections (CodeBlocks): blocks from the found structure
-              const sections = dataFile
-                ? []
-                : extractSections(relativePath, content, { functions, classes });
-
-              const analysis: FileAnalysis = {
-                path: relativePath,
-                language,
-                lines,
-                bytes: Buffer.byteLength(content, "utf-8"),
-                complexity: { cyclomatic },
-                advice,
-                functions,
-                classes,
-                sections,
-                imports,
-                exports: fileExports.map((e) => ({
-                  type: e.type as "named" | "default" | "reexport",
-                  name: e.name,
-                  line: 0, // would need AST for line numbers
-                })),
-                vulnerabilities,
-              };
-
+              const analysis = await this.analyzeContent(relativePath, content);
               contentMap.set(relativePath, content);
               return analysis;
             } catch {
@@ -529,6 +480,65 @@ export class AnalysisOrchestrator {
       "Analysis complete",
     );
     return result;
+  }
+
+  /**
+   * Metrics + built-in findings for ONE file's content.
+   *
+   * Shared by the directory walk and the live delta, so a changed file is
+   * measured by exactly the rules and structure extraction an unchanged one
+   * was. Project-wide engines never come through here — that boundary is what
+   * lets a live run say "built-in rules only".
+   */
+  async analyzeContent(relativePath: string, content: string): Promise<FileAnalysis> {
+    const lines = countLines(content);
+    const language = detectLanguage(relativePath);
+    // Data has lines but no behaviour: no control flow to score, no
+    // functions to name, no imports to draw edges from.
+    const dataFile = isDataFile(relativePath, language);
+    const cyclomatic = dataFile ? 1 : estimateCyclomaticComplexity(content, language);
+    // The card's teaching notes. Monolith counts every line (a wall of
+    // text is a wall whatever the language), height counts code lines —
+    // see analyzer/structure-advice for why these are notes not findings.
+    const advice = dataFile
+      ? []
+      : structureNotes({
+          lines: lines.total,
+          longestLine: content
+            .split(/\r?\n/)
+            .reduce((max, l) => (l.length > max ? l.length : max), 0),
+          cyclomatic,
+        });
+    const vulnerabilities = await this.scanner.scanFile(relativePath, content);
+    const { imports: rawImports, exports: fileExports } = dataFile
+      ? { imports: [], exports: [] }
+      : this.scanner.scanFileStructure(relativePath, content);
+    const imports = rawImports.map((imp) => ({ ...imp, line: 0 }));
+
+    // Extract functions (simple regex-based)
+    const functions = dataFile ? [] : extractFunctions(content);
+    const classes = dataFile ? [] : extractClasses(content);
+    // Voxel sections (CodeBlocks): blocks from the found structure
+    const sections = dataFile ? [] : extractSections(relativePath, content, { functions, classes });
+
+    return {
+      path: relativePath,
+      language,
+      lines,
+      bytes: Buffer.byteLength(content, "utf-8"),
+      complexity: { cyclomatic },
+      advice,
+      functions,
+      classes,
+      sections,
+      imports,
+      exports: fileExports.map((e) => ({
+        type: e.type as "named" | "default" | "reexport",
+        name: e.name,
+        line: 0, // would need AST for line numbers
+      })),
+      vulnerabilities,
+    };
   }
 
   /**

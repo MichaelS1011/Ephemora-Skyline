@@ -1014,7 +1014,7 @@ button:disabled {
   font: 500 13px var(--font-ui);
 }
 .diagram-caption {
-  fill: #8e978b;
+  fill: #b3b8ac;
   font: 11px var(--font-ui);
 }
 .city-illustration figcaption {
@@ -1048,6 +1048,7 @@ button:disabled {
 .action-dock,
 .start-summary-slot,
 .start-summary-strip-slot,
+.live-band,
 .city-coach {
   --meta: #c6c2b9;
   --meta-strong: #d6d3cb;
@@ -1080,6 +1081,62 @@ button:disabled {
   align-items: center;
   gap: 20px;
   min-width: 0;
+}
+
+/* The live loop hangs under the header rather than floating in the middle of
+   the skyline. It only exists after a handle scan and a change, so the arrival
+   screen never pays for it. */
+.live-band {
+  position: absolute;
+  top: 64px;
+  left: 16px;
+  z-index: 44;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  max-width: calc(100vw - 32px);
+  padding: 6px 8px 6px 12px;
+  border: 1px solid var(--glass-chrome-border);
+  border-top: 0;
+  border-radius: 0 0 8px 8px;
+  background: var(--glass-chrome-sheen), var(--glass-control-bg);
+  backdrop-filter: var(--glass-chrome-blur);
+  color: var(--meta-strong);
+  font-size: var(--fs-meta);
+  pointer-events: auto;
+}
+.live-dot {
+  flex: none;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent-gold);
+}
+.live-band.is-error .live-dot {
+  background: #e8503c;
+}
+.live-band.is-paused .live-dot {
+  background: transparent;
+  border: 1px solid var(--accent-gold);
+}
+.live-text {
+  color: var(--meta-strong);
+}
+.live-counts {
+  color: var(--accent-gold);
+  font-variant-numeric: tabular-nums;
+}
+.live-scan {
+  padding: 3px 9px;
+  border: 1px solid rgba(255, 217, 138, 0.35);
+  border-radius: 6px;
+  color: var(--accent-gold);
+  font-size: var(--fs-meta);
+  line-height: 1.2;
+}
+.live-scan:hover {
+  background: rgba(255, 217, 138, 0.1);
 }
 .workspace-brand {
   display: flex;
@@ -1275,10 +1332,14 @@ button:disabled {
 }
 .city-legend {
   position: absolute;
-  bottom: 22px;
+  /* Above the dock, not behind it: the explainers are read, not guessed at. */
+  bottom: calc(var(--dock-h, 54px) + 18px);
   left: 22px;
   display: flex;
-  gap: 12px;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 8px 12px;
+  max-width: min(440px, calc(100vw - 32px));
   /* R2-15: legend numbers join the 12 px HUD floor. */
   font-size: 12px;
   color: #a7ac9f;
@@ -1295,7 +1356,9 @@ button:disabled {
   border-radius: 2px;
 }
 .legend-explainer {
-  display: none !important;
+  flex-basis: 100%;
+  color: var(--meta);
+  font-size: var(--fs-meta);
 }
 .workspace-heatmap {
   position: absolute;
@@ -1719,6 +1782,15 @@ div[role="status"].animate-toast-rise {
     max-width: calc(50% - 178px);
   }
 }
+/* Measured at 1024: the German mode bar is 320 px and starts at 352, while the
+   crumb chip ran to 356. Four pixels of the chip sat behind the control it was
+   not talking about; the 1200-and-below cap keeps an 8 px gap in both
+   languages. */
+@media (min-width: 761px) and (max-width: 1200px) {
+  .workspace-breadcrumbs {
+    max-width: calc(50% - 190px);
+  }
+}
 
 /* ── Narrow workspace: the mode switch and the camera rescue get their own row ─
    Their base rules live further down this file, so the same-value declarations
@@ -1957,4 +2029,288 @@ div[role="status"].animate-toast-rise {
   padding: 6px 8px;
   border-left: 2px solid var(--color-safe);
   color: var(--color-text);
+}
+
+/* ── City only: the instruments step back ────────────────────────────────
+   The app already folds optional surfaces. This is the one state where the
+   city keeps the whole frame: the panels, the header, the dock and the
+   measurement label leave, and one small exit stays for the mouse. The
+   panels keep their DOM state, so returning restores exactly what stood
+   before — including a selected finding.
+
+   The canvas width rules at 1772-1805 are keyed on `:has(.panel-info)`, and
+   a hidden panel is still in the DOM; without the override the city would
+   keep a 436 px empty strip where the panel used to be. */
+.app-shell .city-canvas {
+  position: relative;
+}
+.city-vignette {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  background:
+    radial-gradient(
+      ellipse 74% 66% at 50% 42%,
+      rgba(14, 18, 13, 0) 54%,
+      rgba(14, 18, 13, 0.14) 80%,
+      rgba(14, 18, 13, 0.28) 100%
+    ),
+    linear-gradient(
+      180deg,
+      rgba(14, 18, 13, 0.08),
+      transparent 16%,
+      transparent 84%,
+      rgba(14, 18, 13, 0.12)
+    );
+}
+/* The width reservation rules above spend `:has()` specificity; the root id
+   is what keeps a hidden panel from leaving its 436 px strip behind. */
+#root .app-shell.is-city-only .city-canvas {
+  margin-left: 0 !important;
+  width: 100% !important;
+}
+.app-shell.is-city-only
+  :is(
+    .workspace-header,
+    .workspace-modes,
+    .action-dock,
+    .panel-context-card,
+    .context-reopen,
+    .panel-info,
+    .panel-findings,
+    #findings-panel,
+    .start-summary-slot,
+    .start-summary-strip-slot,
+    .city-legend,
+    .city-minimap,
+    .workspace-heatmap,
+    .city-coach,
+    .workspace-breadcrumbs,
+    .security-tour,
+    .workspace-search,
+    .share-hint,
+    .share-studio,
+    .panel-share-studio,
+    .resident-card,
+    .cf-mast
+  ) {
+  opacity: 0 !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
+}
+.city-only-exit {
+  position: absolute;
+  top: 18px;
+  right: 20px;
+  z-index: 70;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  pointer-events: auto;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--color-text);
+}
+.city-only-exit-city {
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: rgba(20, 20, 18, 0.55);
+  border: 1px solid rgba(242, 239, 232, 0.12);
+  backdrop-filter: blur(8px);
+  letter-spacing: 0.04em;
+  color: var(--meta-strong);
+}
+.city-only-exit-button {
+  display: flex;
+  min-height: 32px;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: rgba(20, 20, 18, 0.76);
+  border: 1px solid rgba(242, 239, 232, 0.2);
+  color: var(--color-text);
+  cursor: pointer;
+  transition:
+    background 0.18s ease,
+    border-color 0.18s ease;
+}
+.city-only-exit-button:hover {
+  background: rgba(34, 34, 29, 0.9);
+  border-color: rgba(242, 239, 232, 0.34);
+}
+.city-only-exit-button kbd {
+  padding: 3px 5px;
+  border: 1px solid rgba(242, 239, 232, 0.3);
+  border-radius: 4px;
+  font: 600 10px/1 var(--font-mono);
+  color: var(--meta-strong);
+}
+/* A called resident gets one small card, not a conversation surface. It sits
+   above the dock so the called figure stays in view and the card never has to
+   chase a screen-space anchor across the city. */
+.resident-card {
+  position: absolute;
+  left: 50%;
+  bottom: calc(var(--dock-h, 54px) + 18px);
+  transform: translateX(-50%);
+  z-index: 46;
+  width: min(380px, calc(100vw - 32px));
+  padding: 11px 13px 12px;
+  pointer-events: auto;
+  background: var(--glass-chrome-sheen), var(--material-read-bg);
+  border: 1px solid rgba(232, 178, 60, 0.34);
+  border-radius: 9px;
+  box-shadow: var(--glass-chrome-edge), var(--glass-shadow);
+  backdrop-filter: var(--glass-chrome-blur);
+  -webkit-backdrop-filter: var(--glass-chrome-blur);
+  color: var(--color-text);
+  font-family: var(--font-ui);
+  animation: resident-in 0.16s ease-out both;
+}
+@keyframes resident-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, 5px);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
+}
+.resident-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.resident-kicker {
+  font: 500 10px/1 var(--font-mono);
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--accent-gold);
+}
+.resident-close {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 5px;
+  border: 1px solid transparent;
+  color: var(--meta-faint);
+  font-size: 12px;
+  line-height: 1;
+}
+.resident-close:hover {
+  border-color: rgba(242, 239, 232, 0.16);
+  color: var(--color-text);
+}
+.resident-title {
+  margin: 5px 0 3px;
+  font: 600 14px/1.4 var(--font-ui);
+}
+.resident-target {
+  margin: 0 0 10px;
+  overflow: hidden;
+  color: var(--meta-faint);
+  font: 400 11px/1.5 var(--font-mono);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.resident-action {
+  width: 100%;
+  min-height: 38px;
+  border-radius: 6px;
+  border: 1px solid #f06b58;
+  background: #e8503c;
+  color: #fff8f4;
+  font: 600 13px/1 var(--font-ui);
+  cursor: pointer;
+  transition:
+    background 0.15s ease,
+    border-color 0.15s ease;
+}
+.resident-action:hover:not(:disabled) {
+  background: #fb7965;
+  border-color: #fb7965;
+}
+.resident-action:disabled {
+  cursor: not-allowed;
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(242, 239, 232, 0.12);
+  color: var(--meta-faint);
+}
+@media (prefers-reduced-motion: reduce) {
+  .resident-card {
+    animation: none;
+  }
+  .resident-action {
+    transition: none;
+  }
+}
+/* The height rail is a reading instrument, not a second panel. When a file
+   or the findings list is open it stood in the middle of the building it was
+   explaining; the panel already carries the numbers. */
+.app-shell:has(.panel-info, .panel-findings) .cf-mast {
+  opacity: 0 !important;
+  visibility: hidden !important;
+}
+/* Below 1200 px the left card leaves too little stage for the mast's wide
+   plaque; measured at 1024×768 it was cut off at the right edge. The physical
+   rail stays, the numbers stay in the project card. */
+@media (max-width: 1200px) {
+  .app-shell .cf-mast {
+    opacity: 0 !important;
+    visibility: hidden !important;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .city-only-exit-button {
+    transition: none;
+  }
+}
+
+/* The live band hangs under the header at 64 px. The breadcrumb trail is the
+   one thing it must not cover: it is the address of the file being inspected.
+   LiveBand measures its own height into --live-band-h, so a wrapped band at
+   1024 pushes the trail exactly as far down as it needs. */
+.app-shell.has-live-band .workspace-breadcrumbs {
+  top: calc(78px + var(--live-band-h, 34px) + 6px);
+}
+@media (max-width: 760px) {
+  .app-shell.has-live-band .workspace-breadcrumbs {
+    top: calc(124px + var(--live-band-h, 34px) + 6px);
+  }
+}
+@media (max-width: 520px) {
+  .app-shell.has-live-band .workspace-breadcrumbs {
+    top: calc(158px + var(--live-band-h, 34px) + 6px);
+  }
+}
+
+/* The dock's verbs carry a visible second line on a wide screen. At 1024 the
+   line disappears and the short label takes over, so a triage stepper and the
+   More menu can share one row. */
+.action-copy {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  line-height: 1.1;
+}
+.action-hint {
+  color: var(--meta);
+  font-size: var(--fs-meta);
+  font-weight: 400;
+  letter-spacing: 0;
+}
+
+/* The compact dock choice is made in ActionBar (matchMedia), so the DOM never
+   carries a hidden duplicate label. The hint remains a visual second line. */
+
+/* The More menu is taller than a 680 px window; the doors it now carries for
+   triage must stay reachable, so the menu scrolls instead of growing off-screen. */
+.action-secondary-menu {
+  max-height: min(70vh, 560px);
+  overflow-y: auto;
 }

@@ -14,6 +14,19 @@ import type { NextFunction, Request, Response } from "express";
  * request is sent without one (a plain form post). A command line client on
  * this machine sends neither, and stays allowed.
  */
+/** Loopback names, with and without the brackets an IPv6 Host header carries. */
+function isLoopbackName(host: string): boolean {
+  try {
+    const name = new URL(`http://${host}`).hostname
+      .replace(/^\[|\]$/g, "")
+      .replace(/\.$/, "")
+      .toLowerCase();
+    return name === "localhost" || name === "127.0.0.1" || name === "::1";
+  } catch {
+    return false;
+  }
+}
+
 export function isForeignBrowserRequest(
   headers: { origin?: string; secFetchSite?: string; host?: string },
   expected: string[],
@@ -22,8 +35,17 @@ export function isForeignBrowserRequest(
     if (expected.includes(headers.origin)) return false;
     // A page served by this very port is the app itself, even when nothing was
     // configured — refusing it would break the packaged app on its own machine.
+    // The host must still be a loopback name: a foreign page that has rebound
+    // its own DNS to 127.0.0.1 sends this exact pair (Origin and Host both
+    // `evil.example:4000`), and trusting the pair alone would hand it the
+    // routes that run a folder's tests.
     try {
-      if (headers.host && new URL(headers.origin).host === headers.host) return false;
+      if (
+        headers.host &&
+        new URL(headers.origin).host === headers.host &&
+        isLoopbackName(headers.host)
+      )
+        return false;
     } catch {
       // an origin that does not parse cannot be the app's own page
     }

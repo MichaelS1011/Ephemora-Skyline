@@ -104,12 +104,17 @@ export interface TranslatableFinding extends CityFinding {
 }
 
 export function findingGermanLine(
-  finding: Pick<TranslatableFinding, "messageDe" | "category">,
+  finding: Pick<TranslatableFinding, "messageDe" | "category" | "type">,
   lang: Lang,
 ): string | null {
   if (lang !== "de") return null;
   const own = finding.messageDe?.trim();
   if (own) return own;
+  // The category sentence for hygiene is right for a dead import and wrong
+  // under a console line that may carry credentials: "Keine Schwachstelle"
+  // would devalue the very finding the reader is looking at. Console output
+  // gets its own honest line instead.
+  if (finding.type === "CONSOLE_USAGE") return t(lang, "panel.consoleUsageLine");
   const category = finding.category as FindingCategory | undefined;
   if (!category || !CATEGORY_IDS.includes(category)) return null;
   return t(lang, categoryMeta(category).meaning);
@@ -315,6 +320,7 @@ export function FindingRow({
   review,
   focused,
   demo,
+  onOpenLine,
 }: {
   finding: CityFinding;
   index: number;
@@ -326,6 +332,8 @@ export function FindingRow({
   focused: boolean;
   /** The demo city (`analysisId === "demo-001"`): nothing is saved anywhere. */
   demo: boolean;
+  /** Open the flagged line in the file's source (InfoPanel). */
+  onOpenLine?: (line: number) => void;
 }) {
   const [expanded, setExpanded] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -432,12 +440,24 @@ export function FindingRow({
           )}
         </div>
         <div className="flex items-center gap-1 shrink-0">
-          <span
-            className="font-jetbrains text-[length:var(--fs-meta)]"
-            style={{ color: "var(--meta-strong)" }}
-          >
-            :{finding.line}
-          </span>
+          {onOpenLine ? (
+            <button
+              type="button"
+              onClick={() => onOpenLine(finding.line)}
+              title={t(lang, "panel.openLine", { line: finding.line })}
+              className="font-jetbrains text-[length:var(--fs-meta)] rounded-sm px-1 hover:underline"
+              style={{ color: "var(--accent-gold)" }}
+            >
+              :{finding.line}
+            </button>
+          ) : (
+            <span
+              className="font-jetbrains text-[length:var(--fs-meta)]"
+              style={{ color: "var(--meta-strong)" }}
+            >
+              :{finding.line}
+            </span>
+          )}
           <button
             onClick={() => setExpanded((v) => !v)}
             title={

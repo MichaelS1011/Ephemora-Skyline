@@ -38,6 +38,7 @@ import {
   saveReviews,
 } from "../reviews";
 import { loadPrefs, savePrefs, type Prefs } from "../prefs";
+import { EMPTY_LIVE_STATE, type LiveState, type PendingLiveScan } from "../live/types";
 import { mergeEngineGaps } from "../city/provenance";
 import { hasCityVisit, recordCityVisit } from "../recentCities";
 import { anchorFor, verifyAnchorScannedAt, verifyScans, type VerifyReport } from "../verify";
@@ -159,6 +160,20 @@ interface AppState {
   buildSkipAt: number | null;
   sceneRebuildAt: number | null;
   setCityData: (data: CityData | null) => void;
+  /**
+   * A finished folder scan that can be watched. The handle outlives the
+   * Landing screen; the live session consumes this and keeps its own snapshot.
+   */
+  pendingLive: PendingLiveScan | null;
+  setPendingLive: (pending: PendingLiveScan | null) => void;
+  /** What the watch loop is doing, for the permanent live band. */
+  live: LiveState;
+  setLiveState: (patch: Partial<LiveState>) => void;
+  /**
+   * Replace the city with a delta result WITHOUT starting a new visit: the
+   * camera, filters and open panel stay where the reader left them.
+   */
+  applyLiveCityData: (data: CityData) => void;
   /**
    * Tear the view down for the Landing.
    *
@@ -384,6 +399,32 @@ interface AppState {
   /** The keyboard guide, opened from the dock instead of a standing `[?]` chip. */
   showShortcuts: boolean;
   setShowShortcuts: (v: boolean) => void;
+  /**
+   * City only: every instrument steps back, the city keeps the frame.
+   * A view state, not a preference — a new city starts with the controls back,
+   * and Escape is the way out (the header is hidden, so it cannot be the way).
+   */
+  cityOnly: boolean;
+  setCityOnly: (v: boolean) => void;
+  /**
+   * The resident the reader called. One at a time; the figure stops, faces the
+   * camera and offers one guided verb. `residentCall` is a counter, not a
+   * target: the canvas owns the crowd, so it picks the neighbour and reports
+   * the index back through `selectResident`.
+   */
+  selectedResident: number | null;
+  selectResident: (index: number | null) => void;
+  residentCall: number;
+  requestResidentCall: () => void;
+  /** A one-shot wave from the crowd when the city is finished. */
+  residentGreet: number;
+  requestResidentGreet: () => void;
+  /** The greet nonce the canvas has already answered; survives a remount. */
+  residentGreeted: number;
+  markResidentGreeted: (nonce: number) => void;
+  /** Where the called resident points for the moment before the camera leaves. */
+  residentPoint: { x: number; z: number; until: number } | null;
+  pointResidentAt: (x: number, z: number, until: number) => void;
 
   // ── Auto-Gfx (perf.ts): the frame budget decides, until a hand doesn't ─
   autoGfxLite: boolean;
@@ -649,6 +690,10 @@ export const useStore = create<AppState>((set, get) => {
       // promise — this visit's confirmation is spent.
       revealPulse: null,
       firstVerdictKey: null,
+      cityOnly: false,
+      selectedResident: null,
+      residentCall: 0,
+      residentPoint: null,
     });
     if (typeof window !== "undefined") clearVisitParams(push);
   };
@@ -691,6 +736,10 @@ export const useStore = create<AppState>((set, get) => {
     buildDuration: 0,
     constructionTotal: 0,
     constructionDone: 0,
+    pendingLive: null,
+    live: { ...EMPTY_LIVE_STATE },
+    setPendingLive: (pending) => set({ pendingLive: pending }),
+    setLiveState: (patch) => set({ live: { ...get().live, ...patch } }),
     setCityData: (data) => {
       // One engine truth before anything reads the payload: the backend
       // attributes gitleaks/semgrep/ruff to files and stops there, so a project
@@ -738,6 +787,10 @@ export const useStore = create<AppState>((set, get) => {
         showSearch: false,
         showPrimer: false,
         showShortcuts: false,
+        cityOnly: false,
+        selectedResident: null,
+        residentCall: 0,
+        residentPoint: null,
         triageActive: false,
         triageCursor: 0,
         triageTotal: 0,
@@ -789,6 +842,28 @@ export const useStore = create<AppState>((set, get) => {
       if (data && data.repo?.owner === "local" && data.analysisId) {
         void adoptMachineVerdicts(data.analysisId, bucketKeyFor(data), reviews);
       }
+    },
+
+    /**
+     * A live delta is the SAME visit, not a new one: keep the camera, the
+     * focus path, the filters and the open panel. Only a selection whose file
+     * left the folder is dropped — a panel about a deleted file would describe
+     * something that is no longer on screen.
+     */
+    applyLiveCityData: (data) => {
+      const current = get().cityData;
+      if (!current || !data.analysisId || current.analysisId !== data.analysisId) return;
+      mergeEngineGaps(data);
+      const reviews = loadReviewsForCity(data);
+      const selected = get().selectedUnit;
+      const keptSelection =
+        selected?.kind === "file" ? (findFileById(data, selected.id) ? selected : null) : selected;
+      set({
+        cityData: data,
+        reviews,
+        orphanedReviews: countStrandedVerdicts(reviews, data),
+        selectedUnit: keptSelection,
+      });
     },
 
     /** Tear the city down and return to the Landing screen ("start over"). */
@@ -1173,6 +1248,21 @@ export const useStore = create<AppState>((set, get) => {
     setShowPrimer: (v) => set({ showPrimer: v }),
     showShortcuts: false,
     setShowShortcuts: (v) => set({ showShortcuts: v }),
+    cityOnly: false,
+    setCityOnly: (v) =>
+      set(
+        v ? { cityOnly: true, selectedResident: null, residentPoint: null } : { cityOnly: false },
+      ),
+    selectedResident: null,
+    selectResident: (index) => set({ selectedResident: index, residentPoint: null }),
+    residentCall: 0,
+    requestResidentCall: () => set((s) => ({ residentCall: s.residentCall + 1 })),
+    residentGreet: 0,
+    requestResidentGreet: () => set((s) => ({ residentGreet: s.residentGreet + 1 })),
+    residentGreeted: 0,
+    markResidentGreeted: (nonce) => set({ residentGreeted: nonce }),
+    residentPoint: null,
+    pointResidentAt: (x, z, until) => set({ residentPoint: { x, z, until } }),
 
     autoGfxLite: false,
     setAutoGfxLite: (v) => set({ autoGfxLite: v }),

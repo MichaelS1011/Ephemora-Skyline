@@ -170,6 +170,19 @@ export const ROWS: Row[] = [
     text: T("hints.toggle", "Show or hide this list", "Diese Liste ein- oder ausblenden"),
     owner: "App.tsx",
   },
+  {
+    id: "callResident",
+    keys: ["C"],
+    codes: ["C"],
+    group: "nav",
+    rank: 8,
+    text: T(
+      "hints.callResident",
+      "Call a resident and ask for the way",
+      "Einen Bewohner rufen und nach dem Weg fragen",
+    ),
+    owner: "App.tsx",
+  },
 
   // ── Camera ────────────────────────────────────────────────────────────────
   {
