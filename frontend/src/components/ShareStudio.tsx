@@ -18,7 +18,10 @@ import { useCityCapture, type LengthMode } from "../hooks/useCityCapture";
 import { ShareCard } from "./ShareCard";
 import { ShareImageCard } from "./ShareImageCard";
 import { captureCityImage, type CityImage } from "../share/image";
-import { measuredFacts } from "../share/captions";
+import { getDirLayout } from "../city/layout";
+import { surfaceForLayout } from "../city/worldSurface";
+import { defaultOverviewPath } from "../city/overview";
+import { shareHeroShot } from "../share/heroShot";
 import "../design/share.css";
 
 const LENGTHS: Array<{
@@ -111,13 +114,20 @@ export function ShareStudio() {
 
   const start = (): void => {
     if (length.mode.kind === "build" && !canBuild) return;
+    // The build replay resets to the project level, so its hook and reveal
+    // must frame that level; a free take keeps the level the reader is in.
+    const path = length.mode.kind === "build" ? defaultOverviewPath(cityData) : focusPath;
+    const layout = getDirLayout(cityData, path);
+    const hero = shareHeroShot(layout, surfaceForLayout(layout, path.length > 0), preset.aspect);
     capture.start({
       city: cityData,
-      focusPath,
+      focusPath: path,
       format,
       showNames,
       includeCredit,
       length: length.mode,
+      hero,
+      hook: length.mode.kind === "build",
     });
   };
 
@@ -382,7 +392,6 @@ export function ShareStudio() {
           previewUrl={imageResult.previewUrl}
           lang={lang}
           showNames={showNames}
-          facts={measuredFacts(cityData)}
           onAgain={clearImage}
         />
       )}

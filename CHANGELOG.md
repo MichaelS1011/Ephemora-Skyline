@@ -417,6 +417,32 @@ Datenabfluss bewiesen` instead of the hygiene line `Keine Schwachstelle`; and
 
 ### Changed
 
+- **A recorded city opens on its result.** The take no longer starts on an empty
+  lot: it opens on the **finished city** at a camera fitted to the output
+  format, holds **0.7 s**, cuts hard to the empty site, builds, and flies back
+  to the same pose — so the platform's loop returns to the frame it started on.
+  The fitted subject is the tallest plot plus every plot inside the horizontal
+  room that framing distance buys (`distance · tan(fov/2) · aspect`), which is
+  why a 16:9 take holds two districts while a 9:16 one fills the frame with the
+  tallest; the camera then holds that pose every frame until the take ends, so
+  no other director can move it out from under the recording. Measured on the
+  running app (demo city, build length, one classifier over old and new files):
+  subject pixels in the first 0.3 s went from **0.08 % blue (9:16) / 0.05 %
+  (16:9)** to **4.46 % / 2.77 %**, and hook vs last frame differ by only
+  **0.24 % / 0.30 %** of pixels above 30 — the cars and pedestrians, not the
+  camera. `frontend/tests/share-hero.test.ts`
+- **The share result is a file, not a draft.** The studio no longer proposes
+  three post captions or four platform rows. A caption written by the tool is
+  posted in the user's voice, and a bad one is worse than none; the system
+  share dialog now receives the **video file alone** and the card says so.
+  The recorder asks for **MP4/H.264 first** (WebM only where the browser cannot
+  encode MP4) and writes **1920×1080 / 1080×1080 / 1080×1920** at 30 fps and
+  8–10 Mbit/s instead of 720p WebM, so the file can be attached where people
+  actually post. The file name wears the container's extension. Measured from
+  the running app through the real recorder: 9:16 = 1080×1920, 16:9 =
+  1920×1080, both H.264, 30 fps, 4.0 s, 3.7 MB / 3.6 MB, 0 % cut; the card
+  carries no caption or platform block.
+  `frontend/tests/share-formats.test.ts`, `frontend/tests/share-result.test.tsx`
 - **Residents keep their distance.** A pure personal-space step gives every
   walker a **0.9-unit** bubble. A resident ahead or beside pushes it up to
   **0.30 units away from the side it is on** — someone on the right moves the

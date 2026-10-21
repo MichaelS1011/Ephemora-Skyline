@@ -78,7 +78,6 @@
   color: #f2efe8;
 }
 .share-close:focus-visible,
-.share-copy:focus-visible,
 .share-chip input:focus-visible + span {
   outline: 2px solid var(--focus-ring);
   outline-offset: 2px;
@@ -344,63 +343,6 @@
   font-size: 11px;
   color: #b9b6ad;
 }
-.share-captions {
-  margin-top: 14px;
-}
-.share-captions h4 {
-  margin: 0 0 8px;
-  font-size: var(--fs-meta);
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: #8f8b82;
-}
-.share-caption {
-  margin-bottom: 10px;
-}
-.share-caption-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  margin-bottom: 4px;
-}
-.share-tone {
-  font-size: 11px;
-  color: var(--accent-gold);
-}
-.share-copy {
-  min-height: 26px;
-  padding: 3px 10px;
-  border-radius: 6px;
-  border: 1px solid rgba(242, 239, 232, 0.2);
-  background: transparent;
-  color: #dedbd3;
-  font-size: 11px;
-  cursor: pointer;
-}
-.share-copy:hover {
-  background: rgba(255, 255, 255, 0.07);
-}
-.share-caption-text {
-  margin: 0;
-  padding: 9px 10px;
-  border-radius: 8px;
-  background: rgba(12, 12, 10, 0.85);
-  border: 1px solid rgba(242, 239, 232, 0.1);
-  font-size: 11px;
-  color: #dedbd3;
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-}
-.share-cta {
-  margin: 12px 0 0;
-  font-size: 11px;
-  color: #dedbd3;
-}
-.share-link {
-  color: var(--accent-gold);
-  overflow-wrap: anywhere;
-}
 .share-subtle {
   margin: 10px 0 0;
   font-size: 11px;
@@ -419,59 +361,6 @@
 }
 .share-again:hover {
   background: rgba(255, 255, 255, 0.06);
-}
-
-/* The platform row: one line of truth per platform, one click per row. */
-.share-platforms {
-  margin: 14px 0 0;
-  padding: 12px 0 0;
-  border-top: 1px solid rgba(143, 139, 130, 0.28);
-}
-.share-platforms h4 {
-  margin: 0 0 4px;
-}
-.share-platforms ul {
-  list-style: none;
-  margin: 8px 0 0;
-  padding: 0;
-  display: grid;
-  gap: 8px;
-}
-.share-platform {
-  display: grid;
-  grid-template-columns: auto 1fr;
-  gap: 2px 10px;
-  align-items: baseline;
-}
-.share-platform-name {
-  font-weight: 600;
-}
-.share-platform-note {
-  grid-column: 2;
-  color: #8f8b82;
-  font-size: var(--fs-meta);
-}
-.share-platform .share-copy {
-  grid-column: 2;
-  justify-self: start;
-  margin-top: 2px;
-}
-.share-platform-off {
-  grid-column: 2;
-  color: #8f8b82;
-  font-size: var(--fs-meta);
-  border: 1px solid rgba(143, 139, 130, 0.4);
-  border-radius: 3px;
-  padding: 1px 6px;
-  justify-self: start;
-}
-.share-platform-result {
-  grid-column: 1 / -1;
-  font-size: var(--fs-meta);
-  color: #b7dfdf;
-}
-.share-platform.is-off .share-platform-name {
-  color: #8f8b82;
 }
 
 @media (max-width: 900px) {

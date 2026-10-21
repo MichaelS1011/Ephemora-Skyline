@@ -1,25 +1,34 @@
 /**
- * The release card: what the file is, the file itself, and a text to go with
- * it.
+ * The release card: the file, the two ways out, and what was measured.
  *
- * Every figure on it was measured while the encoder was open, and the caption
- * numbers were frozen when the recording started, so a re-scan behind the panel
- * cannot quietly change what this card claims about a finished file.
+ * There is deliberately no suggested post text and no platform row. The card
+ * hands over the video file and nothing else: a caption written by the tool
+ * would be posted in the user's voice, and a bad one is worse than none. The
+ * system share dialog receives the file alone; the privacy note and the name
+ * opt-in state stay on the card because they describe what the file contains.
  *
- * The call to action is one block and it is conditional on the operator having
- * set `SHARE_LINK`. While that constant is empty the card names no destination,
- * hints at no repository and asks for no star; an ask that points at a 404 is
- * not a kind ask.
+ * Every figure on it was measured while the encoder was open, so a re-scan
+ * behind the panel cannot quietly change what this card claims about a
+ * finished file.
  */
 
 import { useState } from "react";
 import type { Lang } from "../i18n";
 import { formatCount, formatDecimal } from "../i18n";
 import type { CaptureResult } from "../hooks/useCityCapture";
-import { captionsFor, type CaptionTone } from "../share/captions";
-import { SharePlatforms } from "../share/Platforms";
-import { SHARE_LINK } from "../share/config";
 import { tx } from "../share/fallbackCopy";
+
+/** The container and codec in a developer's words, from the encoder's own string. */
+export function codecLabel(mime: string): string {
+  const type = mime.toLowerCase();
+  if (type.includes("mp4")) return type.includes("avc1") ? "MP4 · H.264" : "MP4";
+  if (type.includes("webm")) {
+    if (type.includes("vp9")) return "WebM · VP9";
+    if (type.includes("vp8")) return "WebM · VP8";
+    return "WebM";
+  }
+  return mime;
+}
 
 export function ShareCard({
   result,
@@ -32,15 +41,10 @@ export function ShareCard({
   showNames: boolean;
   onAgain: () => void;
 }) {
-  const [copied, setCopied] = useState<CaptionTone | null>(null);
-  // The platform row needs to know which text the user chose. Without a choice
-  // it carries the dry caption, and it says so by using the same string the
-  // card shows above it.
-  const [chosen, setChosen] = useState<string | null>(null);
-  const [copyFailed, setCopyFailed] = useState(false);
   const [shareFailed, setShareFailed] = useState(false);
-  const captions = captionsFor(result.facts, lang, SHARE_LINK);
-  const file = new File([result.blob], result.fileName, { type: result.blob.type || "video/webm" });
+  const file = new File([result.blob], result.fileName, {
+    type: result.blob.type || result.recorderMime.split(";")[0] || "video/mp4",
+  });
   const canShareFile = (() => {
     try {
       return (
@@ -57,17 +61,6 @@ export function ShareCard({
     a.href = result.previewUrl;
     a.download = result.fileName;
     a.click();
-  };
-
-  const copy = async (tone: CaptionTone, text: string): Promise<void> => {
-    try {
-      await navigator.clipboard.writeText(text);
-      setCopied(tone);
-      setChosen(text);
-      setCopyFailed(false);
-    } catch {
-      setCopyFailed(true);
-    }
   };
 
   const share = async (): Promise<void> => {
@@ -103,6 +96,7 @@ export function ShareCard({
           ↗ {tx(lang, "card.share")}
         </button>
       )}
+      {canShareFile && <p className="share-subtle">{tx(lang, "card.shareFileOnly")}</p>}
       {shareFailed && (
         <p className="share-error" role="alert">
           {tx(lang, "card.shareFailed")}
@@ -119,7 +113,7 @@ export function ShareCard({
           />
           <Fact label={tx(lang, "card.resolution")} value={`${result.width} × ${result.height}`} />
           <Fact label={tx(lang, "card.fpsSet")} value={`${result.fps} fps`} />
-          <Fact label={tx(lang, "card.codec")} value={result.recorderMime} mono />
+          <Fact label={tx(lang, "card.codec")} value={codecLabel(result.recorderMime)} />
           <Fact label={tx(lang, "card.frames")} value={formatCount(lang, result.frames)} />
           <Fact
             label={tx(lang, "card.crop")}
@@ -134,43 +128,6 @@ export function ShareCard({
           ? tx(lang, "card.namesOn", { names: result.drawnTexts.join(", ") })
           : tx(lang, "card.namesOff")}
       </p>
-
-      <div className="share-captions">
-        <h4>{tx(lang, "card.captions")}</h4>
-        {captions.map((caption) => (
-          <div className="share-caption" key={caption.tone}>
-            <div className="share-caption-head">
-              <span className="share-tone">{tx(lang, `card.tone.${caption.tone}`)}</span>
-              <button
-                type="button"
-                className="share-copy"
-                onClick={() => void copy(caption.tone, caption.text)}
-              >
-                {copied === caption.tone ? tx(lang, "card.copied") : tx(lang, "card.copy")}
-              </button>
-            </div>
-            <p className="share-caption-text">{caption.text}</p>
-          </div>
-        ))}
-        {copyFailed && (
-          <p className="share-error" role="alert">
-            {tx(lang, "card.copyFailed")}
-          </p>
-        )}
-      </div>
-
-      <SharePlatforms lang={lang} caption={chosen ?? captions[0]!.text} />
-
-      {SHARE_LINK ? (
-        <p className="share-cta">
-          {tx(lang, "card.cta")}{" "}
-          <a className="share-link" href={SHARE_LINK} target="_blank" rel="noreferrer">
-            {SHARE_LINK}
-          </a>
-        </p>
-      ) : (
-        <p className="share-subtle">{tx(lang, "card.noLink")}</p>
-      )}
 
       <p className="share-subtle">{tx(lang, "card.privacy")}</p>
 

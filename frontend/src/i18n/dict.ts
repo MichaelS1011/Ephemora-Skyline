@@ -3461,17 +3461,14 @@ export const DICT = {
   "card.frames": { en: "Frames composited", de: "Gerahmte Bilder" },
   "card.download": { en: "Save the video", de: "Video speichern" },
   "card.share": { en: "Share the video", de: "Video teilen" },
+  "card.shareFileOnly": {
+    en: "Sharing hands over the video file only — no caption, no link.",
+    de: "Beim Teilen wird nur die Videodatei übergeben — kein Text, kein Link.",
+  },
   "card.shareFailed": {
     en: "Sharing did not open. You can save the file instead.",
     de: "Teilen ließ sich nicht öffnen. Du kannst die Datei stattdessen speichern.",
   },
-  "card.captions": { en: "Text to go with it", de: "Text dazu" },
-  "card.copy": { en: "Copy", de: "Kopieren" },
-  "card.copied": { en: "Copied", de: "Kopiert" },
-  "card.copyFailed": { en: "Copy failed", de: "Kopieren fehlgeschlagen" },
-  "card.tone.dry": { en: "Plain", de: "Trocken" },
-  "card.tone.warm": { en: "Friendly", de: "Freundlich" },
-  "card.tone.curious": { en: "Curious", de: "Neugierig" },
   "card.privacy": {
     en: "Nothing left this machine on the way here. It leaves only if you attach it somewhere.",
     de: "Nichts hat diese Maschine auf dem Weg hier verlassen. Es geht erst raus, wenn du es selbst anhängst.",
@@ -3483,14 +3480,6 @@ export const DICT = {
   "card.namesOn": {
     en: "Names are burned into the picture: {names}.",
     de: "Namen stehen im Bild eingebrannt: {names}.",
-  },
-  "card.noLink": {
-    en: "Made locally. Save it or share it only where you choose.",
-    de: "Lokal erstellt. Speichere oder teile es nur dort, wo du möchtest.",
-  },
-  "card.cta": {
-    en: "We are two self-funded builders making this a little better each day. If the city helped you see your code differently, sharing it or starring the repo helps others find us. Thank you.",
-    de: "Wir sind zwei Entwickler und bauen Ephemora aus eigener Kraft jeden Tag ein Stück weiter. Wenn dir die Stadt einen neuen Blick auf deinen Code gegeben hat, helfen dein Teilen oder ein GitHub-Stern anderen, uns zu finden. Danke.",
   },
   "card.again": { en: "Record another take", de: "Noch einmal aufnehmen" },
   "hint.text": {
@@ -3514,48 +3503,11 @@ export const DICT = {
   },
   "image.download": { en: "Save image", de: "Bild speichern" },
   "image.share": { en: "Share image", de: "Bild teilen" },
+  "image.shareFileOnly": {
+    en: "Sharing hands over the image file only — no caption, no link.",
+    de: "Beim Teilen wird nur die Bilddatei übergeben — kein Text, kein Link.",
+  },
   "image.again": { en: "Choose another view", de: "Andere Ansicht wählen" },
-  "share.platforms": { en: "Post it yourself", de: "Selbst posten" },
-  "share.platformNote": {
-    en: "The file stays on this machine until you attach it. None of these pages can build a preview from a local file, so the text travels by clipboard and the file by download.",
-    de: "Die Datei bleibt auf diesem Rechner, bis du sie selbst anhängst. Keine dieser Seiten kann eine Vorschau von einer lokalen Datei bauen. Der Text geht deshalb über die Zwischenablage, die Datei über den Download.",
-  },
-  "share.platform.instagram": {
-    en: "No web draft for posts exists. The site opens, you add text and file there.",
-    de: "Einen Web-Entwurf für Beiträge gibt es nicht. Die Seite öffnet sich, Text und Datei fügst du dort ein.",
-  },
-  "share.platform.reddit": {
-    en: "Your first line arrives as the post title. Attach the file in the form.",
-    de: "Dein erster Satz kommt als Titel in den Post. Die Datei hängst du im Formular an.",
-  },
-  "share.platform.x": {
-    en: "A draft carries text only, and only up to 280 characters. A longer caption stays in the clipboard.",
-    de: "Ein Entwurf trägt nur Text, und nur bis 280 Zeichen. Ein längerer Text bleibt in der Zwischenablage.",
-  },
-  "share.platform.linkedin": {
-    en: "The preview is read from a public web address. No address is set for this project, so this row stays off.",
-    de: "Die Vorschau wird von einer öffentlichen Web-Adresse gelesen. Für dieses Projekt ist keine gesetzt, deshalb bleibt diese Zeile aus.",
-  },
-  "share.platform.open": {
-    en: "Open {name}",
-    de: "{name} öffnen",
-  },
-  "share.platform.opened": {
-    en: "{name} opened, text in the clipboard",
-    de: "{name} geöffnet, Text in der Zwischenablage",
-  },
-  "share.platform.copyFailed": {
-    en: "The text could not be copied. Use the copy button above the caption instead.",
-    de: "Der Text ließ sich nicht kopieren. Benutze den Kopierknopf über dem Text.",
-  },
-  "share.platform.popupBlocked": {
-    en: "The browser blocked the new tab for {name}. Allow pop-ups for this page.",
-    de: "Der Browser hat den neuen Tab für {name} blockiert. Erlaube Pop-ups für diese Seite.",
-  },
-  "share.platform.off": {
-    en: "Needs a public address",
-    de: "Braucht eine öffentliche Adresse",
-  },
   "image.error": {
     en: "The image could not be created. Move the camera and try again.",
     de: "Das Bild konnte nicht erstellt werden. Bewege die Kamera und versuche es erneut.",

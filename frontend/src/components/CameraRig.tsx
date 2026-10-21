@@ -405,6 +405,7 @@ export function CameraRig() {
   const markRef = useRef<THREE.Mesh>(null);
   const { camera, gl } = useThree();
   const flyRequest = useStore((s) => s.flyRequest);
+  const shareHero = useStore((s) => s.shareHero);
   const setCameraInfo = useStore((s) => s.setCameraInfo);
   const setCityLostView = useStore((s) => s.setCityLostView);
   const cityData = useStore((s) => s.cityData);
@@ -589,6 +590,51 @@ export function CameraRig() {
     const controls = controlsRef.current;
     const fromPos = camera.position.clone();
     const fromTarget = controls ? controls.target.clone() : new THREE.Vector3();
+
+    // A fitted share pose is already a position and a target in world space.
+    // Fly it directly: the usual approachFromCurrentDirection would preserve
+    // whatever azimuth the pilot happened to leave, which is exactly what a
+    // fitted portrait crop cannot tolerate.
+    if (flyRequest.position && flyRequest.target) {
+      const explicitTarget = new THREE.Vector3(
+        flyRequest.target.x,
+        flyRequest.target.y,
+        flyRequest.target.z,
+      );
+      const explicitPos = new THREE.Vector3(
+        flyRequest.position.x,
+        flyRequest.position.y,
+        flyRequest.position.z,
+      );
+      firstFlightRef.current = false;
+      // In free mode the controls target is stale (lookAt never writes it).
+      // Interpolate the view axis from where the camera actually looks.
+      const explicitFrom = fromTarget.clone();
+      if (cameraMode === "free") {
+        camera.getWorldDirection(_dir);
+        explicitFrom.copy(fromPos).addScaledVector(_dir, 12);
+      }
+      const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      if (reduceMotion || !controls || flyRequest.duration === 0) {
+        camera.position.copy(explicitPos);
+        if (cameraMode === "free") {
+          camera.lookAt(explicitTarget);
+        } else if (controls) {
+          controls.target.copy(explicitTarget);
+          controls.update();
+        }
+        return;
+      }
+      tweenRef.current = {
+        fromPos,
+        toPos: explicitPos,
+        fromTarget: explicitFrom,
+        toTarget: explicitTarget,
+        t: 0,
+        dur: flyRequest.duration ?? flightDuration(distance),
+      };
+      return;
+    }
 
     // Direction-preserving approach once the user has a real viewpoint;
     // the very first flight of a fresh city keeps the legacy fallback
@@ -813,6 +859,24 @@ export function CameraRig() {
         controls.update();
       }
       if (tween.t >= 1) tweenRef.current = null;
+    }
+
+    // A share take owns its hook and its last frame. The fitted pose is held
+    // while the city stands and nothing else is flying; this is what keeps the
+    // result-first open and the ending identical even if a stale controls
+    // target or a late stage write would otherwise swing the view away.
+    if (
+      shareHero &&
+      useStore.getState().buildPhase === "built" &&
+      !tweenRef.current &&
+      !crane &&
+      keys.size === 0 &&
+      !dragging.current &&
+      free
+    ) {
+      camera.position.set(shareHero.position.x, shareHero.position.y, shareHero.position.z);
+      _look.set(shareHero.target.x, shareHero.target.y, shareHero.target.z);
+      camera.lookAt(_look);
     }
 
     // Idle drift: after 4 s of no input in orbit mode, the camera slowly

@@ -1,9 +1,6 @@
 import { useState } from "react";
 import type { Lang } from "../i18n";
 import type { CityImage } from "../share/image";
-import { imageCaptionFor, type MeasuredFacts } from "../share/captions";
-import { SharePlatforms } from "../share/Platforms";
-import { SHARE_LINK } from "../share/config";
 import { tx } from "../share/fallbackCopy";
 
 export function ShareImageCard({
@@ -11,20 +8,15 @@ export function ShareImageCard({
   previewUrl,
   lang,
   showNames,
-  facts,
   onAgain,
 }: {
   image: CityImage;
   previewUrl: string;
   lang: Lang;
   showNames: boolean;
-  facts: MeasuredFacts;
   onAgain: () => void;
 }) {
   const [shareFailed, setShareFailed] = useState(false);
-  const [copied, setCopied] = useState(false);
-  const [copyFailed, setCopyFailed] = useState(false);
-  const caption = imageCaptionFor(facts, lang, SHARE_LINK);
   const file = new File([image.blob], image.fileName, { type: "image/png" });
   const canShareFile = (() => {
     try {
@@ -52,15 +44,6 @@ export function ShareImageCard({
       setShareFailed(true);
     }
   };
-  const copy = async (): Promise<void> => {
-    try {
-      await navigator.clipboard.writeText(caption);
-      setCopied(true);
-      setCopyFailed(false);
-    } catch {
-      setCopyFailed(true);
-    }
-  };
   return (
     <section className="share-card" aria-label={tx(lang, "image.ready")}>
       <h3>{tx(lang, "image.ready")}</h3>
@@ -79,6 +62,7 @@ export function ShareImageCard({
           ↗ {tx(lang, "image.share")}
         </button>
       )}
+      {canShareFile && <p className="share-subtle">{tx(lang, "image.shareFileOnly")}</p>}
       {shareFailed && (
         <p className="share-error" role="alert">
           {tx(lang, "card.shareFailed")}
@@ -92,22 +76,7 @@ export function ShareImageCard({
       <p className="share-subtle">
         {image.width} × {image.height} PNG · {image.fileName}
       </p>
-      <div className="share-captions">
-        <div className="share-caption-head">
-          <h4>{tx(lang, "card.captions")}</h4>
-          <button type="button" className="share-copy" onClick={() => void copy()}>
-            {copied ? tx(lang, "card.copied") : tx(lang, "card.copy")}
-          </button>
-        </div>
-        <p className="share-caption-text">{caption}</p>
-        {copyFailed && (
-          <p className="share-error" role="alert">
-            {tx(lang, "card.copyFailed")}
-          </p>
-        )}
-      </div>
       <p className="share-subtle">{tx(lang, "card.privacy")}</p>
-      <SharePlatforms lang={lang} caption={caption} />
       <button type="button" className="share-again" onClick={onAgain}>
         {tx(lang, "image.again")}
       </button>

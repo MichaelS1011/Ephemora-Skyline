@@ -7,6 +7,8 @@ import {
   CAPTURE_FORMATS,
   FORMAT_ORDER,
   MAX_SKEW,
+  MIME_CANDIDATES,
+  extensionForMime,
   fitRect,
   framingBox,
   pickMimeType,
@@ -62,12 +64,34 @@ describe("the codec handed to MediaRecorder", () => {
     );
   });
 
+  it("prefers MP4/H.264, the file social platforms accept", () => {
+    expect(MIME_CANDIDATES[0]).toContain("video/mp4");
+    const supported = (type: string): boolean => type.startsWith("video/mp4");
+    expect(pickMimeType(MIME_CANDIDATES, supported)).toBe("video/mp4;codecs=avc1.42E01E");
+  });
+
+  it("falls back to WebM only when MP4 is not offered", () => {
+    const supported = (type: string): boolean => type.startsWith("video/webm");
+    expect(pickMimeType(MIME_CANDIDATES, supported)).toBe("video/webm;codecs=vp9");
+  });
+
   it("says null when nothing is supported, which is what disables recording", () => {
     expect(pickMimeType(["video/webm;codecs=vp9"], () => false)).toBeNull();
   });
 
   it("never invents a codec the browser did not accept", () => {
     expect(pickMimeType(["video/mp4"], () => false)).toBeNull();
+  });
+
+  it("names the container's extension from the accepted type", () => {
+    expect(extensionForMime("video/mp4;codecs=avc1.42E01E")).toBe("mp4");
+    expect(extensionForMime("video/webm;codecs=vp9")).toBe("webm");
+  });
+
+  it("records the three formats at 1080p, not 720p", () => {
+    expect(CAPTURE_FORMATS["16x9"]).toMatchObject({ width: 1920, height: 1080, fps: 30 });
+    expect(CAPTURE_FORMATS["1x1"]).toMatchObject({ width: 1080, height: 1080, fps: 30 });
+    expect(CAPTURE_FORMATS["9x16"]).toMatchObject({ width: 1080, height: 1920, fps: 30 });
   });
 });
 

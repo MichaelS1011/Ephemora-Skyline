@@ -64,9 +64,14 @@ export function frameTexts(
  * explicit opt-in that puts names into the picture. Control characters and
  * separators are dropped from the opt-in name.
  */
-export function downloadFileName(repoName: string, takenAt: Date, showNames = false): string {
+export function downloadFileName(
+  repoName: string,
+  takenAt: Date,
+  showNames = false,
+  extension: "mp4" | "webm" = "webm",
+): string {
   const name = showNames ? safeFilePart(repoName) : "city";
-  return `ephemora-${name}-${datePart(takenAt)}.webm`;
+  return `ephemora-${name}-${datePart(takenAt)}.${extension}`;
 }
 
 /** One filesystem segment: no separators, no control characters, ≤ 48 chars. */

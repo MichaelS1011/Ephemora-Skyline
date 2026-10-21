@@ -508,7 +508,7 @@ describe("der erste Verdict bekommt sein ehrliches Versprechen", () => {
   });
 
   /**
-   * The demo city (`analysisId === "demo-001"`, the same flag share/captions.ts
+   * The demo city (`analysisId === "demo-001"`, the same flag the share result
    * uses) has no folder and saves nothing anywhere — the saved promise would be
    * a lie there, which is exactly what the Erstnutzerin saw. The demo gets its
    * own honest sentence, in the panel's language and without the saved-check.

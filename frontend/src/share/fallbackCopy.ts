@@ -58,19 +58,11 @@ export type ShareKey =
   | "card.frames"
   | "card.download"
   | "card.share"
+  | "card.shareFileOnly"
   | "card.shareFailed"
-  | "card.captions"
-  | "card.copy"
-  | "card.copied"
-  | "card.copyFailed"
-  | "card.tone.dry"
-  | "card.tone.warm"
-  | "card.tone.curious"
   | "card.privacy"
   | "card.namesOff"
   | "card.namesOn"
-  | "card.noLink"
-  | "card.cta"
   | "card.again"
   | "hint.text"
   | "hint.action"
@@ -84,6 +76,7 @@ export type ShareKey =
   | "image.crop"
   | "image.download"
   | "image.share"
+  | "image.shareFileOnly"
   | "image.again"
   | "image.error";
 
@@ -171,17 +164,14 @@ const COPY: Record<ShareKey, { en: string; de: string }> = {
   "card.frames": { en: "Frames composited", de: "Gerahmte Bilder" },
   "card.download": { en: "Save the video", de: "Video speichern" },
   "card.share": { en: "Share the video", de: "Video teilen" },
+  "card.shareFileOnly": {
+    en: "Sharing hands over the video file only — no caption, no link.",
+    de: "Beim Teilen wird nur die Videodatei übergeben — kein Text, kein Link.",
+  },
   "card.shareFailed": {
     en: "Sharing did not open. You can save the file instead.",
     de: "Teilen ließ sich nicht öffnen. Du kannst die Datei stattdessen speichern.",
   },
-  "card.captions": { en: "Text to go with it", de: "Text dazu" },
-  "card.copy": { en: "Copy", de: "Kopieren" },
-  "card.copied": { en: "Copied", de: "Kopiert" },
-  "card.copyFailed": { en: "Copy failed", de: "Kopieren fehlgeschlagen" },
-  "card.tone.dry": { en: "Plain", de: "Trocken" },
-  "card.tone.warm": { en: "Friendly", de: "Freundlich" },
-  "card.tone.curious": { en: "Curious", de: "Neugierig" },
   "card.privacy": {
     en: "Nothing left this machine on the way here. It leaves only if you attach it somewhere.",
     de: "Nichts hat diese Maschine auf dem Weg hier verlassen. Es geht erst raus, wenn du es selbst anhängst.",
@@ -193,14 +183,6 @@ const COPY: Record<ShareKey, { en: string; de: string }> = {
   "card.namesOn": {
     en: "Names are burned into the picture: {names}.",
     de: "Namen stehen im Bild eingebrannt: {names}.",
-  },
-  "card.noLink": {
-    en: "Made locally. Save it or share it only where you choose.",
-    de: "Lokal erstellt. Speichere oder teile es nur dort, wo du möchtest.",
-  },
-  "card.cta": {
-    en: "We are two self-funded builders making this a little better each day. If the city helped you see your code differently, sharing it or starring the repo helps others find us. Thank you.",
-    de: "Wir sind zwei Entwickler und bauen Ephemora aus eigener Kraft jeden Tag ein Stück weiter. Wenn dir die Stadt einen neuen Blick auf deinen Code gegeben hat, helfen dein Teilen oder ein GitHub-Stern anderen, uns zu finden. Danke.",
   },
   "card.again": { en: "Record another take", de: "Noch einmal aufnehmen" },
   "hint.text": {
@@ -224,6 +206,10 @@ const COPY: Record<ShareKey, { en: string; de: string }> = {
   },
   "image.download": { en: "Save image", de: "Bild speichern" },
   "image.share": { en: "Share image", de: "Bild teilen" },
+  "image.shareFileOnly": {
+    en: "Sharing hands over the image file only — no caption, no link.",
+    de: "Beim Teilen wird nur die Bilddatei übergeben — kein Text, kein Link.",
+  },
   "image.again": { en: "Choose another view", de: "Andere Ansicht wählen" },
   "image.error": {
     en: "The image could not be created. Move the camera and try again.",

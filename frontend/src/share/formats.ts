@@ -27,43 +27,53 @@ export const CAPTURE_FORMATS: Record<FormatId, CaptureFormat> = {
   "16x9": {
     id: "16x9",
     aspect: 16 / 9,
-    width: 1280,
-    height: 720,
+    width: 1920,
+    height: 1080,
     fps: 30,
-    bitsPerSecond: 6_000_000,
+    bitsPerSecond: 10_000_000,
   },
   "1x1": {
     id: "1x1",
     aspect: 1,
-    width: 960,
-    height: 960,
+    width: 1080,
+    height: 1080,
     fps: 30,
-    bitsPerSecond: 5_000_000,
+    bitsPerSecond: 8_000_000,
   },
   "9x16": {
     id: "9x16",
     aspect: 9 / 16,
-    width: 720,
-    height: 1280,
+    width: 1080,
+    height: 1920,
     fps: 30,
-    bitsPerSecond: 6_000_000,
+    bitsPerSecond: 10_000_000,
   },
 };
 
 export const FORMAT_ORDER: FormatId[] = ["16x9", "1x1", "9x16"];
 
 /**
- * Codec preference. Asked of the browser one entry at a time, so the string
- * shown in the UI is the one `MediaRecorder` was actually handed, not a guess
- * about what this machine encodes.
+ * Codec preference, MP4 first.
+ *
+ * A WebM file is a fine recording and a poor post: X, LinkedIn, Instagram and
+ * TikTok accept MP4/H.264 far more reliably. Chrome, Edge and Safari answer the
+ * MP4 profiles below; Firefox may not, so WebM stays as the fallback and the
+ * UI always names the codec the recorder actually opened with. Asked of the
+ * browser one entry at a time — never assumed from the user agent.
  */
 export const MIME_CANDIDATES = [
-  "video/webm;codecs=vp9,opus",
+  "video/mp4;codecs=avc1.42E01E",
+  "video/mp4;codecs=avc1.4D401F",
+  "video/mp4",
   "video/webm;codecs=vp9",
-  "video/webm;codecs=vp8,opus",
   "video/webm;codecs=vp8",
   "video/webm",
 ];
+
+/** The container's extension, derived from the type the recorder accepted. */
+export function extensionForMime(mimeType: string): "mp4" | "webm" {
+  return mimeType.toLowerCase().includes("mp4") ? "mp4" : "webm";
+}
 
 export function pickMimeType(
   candidates: string[] = MIME_CANDIDATES,

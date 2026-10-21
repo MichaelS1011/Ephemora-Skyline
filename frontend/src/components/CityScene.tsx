@@ -91,6 +91,7 @@ export function CityScene() {
   const focusPath = useStore((s) => s.focusPath);
   const requestFly = useStore((s) => s.requestFly);
   const poseRequest = useStore((s) => s.poseRequest);
+  const shareHero = useStore((s) => s.shareHero);
   const buildStartedAt = useStore((s) => s.buildStartedAt);
   const buildPhase = useStore((s) => s.buildPhase);
   const { camera, gl } = useThree();
@@ -190,25 +191,38 @@ export function CityScene() {
     if (!cityData || buildPhase !== "built") return;
     if (craneBuildRef.current !== buildStartedAt || overviewRef.current === buildStartedAt) return;
     overviewRef.current = buildStartedAt;
-    if (poseRequest) return;
-    const layout = getDirLayout(cityData, defaultOverviewPath(cityData));
-    const tallest = Math.max(
-      0,
-      ...layout.blocks.flatMap((b) => b.skyline.map((s) => s.h)),
-      ...layout.buildings.map((b) => b.h),
-    );
-    const shot = overviewShot(layout.bounds, tallest);
-    requestFly({
-      x: layout.centre.x,
-      z: layout.centre.z,
-      distance: Math.min(shot.dist, 85),
-      targetY: shot.targetY,
-      elevation: 0.28,
-      duration: REVEAL_FLIGHT_MS / 1000,
-    });
+    if (poseRequest && !shareHero) return;
+    if (shareHero) {
+      // A share take owns its last frame: fly to the same fitted pose the
+      // take opened on, so the result-first hook and the ending are one shot
+      // and the platform loop has nowhere to jump. The build director's last
+      // crane shot must not keep writing the camera after the flight lands.
+      useStore.getState().setCraneFraming(null);
+      requestFly({
+        position: shareHero.position,
+        target: shareHero.target,
+        duration: REVEAL_FLIGHT_MS / 1000,
+      });
+    } else {
+      const layout = getDirLayout(cityData, defaultOverviewPath(cityData));
+      const tallest = Math.max(
+        0,
+        ...layout.blocks.flatMap((b) => b.skyline.map((s) => s.h)),
+        ...layout.buildings.map((b) => b.h),
+      );
+      const shot = overviewShot(layout.bounds, tallest);
+      requestFly({
+        x: layout.centre.x,
+        z: layout.centre.z,
+        distance: Math.min(shot.dist, 85),
+        targetY: shot.targetY,
+        elevation: 0.28,
+        duration: REVEAL_FLIGHT_MS / 1000,
+      });
+    }
     const pulse = armRevealPulse(cityData, Date.now(), prefersReducedMotion());
     if (pulse) useStore.setState({ revealPulse: pulse });
-  }, [cityData, buildPhase, buildStartedAt, requestFly, poseRequest]);
+  }, [cityData, buildPhase, buildStartedAt, requestFly, poseRequest, shareHero]);
 
   const frame = useMemo(() => {
     if (!cityData) return { bounds: 60, centre: { x: 0, z: 0 }, radius: 60, surface: FLAT_SURFACE };

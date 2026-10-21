@@ -21,11 +21,11 @@ import {
   CAPTURE_FORMATS,
   MAX_SKEW,
   MIME_CANDIDATES,
+  extensionForMime,
   pickMimeType,
   type FormatId,
 } from "../share/formats";
 import { downloadFileName, frameTexts } from "../share/privacy";
-import { measuredFacts, type MeasuredFacts } from "../share/captions";
 
 export type LengthMode =
   { kind: "build" } | { kind: "seconds"; seconds: number } | { kind: "manual" };
@@ -38,7 +38,6 @@ export type CaptureErrorKey =
 export interface CaptureResult extends RecordingMeasurement {
   fileName: string;
   previewUrl: string;
-  facts: MeasuredFacts;
 }
 
 export interface StartOptions {
@@ -48,10 +47,19 @@ export interface StartOptions {
   showNames: boolean;
   includeCredit: boolean;
   length: LengthMode;
+  /** The fitted start/end pose for this output aspect. */
+  hero?: {
+    position: { x: number; y: number; z: number };
+    target: { x: number; y: number; z: number };
+  };
+  /** Open on the finished city for a beat before replaying the build. */
+  hook?: boolean;
 }
 
 /** How often the live counters are read while a shot runs. */
 const TICK_MS = 200;
+/** Result-first hook: long enough to read the city, short enough to keep. */
+const HOOK_MS = 700;
 
 export function useCityCapture() {
   const buildPhase = useStore((s) => s.buildPhase);
@@ -67,10 +75,11 @@ export function useCityCapture() {
   } | null>(null);
 
   const recorderRef = useRef<CityRecorder | null>(null);
-  const pendingRef = useRef<{ fileName: string; facts: MeasuredFacts } | null>(null);
+  const pendingRef = useRef<{ fileName: string } | null>(null);
   const urlRef = useRef<string | null>(null);
   const timerRef = useRef<number | null>(null);
   const autoStopRef = useRef<number | null>(null);
+  const hookTimerRef = useRef<number | null>(null);
   const lengthRef = useRef<LengthMode>({ kind: "manual" });
   const sawConstructionRef = useRef(false);
   const runIdRef = useRef(0);
@@ -88,6 +97,10 @@ export function useCityCapture() {
       window.clearTimeout(autoStopRef.current);
       autoStopRef.current = null;
     }
+    if (hookTimerRef.current !== null) {
+      window.clearTimeout(hookTimerRef.current);
+      hookTimerRef.current = null;
+    }
   }, []);
 
   const finish = useCallback(
@@ -99,6 +112,7 @@ export function useCityCapture() {
         (measurement) => {
           if (runId !== runIdRef.current) return;
           recorderRef.current = null;
+          useStore.getState().setShareHero(null);
           const pending = pendingRef.current;
           if (measurement.bytes === 0 || !pending) {
             setPhase("failed");
@@ -123,6 +137,7 @@ export function useCityCapture() {
           if (runId !== runIdRef.current) return;
           recorder.dispose();
           recorderRef.current = null;
+          useStore.getState().setShareHero(null);
           setPhase("failed");
           setError({ key: "studio.errorNoRecorder" });
         },
@@ -151,6 +166,17 @@ export function useCityCapture() {
         setError({ key: "studio.errorNoCanvas" });
         return;
       }
+      // The hero is fitted for the output aspect before the canvas takes that
+      // aspect, so the projection and the pose agree by the time the encoder
+      // opens. duration 0 is a cut: the take starts on the finished city.
+      if (options.hero) {
+        useStore.getState().setShareHero(options.hero);
+        useStore.getState().requestFly({
+          position: options.hero.position,
+          target: options.hero.target,
+          duration: 0,
+        });
+      }
       let recorder: CityRecorder | null = null;
       try {
         recorder = new CityRecorder({
@@ -161,12 +187,21 @@ export function useCityCapture() {
           frameTexts: () => frameTexts(options.city, options.focusPath, options.showNames),
           includeCredit: options.includeCredit,
           onEncoderStarted: () => {
-            if (options.length.kind === "build") useStore.getState().replayConstruction();
+            if (options.length.kind !== "build") return;
+            if (options.hook) {
+              hookTimerRef.current = window.setTimeout(() => {
+                hookTimerRef.current = null;
+                useStore.getState().replayConstruction();
+              }, HOOK_MS);
+            } else {
+              useStore.getState().replayConstruction();
+            }
           },
         });
         recorder.start();
       } catch (cause) {
         recorder?.dispose();
+        useStore.getState().setShareHero(null);
         setPhase("failed");
         setError({
           key:
@@ -179,8 +214,12 @@ export function useCityCapture() {
       recorderRef.current = recorder;
       runIdRef.current += 1;
       pendingRef.current = {
-        fileName: downloadFileName(options.city.repo.name, new Date(), options.showNames),
-        facts: measuredFacts(options.city),
+        fileName: downloadFileName(
+          options.city.repo.name,
+          new Date(),
+          options.showNames,
+          extensionForMime(mimeType),
+        ),
       };
       lengthRef.current = options.length;
       sawConstructionRef.current = useStore.getState().buildPhase === "constructing";
@@ -229,6 +268,7 @@ export function useCityCapture() {
       urlRef.current = null;
     }
     pendingRef.current = null;
+    useStore.getState().setShareHero(null);
     setResult(null);
     setError(null);
     setBytes(0);

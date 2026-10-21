@@ -73,11 +73,27 @@ export interface FlyRequest {
    *  current viewing angle — fine for user-driven flights, but building/tour
    *  shots must pass an explicit value or the angle drifts steeper per hop. */
   elevation?: number;
+  /**
+   * Explicit camera position and look-at target. The share director uses this
+   * when it has already fitted the frame for the output aspect; it overrides
+   * the x/z/distance/overview derivation so the shot cannot swing around a
+   * stale viewpoint on its way to the hero pose.
+   */
+  position?: { x: number; y: number; z: number };
+  target?: { x: number; y: number; z: number };
   nonce: number;
 }
 
-/** A scripted flight, as asked for by the caller (the rig adds the nonce). */
-export type FlyOptions = Omit<FlyRequest, "nonce" | "distance"> & { distance?: number };
+/**
+ * A scripted flight, as asked for by the caller (the rig adds the nonce).
+ * x/z are optional only for an explicit position/target pose; every other
+ * caller still names the point it wants to look at.
+ */
+export type FlyOptions = Omit<FlyRequest, "nonce" | "distance" | "x" | "z"> & {
+  distance?: number;
+  x?: number;
+  z?: number;
+};
 
 /** One pose the address asked to be put back on the camera. */
 export interface PoseRequest {
@@ -262,6 +278,21 @@ interface AppState {
    */
   poseRequest: PoseRequest | null;
   requestPose: (pose: CameraPose | null) => void;
+  /**
+   * The fitted start/end pose of a share take. While it is set, the build's
+   * reveal flies here instead of the normal overview, so a result-first hook
+   * and the final frame are the same shot — the loop closes.
+   */
+  shareHero: {
+    position: { x: number; y: number; z: number };
+    target: { x: number; y: number; z: number };
+  } | null;
+  setShareHero: (
+    hero: {
+      position: { x: number; y: number; z: number };
+      target: { x: number; y: number; z: number };
+    } | null,
+  ) => void;
   cameraInfo: CameraInfo;
   setCameraInfo: (info: CameraInfo) => void;
   /** The pilot has flown so far that no corner of the level is in frame. The
@@ -694,6 +725,7 @@ export const useStore = create<AppState>((set, get) => {
       selectedResident: null,
       residentCall: 0,
       residentPoint: null,
+      shareHero: null,
     });
     if (typeof window !== "undefined") clearVisitParams(push);
   };
@@ -1041,10 +1073,12 @@ export const useStore = create<AppState>((set, get) => {
     exitOrbit: () => set({ cameraMode: "free" }),
 
     flyRequest: null,
-    requestFly: ({ distance = 40, ...rest }) =>
-      set({ flyRequest: { ...rest, distance, nonce: ++flyNonce } }),
+    requestFly: ({ distance = 40, x = 0, z = 0, ...rest }) =>
+      set({ flyRequest: { ...rest, x, z, distance, nonce: ++flyNonce } }),
     poseRequest: null,
     requestPose: (pose) => set({ poseRequest: pose ? { pose, nonce: ++poseNonce } : null }),
+    shareHero: null,
+    setShareHero: (hero) => set({ shareHero: hero }),
     cameraInfo: { x: 0, z: 60, angle: 0, dist: 80 },
     setCameraInfo: (info) => set({ cameraInfo: info }),
     cityLostView: false,

@@ -205,6 +205,10 @@ describe("the saved file is named after the project, never the disk", () => {
     expect(downloadFileName("", taken)).toBe("ephemora-city-2026-10-08.webm");
   });
 
+  it("wears the extension of the container the recorder actually opened", () => {
+    expect(downloadFileName("city", taken, false, "mp4")).toBe("ephemora-city-2026-10-08.mp4");
+  });
+
   it("is local-date, not UTC, so it matches the day on the user's screen", () => {
     expect(downloadFileName("p", new Date(2026, 0, 1, 0, 5))).toContain("2026-01-01");
   });
