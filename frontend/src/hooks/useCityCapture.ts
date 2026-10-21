@@ -45,7 +45,6 @@ export interface StartOptions {
   focusPath: string[];
   format: FormatId;
   showNames: boolean;
-  includeCredit: boolean;
   length: LengthMode;
   /** The fitted start/end pose for this output aspect. */
   hero?: {
@@ -185,7 +184,6 @@ export function useCityCapture() {
           canvas: scene.canvas,
           wrapper: scene.wrapper,
           frameTexts: () => frameTexts(options.city, options.focusPath, options.showNames),
-          includeCredit: options.includeCredit,
           onEncoderStarted: () => {
             if (options.length.kind !== "build") return;
             if (options.hook) {

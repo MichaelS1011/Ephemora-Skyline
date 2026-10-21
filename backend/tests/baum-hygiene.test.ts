@@ -378,7 +378,10 @@ describe("what is linked also ships", () => {
     // A runtime file the program itself writes (~/.ephemora-skyline/...) is
     // not part of what a commit ships — but the privacy promise REQUIRES the
     // docs to name it. That is a deliberate pointer, not a broken one.
-    const RUNTIME_PATHS = [/^\.ephemora-skyline\//];
+    // Anchored on the start, this was directory-sensitive: the same runtime path
+    // named from docs/PRIVACY.md resolved against docs/ and read as a broken
+    // pointer. The home directory is the same file from any document.
+    const RUNTIME_PATHS = [/(^|\/)\.ephemora-skyline\//];
     const broken: string[] = [];
     for (const [rel, docs] of referenced) {
       if (RUNTIME_PATHS.some((re) => re.test(rel))) continue;

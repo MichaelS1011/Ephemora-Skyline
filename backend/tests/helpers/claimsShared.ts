@@ -1,7 +1,7 @@
 import { expect } from "vitest";
 import { existsSync, readFileSync, readdirSync } from "fs";
 import path from "path";
-import { emptyDroppedFiles } from "../../src/services/analyzer/orchestrator.js";
+import type { emptyDroppedFiles } from "../../src/services/analyzer/orchestrator.js";
 
 /**
  * The pieces both claims guards share, after the 2026-10-16 split of
@@ -30,6 +30,10 @@ export const SURFACES = [
   "CONTRIBUTING.md",
   "docs/GETTING_STARTED.md",
   "docs/ARCHITECTURE.md",
+  "docs/API.md",
+  "docs/PRIVACY.md",
+  "docs/LIMITS.md",
+  "docs/SCANNERS.md",
 ];
 
 export type Manifest = {

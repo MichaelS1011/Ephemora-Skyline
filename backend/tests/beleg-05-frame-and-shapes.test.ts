@@ -6,7 +6,7 @@ import { maskSecretText } from "../src/services/security/redact.js";
  * BELEG-02 — what a finding card quotes, and what it must not quote.
  *
  * README.md:70 promises "the line the rule matched with two lines either side
- * read out of your copy of the file"; README.md:122 promises "a finding stores
+ * read out of your copy of the file"; docs/PRIVACY.md:15 promises "a finding stores
  * the line it was found on plus a two-line code frame" and names the token
  * shapes the erasure hides "GitHub, AWS, Slack, Google, Stripe, OpenAI, npm,
  * JWT, private-key headers". The data is the frame builder and the masking
@@ -98,7 +98,7 @@ describe("the shapes the erasure knows (README.md:118)", () => {
    * GitHub issues today, reads `github_pat_…` and matches no pattern in the table
    * (`gh[pousr]_` needs g/h followed by p,o,u,s,r and an underscore).
    */
-  it("hides a GitHub fine-grained token behind an innocuous name (README.md:124)", () => {
+  it("hides a GitHub fine-grained token behind an innocuous name (docs/PRIVACY.md:17)", () => {
     const token = "github_pat_" + "11ABCDEFG0abcdefghijklmn_9Z8y7x6w5v4u3t2s1r0q";
     const masked = maskSecretText(`const pat = "${token}";`);
     expect(masked, `fine-grained PAT survived masking: ${masked}`).not.toContain(token);

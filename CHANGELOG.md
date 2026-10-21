@@ -109,15 +109,15 @@ read` and names the way to a full read; the header says `2,000 sampled files`
 - **Two Escape rows in the shortcut list** — the share studio and the project
   card each close on one `Esc`, and both files are now inside the registry
   guard that checks a list against the handlers.
-- **A demo clip and a refreshed capture set** on the entry surface: 28,5 s of
-  playback filmed from the running build (800 × 500, 15 fps, 442 KB, one video
-  stream and no audio track), plus eleven frames shot from the same build — the
-  ten of README's “The look” and the poster — replacing the set from 2026-10-07.
+- **A demo clip and a refreshed capture set** on the entry surface: 27,2 s of
+  playback filmed from the running build (1600 × 1000 and 30 fps, 2.595 KB, one
+  video stream and no audio track), plus eleven frames shot from the same build —
+  the ten of README's “The look” and the poster — replacing the set from 2026-10-07.
   Film and visit take the same time: every output frame is the nearest captured
-  frame to _i_/15 s, so the only thing the clip does with the wall clock is hold
-  a frame where the page painted slowly (mean 0,0035 s, largest 0,1193 s). The
-  poster beside the clip link is its own 1280 × 800 frame of the finished city,
-  not a frame of the clip, and the README no longer lends the clip's numbers to
+  frame to _i_/30 s, so the only thing the clip does with the wall clock is hold
+  a frame where the page painted slowly. The poster beside the clip link is its
+  own 2400 × 1500 frame of the finished city, not a frame of the clip, and the
+  README no longer lends the clip's numbers to
   it. Each caption is checked against the pixels it describes:
   the security-mode line now quotes the measured difference between its own two
   frames, split by channel — the dimmed towers and the mode bar's active chip —
@@ -417,6 +417,98 @@ Datenabfluss bewiesen` instead of the hygiene line `Keine Schwachstelle`; and
 
 ### Changed
 
+- **The resident's offer outlives the card it arrived on.** Measured on the
+  running app before this change: the announcement speaks in a resident's voice —
+  „Your project is a city. Shall I walk you to the findings?" — for exactly
+  **9.0 s**, then folds into its strip and the offer is gone, and one resident
+  waves once for **3.4 s** at the arrival pose. A reader who looks up late meets
+  neither. Now the folded strip carries the same verb (`frontend/src/components/
+ScanSummary.tsx`), so the offer stands as long as the city does, and while it
+  stands one resident in the frame waves again every **20 s**
+  (`frontend/src/city/residentGreeting.ts`, asked once a second by the crowd).
+  Both end on the reader's own answer: taking the verb, calling a resident, or
+  closing the card — a refusal is never asked a second time, and a guided flow,
+  an open file or a called resident owns the stage in the meantime. Measured
+  after: one verb on screen at every sampled instant (card, then strip, never
+  two, never zero while open), the strip verb mounts `.security-tour` and drops
+  to zero verbs, and the strip's line is **17 words**. `arrival-budget.test.tsx`
+  23 → 27 tests, `resident-greeting.test.ts` adds 5. Public numbers moved with
+  the two new source files: the reader's set **516 → 518**, the scanner's
+  **495 → 497**, test files **241 → 242** (frontend **157 → 158**).
+- **The exported file carries the product mark, and there is no switch for it.**
+  The credit left the row of options and became part of the picture: every
+  recorded frame and every exported PNG is drawn with `by Ephemora Skyline` and
+  the brand dot in the lower-right corner. The mark's type now scales with the
+  **short** side (23 px at a 1080-pixel edge), not the height, so a 9:16 take no
+  longer carries a 40 px billboard. That corner belongs to the mark, so the names
+  band gets the room that is left — smaller type first, then a cut name, never a
+  plate underneath the mark. Measured in the running app with names on: 16:9 band
+  38 → 1259 px against the mark at 1580 → 1890 (**321 px** clear), 1:1 band
+  38 → 709 against 740 → 1050 (**31 px** clear, the band clipped to `infras…`),
+  9:16 band 67 → 673 against 740 → 1050 (**67 px** clear). That the mark is in
+  the **file**, not only in the canvas, was read back out of a recorded take: a
+  4.0 s MP4/H.264 1920 × 1080 with 238 composited frames and 761,616 bytes,
+  decoded in the browser at 1 s and near the end, carries **979** and **983** ink
+  pixels plus **46** vermilion pixels in the mark's box; the three PNG exports
+  carry 1,005 / 1,005 / 970. `frontend/tests/share-anonymity.test.tsx` (18 tests)
+  pins the layout claim per format and that the studio now holds exactly **one**
+  checkbox — the names switch, which still defaults to off. The result cards say
+  what is in the file: "Burned in too, and not switchable: by Ephemora Skyline."
+- **The README's pictures now show the README's numbers.** Cropping the header
+  out of each shipped frame found the same defect the demo clip had: the city
+  shots said **73 files** and **7 findings in 6 files** while the text had said
+  **74** and **8** for a week. All nine frames were re-shot from this build
+  (1600 × 1000, headless, `--use-angle=metal`, 0 console errors), and three
+  captions were wrong against their own picture and fixed: the structure frame
+  shows no city map (it is a menu row now), the settings frame shows the profiles
+  without claiming five, and the More-menu frame never held a language switch or a
+  version note. The security pair now measures **2,49 %** differing pixels and a
+  median colour sum of **403 → 268**; its guard had asserted "over 98 %
+  identical" as a stand-in for that claim and a closer framing broke it while the
+  claim held, so `beleg-06-frame-pixels.test.ts` now checks the five regions the
+  sentence names as byte-identical (sky, grass, header, project panel, dock —
+  0 differing pixels each) and keeps a 97 % floor. Two more text claims were
+  checked against the code and corrected: the arrival budget is **four** surfaces
+  plus the notice, not "five surfaces", and the podium does not say "+N more
+  files" — it says "{drawn} of {files} files here stand as buildings, a folder
+  draws at most {cap}".
+- **The README is a first read again.** It carried **7,040 words** — a stranger
+  opened the repository and got a 271-line document, with the privacy model, the
+  self-scan distribution and the endpoint reference all inline. It is now
+  **179 lines / 3,575 words**, of which 1,083 sit in tables: the same facts, with
+  the argument moved to the file that holds it. Nothing was deleted on the way —
+  `docs/PRIVACY.md` (staging, masking, fingerprints, retention, the one model
+  request), `docs/LIMITS.md` (where all 38 self-scan findings sit, the classes no
+  rule covers, the colour weakness kept open by number), `docs/SCANNERS.md` (rule
+  packs and their licence), `docs/API.md` (the route table) and
+  `docs/ARCHITECTURE.md` (source map, live delta, where the rail saturates)
+  received it, and all four new files joined `SURFACES`, so the forbidden-wording
+  and secrecy guards read them like the README. The 21 places where a test reads
+  the README as evidence kept working: **25 line citations were re-pointed** by
+  matching each citation's own old sentence against the new tree rather than by
+  guessing, 5 of them gained the quote the ratchet asks for, and the walked pair
+  moved with the four new documents (**512 → 516** admitted, 495 read). Two
+  promises the cut had silently dropped — the summary that adds the numbers up,
+  and the excluded-folders field that "caps the list at fifty" — were put back.
+  `backend/tests/baum-hygiene.test.ts` also had a real bug found by the move: its
+  runtime-path exemption was anchored to the start of the resolved path, so the
+  same `~/.ephemora-skyline/verdicts.json` named from `docs/` read as a broken
+  pointer.
+- **The example clip and its poster show the app that ships.** The README sold
+  one visit in words and another in pictures: its text says **74 sample files**
+  and **8 findings**, while the clip was filmed on 12 October with **73 / 7**,
+  the triage word `Reviewed` — renamed to `No action needed` on 21 October — and
+  the chrome before the glass pass, and the poster came from a third UI
+  generation on 16 October. Both are re-shot from this build. The clip is
+  **817 frames over 27,233 s at 1600 × 1000 and 30 fps, 2.595 KB**, one video
+  stream, no audio, `mvhd` rate 1.0 and a single constant delta in its sample
+  table; the film takes as long as the visit because every output slot takes the
+  screencast frame nearest its own timestamp (a gap repeats a frame, it moves
+  none). The poster is its own capture at **2400 × 1500 and 1.413 KB**, taken
+  once the resident card has left the DOM — its lifetime is not fixed: gone
+  after ~14 s in one run, after ~29 s in the next.
+  `backend/tests/beleg-04-demo-clip.test.ts` reads the README sentence and the
+  clip's own boxes, so the two cannot drift apart again.
 - **A recorded city opens on its result.** The take no longer starts on an empty
   lot: it opens on the **finished city** at a camera fitted to the output
   format, holds **0.7 s**, cuts hard to the empty site, builds, and flies back

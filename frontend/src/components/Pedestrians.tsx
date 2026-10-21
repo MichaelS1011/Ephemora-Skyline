@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useLayoutEffect, useMemo, useRef } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef } from "react";
 import { useFrame, useThree, type ThreeEvent } from "@react-three/fiber";
 import * as THREE from "three";
 import { useStore } from "../stores/useStore";
@@ -18,6 +18,7 @@ import {
   type Transit,
 } from "../city/openWorldStreets";
 import { prefersReducedMotion, reducedSettle } from "../city/motion";
+import { owesWave, WAVE_HOLD_S } from "../city/residentGreeting";
 import {
   ACCEL,
   footCycle,
@@ -477,6 +478,7 @@ export function Pedestrians({
   const residentGreet = useStore((s) => s.residentGreet);
   const residentGreeted = useStore((s) => s.residentGreeted);
   const markResidentGreeted = useStore((s) => s.markResidentGreeted);
+  const residentOffer = useStore((s) => s.residentOffer);
   const residentRingRef = useRef<THREE.InstancedMesh | null>(null);
   const bodyRef = useRef<THREE.InstancedMesh>(null);
   const headRef = useRef<THREE.InstancedMesh>(null);
@@ -776,12 +778,9 @@ export function Pedestrians({
   // chosen once one actually projects into the frame; measured on the running
   // demo, the first instant had the camera pointed elsewhere and six eligible
   // residents projected to zero pixels.
-  useEffect(() => {
-    if (residentGreet === 0 || residentGreeted === residentGreet) return;
-    if (prefersReducedMotion()) {
-      markResidentGreeted(residentGreet);
-      return;
-    }
+  /** When the crowd last waved, in the simulation's own seconds. */
+  const lastWaveS = useRef(0);
+  const pickGreeter = useCallback((): boolean => {
     const projected = new THREE.Vector3();
     const target = new THREE.Vector3();
     const ray = new THREE.Raycaster();
@@ -789,54 +788,61 @@ export function Pedestrians({
     scene.traverse((o) => {
       if ((o as THREE.Mesh).isMesh) occluders.push(o);
     });
-    const pick = (): boolean => {
-      // A timer runs between frames; the camera's inverse world matrix is only
-      // refreshed by the renderer. Without this the position was current and
-      // the projection still pointed along the previous leg of the arrival.
-      camera.updateMatrixWorld();
-      let best = -1;
-      let bestDistance = Infinity;
-      for (let i = 0; i < walkers.length; i++) {
-        const e = walkers[i]!;
-        if (e.hidden || e.mode !== "walk" || e.greetUntil > sim.current.time) continue;
-        projected.set(e.x, 1, e.z).project(camera);
-        // The announcement card covers the top centre of the same frame; a
-        // resident waving behind it is as invisible as one behind a tower.
-        const behindCard = projected.y > 0.32 && Math.abs(projected.x) < 0.42;
-        if (
-          projected.z < -1 ||
-          projected.z > 1 ||
-          Math.abs(projected.x) > 0.65 ||
-          projected.y < -0.8 ||
-          projected.y > 0.55 ||
-          behindCard
-        )
-          continue;
-        // A resident behind a tower or a tree cannot wave at anybody. The call
-        // pick has rejected these since it was built; a greeting that happens
-        // behind a trunk is the same no-op.
-        target.set(e.x, 1, e.z);
-        const distance = target.distanceTo(camera.position);
-        ray.set(camera.position, target.sub(camera.position).normalize());
-        const hit = ray.intersectObjects(occluders, false)[0];
-        if (hit && hit.distance < distance - 0.9) continue;
-        // The nearest visible resident, not the closest to the vanishing point:
-        // a wave from twenty-seven metres away is a few pixels of arm.
-        if (distance < bestDistance) {
-          bestDistance = distance;
-          best = i;
-        }
+    // A timer runs between frames; the camera's inverse world matrix is only
+    // refreshed by the renderer. Without this the position was current and the
+    // projection still pointed along the previous leg of the arrival.
+    camera.updateMatrixWorld();
+    let best = -1;
+    let bestDistance = Infinity;
+    for (let i = 0; i < walkers.length; i++) {
+      const e = walkers[i]!;
+      if (e.hidden || e.mode !== "walk" || e.greetUntil > sim.current.time) continue;
+      projected.set(e.x, 1, e.z).project(camera);
+      // The announcement card covers the top centre of the same frame; a
+      // resident waving behind it is as invisible as one behind a tower.
+      const behindCard = projected.y > 0.32 && Math.abs(projected.x) < 0.42;
+      if (
+        projected.z < -1 ||
+        projected.z > 1 ||
+        Math.abs(projected.x) > 0.65 ||
+        projected.y < -0.8 ||
+        projected.y > 0.55 ||
+        behindCard
+      )
+        continue;
+      // A resident behind a tower or a tree cannot wave at anybody. The call
+      // pick has rejected these since it was built; a greeting that happens
+      // behind a trunk is the same no-op.
+      target.set(e.x, 1, e.z);
+      const distance = target.distanceTo(camera.position);
+      ray.set(camera.position, target.sub(camera.position).normalize());
+      const hit = ray.intersectObjects(occluders, false)[0];
+      if (hit && hit.distance < distance - 0.9) continue;
+      // The nearest visible resident, not the closest to the vanishing point:
+      // a wave from twenty-seven metres away is a few pixels of arm.
+      if (distance < bestDistance) {
+        bestDistance = distance;
+        best = i;
       }
-      if (best < 0) return false;
-      walkers[best]!.greetUntil = sim.current.time + 3.4;
-      return true;
-    };
+    }
+    if (best < 0) return false;
+    walkers[best]!.greetUntil = sim.current.time + WAVE_HOLD_S;
+    lastWaveS.current = sim.current.time;
+    return true;
+  }, [camera, scene, sim, walkers]);
+
+  useEffect(() => {
+    if (residentGreet === 0 || residentGreeted === residentGreet) return;
+    if (prefersReducedMotion()) {
+      markResidentGreeted(residentGreet);
+      return;
+    }
     let attempts = 0;
     let timer = 0;
     let cancelled = false;
     const run = (): void => {
       if (cancelled) return;
-      if (pick() || ++attempts >= 8) {
+      if (pickGreeter() || ++attempts >= 8) {
         markResidentGreeted(residentGreet);
         return;
       }
@@ -847,7 +853,29 @@ export function Pedestrians({
       cancelled = true;
       window.clearTimeout(timer);
     };
-  }, [residentGreet, residentGreeted, markResidentGreeted, walkers, camera, scene]);
+  }, [residentGreet, residentGreeted, markResidentGreeted, pickGreeter]);
+
+  // The offer outlives its card — the folded strip carries the same verb — so
+  // the wave does too: while nobody has taken it, one resident in the frame
+  // waves again every twenty seconds. A guided flow, an open file or a called
+  // resident owns the stage, and a closed card ends the offer for this city.
+  useEffect(() => {
+    if (residentOffer !== "open" || prefersReducedMotion()) return;
+    const tick = (): void => {
+      const s = useStore.getState();
+      const stageBusy =
+        s.selectedResident !== null ||
+        s.triageActive ||
+        s.tourActive ||
+        s.showFindings ||
+        s.selectedUnit !== null ||
+        s.cityOnly;
+      if (!owesWave(s.residentOffer, stageBusy, sim.current.time, lastWaveS.current)) return;
+      pickGreeter();
+    };
+    const timer = window.setInterval(tick, 1000);
+    return () => window.clearInterval(timer);
+  }, [residentOffer, pickGreeter, sim]);
 
   const dummy = useMemo(() => new THREE.Object3D(), []);
   const scratchColor = useMemo(() => new THREE.Color(), []);

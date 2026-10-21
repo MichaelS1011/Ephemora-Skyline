@@ -6,8 +6,8 @@
  * so it never reaches the file by construction. That is the whole anonymity
  * argument, and it holds only as long as the compositor controls all
  * project-derived ink. `frameTexts` decides that ink, and with the names
- * opt-in off it decides none. A separate optional fixed Ephemora credit
- * contains no project-derived text.
+ * opt-in off it decides none. The one other piece of ink is the fixed product
+ * mark, burned into every exported frame and carrying no project-derived text.
  *
  * Two more rules live here because they are about naming, not about pixels:
  * the download name stays generic until the person explicitly allows names,

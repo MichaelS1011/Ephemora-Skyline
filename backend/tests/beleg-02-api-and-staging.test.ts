@@ -10,7 +10,7 @@ import { MAX_FILES, footprintSnapshot } from "../src/server/routes/local-analyze
  * BELEG-02 — the API surface, the ports and the staging numbers the documents
  * print.
  *
- * Claim source: README.md (API table, privacy model), docs/GETTING_STARTED.md,
+ * Claim source: docs/API.md (the route table), README.md (privacy model), docs/GETTING_STARTED.md,
  * docs/ARCHITECTURE.md. Data source: the registered routes, the resolved task
  * graph in turbo.json, the origin list the server builds at startup and the
  * constants the staging route actually uses.
@@ -20,8 +20,8 @@ const REPO = path.resolve(import.meta.dirname, "../..");
 const read = (rel: string): string => readFileSync(path.join(REPO, rel), "utf-8");
 const serverSource = read("backend/src/server/index.ts");
 
-describe("the API table (README.md:225-250)", () => {
-  const readme = read("README.md");
+describe("the API table (docs/API.md:7-33)", () => {
+  const readme = read("docs/API.md");
   const rows = [...readme.matchAll(/^\|\s*`(GET|POST)\s+(\/api\/[^`]+)`\s*\|/gm)].map((m) => ({
     method: m[1]!,
     path: m[2]!,
@@ -129,7 +129,7 @@ describe("the task graph ARCHITECTURE describes (docs/ARCHITECTURE.md:29-33)", (
   }
 });
 
-describe("what the staging route really keeps (README.md:120)", () => {
+describe("what the staging route really keeps (docs/PRIVACY.md:5)", () => {
   const previousRoot = process.env["CODECITY_UPLOAD_DIR"];
   const previousTtl = process.env["CODECITY_UPLOAD_TTL_HOURS"];
 
@@ -171,7 +171,7 @@ describe("what the staging route really keeps (README.md:120)", () => {
   });
 
   it("gives the git history its own 20 MB budget", () => {
-    // README.md:120 "The folder picker sends .git too — up to 20 MB of it, in its own budget"
+    // docs/PRIVACY.md:5 "The folder picker sends .git too — up to 20 MB of it, in its own budget"
     const route = read("backend/src/server/routes/local-analyze.ts");
     expect(route).toMatch(/const GIT_MAX_TOTAL_BYTES = 20 \* 1024 \* 1024;/);
   });

@@ -5,7 +5,7 @@ import path from "path";
 /**
  * BELEG-02 — the numbers the demo clip is sold with.
  *
- * README.md:20 states the clip's seconds, frame size, rate and weight in one
+ * README.md:18 states the clip's seconds, frame size, rate and weight in one
  * sentence and adds "No sound, no cuts, no sped-up frames". CHANGELOG.md
  * repeats them. The data is the bytes of docs/assets/demo-city.mp4: an ISO
  * base-media file states its own track list, timescale, sample count and
@@ -21,7 +21,7 @@ const bytes = readFileSync(FILE);
 const claimed = (() => {
   const md = readFileSync(path.resolve(import.meta.dirname, "../../README.md"), "utf-8");
   const m = md.match(
-    /The clip plays ([\d.]+) s at (\d+) × (\d+) and ([\d.]+) fps, ([\d.]+) KB, one video stream and no audio track/,
+    /The clip plays ([\d.]+) s at (\d+) × (\d+) and ([\d.]+) fps, ([\d,]+) KB, one video stream and no audio track/,
   );
   if (!m) {
     throw new Error(
@@ -33,7 +33,7 @@ const claimed = (() => {
     width: Number(m[2]),
     height: Number(m[3]),
     fps: Number(m[4]),
-    kb: Number(m[5]),
+    kb: Number(m[5]!.replace(/,/g, "")),
   };
 })();
 

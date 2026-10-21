@@ -11,8 +11,9 @@
  * somewhere himself.
  *
  * The output canvas is the only thing in the picture that can carry ink.
- * `compositeFrame` controls project names; `drawCredit` adds only the optional
- * fixed product mark. Both are testable before a file is shared.
+ * `compositeFrame` controls project names; `drawCredit` burns in the fixed
+ * product mark, which is on every exported frame and cannot be switched off.
+ * Both are testable before a file is shared.
  */
 
 import type { FrameText } from "./privacy";
@@ -50,7 +51,7 @@ export interface FrameCanvas {
 }
 
 export interface CompositeTelemetry {
-  /** Every distinct string drawn into a frame. An empty set is the rule. */
+  /** Every distinct project string drawn into a frame. Empty is the rule. */
   drawnTexts: Set<string>;
   frames: number;
   /** Copy scale of the last frame. Uniform by construction. */
@@ -67,6 +68,63 @@ const ASPECT_TOLERANCE = 0.01;
 const FRAMING_TIMEOUT_MS = 1000;
 const INK = "#f2efe8";
 const EDGE = "rgba(242,239,232,0.22)";
+const BRAND_DOT = "#e8503c";
+
+/** The attribution burned into every exported frame. Never project-derived. */
+export const CREDIT_LEAD = "by ";
+export const CREDIT_NAME = "Ephemora Skyline";
+export const CREDIT_TEXT = `${CREDIT_LEAD}${CREDIT_NAME}`;
+
+function frameFont(size: number): string {
+  return `600 ${size}px "JetBrains Mono", ui-monospace, Menlo, monospace`;
+}
+
+/** Where the mark sits in an output frame, in that frame's pixels. */
+export interface CreditBox {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  size: number;
+}
+
+/**
+ * The mark's box. Its type scales with the short side, so a portrait shot
+ * carries a caption rather than a billboard, and the names band can read how
+ * much of the lower edge is already taken.
+ */
+export function creditLayout(ctx: FrameCanvas, out: SourceBox): CreditBox {
+  const short = Math.min(out.width, out.height);
+  const size = Math.max(13, Math.round(short * 0.021));
+  ctx.font = frameFont(size);
+  const pad = Math.round(size * 0.7);
+  const dot = Math.round(size * 0.3);
+  const width = Math.round(
+    ctx.measureText(CREDIT_LEAD).width +
+      ctx.measureText(CREDIT_NAME).width +
+      pad * 2 +
+      dot +
+      Math.round(size * 0.4),
+  );
+  const margin = Math.round(short * 0.028);
+  const height = Math.round(size * 2.3);
+  return {
+    x: out.width - width - margin,
+    y: out.height - height - margin,
+    width,
+    height,
+    size,
+  };
+}
+
+/** Shorten a string until it fits a width, in the font the context now holds. */
+function fitToWidth(ctx: FrameCanvas, text: string, maxWidth: number): string {
+  if (ctx.measureText(text).width <= maxWidth) return text;
+  const ratio = maxWidth / Math.max(1, ctx.measureText(text).width);
+  let keep = Math.max(1, Math.floor(text.length * ratio) - 1);
+  while (keep > 1 && ctx.measureText(`${text.slice(0, keep)}…`).width > maxWidth) keep -= 1;
+  return `${text.slice(0, keep)}…`;
+}
 
 /**
  * Draw one frame. Pure: the same inputs give the same calls, so the anonymity
@@ -92,54 +150,83 @@ export function compositeFrame(
   }
   if (texts.length === 0) return;
   const margin = Math.round(out.height * 0.035);
+  const mark = creditLayout(ctx, out);
   for (const item of texts) {
-    const size = Math.round(out.height * (item.slot === "project" ? 0.032 : 0.026));
-    ctx.font = `600 ${size}px "JetBrains Mono", ui-monospace, Menlo, monospace`;
-    ctx.textAlign = "left";
-    ctx.textBaseline = "middle";
-    const padX = Math.round(size * 0.5);
-    const textWidth = ctx.measureText(item.text).width;
-    const boxW = Math.min(out.width - margin * 2, Math.round(textWidth + padX * 2));
-    const boxH = Math.round(size * 2);
+    const padX = (size: number): number => Math.round(size * 0.5);
+    const boxH = (size: number): number => Math.round(size * 2);
+    // The lower edge belongs to the mark from its left edge onward, so the
+    // names band gets the room that is left: smaller type first, then a cut
+    // name. A plate never runs underneath the mark, and no ink leaves the frame.
+    const nominal = Math.round(out.height * (item.slot === "project" ? 0.032 : 0.026));
+    const limit =
+      item.slot === "project"
+        ? out.width - margin
+        : mark.x - padX(nominal) - Math.round(nominal * 0.6);
+    let size = nominal;
+    for (let step = 0; step < 6; step += 1) {
+      ctx.font = frameFont(size);
+      if (margin + ctx.measureText(item.text).width + padX(size) * 2 <= limit) break;
+      if (size <= Math.round(nominal * 0.6)) break;
+      size = Math.max(Math.round(nominal * 0.6), Math.round(size * 0.9));
+    }
+    ctx.font = frameFont(size);
+    const text = fitToWidth(ctx, item.text, limit - margin - padX(size) * 2);
+    const boxW = Math.min(
+      Math.max(1, limit - margin),
+      Math.round(ctx.measureText(text).width + padX(size) * 2),
+    );
     const x = margin;
-    const y = item.slot === "project" ? margin : out.height - margin - boxH;
+    const y = item.slot === "project" ? margin : out.height - margin - boxH(size);
     ctx.fillStyle = PLATE;
     if (typeof ctx.roundRect === "function") {
       ctx.beginPath();
-      ctx.roundRect(x, y, boxW, boxH, Math.round(boxH / 4));
+      ctx.roundRect(x, y, boxW, boxH(size), Math.round(boxH(size) / 4));
       ctx.fill();
     } else {
-      ctx.fillRect(x, y, boxW, boxH);
+      ctx.fillRect(x, y, boxW, boxH(size));
     }
     ctx.fillStyle = EDGE;
-    ctx.fillRect(x, y + boxH - 1, boxW, 1);
+    ctx.fillRect(x, y + boxH(size) - 1, boxW, 1);
+    ctx.textAlign = "left";
+    ctx.textBaseline = "middle";
     ctx.fillStyle = INK;
-    ctx.fillText(item.text, x + padX, y + boxH / 2);
-    telemetry?.drawnTexts.add(item.text);
+    ctx.fillText(text, x + padX(size), y + boxH(size) / 2);
+    telemetry?.drawnTexts.add(text);
   }
 }
 
-/** Small visible attribution in a user-approved export, never a project name. */
+/**
+ * The product mark, in the lower-right corner of an exported frame. Fixed text
+ * with no project-derived part, so it cannot undo the anonymity of a city that
+ * was recorded without names.
+ */
 export function drawCredit(ctx: FrameCanvas, out: SourceBox): void {
-  const text = "EPHEMORA  /  SKYLINE";
-  const size = Math.max(13, Math.round(out.height * 0.021));
-  ctx.font = `600 ${size}px "JetBrains Mono", ui-monospace, Menlo, monospace`;
-  ctx.textAlign = "left";
-  ctx.textBaseline = "middle";
+  const box = creditLayout(ctx, out);
+  const size = box.size;
   const pad = Math.round(size * 0.7);
-  const width = Math.round(ctx.measureText(text).width + pad * 2);
-  const height = Math.round(size * 2.3);
-  const margin = Math.round(out.height * 0.028);
-  const x = out.width - width - margin;
-  const y = out.height - height - margin;
   ctx.fillStyle = "rgba(15, 22, 24, 0.78)";
   if (ctx.roundRect) {
     ctx.beginPath();
-    ctx.roundRect(x, y, width, height, Math.round(height * 0.2));
+    ctx.roundRect(box.x, box.y, box.width, box.height, Math.round(box.height * 0.2));
     ctx.fill();
-  } else ctx.fillRect(x, y, width, height);
+  } else ctx.fillRect(box.x, box.y, box.width, box.height);
+  ctx.font = frameFont(size);
+  ctx.textAlign = "left";
+  ctx.textBaseline = "middle";
+  const baseline = Math.round(box.y + box.height / 2);
+  ctx.fillStyle = "rgba(245,242,233,0.72)";
+  ctx.fillText(CREDIT_LEAD, box.x + pad, baseline);
+  const nameX = box.x + pad + ctx.measureText(CREDIT_LEAD).width;
   ctx.fillStyle = "#f5f2e9";
-  ctx.fillText(text, x + pad, y + height / 2);
+  ctx.fillText(CREDIT_NAME, nameX, baseline);
+  ctx.fillStyle = BRAND_DOT;
+  const dot = Math.round(size * 0.3);
+  ctx.fillRect(
+    Math.round(nameX + ctx.measureText(CREDIT_NAME).width + size * 0.4),
+    Math.round(baseline - dot / 2),
+    dot,
+    dot,
+  );
 }
 
 /** The canvas the app renders into, plus the stream call the recorder needs. */
@@ -159,7 +246,6 @@ export interface RecorderOptions {
   mimeType: string;
   /** Called for every frame. Returning [] is the anonymous case. */
   frameTexts: () => FrameText[];
-  includeCredit?: boolean;
   canvas: HTMLCanvasElement;
   /** The element whose box is re-framed; its aspect becomes the shot's. */
   wrapper: HTMLElement;
@@ -181,7 +267,7 @@ export interface RecordingMeasurement {
   fps: number;
   mimeType: string;
   scale: { x: number; y: number; skew: number };
-  /** Strings drawn into the picture. Empty when the name opt-in stayed off. */
+  /** Project strings drawn into the picture. Empty when names stayed off. */
   drawnTexts: string[];
   /** CSS pixels the canvas was framed at while the shot ran. */
   shotCssSize: { width: number; height: number };
@@ -297,7 +383,7 @@ export class CityRecorder {
         this.opts.frameTexts(),
         this.telemetry,
       );
-      if (this.opts.includeCredit) drawCredit(this.ctx as unknown as FrameCanvas, this.output);
+      drawCredit(this.ctx as unknown as FrameCanvas, this.output);
       this.raf = requestAnimationFrame(draw);
     };
     const recorder = new MediaRecorder(stream, {

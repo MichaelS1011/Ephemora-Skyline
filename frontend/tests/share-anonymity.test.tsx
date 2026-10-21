@@ -7,7 +7,8 @@
 // tooltips), so it cannot reach the file. That is the argument, and this file
 // is the check: the compositor, which is the one thing allowed to put ink into
 // a frame, is run against a city that carries real names, and the recorded
-// answer must be that nothing was drawn.
+// answer must be that no project ink was drawn. The one string that is always
+// drawn is the product mark, and it names the tool, never the project.
 //
 // The same rule has a second surface, the name the browser saves under. A
 // download name built from the picker would read like a path on the user's
@@ -16,7 +17,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
-import { compositeFrame, drawCredit, type FrameCanvas } from "../src/share/capture";
+import { CREDIT_TEXT, compositeFrame, drawCredit, type FrameCanvas } from "../src/share/capture";
 import {
   downloadFileName,
   frameTexts,
@@ -88,6 +89,50 @@ function recordingContext(): { ctx: FrameCanvas; drawn: string[] } {
   return { ctx, drawn };
 }
 
+interface InkedRect {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+/**
+ * A context that also reports the plates it was asked to fill, and measures
+ * like the monospace the compositor asks for: one glyph is 0.6 em wide. So a
+ * layout claim in this file is a claim about real pixel widths, not about a
+ * stub that agrees with whatever the code did.
+ */
+function inkingContext(): { ctx: FrameCanvas; drawn: string[]; plates: InkedRect[] } {
+  const drawn: string[] = [];
+  const plates: InkedRect[] = [];
+  const glyph = (): number => {
+    const size = Number(/(\d+)px/.exec(String(ctx.font))?.[1] ?? "16");
+    return size * 0.6;
+  };
+  const ctx = {
+    fillStyle: "",
+    font: "",
+    textAlign: "",
+    textBaseline: "",
+    drawImage: vi.fn(),
+    fillRect: vi.fn(),
+    fillText: (text: string): void => {
+      drawn.push(text);
+    },
+    measureText: (text: string): { width: number } => ({ width: text.length * glyph() }),
+    beginPath: vi.fn(),
+    roundRect: (x: number, y: number, width: number, height: number): void => {
+      plates.push({ x, y, width, height });
+    },
+    fill: vi.fn(),
+  } as unknown as FrameCanvas;
+  return { ctx, drawn, plates };
+}
+
+function overlaps(a: InkedRect, b: InkedRect): boolean {
+  return a.x < b.x + b.width && b.x < a.x + a.width && a.y < b.y + b.height && b.y < a.y + a.height;
+}
+
 let container: HTMLDivElement;
 let root: Root;
 
@@ -111,11 +156,11 @@ afterEach(() => {
 });
 
 describe("a recorded city carries no names unless asked", () => {
-  it("the optional product credit contains no project names", () => {
+  it("the product mark is one fixed line and names no project", () => {
     const { ctx, drawn } = recordingContext();
     drawCredit(ctx, { width: 1280, height: 720 });
-    expect(drawn).toEqual(["EPHEMORA  /  SKYLINE"]);
-    expect(mentionsProjectName(drawn.join(" "), projectNames(city))).toBe(false);
+    expect(drawn.join("")).toBe(CREDIT_TEXT);
+    expect(mentionsProjectName(drawn.join(""), projectNames(city))).toBe(false);
   });
   it("knows names, so the empty answer below is not an empty test", () => {
     const names = projectNames(city);
@@ -173,6 +218,57 @@ describe("a recorded city carries no names unless asked", () => {
     const disclosure = container.querySelector(".share-names-disclosure");
     expect(disclosure?.textContent).toContain("project name");
   });
+});
+
+describe("the mark is on the file whatever the rest of the frame says", () => {
+  it("burns into a frame that carries no project ink at all", () => {
+    const { ctx, drawn } = inkingContext();
+    compositeFrame(ctx, { width: 1920, height: 1080 }, { width: 1920, height: 1080 }, []);
+    drawCredit(ctx, { width: 1920, height: 1080 });
+    expect(drawn.join("")).toBe(CREDIT_TEXT);
+  });
+
+  it("offers the studio no control that could switch it off", () => {
+    mountStudio();
+    const boxes = container.querySelectorAll<HTMLInputElement>('input[type="checkbox"]');
+    expect(boxes).toHaveLength(1);
+    expect(boxes[0]!.closest(".share-names")).not.toBeNull();
+    expect(container.querySelector(".share-mark-text")?.textContent).toBe(CREDIT_TEXT);
+  });
+});
+
+describe("the mark and a names band share the lower edge without colliding", () => {
+  const longLevel =
+    "kassenkern / belegdruck / archivkern / zahlungskern / belegdruck / kassenkern / archiv";
+  for (const [width, height] of [
+    [1920, 1080],
+    [1080, 1080],
+    [1080, 1920],
+  ] as const) {
+    it(`keeps both plates inside the frame and apart at ${width}×${height}`, () => {
+      const { ctx, drawn, plates } = inkingContext();
+      compositeFrame(ctx, { width, height }, { width, height }, [
+        { text: "zahlungstools-backend", slot: "project" },
+        { text: longLevel, slot: "level" },
+      ]);
+      drawCredit(ctx, { width, height });
+      const mark = plates[plates.length - 1]!;
+      const bands = plates.slice(0, -1);
+      expect(bands).toHaveLength(2);
+      expect(mark.x + mark.width).toBeLessThanOrEqual(width);
+      expect(mark.y + mark.height).toBeLessThanOrEqual(height);
+      for (const band of bands) {
+        expect(overlaps(band, mark), "a names plate runs under the mark").toBe(false);
+        expect(band.x + band.width).toBeLessThanOrEqual(width);
+      }
+      // The level text sits inside its own plate: no ink runs past its edge.
+      const level = drawn[1]!;
+      const plate = bands[1]!;
+      const size = plate.height / 2;
+      expect(level.length * 0.6 * size + size).toBeLessThanOrEqual(plate.width + 1);
+      expect(level.length).toBeLessThanOrEqual(longLevel.length);
+    });
+  }
 });
 
 describe("the saved file is named after the project, never the disk", () => {

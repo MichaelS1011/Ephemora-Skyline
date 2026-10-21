@@ -149,17 +149,40 @@ describe("the two frames the caption compares", () => {
     expect(a.width * a.height).toBe(1_600_000);
   });
 
-  it("are overwhelmingly identical, which is what the sentence claims", () => {
-    // README.md:166 carries the measured pair. The claim that streets, kerbs, trees,
-    // sky and nameplates are pixel-identical is one of the two states named in
-    // docs/UI_REVIEW.md, where the pose control is described.
-    const { before: a, after: b, identical } = compare();
-    expect(b.width * b.height).toBe(a.width * a.height);
-    expect(identical / (a.width * a.height)).toBeGreaterThan(0.98);
+  it("leave the picture the mode does not touch byte-identical", () => {
+    // README.md:135 names what changes between the frames and what stays. A blanket
+    // "over 98 % identical" was the old proxy for that and it measured the wrong
+    // thing: how much city is on screen decides how many pixels the dimming can
+    // reach, so a closer framing failed a claim that had not changed. The regions
+    // below are the ones the sentence says stay as they were — sky, grass, the
+    // project panel, the header and the dock — and they are checked exactly.
+    const { before: a, after: b, diff, identical } = compare();
+    const stride = a.width * a.channels;
+    const inside = (y0: number, y1: number, x0: number, x1: number): number => {
+      let hits = 0;
+      for (const i of diff) {
+        const px = (i % stride) / a.channels;
+        const py = Math.floor(i / stride);
+        if (py >= y0 && py < y1 && px >= x0 && px < x1) hits += 1;
+      }
+      return hits;
+    };
+    const regions: [string, number, number, number, number][] = [
+      ["sky", 0, 55, 300, 1300],
+      ["grass", 700, 980, 300, 430],
+      ["header", 0, 55, 0, 300],
+      ["project panel", 130, 780, 20, 290],
+      ["the dock", 915, 985, 520, 1080],
+    ];
+    for (const [name, y0, y1, x0, x1] of regions) {
+      expect(inside(y0, y1, x0, x1), `${name} changed between the two frames`).toBe(0);
+    }
+    // and the pair still has to be the same picture, not a different moment
+    expect(identical / (a.width * a.height)).toBeGreaterThan(0.97);
   });
 });
 
-describe("the measured numbers in the caption (README.md:166)", () => {
+describe("the measured numbers in the caption (README.md:135)", () => {
   const sums = (frame: "before" | "after"): number[] => {
     const { before: a, after: b, diff } = compare();
     const r = frame === "before" ? a : b;

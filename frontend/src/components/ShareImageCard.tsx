@@ -2,6 +2,7 @@ import { useState } from "react";
 import type { Lang } from "../i18n";
 import type { CityImage } from "../share/image";
 import { tx } from "../share/fallbackCopy";
+import { CREDIT_TEXT } from "../share/capture";
 
 export function ShareImageCard({
   image,
@@ -73,6 +74,7 @@ export function ShareImageCard({
           ? tx(lang, "card.namesOn", { names: image.drawnTexts.join(", ") })
           : tx(lang, "card.namesOff")}
       </p>
+      <p className="share-subtle">{tx(lang, "card.mark", { mark: CREDIT_TEXT })}</p>
       <p className="share-subtle">
         {image.width} × {image.height} PNG · {image.fileName}
       </p>

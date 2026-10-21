@@ -38,7 +38,7 @@
 .panel-share-studio.is-result .share-group,
 .panel-share-studio.is-result .share-quality,
 .panel-share-studio.is-result .share-names,
-.panel-share-studio.is-result .share-credit,
+.panel-share-studio.is-result .share-mark,
 .panel-share-studio.is-result .share-record,
 .panel-share-studio.is-result .share-stop,
 .panel-share-studio.is-result .share-live {
@@ -209,13 +209,23 @@
   background: rgba(255, 255, 255, 0.02);
   cursor: pointer;
 }
-.share-credit {
+.share-mark {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 8px;
   margin: 10px 0;
-  color: #c9c6bd;
-  cursor: pointer;
+  font-size: 11px;
+  color: #b9b6ad;
+}
+.share-mark-text {
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid rgba(232, 80, 60, 0.4);
+  background: rgba(232, 80, 60, 0.12);
+  color: #f5f2e9;
+  font-weight: 600;
+  letter-spacing: 0.02em;
 }
 .share-names input {
   margin-right: 8px;

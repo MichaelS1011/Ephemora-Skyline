@@ -3419,8 +3419,8 @@ export const DICT = {
     de: "Die Datei bekommt einen neutralen Namen, solange du Namen nicht aktivierst. Ordnerpfade bleiben draußen.",
   },
   "studio.credit": {
-    en: "Include a small Ephemora credit (optional)",
-    de: "Kleinen Ephemora-Hinweis einblenden (optional)",
+    en: "Every file carries this mark, and it cannot be switched off",
+    de: "Jede Datei trägt dieses Zeichen, und es lässt sich nicht abschalten",
   },
   "studio.record": { en: "Record", de: "Aufnehmen" },
   "studio.stop": { en: "Stop", de: "Stopp" },
@@ -3480,6 +3480,10 @@ export const DICT = {
   "card.namesOn": {
     en: "Names are burned into the picture: {names}.",
     de: "Namen stehen im Bild eingebrannt: {names}.",
+  },
+  "card.mark": {
+    en: "Burned in too, and not switchable: {mark}.",
+    de: "Ebenfalls eingebrannt und nicht abschaltbar: {mark}.",
   },
   "card.again": { en: "Record another take", de: "Noch einmal aufnehmen" },
   "hint.text": {

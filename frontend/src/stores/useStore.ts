@@ -19,6 +19,7 @@ import {
 } from "../city/layout";
 import { findVoxelForLine } from "../city/voxels";
 import { defaultOverviewPath } from "../city/overview";
+import type { ResidentOffer } from "../city/residentGreeting";
 import {
   loadSavedProfile,
   saveProfile,
@@ -453,6 +454,13 @@ interface AppState {
   /** The greet nonce the canvas has already answered; survives a remount. */
   residentGreeted: number;
   markResidentGreeted: (nonce: number) => void;
+  /**
+   * The resident's offer that rides the announcement. `open` until the reader
+   * takes it (a called resident, the guided verb) or closes the card — `closed`
+   * ends the wave and the strip verb for this city, and is never re-armed.
+   */
+  residentOffer: ResidentOffer;
+  setResidentOffer: (v: ResidentOffer) => void;
   /** Where the called resident points for the moment before the camera leaves. */
   residentPoint: { x: number; z: number; until: number } | null;
   pointResidentAt: (x: number, z: number, until: number) => void;
@@ -725,6 +733,7 @@ export const useStore = create<AppState>((set, get) => {
       selectedResident: null,
       residentCall: 0,
       residentPoint: null,
+      residentOffer: "open",
       shareHero: null,
     });
     if (typeof window !== "undefined") clearVisitParams(push);
@@ -823,6 +832,7 @@ export const useStore = create<AppState>((set, get) => {
         selectedResident: null,
         residentCall: 0,
         residentPoint: null,
+        residentOffer: "open",
         triageActive: false,
         triageCursor: 0,
         triageTotal: 0,
@@ -1288,13 +1298,20 @@ export const useStore = create<AppState>((set, get) => {
         v ? { cityOnly: true, selectedResident: null, residentPoint: null } : { cityOnly: false },
       ),
     selectedResident: null,
-    selectResident: (index) => set({ selectedResident: index, residentPoint: null }),
+    selectResident: (index) =>
+      set(
+        index === null
+          ? { selectedResident: null, residentPoint: null }
+          : { selectedResident: index, residentPoint: null, residentOffer: "taken" },
+      ),
     residentCall: 0,
     requestResidentCall: () => set((s) => ({ residentCall: s.residentCall + 1 })),
     residentGreet: 0,
     requestResidentGreet: () => set((s) => ({ residentGreet: s.residentGreet + 1 })),
     residentGreeted: 0,
     markResidentGreeted: (nonce) => set({ residentGreeted: nonce }),
+    residentOffer: "open",
+    setResidentOffer: (v) => set({ residentOffer: v }),
     residentPoint: null,
     pointResidentAt: (x, z, until) => set({ residentPoint: { x, z, until } }),
 

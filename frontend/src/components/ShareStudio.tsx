@@ -18,6 +18,7 @@ import { useCityCapture, type LengthMode } from "../hooks/useCityCapture";
 import { ShareCard } from "./ShareCard";
 import { ShareImageCard } from "./ShareImageCard";
 import { captureCityImage, type CityImage } from "../share/image";
+import { CREDIT_TEXT } from "../share/capture";
 import { getDirLayout } from "../city/layout";
 import { surfaceForLayout } from "../city/worldSurface";
 import { defaultOverviewPath } from "../city/overview";
@@ -58,7 +59,6 @@ export function ShareStudio() {
   const [format, setFormat] = useState<FormatId>("16x9");
   const [lengthId, setLengthId] = useState<string>("build");
   const [showNames, setShowNames] = useState(false);
-  const [includeCredit, setIncludeCredit] = useState(true);
   const [imageResult, setImageResult] = useState<{ image: CityImage; previewUrl: string } | null>(
     null,
   );
@@ -124,7 +124,6 @@ export function ShareStudio() {
       focusPath: path,
       format,
       showNames,
-      includeCredit,
       length: length.mode,
       hero,
       hook: length.mode.kind === "build",
@@ -136,7 +135,7 @@ export function ShareStudio() {
     setImageBusy(true);
     setImageError(false);
     try {
-      const image = await captureCityImage(cityData, focusPath, format, showNames, includeCredit);
+      const image = await captureCityImage(cityData, focusPath, format, showNames);
       if (job !== imageJobRef.current) return;
       const previewUrl = URL.createObjectURL(image.blob);
       if (imageUrlRef.current) URL.revokeObjectURL(imageUrlRef.current);
@@ -309,15 +308,10 @@ export function ShareStudio() {
         <span className="share-names-disclosure">{tx(lang, "studio.namesFileNote")}</span>
       </label>
 
-      <label className="share-credit">
-        <input
-          type="checkbox"
-          checked={includeCredit}
-          disabled={recording || imageBusy}
-          onChange={(e) => setIncludeCredit(e.target.checked)}
-        />
+      <p className="share-mark">
         <span>{tx(lang, "studio.credit")}</span>
-      </label>
+        <span className="share-mark-text">{CREDIT_TEXT}</span>
+      </p>
 
       {capture.error && (
         <p className="share-error" role="alert">

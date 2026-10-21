@@ -137,6 +137,8 @@ export function ScanSummary({ demo = false }: { demo?: boolean }) {
   const cityData = useStore((s) => s.cityData);
   const buildPhase = useStore((s) => s.buildPhase);
   const requestResidentGreet = useStore((s) => s.requestResidentGreet);
+  const residentOffer = useStore((s) => s.residentOffer);
+  const setResidentOffer = useStore((s) => s.setResidentOffer);
   const startTour = useStore((s) => s.startTour);
   const [open, setOpen] = useState(false);
   const [pinned, setPinned] = useState(false);
@@ -359,6 +361,21 @@ export function ScanSummary({ demo = false }: { demo?: boolean }) {
           >
             {ts(lang, "summary.show")}
           </button>
+          {/* The card folded away, but the resident's offer has not been
+              answered. It rides the strip — the same verb, one click, no second
+              surface — until the reader takes it or closes it. */}
+          {total > 0 && residentOffer === "open" && (
+            <button
+              type="button"
+              className="start-summary-strip-guide"
+              onClick={() => {
+                setResidentOffer("taken");
+                startTour();
+              }}
+            >
+              {t(lang, "summary.guideGo")} <span aria-hidden="true">→</span>
+            </button>
+          )}
         </div>
       </div>
     );
@@ -419,6 +436,7 @@ export function ScanSummary({ demo = false }: { demo?: boolean }) {
               type="button"
               className="start-summary-guide-go"
               onClick={() => {
+                setResidentOffer("taken");
                 startTour();
                 setOpen(false);
                 setCollapsed(true);
@@ -467,6 +485,10 @@ export function ScanSummary({ demo = false }: { demo?: boolean }) {
               // countdown. Setting it alone made this button do nothing at all.
               setOpen(false);
               setCollapsed(true);
+              // Closing the card is the reader's answer. The strip keeps no verb
+              // and the crowd keeps no wave after this one — a refusal is never
+              // asked a second time.
+              setResidentOffer("closed");
             }}
             className="start-summary-close"
             aria-label={t(lang, demo ? "summary.dismissAriaDemo" : "summary.dismissAria")}

@@ -17,6 +17,7 @@ import type { Lang } from "../i18n";
 import { formatCount, formatDecimal } from "../i18n";
 import type { CaptureResult } from "../hooks/useCityCapture";
 import { tx } from "../share/fallbackCopy";
+import { CREDIT_TEXT } from "../share/capture";
 
 /** The container and codec in a developer's words, from the encoder's own string. */
 export function codecLabel(mime: string): string {
@@ -128,6 +129,8 @@ export function ShareCard({
           ? tx(lang, "card.namesOn", { names: result.drawnTexts.join(", ") })
           : tx(lang, "card.namesOff")}
       </p>
+
+      <p className="share-subtle">{tx(lang, "card.mark", { mark: CREDIT_TEXT })}</p>
 
       <p className="share-subtle">{tx(lang, "card.privacy")}</p>
 

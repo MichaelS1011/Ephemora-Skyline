@@ -71,7 +71,6 @@ export async function captureCityImage(
   focusPath: string[],
   format: FormatId,
   showNames: boolean,
-  includeCredit: boolean,
 ): Promise<CityImage> {
   const scene = findScene();
   if (!scene) throw new Error("no canvas");
@@ -95,7 +94,7 @@ export async function captureCityImage(
       frameTexts(city, focusPath, showNames),
       telemetry,
     );
-    if (includeCredit) drawCredit(context as unknown as FrameCanvas, output);
+    drawCredit(context as unknown as FrameCanvas, output);
     const blob = await new Promise<Blob>((resolve, reject) => {
       output.toBlob(
         (value) => (value ? resolve(value) : reject(new Error("empty image"))),

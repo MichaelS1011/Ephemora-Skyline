@@ -146,14 +146,14 @@ Without these binaries the scanner does not fail — it reports the affected che
 brew install gitleaks semgrep osv-scanner ruff   # macOS — optional, improves scan quality
 ```
 
-| Scanner           | Task                                                                                                               | Without the binary                                       |
-| ----------------- | ------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------- |
-| Regex (always on) | Heuristics: injection, XSS, eval, unsafe storage, …                                                                | —                                                        |
-| **gitleaks**      | Secrets in the working tree (and in Git history on the deep profile)                                               | entropy-regex fallback, marked as such                   |
-| **semgrep**       | AST scan — registry ruleset (`p/security-audit`) or a local [rule pack](../README.md#rule-packs), binary or Docker | skipped                                                  |
-| **osv-scanner**   | CVEs for every lockfile format it understands                                                                      | falls back to `pip-audit` for Python, `npm audit` for JS |
-| **npm audit**     | CVEs in npm dependencies (requires `package-lock.json`)                                                            | skipped                                                  |
-| **ruff**          | Python lint, contributing to the hygiene category                                                                  | skipped                                                  |
+| Scanner           | Task                                                                                                     | Without the binary                                       |
+| ----------------- | -------------------------------------------------------------------------------------------------------- | -------------------------------------------------------- |
+| Regex (always on) | Heuristics: injection, XSS, eval, unsafe storage, …                                                      | —                                                        |
+| **gitleaks**      | Secrets in the working tree (and in Git history on the deep profile)                                     | entropy-regex fallback, marked as such                   |
+| **semgrep**       | AST scan — registry ruleset (`p/security-audit`) or a local [rule pack](./SCANNERS.md), binary or Docker | skipped                                                  |
+| **osv-scanner**   | CVEs for every lockfile format it understands                                                            | falls back to `pip-audit` for Python, `npm audit` for JS |
+| **npm audit**     | CVEs in npm dependencies (requires `package-lock.json`)                                                  | skipped                                                  |
+| **ruff**          | Python lint, contributing to the hygiene category                                                        | skipped                                                  |
 
 ### A local model for one line (optional)
 

@@ -48,7 +48,7 @@ describe("the runtime the documents ask for (README.md:63, docs/GETTING_STARTED.
   });
 
   it("asks for npm 10 or newer", () => {
-    // README.md:26 "and **npm >= 10**", GETTING_STARTED.md:25 "≥ 10.0.0"
+    // README.md:22 "and **npm >= 10**", GETTING_STARTED.md:25 "≥ 10.0.0"
     expect(engines.npm).toBe(">=10.0.0");
   });
 
@@ -164,7 +164,7 @@ describe("the gates the README tells a reader to run (README.md:75-87)", () => {
   });
 
   it("accepts exactly one advisory by name, the braces one it states", () => {
-    // README.md:51: "Today one advisory is accepted: `braces` (GHSA-vfj7-8cjw-p6xm)"
+    // README.md:45: "Today one advisory is accepted: `braces` (GHSA-vfj7-8cjw-p6xm)"
     const gate = read("scripts/audit-gate.mjs");
     const allowed = gate.slice(gate.indexOf("const ALLOWED"), gate.indexOf("function audit"));
     const accepted = [
@@ -173,7 +173,7 @@ describe("the gates the README tells a reader to run (README.md:75-87)", () => {
       ),
     ];
     expect(accepted).toEqual(["GHSA-vfj7-8cjw-p6xm"]);
-    // README.md:88 "except those explicitly accepted … with a reason and a re-check date"
+    // README.md:45 "accepted in `scripts/audit-gate.mjs` by name, with a reason and a re-check date"
     expect(allowed).toContain("why:");
     expect(allowed).toContain("recheck:");
     // …and the tree carries the fixed release the override asks for

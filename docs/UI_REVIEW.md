@@ -65,7 +65,7 @@ The set came out of the first pass with three captions the frames did not
 support, found by measuring the pictures rather than by looking at them:
 
 - “Security mode: the city darkens” — the buildings drop, and one control moves
-  with them. Between the two shipped frames 1.33 % of the 1,600,000 pixels differ
+  with them. Between the two frames shipped until 21 October 1.33 % of the 1,600,000 pixels differ
   with no tolerance and no region mask: 17,293 of them are city pixels going
   darker (median colour sum 384 → 235) and 4,842 sit inside the mode bar's
   284 × 28 px chip field, where the highlight moves from Structure to Security
@@ -127,7 +127,7 @@ input, which is the path a browser without the File System Access API takes.
 - [Findings list](assets/ui-findings-list.png) · [one finding](assets/ui-finding.png)
 - [Share studio with the platform rows](assets/ui-share-platforms.png) · [More menu](assets/ui-more-menu.png)
 - [The same card in German](assets/ui-german-card.png) · [narrow window](assets/ui-narrow.png)
-- [28-second clip of one visit](assets/demo-city.mp4) — 800 × 500, 15 fps, one video stream, no audio track
+- [27-second clip of one visit](assets/demo-city.mp4) — 1600 × 1000, 30 fps, one video stream, no audio track; re-shot 21 October, see the last section
 
 ### The alarm band inside the city — 11 October 2026
 
@@ -215,6 +215,9 @@ them out of that sentence instead of repeating them, so the document and the
 bytes cannot drift.
 The poster beside it is 1280 × 800 and 364 KB.
 
+_These are the numbers of the 12 October take. Both files were re-shot on
+21 October from the current build — 27,2 s at 1600 × 1000 and 30 fps, 2.595 KB, with a 2400 × 1500 poster; the last section of this document carries them._
+
 ### What measuring the frames found in the layout
 
 The findings-list frame came out with a dead band: the city picture started at
@@ -231,3 +234,144 @@ card's width out of `globals.css` and fails if its guard does not name every pan
 that hides the card. Verified by the same measurement that found it: the picture
 now reaches the left edge of the frame in both panel shots, and the two frames
 that showed the band were re-shot after the change.
+
+## 21 October 2026 — the example clip and its poster re-shot
+
+The README's prose had moved on and its picture had not. The text of this
+checkout says **74 sample files** and **8 findings**; the clip in `assets/` was
+filmed on 12 October and shows **73 files / 7 findings**, the triage word
+`Reviewed` — renamed to `No action needed` on 21 October — and the chrome before
+the glass pass. The poster was shot on 16 October, so the two showed the same
+visit in two different UI generations.
+
+**Method, and why the film takes the time the visit took.** The app was driven
+in a headless browser at 1600 × 1000 while Chrome pushed screencast frames:
+**2.471 frames over 41,28 s in the first takes, 1.819 over 30,34 s, 1.534 over
+25,66 s — 59,9 fps painted every time.** Each output slot of a 30 fps grid takes
+the frame whose timestamp is nearest: a gap repeats the previous frame, nothing
+is re-timed and nothing is dropped forward. The shipped take holds **817 frames
+over 27,233 s**, so the film is as long as the visit.
+
+| the file          |                                                                                                                                              |
+| ----------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| frames / duration | 817 over 27,233 s = 30 fps, one constant delta in `stts`                                                                                     |
+| picture           | 1600 × 1000, one `trak`, handler `vide`, no `soun`, `mvhd` rate 1.0                                                                          |
+| weight            | 2.657.666 bytes = 2.595 KB                                                                                                                   |
+| the visit         | entry 2,5 s → _Explore demo_ → city assembles ≈ 9,6 s → finished city (74 files, 8 findings) → Security tour, three stops → tour card closed |
+| console           | 0 errors                                                                                                                                     |
+
+The poster is its own capture of the finished state — **2400 × 1500 at a 1,5×
+device scale, 1.447.006 bytes = 1.413 KB** — taken in a separate run that waits
+for the resident card to leave the DOM. That wait is in the recipe on purpose:
+the card's lifetime is not fixed, it was gone after ~14 s in one run and after
+~29 s in the next, and a poster that catches it covers the top of the city.
+
+`backend/tests/beleg-04-demo-clip.test.ts` reads the README's clip sentence and
+the clip's own boxes, so the sentence and the bytes cannot drift; it now accepts
+the thousands separator in the weight. One correction is recorded here because
+the probe, not the product, caused it: a scripted ending that clicked `Overview`
+straight after the tour produced a frame with labels and no city. Re-tested
+(tour → Escape → `Overview`), the control flies home and the whole city stands
+there within 3 s and holds.
+
+## 21 October 2026 — the README's frames re-shot from the current build
+
+The check that started this was cheap: crop the header out of a shipped frame and
+read it. `ui-workspace.png` said **73 files**, `ui-findings-list.png` said
+**7 findings in 6 files**, while the README's own text had long since moved to
+**74 sample files** and **8 findings** — the same defect the demo clip had, still
+standing in the image grid. The word `Reviewed` in those frames was a second
+symptom: the verdict button has been `No action needed` since this morning. (The
+file row still counts `0/2 reviewed`, which is a different label and was not
+renamed.)
+
+All nine frames were shot again from the running build, headless at 1600 × 1000
+with `--use-angle=metal`, 0 console errors across the six drives. The security
+pair is taken under `prefers-reduced-motion`, with the demo notice dismissed and
+the cursor parked in the header before each shot, because the caption compares
+the two frames pixel for pixel: a tooltip that only one frame carries, or a
+notice folding itself away between them, would be counted as a mode change.
+
+| the pair now               |                                                                               |
+| -------------------------- | ----------------------------------------------------------------------------- |
+| pixels differing           | 39.857 of 1,600,000 = **2,49 %**                                              |
+| median colour sum on those | **403 → 268**                                                                 |
+| byte-identical regions     | sky, grass, header, project panel, the dock — **0 differing pixels** in each  |
+| not identical              | the towers, the mode chip's field, and one car 14 px further along the avenue |
+
+That last row is why `backend/tests/beleg-06-frame-pixels.test.ts` changed today.
+It had asserted "over 98 % of the frames are identical" as a stand-in for the
+caption's claim, and a closer framing of the same city broke it while the claim
+had not changed: how much city is on screen decides how many pixels the dimming
+can reach. The guard now checks what the sentence actually says — the five named
+background regions must be byte-identical — and keeps a floor of 97 % so the pair
+cannot drift into being two different moments.
+
+## 21 October 2026 — the exported file now carries the product mark
+
+The credit was a checkbox that came pre-ticked. A pre-ticked box is a default, and
+a default that can be removed is not a claim, so the switch is gone: every
+recorded frame and every exported PNG is drawn with `by Ephemora Skyline` and the
+brand dot in the lower-right corner, and the studio says so in one line the reader
+cannot misread — "Every file carries this mark, and it cannot be switched off".
+The names switch stayed, unchecked, because that one is about the user's project.
+
+The mark's type now follows the **short** side of the frame (23 px at a 1080-pixel
+edge) rather than the height, so a 9:16 take no longer carries a 40 px billboard.
+That corner belongs to the mark, so the names band gets the room that is left:
+smaller type first, then a cut name. A plate never runs underneath the mark, and
+no ink leaves the frame. Measured in the running app, names on, demo city at the
+overview, `--use-angle=metal`, 0 console errors:
+
+| format | names band, left → right | mark, left → right | clear gap  | band text           |
+| ------ | ------------------------ | ------------------ | ---------- | ------------------- |
+| 16:9   | 38 → 1259 px             | 1580 → 1890 px     | **321 px** | whole district list |
+| 1:1    | 38 → 709 px              | 740 → 1050 px      | **31 px**  | cut to `infras…`    |
+| 9:16   | 67 → 673 px              | 740 → 1050 px      | **67 px**  | cut to `mobile…`    |
+
+The rectangles above were not computed from the source — the page wrapped
+`roundRect` and reported what the exporter really drew, which is the only way to
+catch a font whose advance width disagrees with the model.
+
+That the mark is in the **file** rather than only in the canvas was read back out
+of a recording: a 4.0 s MP4/H.264 1920 × 1080 take (238 composited frames,
+761,616 bytes) was decoded in the browser at 1 s and near the end, and the mark's
+box carries **979** and **983** ink pixels with **46** vermilion pixels in each.
+The three PNG exports carry 1,005 / 1,005 / 970. Proof files:
+`docs/reviews/2026-10-21-export-mark/` (`measure.json`, the crops, the two decoded
+frames).
+
+`docs/assets/ui-share-file.png` was re-shot from this build, because the card in
+it gained the row "Burned in too, and not switchable: by Ephemora Skyline." — the
+same drive as before (studio open on a finished 4.0 s take, names off, 238 frames,
+MP4 · H.264). `frontend/tests/share-anonymity.test.tsx` grew from 13 to 18 tests:
+the mark's own text, that a frame with no project ink still carries it, that the
+studio holds exactly one checkbox, and the no-collision claim per format.
+
+## 21 October 2026 — the resident's offer had nine seconds, now it stands
+
+Asked why no resident greeted him at the start, the answer was measured on the
+running app before anything was changed: a fresh context, the demo opened, no key
+pressed, sampled every 250 ms. The announcement card carries the resident's line
+for **9.0 s** from the moment the city is built, then folds itself into its strip
+and the line is gone — it does not come back, and the strip never mentioned it.
+The wave that belongs to the same moment lasts **3.4 s** and happens once, at the
+arrival pose. `docs/reviews/2026-10-21-export-mark/` holds that timeline; the
+greeting was not missing, it was nine seconds long.
+
+Two changes, both ending on the reader's own answer:
+
+| now                         | measured                                                                                   |
+| --------------------------- | ------------------------------------------------------------------------------------------ |
+| verb on screen              | card 0 → 9.0 s, strip from 9.0 s — **one** at every sampled instant, never two, never zero |
+| strip verb clicked          | `.security-tour` mounts, the offer reads `taken`, the verb is gone                         |
+| card closed with ✕          | the offer reads `closed`: no strip verb, no further wave — a refusal is never asked twice  |
+| strip line with the verb    | **17 words** (the budget guard holds at 24)                                                |
+| wave while the offer stands | every **20 s**, one resident in frame, not under reduced motion or a guided flow           |
+
+`frontend/tests/arrival-budget.test.tsx` (23 → 27) holds the strip cases against
+the mounted `App`; `frontend/tests/resident-greeting.test.ts` (5) holds the wave
+arithmetic — 20 s from the **last** wave, nothing owed to `taken` or `closed`,
+nothing while the stage is busy. The live run finished with 0 console errors.
+Proof: `docs/reviews/2026-10-21-resident-offer/` (`measure.json`, the strip with
+its verb, the frame after the click).

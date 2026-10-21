@@ -837,7 +837,8 @@
   font: 400 12.5px/1.5 var(--font-ui);
   color: #e6e1d7;
 }
-.start-summary-guide-go {
+.start-summary-guide-go,
+.start-summary-strip-guide {
   display: inline-flex;
   align-items: center;
   min-height: 28px;
@@ -850,10 +851,12 @@
   letter-spacing: 0.04em;
   cursor: pointer;
 }
-.start-summary-guide-go:hover {
+.start-summary-guide-go:hover,
+.start-summary-strip-guide:hover {
   background: rgba(232, 178, 60, 0.16);
 }
-.start-summary-guide-go:focus-visible {
+.start-summary-guide-go:focus-visible,
+.start-summary-strip-guide:focus-visible {
   outline: 2px solid var(--focus-ring);
   outline-offset: 2px;
 }

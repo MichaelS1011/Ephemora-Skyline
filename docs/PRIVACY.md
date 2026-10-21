@@ -1,0 +1,44 @@
+# Privacy in detail
+
+The README states the shape: the backend binds to `127.0.0.1`, your source is posted over loopback and stops there, the outbound lookups are listed by host, and telemetry is none. This file is the part that does not fit a first read: what a staged copy is, what a saved city carries, how a finding is named, how long a result lives, and what the one model request sends.
+
+## What the staged copy is
+
+To scan a folder the backend writes it to `$TMPDIR/codecity-uploads/<id>` with owner-only permissions, and keeps it for 24 hours (override with `CODECITY_UPLOAD_DIR` / `CODECITY_UPLOAD_TTL_HOURS`) so the in-city test runner can execute your project's own tests from the city you are looking at. The folder picker sends `.git` too — up to 15 MB of it, in its own budget, trimmed in the browser before anything is posted — because churn, author districts and the deep profile's history scan are impossible without commit history.
+
+Local analysis is capped at **10,000 files / 150 MB / 2 MB per file**; a larger folder opens as a **preview sample of up to 2,000 files across its top-level districts**, with the full count on the announcement and in the header. What never joins a scan is counted rather than hidden: your project's own `.gitignore` sets its paths aside _before_ the cap is applied, and `node_modules` and build output are skipped, so the summary names every number it left out.
+
+Measured on this repository on 2026-10-12, the one machine's disk offered **17,360** source-shaped files before the repository's own `.gitignore` set the tooling folders aside — that number stays dated because it belongs to a disk, not to the checkout. The checkout's own pair of numbers is walked, not retyped, and lives in the README's privacy section, where `backend/tests/claims-counts.test.ts` re-walks it on every run. The 17 files that sit between the reader's set and the scanner's set are ones the reader carries along for the project's own test runner that no scanner reads — nine Markdown (this file's README among them), `LICENSE`, `NOTICE`, `.gitignore`, the two `Dockerfile.*`, `nginx.conf`, the font licence `.txt`, one `.svg`. The 37 the reader does not open at all are those 17 plus 20 more: 12 pictures, the demo clip, six extension-less dotfiles and `docs/self-scan-findings.ndjson`. That 37-pair was read off the shipped build on 2026-10-14, over the 413-file tree of that day.
+
+## What a saved city carries
+
+A finding stores the line it was found on plus a two-line code frame, and the result is served as JSON you can export and share. Credential values are erased to `‹hidden›` before a finding is kept, and the erasure does not trust the variable name: it masks `NAME = "…"` assignments _and_ known token shapes (GitHub, AWS, Slack, Google, Stripe, OpenAI, npm, JWT, private-key headers), because `const pat = "ghp_…"` in a test fixture is a real token behind an innocent name — that exact line is how we found the hole, in our own repository. The name stays, because the name is what tells you where to fix. A picture is the one place the tool speaks about itself: every exported frame and every recorded video carries `by Ephemora Skyline` in its lower-right corner, and that mark is the only ink with no switch — your project's names have one, and it is off by default.
+
+Masking is not limited to secret findings: it runs on every frame at the scanner boundary, because a `console.log` one line above a password carries that password in its neighbour lines. It also runs before the 120- and 160-character display limits, so a clipped line never shows the first half of a token — a fragment no rule would recognise again. `.env`, `.env.production` and friends are in the scan surface **because** of that masking, and are read as data: no complexity, no code-shape questions.
+
+## How a finding is named
+
+Each one carries a fingerprint derived from rule, path, line and the masked line, and it is minted once — the same value in the panel, in the city JSON and in the SARIF export's `partialFingerprints`. That is what lets a verdict you recorded survive scanning the same folder again, and what lets a report or a coding agent point at the same finding you are looking at. It is deliberately not magic: a finding that moves to another line, or into a renamed file, gets a new fingerprint, and verdicts left behind by such a move are counted and named in the panel rather than quietly kept.
+
+## How long a result lives
+
+Results are held in the backend's memory: by default the last 20 cities, for 24 hours, both settable with `ANALYSIS_MAX_ENTRIES` and `ANALYSIS_TTL_MS`. The app does not recite those two numbers — `GET /api/health` answers with the values the running process is actually using, and the city-link message is built from that answer, so an operator who changes the environment does not leave a stale claim on the screen. A `?city=<id>` link therefore works while that backend process is running: it is a pointer into a live session, not an archive. Export the PNG or the SARIF if the finding has to outlive the process.
+
+Triage verdicts are the exception to "nothing is written": they live in browser storage and are mirrored to a machine-owned file, `~/.ephemora-skyline/verdicts.json` (override `CODECITY_VERDICTS_FILE`), so a re-scan of the same folder finds them again. The entry screen's reset button deletes the browser's buckets **and** that machine copy — a deleted verdict cannot come back on the next scan. Server-side, the purge routes only touch directories this program minted, only past their keep time, and only report a deletion that actually happened.
+
+## The one sentence a model writes
+
+Set `EPHEMORA_LLM_URL` (and optionally `EPHEMORA_LLM_MODEL`) to an OpenAI-compatible server on the same machine — llama.cpp, Ollama, LM Studio, vLLM — and each finding card offers _Ask {model} on this machine_. What travels is the finding's own flagged line and its scanner message, both clipped and both put through the same masking every other exit uses, plus the rule facts already on the card: no file, no frame around the line, no path.
+
+The address is checked before a request is built, and an address that is not `127.0.0.1`, `localhost` or `::1` is refused at startup — the feature stays off rather than sending findings somewhere the privacy model says they never go. A redirect from that server is refused too, so the machine you configured is the only machine that ever reads the line, and `SKYLINE_OFFLINE=1` closes the door as well. Without the variable the card offers nothing at all, so no click leads to a dead button. The answer is labelled with the model that wrote it, says plainly that a model rather than the scanner produced it, and says so when the sentence was cut short.
+
+## The offline switch, host by host
+
+`SKYLINE_OFFLINE=1` switches off the update check even for a reader who turned it on, the OSV check and the dependency check, and switches off Semgrep unless a local rule pack is selected — a pack already on your disk needs no download. It also closes the three paths a profile never asks about: **pip-audit** is skipped instead of resolving requirements against `pypi.org`, the **Semgrep Docker fallback** only runs on an image already cached locally instead of pulling one, and **Run test file** refuses to `npm ci` a staged copy that has no `node_modules`. With the switch set, nothing in the README's host table is reached. It is an environment variable, not a UI control yet. The city then reports what went missing through `scanProvenance` and paints those buildings the colour of ground no scanner looked at, instead of calling them clean.
+
+## What the guards are
+
+- The host table in the README and the declaration the backend obeys (`OUTBOUND_CALLS`) are checked against each other by `backend/tests/network-honesty.test.ts`; the entry screen renders the same list. What that guard pins is the host set — the wording of each row is written twice and can drift while the hosts still match.
+- `backend/tests/no-websocket-surface.test.ts` fails if a websocket surface or a hosted backend ever appears in the public text.
+- `frontend/tests/licence.test.ts` fails if the entry document ever references a third-party host, which is what keeps the bundled typeface honest.
+- A random site you visit cannot make your local scanner run your tests: the fifteen origin-guarded routes refuse a cross-site request. Reporting a vulnerability in this tool itself follows [SECURITY.md](../SECURITY.md).

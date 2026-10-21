@@ -155,7 +155,7 @@ describe("the source trees the documents draw", () => {
     }
   });
 
-  it("keeps the README's own tree honest (README.md:185-214)", () => {
+  it("keeps the README's own tree honest (docs/ARCHITECTURE.md:298-327)", () => {
     const folders = [
       "backend/src/server",
       "backend/src/server/routes",
@@ -344,7 +344,7 @@ describe("the README line citations inside this repository's own checks", () => 
     const ohneZitat: string[] = [];
     /**
      * One comment can name two places and quote one sentence — "(README.md:110,
-     * README.md:113)" beside the offline paragraph is such a line. The quote has
+     * README.md:104)" beside the offline paragraph is such a line. The quote has
      * to be found at one of the positions a line names, not at each of them,
      * or the check would demand a sentence twice.
      */

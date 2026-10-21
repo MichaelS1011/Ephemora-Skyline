@@ -240,3 +240,88 @@ Folder picked in the browser ──File[] over loopback──▶ Orchestrator �
   findings format is kept scanner-agnostic).
 - **Share:** every analyzed city has a permalink `?city=<id>` (in-memory
   store, lives until the backend restarts) and PNG export.
+
+## Live after the first scan
+
+A scan started with the folder picker keeps the folder handle and watches
+metadata — name, size, mtime — every 3 seconds (8 seconds above 5,000 files),
+debounced by 700 ms. A save sends the complete path+SHA manifest plus the bytes
+of only the changed and new files; unchanged analyses are reused by hash, the
+findings of deleted paths leave with them, and the city updates in place without
+replaying its construction.
+
+The changed files are read by the **built-in rules only**: semgrep, gitleaks, the
+dependency audit, churn, duplicates and coverage keep their answers from the full
+scan, and a permanent band says exactly that —
+`Live — built-in rules only; external engines from the last full scan` — while a
+re-read file's card says the same about itself. Zero findings therefore cannot
+read as a clean sweep after a delta. **Full scan** in the band re-reads the same
+folder through every engine and starts watching the new result. A change that
+leaves both size and mtime untouched is the blind spot of any metadata watch, and
+the full scan is the way to settle it.
+
+Measured on the running app against a 31-file fixture: one changed file produced
+one P0 (`EVAL_USAGE`) with `live.changed = 1`; deleting one file and adding
+another kept 31 files with `added = 1, removed = 1`; **Full scan** produced a new
+analysis id with `live: null`, the same 31 files and the same P0.
+`backend/tests/live-delta.test.ts` and `frontend/tests/live-watch.test.tsx` pin
+the hash, merge and watch rules.
+
+## Where a channel stops growing
+
+Height is a shape, and only a sentence says what to do about it. A file past 500
+lines, past 50 branches, or carrying a line past 300 characters gets a note on
+its own card naming the file's measured number and what splitting it buys — in
+both UI languages. Typing more does not make a taller story: the rail saturates,
+so a 5,000-line file and a 100,000-line one both stand at 25.27 of the 34 units
+the skyline measures, and `frontend/tests/mapping.test.ts` fails if that changes.
+
+Those notes are deliberately **not** findings. The first cut routed them through
+the scanner, and this repository's honest self-scan answered 38 → 122: the lecture
+buried the queue the city exists for.
+
+## The two sets a folder is measured by
+
+The browser reader's own decision (`classifyCandidate`: the `SKIP_DIRS` test, the
+`.gitignore` set-aside, the source-shape rule, the user's excludes and the path
+and size walls) and the scan's own single decision (`isScanCandidate`) are
+different sets with different names, and only one of them is on the screen. The
+README states both numbers for this checkout and
+`backend/tests/claims-counts.test.ts` re-walks them on every run, so the sentence
+cannot drift from the tree it describes.
+
+## Source map
+
+Where to look first, one level below the workspaces. `backend/tests/beleg-07-doc-citations.test.ts`
+checks that every folder and file this map names is actually in the tree.
+
+```
+Ephemora-Skyline/
+├── backend/src/
+│   ├── server/            # Express app, loopback bind, local-only guard
+│   │   └── routes/        # local-analyze, status, job-progress, source, demo,
+│   │                      # health, tests, agent (handoff + verify), update-check
+│   ├── services/
+│   │   ├── analyzer/      # pipeline: enumerate -> parse -> metrics -> aggregate
+│   │   └── security/      # scanner facade + adapters (regex, gitleaks, semgrep,
+│   │                      # dependency, osv, ruff) + categories, dedup, redact,
+│   │                      # rule-packs, scan-config, network-policy
+│   ├── models/            # CityData, Finding, FileNode
+│   └── utils/             # cityMapper (layout) + SARIF export
+├── frontend/src/
+│   ├── city/              # layout, palette, types, geometry
+│   ├── components/        # 3D scene + HUD (CityScene, Building, ContextCard,
+│   │                      # InfoPanel, FindingsPanel, Minimap, SearchBar, ...)
+│   ├── config/            # scan profiles, finding categories, rule packs
+│   ├── editor/            # deep links into your editor, workspace root
+│   ├── findings/          # finding presentation and knowledge
+│   ├── hooks/             # useLocalAnalysis, useTestRunner, ...
+│   ├── stores/            # Zustand
+│   ├── design/            # design tokens and CSS
+│   ├── i18n.ts            # the interface strings, EN and DE
+│   ├── prefs.ts           # language, graphics-lite, colour-blind mode
+│   └── reviews.ts         # triage state, per city
+├── docs/                  # this file, API, PRIVACY, LIMITS, SCANNERS, assets/
+├── scripts/               # audit-gate, clone-stats, first-drive, persistenz-drive
+└── .github/               # CI, issue and PR templates, dependabot
+```

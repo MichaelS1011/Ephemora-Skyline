@@ -41,7 +41,7 @@ describe("the caption over the built city (README.md:171)", () => {
   });
 
   it("raises six districts over them", () => {
-    // README.md:171 "74 sample files in six districts"; the summary says the same
+    // README.md:135 "74 sample files in six districts"; the summary says the same
     expect(demo.summary.totalDirectories).toBe(6);
     expect(city.tree.children).toHaveLength(6);
   });
@@ -163,7 +163,8 @@ describe("the district badge's three states, measured on the sample city (CHANGE
   });
 });
 
-describe("the nine reasons a file gives for not joining a scan (README.md:43)", () => {
+describe("the nine reasons a file gives for not joining a scan (README.md:69)", () => {
+  // README.md:69 "counted by the reason they left"
   const documented = [
     "pathTooLong",
     "unsafePath",
@@ -200,7 +201,7 @@ describe("the nine reasons a file gives for not joining a scan (README.md:43)", 
   });
 
   it("refuses a count it cannot read instead of inventing one", () => {
-    // README.md:44 promises the numbers arrive together and reconstructable:
+    // README.md:69 promises the numbers arrive together and reconstructable:
     // a garbage field must not become a number the UI quotes.
     expect(sanitizeDropped({ pathTooLong: 7, tooLarge: -3, unsupportedFormat: "nine" })).toEqual({
       ...emptyDroppedFiles(),

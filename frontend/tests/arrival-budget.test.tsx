@@ -448,6 +448,56 @@ describe("what the reader still gets without asking", () => {
   });
 });
 
+describe("the resident's offer outlives the card it arrived on", () => {
+  /** The announcement folds itself after its nine-second dwell. */
+  const fold = (): void => {
+    act(() => vi.advanceTimersByTime(9500));
+  };
+  const verbs = (): Element[] => [
+    ...host!.querySelectorAll(".start-summary-guide-go, .start-summary-strip-guide"),
+  ];
+
+  it("hands the verb to the strip when the card folds, and never says it twice", () => {
+    arrive();
+    expect(verbs()).toHaveLength(1);
+    expect(host!.querySelector(".start-summary-guide-go"), "the card speaks first").toBeTruthy();
+    fold();
+    expect(host!.querySelector(".start-summary"), "the card folded away").toBeNull();
+    expect(host!.querySelector(".start-summary-strip")).toBeTruthy();
+    expect(verbs()).toHaveLength(1);
+    expect(verbs()[0]!.className).toBe("start-summary-strip-guide");
+  });
+
+  it("starts the tour from the strip, then stops offering", () => {
+    arrive();
+    fold();
+    act(() => host!.querySelector<HTMLButtonElement>(".start-summary-strip-guide")!.click());
+    expect(useStore.getState().tourActive, "the verb is the same guided tour").toBe(true);
+    expect(useStore.getState().residentOffer).toBe("taken");
+    expect(verbs(), "an answered offer is not repeated").toHaveLength(0);
+  });
+
+  it("never asks a second time after the card was closed", () => {
+    arrive();
+    act(() => host!.querySelector<HTMLButtonElement>(".start-summary-close")!.click());
+    expect(useStore.getState().residentOffer, "closing the card is an answer").toBe("closed");
+    fold();
+    expect(
+      host!.querySelector(".start-summary-strip"),
+      "the strip stays, the offer does not",
+    ).toBeTruthy();
+    expect(verbs()).toHaveLength(0);
+  });
+
+  it("keeps the folded strip inside the word budget it held before", () => {
+    arrive();
+    fold();
+    const strip = speakingRegions().announcement ?? "";
+    expect(strip, "the strip is what stands after the fold").not.toBe("");
+    expect(words(strip), `the folded line reads: ${strip}`).toBeLessThanOrEqual(24);
+  });
+});
+
 describe("city only", () => {
   it("steps every instrument back, and Escape brings it all back", () => {
     arrive();
