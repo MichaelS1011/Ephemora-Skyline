@@ -149,6 +149,8 @@ Every frame below was shot from the build in this repository on 2026-10-21, on t
 | ![The same finding card in German, with the remediation steps translated and the scanner's own sentence kept](docs/assets/ui-german-card.png?v=2026-10-21) | ![The same city in a narrow window](docs/assets/ui-narrow.png?v=2026-10-21) |
 | The interface, the categories and the fix recipes are bilingual; the scanner's own message stays in the language it was written in.                        | Panels stay inside the viewport; the city stays explorable.                 |
 
+SONDIERTEXT VOR DEM VIDEO
+
 <!-- SONDRUNG: wird nach dem Messen entfernt -->
 
 <video src="docs/assets/demo-city.mp4" controls muted width="620"></video>
