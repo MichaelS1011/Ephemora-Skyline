@@ -19,6 +19,7 @@ import {
 } from "../city/openWorldStreets";
 import { prefersReducedMotion, reducedSettle } from "../city/motion";
 import { owesWave, WAVE_HOLD_S } from "../city/residentGreeting";
+import { useWaveRhythm } from "../hooks/useWaveRhythm";
 import {
   ACCEL,
   footCycle,
@@ -478,7 +479,6 @@ export function Pedestrians({
   const residentGreet = useStore((s) => s.residentGreet);
   const residentGreeted = useStore((s) => s.residentGreeted);
   const markResidentGreeted = useStore((s) => s.markResidentGreeted);
-  const residentOffer = useStore((s) => s.residentOffer);
   const residentRingRef = useRef<THREE.InstancedMesh | null>(null);
   const bodyRef = useRef<THREE.InstancedMesh>(null);
   const headRef = useRef<THREE.InstancedMesh>(null);
@@ -859,23 +859,19 @@ export function Pedestrians({
   // the wave does too: while nobody has taken it, one resident in the frame
   // waves again every twenty seconds. A guided flow, an open file or a called
   // resident owns the stage, and a closed card ends the offer for this city.
-  useEffect(() => {
-    if (residentOffer !== "open" || prefersReducedMotion()) return;
-    const tick = (): void => {
-      const s = useStore.getState();
-      const stageBusy =
-        s.selectedResident !== null ||
-        s.triageActive ||
-        s.tourActive ||
-        s.showFindings ||
-        s.selectedUnit !== null ||
-        s.cityOnly;
-      if (!owesWave(s.residentOffer, stageBusy, sim.current.time, lastWaveS.current)) return;
-      pickGreeter();
-    };
-    const timer = window.setInterval(tick, 1000);
-    return () => window.clearInterval(timer);
-  }, [residentOffer, pickGreeter, sim]);
+  const waveOwed = useCallback((): boolean => {
+    if (prefersReducedMotion()) return false;
+    const s = useStore.getState();
+    const stageBusy =
+      s.selectedResident !== null ||
+      s.triageActive ||
+      s.tourActive ||
+      s.showFindings ||
+      s.selectedUnit !== null ||
+      s.cityOnly;
+    return owesWave(s.residentOffer, stageBusy, sim.current.time, lastWaveS.current);
+  }, [sim]);
+  useWaveRhythm(waveOwed, pickGreeter);
 
   const dummy = useMemo(() => new THREE.Object3D(), []);
   const scratchColor = useMemo(() => new THREE.Color(), []);

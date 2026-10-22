@@ -37,7 +37,7 @@ Open **http://127.0.0.1:4173** and click **Choose project folder** — or **Expl
 ```bash
 npm run lint           # ESLint, zero warnings
 npm run type-check     # tsc --noEmit, both packages
-npm run test           # Vitest — 242 test files: 158 frontend, 84 backend (2026-10-21)
+npm run test           # Vitest — 243 test files: 159 frontend, 84 backend (2026-10-21)
 npm run build          # production build, both packages
 node scripts/audit-gate.mjs   # dependency audit
 ```
@@ -103,7 +103,7 @@ When you pick a folder, the **browser** reads it and posts the contents to the l
 
 That table is not decoration: the entry screen renders the same list from the same declaration the backend obeys, and a test fails if the two ever name different hosts. `SKYLINE_OFFLINE=1` switches off the update check even for a reader who turned it on, the OSV and dependency checks, and Semgrep unless a local rule pack is already on disk; it also closes pip-audit, the Docker pull and any `npm ci` the test runner would attempt. With the switch set, nothing above is reached — it is an environment variable, not a UI control yet.
 
-**The limits are numbers, not adjectives.** Local analysis is capped at **10,000 files / 150 MB / 2 MB per file**; a larger folder opens as a preview sample of up to 2,000 files across its top-level districts, with the full count named, and your own `.gitignore` sets paths aside _before_ the cap applies. Over this checkout, the browser reader's own decision — `classifyCandidate`: the `SKIP_DIRS` test, the set-aside, the source-shape rule, your excludes and the path and size walls — counts **518** files the project calls source and admits them to the read, and the scan's own single decision, `isScanCandidate`, then reads **497** of those. Two sets, two names, and only one of them is on the screen; `backend/tests/claims-counts.test.ts` calls those two shipped functions over this tree and fails, printing both numbers, the moment this sentence drifts.
+**The limits are numbers, not adjectives.** Local analysis is capped at **10,000 files / 150 MB / 2 MB per file**; a larger folder opens as a preview sample of up to 2,000 files across its top-level districts, with the full count named, and your own `.gitignore` sets paths aside _before_ the cap applies. Over this checkout, the browser reader's own decision — `classifyCandidate`: the `SKIP_DIRS` test, the set-aside, the source-shape rule, your excludes and the path and size walls — counts **520** files the project calls source and admits them to the read, and the scan's own single decision, `isScanCandidate`, then reads **499** of those. Two sets, two names, and only one of them is on the screen; `backend/tests/claims-counts.test.ts` calls those two shipped functions over this tree and fails, printing both numbers, the moment this sentence drifts.
 
 **Telemetry: none.** The only request the app makes for itself is the anonymous release check in the table above, and that switch starts off. The UI typeface ships inside the app, and a test fails if the entry document ever references a third-party host. Maintainers measure adoption through [GitHub's traffic and clone statistics](https://docs.github.com/en/rest/metrics/traffic) (`GH_TOKEN=*** node scripts/clone-stats.mjs`), which count clones without identifying anyone; those endpoints answer only a token with write access to this repository, and they report the last 14 days.
 

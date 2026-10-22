@@ -403,3 +403,15 @@ and the orphan guard (`baum-hygiene.test.ts`, "ships no asset in docs/assets tha
 no document links") would otherwise have had a new orphan to name. The 9/10
 October and 12 October sections above keep their poster numbers as the history
 they are.
+
+The twenty-second wave was the one claim of that round left unproven on screen: a
+WebGL figure cannot be counted from the DOM, and a screenshot diff over a moving
+city measures the traffic. So the beat moved out of the crowd into
+`frontend/src/hooks/useWaveRhythm.ts` — a timer that asks once a second, waves on
+a yes, and is gone with the component — and `frontend/tests/wave-rhythm.test.tsx`
+(3 tests) now holds it: 9 s of asking gives 9 asks and 3 waves when the rule says
+yes every third time, nothing is asked before the first second is full, and
+nothing is asked after the component unmounts. What is measured since: the rule
+(`resident-greeting.test.ts`, 5), the beat (3), the offer surfaces on the mounted
+`App` (`arrival-budget.test.tsx`, 27). What is still not measured on pixels: that
+an arm visibly goes up at the twentieth second.

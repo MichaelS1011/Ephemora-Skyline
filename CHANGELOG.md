@@ -448,7 +448,11 @@ ScanSummary.tsx`), so the offer stands as long as the city does, and while it
   after: one verb on screen at every sampled instant (card, then strip, never
   two, never zero while open), the strip verb mounts `.security-tour` and drops
   to zero verbs, and the strip's line is **17 words**. `arrival-budget.test.tsx`
-  23 → 27 tests, `resident-greeting.test.ts` adds 5. Public numbers moved with
+  23 → 27 tests, `resident-greeting.test.ts` adds 5. The asking itself is now a
+  seam (`frontend/src/hooks/useWaveRhythm.ts`: one timer, asks once a second, waves
+  on a yes, gone with the component) and `wave-rhythm.test.tsx` holds it with three
+  cases, so what is no longer taken on faith is the beat, not only the rule. Public
+  numbers moved with
   the two new source files: the reader's set **516 → 518**, the scanner's
   **495 → 497**, test files **241 → 242** (frontend **157 → 158**).
 - **The exported file carries the product mark, and there is no switch for it.**
