@@ -351,8 +351,12 @@ describe("no credential in the tree, and no door left open for one", () => {
 
 describe("what is linked also ships", () => {
   const SHIPPED_ROOTS = ["docs/", "scripts/", "backend/", "frontend/", "docker/", ".github/"];
+  /** Every artifact path the shipped documents name, resolved against the repo.
+   *  The extension list is the vocabulary of what may ship at all: when the
+   *  README started carrying an animated GIF, a guard that could not see `.gif`
+   *  called that asset an orphan while the document linked it twice. */
   const REFERENCE =
-    /(?:\.{0,2}\/)?[\w./-]*\/[\w.-]+\.(?:png|jpe?g|mp4|webm|mjs|ts|tsx|json|ya?ml|conf|sh|txt|example)\b/g;
+    /(?:\.{0,2}\/)?[\w./-]*\/[\w.-]+\.(?:png|jpe?g|gif|mp4|webm|mjs|ts|tsx|json|ya?ml|conf|sh|txt|example)\b/g;
 
   /** Every artifact path the shipped documents name, resolved against the repo. */
   const referenced = new Map<string, string[]>();

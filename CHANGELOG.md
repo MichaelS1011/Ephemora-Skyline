@@ -417,6 +417,22 @@ Datenabfluss bewiesen` instead of the hygiene line `Keine Schwachstelle`; and
 
 ### Changed
 
+- **The README opens on a picture that runs, because a README cannot hold a
+  video.** Asked why the clip only appeared as a still, the answer was measured
+  on GitHub's own renderer: `<video>` keeps `src`, `muted`, `controls` and
+  `width` and strips `autoplay`, `loop`, `playsinline` and `poster`; on the
+  README page the element is dropped whole — probed on a branch and read back
+  through `GET /repos/…/readme` with `Accept: application/vnd.github.html`, with
+  a text marker proving the branch was what rendered, for relative,
+  `github.com/…/raw` and `raw.githubusercontent` srcs alike. The hero cell now
+  carries a 7-second cut of the same visit as an animated image — 70 frames at
+  640 × 400 and 10 fps, 3,227 KB — still linked to the 27.2 s file, so one click
+  gives the whole visit. `beleg-04-demo-clip.test.ts` reads those five numbers
+  from the README sentence and counts the GIF's frames by walking its blocks; a
+  byte search for the Graphic Control marker reported 114 frames in a 70-frame
+  file, which is why the walker exists. The poster PNG left with it: its job was
+  to tease a video that could not play, and the orphan guard names any asset no
+  document links.
 - **The resident's offer outlives the card it arrived on.** Measured on the
   running app before this change: the announcement speaks in a resident's voice —
   „Your project is a city. Shall I walk you to the findings?" — for exactly

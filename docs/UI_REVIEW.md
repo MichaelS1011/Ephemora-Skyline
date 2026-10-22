@@ -128,6 +128,7 @@ input, which is the path a browser without the File System Access API takes.
 - [Share studio with the platform rows](assets/ui-share-platforms.png) · [More menu](assets/ui-more-menu.png)
 - [The same card in German](assets/ui-german-card.png) · [narrow window](assets/ui-narrow.png)
 - [27-second clip of one visit](assets/demo-city.mp4) — 1600 × 1000, 30 fps, one video stream, no audio track; re-shot 21 October, see the last section
+- [Seven-second build loop](assets/demo-city-loop.gif) — 640 × 400, 10 fps, 70 frames, 3,227 KB; the picture the README opens on, because a README cannot carry a video
 
 ### The alarm band inside the city — 11 October 2026
 
@@ -375,3 +376,30 @@ arithmetic — 20 s from the **last** wave, nothing owed to `taken` or `closed`,
 nothing while the stage is busy. The live run finished with 0 console errors.
 Proof: `docs/reviews/2026-10-21-resident-offer/` (`measure.json`, the strip with
 its verb, the frame after the click).
+
+## 22 October 2026 — the README opens on a picture that runs
+
+Asked for the clip to be visible and running while the README is read, the first
+answer was a measurement of what GitHub allows. Rendered through GitHub's own
+markdown endpoint, `<video>` keeps only `src`, `muted`, `controls` and `width`:
+`autoplay`, `loop`, `playsinline` and `poster` are stripped. On the README page
+itself — a probe branch, read back through `GET /repos/…/readme` with
+`Accept: application/vnd.github.html`, where a text marker proved the branch was
+the thing rendered — the element is **dropped entirely**, for a relative src, for
+`github.com/…/raw/main/…` and for `raw.githubusercontent.com/…` alike. So a
+README cannot hold a playing video, and the only picture there that runs by
+itself is an animated `<img>`.
+
+The hero cell therefore shows a 7-second cut of the build — 5 s to 12 s of the
+same visit, 70 frames at 640 × 400 and 10 fps, **3,227 KB** — linked to the clip,
+so one click still hands over the whole 27.2 s file. `beleg-04-demo-clip.test.ts`
+reads those five numbers out of the README sentence and walks the GIF's own
+blocks to count its frames; a byte search for the Graphic Control marker was the
+first idea and reported **114** frames in a 70-frame file, which is why the
+walker steps over sub-blocks and local colour tables instead.
+
+The poster PNG left with this: its job was to tease a video that could not play,
+and the orphan guard (`baum-hygiene.test.ts`, "ships no asset in docs/assets that
+no document links") would otherwise have had a new orphan to name. The 9/10
+October and 12 October sections above keep their poster numbers as the history
+they are.

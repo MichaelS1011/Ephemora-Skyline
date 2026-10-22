@@ -123,6 +123,34 @@ const samples = (): { count: number; deltas: number[] } => {
   return { count, deltas };
 };
 
+/**
+ * The frame count of a GIF, from its own block walk: every image descriptor
+ * counts, its local colour table and its sub-blocks are stepped over. A byte
+ * search for the Graphic Control marker is not a count — `21 F9` also occurs
+ * inside compressed pixel data, where it measured 114 frames in a 70-frame file.
+ */
+const gifFrames = (gif: Buffer): number => {
+  const table = (packed: number): number => (packed & 0x80 ? 3 * (1 << ((packed & 7) + 1)) : 0);
+  let i = 13 + table(gif[10]!);
+  let frames = 0;
+  while (i < gif.length) {
+    const label = gif[i]!;
+    if (label === 0x3b) break;
+    if (label === 0x2c) {
+      frames += 1;
+      i += 10 + table(gif[i + 9]!) + 1;
+    } else if (label === 0x21) {
+      i += 2;
+    } else {
+      i += 1;
+      continue;
+    }
+    while (gif[i] !== 0) i += gif[i]! + 1;
+    i += 1;
+  }
+  return frames;
+};
+
 describe("the clip's stated shape (README.md:20)", () => {
   it("is the frame size README names", () => {
     expect(trackSize()).toEqual({ width: claimed.width, height: claimed.height });
@@ -177,16 +205,38 @@ describe("one visit, filmed as it happens (README.md:20, CHANGELOG.md)", () => {
     expect(found.filter((b) => b.type === "mdat")).toHaveLength(1);
   });
 
-  it("opens on a poster in the clip's own frame shape (README.md:20)", () => {
-    // the poster links to this clip; it may be larger, not mis-shaped
-    const poster = readFileSync(
-      path.resolve(import.meta.dirname, "../../docs/assets/demo-city-poster.png"),
+  it("opens on a loop that runs where a video cannot (README.md:18)", () => {
+    const md = readFileSync(path.resolve(import.meta.dirname, "../../README.md"), "utf-8");
+    const m = md.match(
+      /(\d+) seconds of that build, (\d+) frames at (\d+) × (\d+) and ([\d.]+) fps, ([\d,]+) KB/,
     );
-    expect(poster.subarray(0, 8).toString("hex")).toBe("89504e470d0a1a0a");
-    const width = poster.readUInt32BE(16);
-    const height = poster.readUInt32BE(20);
-    const frame = trackSize();
-    expect(width / height).toBeCloseTo(frame.width / frame.height, 10);
-    expect(width).toBeGreaterThan(frame.width);
+    if (!m) {
+      throw new Error(
+        "the loop sentence no longer names its seconds, its frames, its shape, its rate and its weight in one breath",
+      );
+    }
+    const seconds = Number(m[1]);
+    const frames = Number(m[2]);
+    const width = Number(m[3]);
+    const height = Number(m[4]);
+    const fps = Number(m[5]);
+    const kb = Number(m[6]!.replace(/,/g, ""));
+    const gif = readFileSync(
+      path.resolve(import.meta.dirname, "../../docs/assets/demo-city-loop.gif"),
+    );
+    expect(gif.subarray(0, 6).toString("latin1")).toBe("GIF89a");
+    expect(gif.readUInt16LE(6)).toBe(width);
+    expect(gif.readUInt16LE(8)).toBe(height);
+    // the loop is cut from this clip, so it may be smaller, not mis-shaped
+    const clip = trackSize();
+    expect(width / height).toBeCloseTo(clip.width / clip.height, 10);
+    expect(gifFrames(gif)).toBe(frames);
+    expect(frames / fps).toBeCloseTo(seconds, 6);
+    expect(Math.round(gif.length / 1024)).toBe(kb);
+    // Measured on the rendered README: GitHub's renderer drops a <video> element
+    // for a relative src, for github.com/.../raw and for raw.githubusercontent
+    // alike, and strips autoplay, loop and playsinline from the ones it keeps.
+    // An animated <img> is the only picture that runs there by itself.
+    expect(md).not.toMatch(/<video/);
   });
 });
