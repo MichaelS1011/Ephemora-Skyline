@@ -12,3 +12,13 @@ updates:
         dependency-type: development
         patterns:
           - "*"
+  # The two actions CI runs on (`actions/checkout`, `actions/setup-node`) are
+  # named by a mutable major tag, so nothing else in the tree would ever notice
+  # one of them moving. This is the line that asks about them.
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: weekly
+      day: monday
+      time: "07:00"
+    open-pull-requests-limit: 5
