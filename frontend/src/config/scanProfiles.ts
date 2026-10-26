@@ -4,7 +4,7 @@
  */
 
 import { enabledCategoriesPayload } from "./findingCategories";
-import { readStoredJson, type StoredRead } from "../storageRead";
+import { readStoredJson, readStoredText, type StoredRead } from "../storageRead";
 import type { FindingCategory } from "../city/types";
 import type { DictKey } from "../i18n";
 
@@ -195,19 +195,51 @@ export const PROFILE_SCOPE: Record<ScanProfile, DictKey> = {
  */
 const STORAGE_KEY = "codecity-scan-profile";
 
-/** Persisted profile — survives reloads; "custom" has no editor yet, falls back */
+/**
+ * The ids the loader honours. "custom" is included on purpose: it is a value
+ * this app's own writer produces (`saveProfile` accepts it, the editor is
+ * stage 2), so it READS and falls back to standard below — refusing it as
+ * `unreadable` would quarantine bytes the app wrote itself and sell a known
+ * fallback as a failed read.
+ */
+const PROFILE_IDS: readonly string[] = ["quick", "standard", "deep", "custom"];
+
+/**
+ * The saved profile answers three states, not two (`StoredRead` in
+ * storageRead.ts — the pattern the exclude list in this file shipped). The id
+ * is stored as bare text, not JSON, so the read goes through `readStoredText`,
+ * the class's raw-text door.
+ *
+ * The old `catch → "standard"` drew a profile that could not be read as THE
+ * standard profile: a user who had chosen `deep` was told by the chip row
+ * that they had never chosen anything, and the next chip click saved that
+ * "never chosen" over the bytes the reader might still recover. The bytes now
+ * stay under `codecity-scan-profile:unreadable` first-wins, and the screen
+ * says the difference in words where the chips already live (ProfileChips,
+ * `profile.storedUnreadable`).
+ */
+export function loadSavedProfileRead(): StoredRead<ScanProfile> {
+  return readStoredText(STORAGE_KEY, (raw) =>
+    PROFILE_IDS.includes(raw) ? (raw as ScanProfile) : undefined,
+  );
+}
+
+/**
+ * Persisted profile — survives reloads; "custom" has no editor yet, falls back.
+ * The screen-facing default is still standard for a failed read; what changed
+ * is that it is no longer the whole answer (see `loadSavedProfileRead`).
+ */
 export function loadSavedProfile(): ScanProfile {
-  try {
-    const saved = localStorage.getItem(STORAGE_KEY) as ScanProfile | null;
-    if (saved && SCAN_PROFILES.some((p) => p.id === saved) && saved !== "custom") return saved;
-  } catch {
-    /* storage unavailable */
-  }
+  const read = loadSavedProfileRead();
+  if (read.state === "read" && read.value !== "custom") return read.value;
   return "standard";
 }
 
 export function saveProfile(profile: ScanProfile): void {
   try {
+    // The same rule `saveExcludes` ships: the live key may be rewritten — the
+    // user chose a profile. The quarantined bytes of a failed read are NOT
+    // that choice; saveProfile never touches the `:unreadable` slot.
     localStorage.setItem(STORAGE_KEY, profile);
   } catch {
     /* storage unavailable */

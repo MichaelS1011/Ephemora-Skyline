@@ -4329,6 +4329,19 @@ export const DICT = {
     en: "This browser's record of your earlier scans could not be read — the comparison cannot claim there was no earlier visit, only that it cannot see one. The unreadable file is kept, nothing was deleted.",
     de: "Die Aufzeichnung deiner früheren Scans in diesem Browser konnte nicht gelesen werden — der Vergleich kann nicht behaupten, dass es keinen früheren Besuch gab, nur dass er keinen sehen kann. Die unlesbare Datei bleibt erhalten, nichts wurde gelöscht.",
   },
+  // ── Storage-read class, last default-answering loader door (Auftrag #12):
+  // the saved scan profile. Same three facts as above — the read failed, what
+  // the screen shows meanwhile, that the bytes are parked under the key's
+  // `:unreadable` slot and nothing was deleted. The chip row is the surface
+  // it already has; `custom`, the app's own unfinished value, reads and
+  // raises no word.
+
+  /** The chip row: a profile that could not be read is drawn as standard —
+   *  which must never be allowed to look like never having chosen one. */
+  "profile.storedUnreadable": {
+    en: "The scan profile you saved on this machine could not be read — the chips show standard now, which is not the same as never having chosen one. The unreadable bytes are kept, nothing was deleted.",
+    de: "Das auf diesem Rechner gespeicherte Scan-Profil konnte nicht gelesen werden — die Chips zeigen jetzt standard, das heißt nicht, dass du nie eines gewählt hast. Die unlesbaren Bytes bleiben erhalten, nichts wurde gelöscht.",
+  },
   // ── X-ray raw numbers (X, hold) — Task 6 ──────────────────────────────────
   // The plate answers one sentence: "I look at a tower and want the raw
   // numbers that shaped it, without a detour". Every label is a word, never

@@ -18,7 +18,8 @@
  *
  * Local instances of this class closed so far: reviews.ts (machine copy, via
  * the route), rulePacks.ts (network path), prefs.ts, and — through this file —
- * config/scanProfiles.ts, config/rulePacks.ts (storage path),
+ * config/scanProfiles.ts (`loadExcludesRead` as JSON, `loadSavedProfileRead`
+ * as raw text via `readStoredText`), config/rulePacks.ts (storage path),
  * recentCities.ts and, on the queue of the prefs round, epheLook.ts,
  * epheNames.ts, reviews.ts (browser bucket) and verify.ts (anchors and
  * times). Watch: tests/storage-class-honest.test.ts.
@@ -81,6 +82,35 @@ export function readStoredJson<T>(
     preserveUnreadable(key, raw);
     return { state: "unreadable" };
   }
+}
+
+/**
+ * The raw-text sibling of `readStoredJson`, for the one stored value this app
+ * keeps as bare text instead of JSON: `codecity-scan-profile`, whose shipped
+ * writer saves the profile id itself (`saveProfile`). The states and the
+ * quarantine are identical — only the parse step is replaced by the loader's
+ * own text rule. Bytes the rule refuses are `unreadable` and parked, never
+ * "absent": a value this app cannot honour is a failed read, whatever a
+ * stopwatch-free screen would rather show meanwhile.
+ */
+export function readStoredText<T>(
+  key: string,
+  accept: (raw: string) => T | undefined,
+): StoredRead<T> {
+  if (typeof window === "undefined") return { state: "absent" };
+  let raw: string | null;
+  try {
+    raw = window.localStorage.getItem(key);
+  } catch {
+    return { state: "unreadable" };
+  }
+  if (raw === null || raw === "") return { state: "absent" };
+  const value = accept(raw);
+  if (value === undefined) {
+    preserveUnreadable(key, raw);
+    return { state: "unreadable" };
+  }
+  return { state: "read", value };
 }
 
 /**

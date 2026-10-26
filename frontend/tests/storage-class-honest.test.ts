@@ -10,7 +10,14 @@ import {
   readStoredJson,
   type StoredRead,
 } from "../src/storageRead";
-import { loadExcludes, loadExcludesRead, saveExcludes } from "../src/config/scanProfiles";
+import {
+  loadExcludes,
+  loadExcludesRead,
+  loadSavedProfile,
+  loadSavedProfileRead,
+  saveExcludes,
+  saveProfile,
+} from "../src/config/scanProfiles";
 import { loadSavedPacks, loadSavedPacksRead, savePacks } from "../src/config/rulePacks";
 import {
   recentCities,
@@ -66,6 +73,7 @@ const tDe = (key: string) => tDict("de", key as never);
 const EXCLUDE_KEY = "codecity-scan-excludes";
 const PACKS_KEY = "codecity-scan-packs";
 const RECENT_KEY = "codecity-recent:v1";
+const PROFILE_KEY = "codecity-scan-profile";
 
 const ENTRY: RecentCity = {
   id: "a-1",
@@ -101,14 +109,16 @@ interface LoaderCase {
 }
 
 /**
- * The eight loader doors of the class as ONE table — the tally the task asks
+ * The nine loader doors of the class as ONE table — the tally the task asks
  * for: which loader answers which of the three states, in cells that can be
- * counted (8 rows x 5 cells below; nine closed files, `storageRead.ts` and
+ * counted (9 rows x 5 cells below; nine closed files, `storageRead.ts` and
  * `prefs.ts` aside being the mechanism and the reference). `wrongShape` is the
  * row that used to be the quietest: bytes that parse but are not what the
  * loader stores — the old code called that "empty", and the next save called
  * it "gone". The per-project rows ride on their own bucket, so every project
- * keeps its own quarantine slot.
+ * keeps its own quarantine slot. The profile row is the class's raw-text
+ * member: the id is stored bare, so its door reads through `readStoredText`
+ * and refuses every text that is not one of the four known ids.
  */
 const LOOK_KEY = "codecity-ephe-look:v1";
 const ANCHOR_KEY = "codecity-verify-anchor:v1";
@@ -136,6 +146,18 @@ const LOADERS: LoaderCase[] = [
     brokenParse: '["docs", {"a":',
     wrongShape: '{"note":"not a list"}',
     wrongShapeDefault: [],
+  },
+  {
+    name: "loadSavedProfileRead (config/scanProfiles.ts, raw-text door)",
+    key: PROFILE_KEY,
+    read: () => loadSavedProfileRead(),
+    defaultValue: () => loadSavedProfile(),
+    save: () => saveProfile("deep"),
+    validRaw: "deep",
+    validValue: "deep",
+    brokenParse: '{"id":"qu',
+    wrongShape: '"deep"',
+    wrongShapeDefault: "standard",
   },
   {
     name: "loadSavedPacksRead (config/rulePacks.ts, storage path)",
@@ -539,6 +561,48 @@ describe("the word where the comparison lives (ContextCard since-last-scan)", ()
   });
 });
 
+/* ── the word where the profile chips live (ProfileChips, the last
+ * default-answering loader door of the class — Auftrag #12). The chip row
+ * itself is the surface it already has; the note rides the same pack-note
+ * family with role=alert, EN and DE, on both variants — the landing is
+ * precisely where a quietly reset choice is visible as "never chosen". ──── */
+
+describe("the word where the saved profile lives (ProfileChips)", () => {
+  it("a corrupt saved profile is not 'never chosen' — in EN, on the panel row", async () => {
+    localStorage.setItem(PROFILE_KEY, '{"id":"qu');
+    const text = await mount(createElement(ProfileChips, { variant: "analyze-panel" }));
+    expect(text).toContain(tEn("profile.storedUnreadable"));
+    const note = host.querySelector("[data-profile-stored-unreadable]");
+    expect(note?.getAttribute("role")).toBe("alert");
+    expect(note?.textContent).toContain("⚠");
+  });
+
+  it("a corrupt saved profile, deutsch — and the landing shows it too", async () => {
+    localStorage.setItem(PROFILE_KEY, '"deep"');
+    const initial = useStore.getInitialState();
+    useStore.setState({ ...initial, prefs: { ...initial.prefs, lang: "de" } }, true);
+    const text = await mount(createElement(ProfileChips, { variant: "landing" }));
+    expect(text).toContain(tDe("profile.storedUnreadable"));
+    expect(text).not.toContain(tEn("profile.storedUnreadable"));
+  });
+
+  it("a healthy saved profile raises no storage word", async () => {
+    localStorage.setItem(PROFILE_KEY, "deep");
+    const text = await mount(createElement(ProfileChips, { variant: "analyze-panel" }));
+    expect(text).not.toContain(tEn("profile.storedUnreadable"));
+    expect(loadSavedProfileRead()).toEqual({ state: "read", value: "deep" });
+  });
+
+  it(`"custom" is a value the app itself wrote — read, mapped, never alarmed`, async () => {
+    localStorage.setItem(PROFILE_KEY, "custom");
+    const text = await mount(createElement(ProfileChips, { variant: "analyze-panel" }));
+    expect(text).not.toContain(tEn("profile.storedUnreadable"));
+    expect(loadSavedProfileRead().state).toBe("read");
+    expect(loadSavedProfile()).toBe("standard"); // the documented fallback, no alarm
+    expect(localStorage.getItem(quarantineKeyFor(PROFILE_KEY))).toBeNull();
+  });
+});
+
 /* ── the static half of the watch ────────────────────────────────────────────
  * No loader in the CLOSED set may re-grow a `catch → default` without a
  * state distinction; the loaders still OPEN are a named ledger with the exact
@@ -571,7 +635,7 @@ describe("no closed loader answers a failed read with a default", () => {
   it("nine loaders answer read/absent/unreadable; the open ledger is empty", () => {
     expect(CLOSED_FILES).toHaveLength(9);
     expect(OPEN_LEDGER).toHaveLength(0);
-    expect(LOADERS).toHaveLength(8);
+    expect(LOADERS).toHaveLength(9);
   });
 
   for (const rel of CLOSED_FILES) {

@@ -5,6 +5,7 @@ import { useStore } from "../stores/useStore";
 import {
   SCAN_PROFILES,
   loadSavedProfile,
+  loadSavedProfileRead,
   categoriesForProfile,
   type ScanProfile,
 } from "../config/scanProfiles";
@@ -32,6 +33,12 @@ export function ProfileChips({ variant }: { variant: "landing" | "analyze-panel"
   // save over the file. The bytes now stay quarantined (rulePacks.ts); this
   // is the word, in the note family the row already uses.
   const [packsStorageUnreadable] = useState(() => loadSavedPacksRead().state === "unreadable");
+  // The last door of the same class: the SAVED PROFILE on this machine. A
+  // read that failed is drawn as standard below — the row cannot render
+  // "unknown" — but it is not the nothing of never-chosen, and it says so
+  // here, on both variants, because the landing is exactly where a quietly
+  // reset choice used to look like a choice that was never made.
+  const [profileStoredUnreadable] = useState(() => loadSavedProfileRead().state === "unreadable");
   const active = scanProfile ?? loadSavedProfile();
   const meta = SCAN_PROFILES.find((p) => p.id === active) ?? SCAN_PROFILES[1]!;
   const effectiveCategories = categoriesForProfile(active, scanCategories);
@@ -82,6 +89,15 @@ export function ProfileChips({ variant }: { variant: "landing" | "analyze-panel"
       <p className="profile-description">
         {t(lang, meta.summary)} <span>{t(lang, "profile.durationNote")}</span>
       </p>
+      {profileStoredUnreadable && (
+        <p
+          className="profile-description pack-note"
+          role="alert"
+          data-profile-stored-unreadable="true"
+        >
+          ⚠ {t(lang, "profile.storedUnreadable")}
+        </p>
+      )}
       {/* The detail card sits in the normal flow, directly under the chips it
           describe — no portal, no overlay (#50). Clicking another chip swaps
           its content, so two profiles can be read back to back. */}
