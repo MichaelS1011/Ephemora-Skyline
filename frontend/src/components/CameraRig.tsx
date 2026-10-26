@@ -8,7 +8,9 @@ import type { CameraInfo } from "../stores/useStore";
 import { getDirLayout } from "../city/layout";
 import type { CraneShot } from "../city/layout";
 import { getKeyboardMark } from "../interaction/keyboardMark";
-import { fitWorldOverview } from "../city/worldFraming";
+import { fitWorldOverview, WORLD_FOV_DEG } from "../city/worldFraming";
+import { STANDARD_AZIMUTH, fitAnsicht, isAnsicht } from "../city/cameraPresets";
+import { currentVisit } from "../urlState";
 import {
   FLAT_SURFACE,
   surfaceForLayout,
@@ -106,9 +108,10 @@ export function approachFromCurrentDirection(
     };
   }
   const horizRadius = Math.hypot(ox, oz);
-  // Only a straight-down view has no azimuth to carry; the legacy vantage
-  // supplies one so an elevation-carrying flight still has a side to sit on.
-  const azimuth = horizRadius < 1e-9 ? Math.atan2(0.75, 0.4) : Math.atan2(oz, ox);
+  // Only a straight-down view has no azimuth to carry; the standard heading
+  // (worldFraming's one azimuth) supplies one so an elevation-carrying flight
+  // still has a side to sit on.
+  const azimuth = horizRadius < 1e-9 ? STANDARD_AZIMUTH : Math.atan2(oz, ox);
   const el = elevation ?? Math.atan2(oy, horizRadius);
   const horiz = Math.cos(el) * distance;
   return {
@@ -182,6 +185,10 @@ const _pivot = new THREE.Vector3();
 export const PIVOT_Y = 1.5;
 /** Street level — nothing the pilot flies through goes below it. */
 export const GROUND_Y = 1;
+/** How far ahead the free camera's orbit anchor sits on its own view axis.
+ * One number, three sites (orbit entry, share-flight interpolation, the
+ * live-view anchor a preserved flight reads) — all of them this distance. */
+const VIEW_ANCHOR_DIST = 12;
 
 /** Where a level is: its plaza centre. Organic cells are not centred on the
  *  world origin, so the frame that holds a city is not the frame that holds
@@ -200,9 +207,15 @@ const ORIGIN: LevelCentre = { x: 0, z: 0 };
  * wheel could: dollying toward the ground drove the camera under the ground
  * plane, and from below the frame is nothing but the clear colour (measured:
  * the world collapses to a single colour after ~10 notches of inward scroll).
- * The outer limit is the fog far plane (CityScene hazes everything out at
- * `bounds * 4 + 220`), so clamping there cuts nothing the user could still
- * see — and no overview flight can reach it, since the tallest possible
+ * The outer limit is the camera's own collar, `cityClampRadius` below — the
+ * ONE arithmetic for it, shared with the orbit's max distance. It is NOT the
+ * fog's far plane: CityScene hazes at `bounds * 9 + 600` (fogRange), which at
+ * the demo level is 680 units further out than the collar's 460. Unifying
+ * them would move the shipped view, so the difference stands — reported, and
+ * pinned by `tests/kamera-konstanten.test.ts`. What the guard in
+ * `tests/worldPicture.test.ts` does promise is that at the collar the fog is
+ * still a thin wash (< 0.35), so clamping there cuts nothing the user could
+ * still see — and no overview flight can reach it, since the tallest possible
  * framing is 129 units (mapping.ts caps a building at 34, voxels at 1.4x)
  * while the ceiling is never below 220.
  *
@@ -210,6 +223,10 @@ const ORIGIN: LevelCentre = { x: 0, z: 0 };
  * layout's plaza sits up to 92 m off the origin, and a bound centred on the
  * origin would let the pilot walk out of the fog while still inside it.
  */
+export function cityClampRadius(bounds: number): number {
+  return bounds * 4 + 220;
+}
+
 export function clampToCity(
   pos: XYZ,
   bounds: number | null,
@@ -218,7 +235,7 @@ export function clampToCity(
 ): XYZ {
   let { x, y, z } = pos;
   if (bounds !== null) {
-    const maxR = bounds * 4 + 220;
+    const maxR = cityClampRadius(bounds);
     const dy = pos.y - PIVOT_Y;
     const dx = pos.x - centre.x;
     const dz = pos.z - centre.z;
@@ -470,7 +487,7 @@ export function CameraRig() {
     if (!controls) return;
     if (cameraMode === "orbit") {
       camera.getWorldDirection(_dir);
-      controls.target.copy(camera.position).addScaledVector(_dir, 12);
+      controls.target.copy(camera.position).addScaledVector(_dir, VIEW_ANCHOR_DIST);
       controls.enabled = true;
       controls.update();
     } else {
@@ -579,11 +596,12 @@ export function CameraRig() {
 
     const { x, z, distance } = flyRequest;
     // Voxel-focus flights set an explicit target height (the voxel's world
-    // y); every other caller keeps the ground-level default.
+    // y); every other caller keeps the ground-level default — the same
+    // turntable-axis height the arrow keys pivot around.
     let toTarget = surfacePoint(
       boundsRef.current?.surface ?? FLAT_SURFACE,
       x,
-      flyRequest.targetY ?? 1.5,
+      flyRequest.targetY ?? PIVOT_Y,
       z,
     );
 
@@ -612,7 +630,7 @@ export function CameraRig() {
       const explicitFrom = fromTarget.clone();
       if (cameraMode === "free") {
         camera.getWorldDirection(_dir);
-        explicitFrom.copy(fromPos).addScaledVector(_dir, 12);
+        explicitFrom.copy(fromPos).addScaledVector(_dir, VIEW_ANCHOR_DIST);
       }
       const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
       if (reduceMotion || !controls || flyRequest.duration === 0) {
@@ -654,9 +672,9 @@ export function CameraRig() {
     if (modeRef.current === "free" && preserve) {
       camera.getWorldDirection(_dir);
       anchor = {
-        x: fromPos.x + _dir.x * 12,
-        y: fromPos.y + _dir.y * 12,
-        z: fromPos.z + _dir.z * 12,
+        x: fromPos.x + _dir.x * VIEW_ANCHOR_DIST,
+        y: fromPos.y + _dir.y * VIEW_ANCHOR_DIST,
+        z: fromPos.z + _dir.z * VIEW_ANCHOR_DIST,
       };
     } else {
       anchor = preserve && controls ? fromTarget : fromPos;
@@ -673,14 +691,16 @@ export function CameraRig() {
     if (flyRequest.overview && frame) {
       const azimuth = preserve
         ? Math.atan2(fromPos.z - anchor.z, fromPos.x - anchor.x)
-        : Math.atan2(0.75, 0.4);
-      const fitted = fitWorldOverview(
-        frame.layout,
-        frame.surface,
-        gl.domElement.clientWidth / Math.max(1, gl.domElement.clientHeight),
-        azimuth,
-        (camera as THREE.PerspectiveCamera).fov ?? 52,
-      );
+        : STANDARD_AZIMUTH;
+      const seitenverhältnis = gl.domElement.clientWidth / Math.max(1, gl.domElement.clientHeight);
+      const sicht = (camera as THREE.PerspectiveCamera).fov ?? WORLD_FOV_DEG;
+      // §06.01 — an address can name the view (`?ansicht=straße`). The name is
+      // resolved through the same fit the overview flight already uses, so a
+      // named view is a choice of framing, never a second bit of arithmetic.
+      const benannt = currentVisit().ansicht;
+      const fitted = isAnsicht(benannt)
+        ? fitAnsicht(benannt, frame.layout, frame.surface, seitenverhältnis, azimuth, sicht)
+        : fitWorldOverview(frame.layout, frame.surface, seitenverhältnis, azimuth, sicht);
       toTarget = fitted.target;
       toPos = fitted.position;
     }
@@ -995,7 +1015,7 @@ export function CameraRig() {
         enabled={cameraMode === "orbit"}
         maxPolarAngle={Math.PI / 2.05}
         minDistance={3}
-        maxDistance={Math.max(520, (cityFrame?.bounds ?? 0) * 4 + 220)}
+        maxDistance={Math.max(520, cityClampRadius(cityFrame?.bounds ?? 0))}
         enableDamping
         dampingFactor={0.11}
         rotateSpeed={0.85}

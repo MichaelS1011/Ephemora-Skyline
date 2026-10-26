@@ -4,7 +4,7 @@ import path from "path";
 import { ENV, LANGUAGE_COLORS, THREAT_COLOR, UNCHECKED_COLOR } from "../src/city/palette";
 import { overviewShot } from "../src/city/layout";
 import { crowdFor, BUS_MIN_PLOTS } from "../src/components/Pedestrians";
-import { dE, deltaE00, lab, relLum, simulate } from "./colourMath";
+import { contrast, dE, deltaE00, lab, relLum, simulate, worstSeharten } from "./colourMath";
 
 /**
  * The picture guards.
@@ -287,5 +287,91 @@ describe("world picture: the grade does not depend on the renderer", () => {
     );
     expect(scene).toContain('import "../design/world.css"');
     expect(scene).toContain("<WorldGrade />");
+  });
+});
+
+describe("world picture: the import arc survives the daylight", () => {
+  /**
+   * The arc used to be drawn in the accent gold at 0.22 opacity with additive
+   * blending. Measured in a real frame of the demo city, the pixel it produced
+   * against the horizon haze stood at 1.10:1 — the relationship was in the
+   * scene and not on the screen. Two numbers had to change, and both are pinned
+   * here rather than argued: a core hue far enough from the alarm band to be
+   * its own statement, and a casing dark enough to hold the line on any surface
+   * it flies past.
+   */
+  /** Every surface an arc can cross, from the sky down to the asphalt. */
+  const SURFACES: Array<[string, string]> = [
+    ["haze", ENV.fog],
+    ["zenith", ENV.skyZenith],
+    ["sun glow", ENV.skySun],
+    ["ground", ENV.ground],
+    ["plot", ENV.plot],
+    ["curb", ENV.curb],
+    ["crosswalk", ENV.crosswalk],
+    ["road", ENV.road],
+  ];
+
+  it("holds the casing above the frame's own legibility floor everywhere", () => {
+    for (const [name, surface] of SURFACES) {
+      expect(contrast(ENV.arcCasing, surface), `casing against ${name}`).toBeGreaterThanOrEqual(
+        2.5,
+      );
+    }
+    // The darkest surface is the one that nearly defeats it — asphalt is the
+    // floor of the frame, and the casing still clears three to one on it.
+    expect(contrast(ENV.arcCasing, ENV.road)).toBeGreaterThanOrEqual(3);
+  });
+
+  it("keeps each core readable on its own casing", () => {
+    for (const [name, core] of [
+      ["outgoing", ENV.importOut],
+      ["incoming", ENV.importIn],
+    ] as const) {
+      expect(contrast(core, ENV.arcCasing), `${name} on the casing`).toBeGreaterThanOrEqual(3);
+    }
+  });
+
+  it("paints no core that could be mistaken for an alarm", () => {
+    // The alarm band is what the old gold shared with the clone laser: 8.7° of
+    // hue apart. ΔE00 above 25 is a different statement, not a shade of it.
+    const ALARMS: Array<[string, string]> = [
+      ["P0", "#ff2e4d"],
+      ["P1", "#ff7a1a"],
+      ["P2", "#ffd23f"],
+      ["clone laser", "#ffe14d"],
+      ["window alarm", ENV.windowAlarm],
+      ["selection", ENV.selection],
+    ];
+    for (const [core, label] of [
+      [ENV.importOut, "outgoing"],
+      [ENV.importIn, "incoming"],
+    ] as const) {
+      for (const [name, alarm] of ALARMS) {
+        expect(dE(core, alarm), `${label} against ${name}`).toBeGreaterThanOrEqual(25);
+        expect(
+          worstSeharten(core, alarm),
+          `${label} against ${name} under colour vision deficiency`,
+        ).toBeGreaterThanOrEqual(25);
+      }
+    }
+  });
+
+  it("tells the two directions apart to a colour-blind reader too", () => {
+    expect(dE(ENV.importOut, ENV.importIn)).toBeGreaterThanOrEqual(25);
+    expect(worstSeharten(ENV.importOut, ENV.importIn)).toBeGreaterThanOrEqual(15);
+  });
+
+  it("leaves the file arc out of the accent gold it used to share", () => {
+    const src = readFileSync(
+      path.resolve(import.meta.dirname, "../src/components/CityConnections.tsx"),
+      "utf-8",
+    );
+    // The district arcs keep the accent: they are the overview's architecture
+    // map, a different abstraction, and they never stand next to a clone laser.
+    expect(src).not.toMatch(/color:\s*new THREE\.Color\("#e8b23c"\)/);
+    expect(src).toMatch(/ENV\.importOut/);
+    expect(src).toMatch(/ENV\.importIn/);
+    expect(src).toMatch(/ENV\.arcCasing/);
   });
 });

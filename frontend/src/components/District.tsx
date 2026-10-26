@@ -7,7 +7,17 @@ import * as THREE from "three";
 import type { BlockPlacement, StripBar } from "../city/layout";
 import { districtUnderground, stripRowZ, undergroundPlateLine } from "../city/layout";
 import { severityTotal } from "../city/facts";
-import { ENV, curbAlarmColor, languageColor, severityColor } from "../city/palette";
+import {
+  ENV,
+  UNCHECKED_COLOR,
+  curbAlarmColor,
+  languageColor,
+  severityColor,
+  threatColor,
+} from "../city/palette";
+import { districtBandGeometry } from "../city/districtBand";
+import { seatGeometry, seatPlacement } from "../city/seatSurface";
+import { bankUnterPlakette } from "../city/seatVisibility";
 import { complexityForHeight } from "../city/mapping";
 import { reducedSettle } from "../city/motion";
 import { formatDecimal, t } from "../i18n";
@@ -44,6 +54,59 @@ export interface DistrictProps {
   constructing: boolean;
 }
 
+/** Shared by every district band: the colour is per vertex, so one material
+ *  serves all plots and no district brings its own. */
+const BAND_MATERIAL = new THREE.MeshBasicMaterial({
+  vertexColors: true,
+  transparent: true,
+  opacity: 0.95,
+  side: THREE.DoubleSide,
+  depthWrite: false,
+  toneMapped: false,
+});
+
+/** One seat for every plot: the box is the same size everywhere, so the city
+ *  shares its geometry and its material and each district pays one draw call. */
+const SEAT_GEO: THREE.BufferGeometry | null = seatGeometry();
+/**
+ * `?sitzmarke=1` paints the crown in a tone the palette does not contain. It
+ * exists for one reason: the crowd's own motion is as large as the bench, so the
+ * only way to measure the bench on the plate is to look for ink that can be
+ * nothing else. No hex literal — the mark is mixed from HSL, so the token budget
+ * is untouched.
+ */
+const SITZ_MARKE = (() => {
+  if (typeof window === "undefined") return false;
+  try {
+    return new URLSearchParams(window.location.search).get("sitzmarke") === "1";
+  } catch {
+    return false;
+  }
+})();
+const SITZ_MARKEN_FARBE = new THREE.Color().setHSL(0.83, 1, 0.5);
+const SEAT_GEO_MARKE: THREE.BufferGeometry | null = SITZ_MARKE
+  ? seatGeometry(SITZ_MARKEN_FARBE)
+  : null;
+const SEAT_MATERIAL = new THREE.MeshStandardMaterial({
+  vertexColors: true,
+  roughness: 0.85,
+  metalness: 0.1,
+});
+
+/**
+ * `?sitz=0` takes the furniture out again. Same contract as the crowd's
+ * `?ruhe=0`: an A/B on the plate needs a build to compare against, and the
+ * switch is the only reason the comparison does not need a second checkout.
+ */
+const SITZ_AN = (() => {
+  if (typeof window === "undefined") return true;
+  try {
+    return new URLSearchParams(window.location.search).get("sitz") !== "0";
+  } catch {
+    return true;
+  }
+})();
+
 export function District({ placement, appearAt, skylineAt, constructing }: DistrictProps) {
   const drillIn = useStore((s) => s.drillIn);
   const setHoveredId = useStore((s) => s.setHoveredId);
@@ -72,6 +135,23 @@ export function District({ placement, appearAt, skylineAt, constructing }: Distr
   // 42,77. Same switch, different neighbour, different answer — both measured in
   // `tests/farbband-palette.test.ts`.
   const curbColor = hasP0 ? curbAlarmColor(colorblind) : "#3a4a68";
+  /**
+   * Z-06 — the plot's risk, on the ground around it. Three branches, each one a
+   * payload fact: the worst grade present, or files the off scanners would have
+   * covered, or a plot the covering scanners saw and found nothing on. The
+   * middle branch is why the calm green is not the default for "no findings":
+   * an unexamined plot must not wear the colour of a looked-at one.
+   */
+  const bandColor = worstSev
+    ? severityColor(worstSev, colorblind)
+    : (dir.unverifiedFiles ?? 0) > 0
+      ? UNCHECKED_COLOR
+      : threatColor("low", colorblind);
+  const bandGeo = useMemo(() => districtBandGeometry(w, d, bandColor), [w, d, bandColor]);
+  useEffect(() => () => bandGeo?.dispose(), [bandGeo]);
+  // The seat's box is identical on every plot, so its geometry is shared and
+  // only its position is derived. `null` means the plot is too small for one.
+  const seat = useMemo(() => (SITZ_AN ? seatPlacement(w, d) : null), [w, d]);
   /** Emissive level of the curb at rest and under the pointer. */
   const curbBase = useMemo(() => (hasP0 ? 1.1 : 0.3), [hasP0]);
   const blockId = `block:${dir.path}`;
@@ -128,12 +208,16 @@ export function District({ placement, appearAt, skylineAt, constructing }: Distr
   const inkMaterial = useMemo(() => makeInkMaterial(), []);
   useEffect(() => () => inkMaterial.dispose(), [inkMaterial]);
   const inkRef = useRef<THREE.LineSegments>(null);
+  const sitzRef = useRef<THREE.Mesh>(null);
+  const plaketteRef = useRef<HTMLDivElement>(null);
+  /** Last camera the seat was measured against — see the check in the frame. */
+  const sitzKamera = useRef<{ x: number; y: number; z: number; breite: number } | null>(null);
 
   const groupRef = useRef<THREE.Group>(null);
   const riseSettledRef = useRef({ current: false });
 
   // Construction / drill-in rise + the pointer's answer
-  useFrame(() => {
+  useFrame((state) => {
     const g = groupRef.current;
     if (!g) return;
     // Reduced motion skips the rise: the district is placed at full height once
@@ -173,6 +257,31 @@ export function District({ placement, appearAt, skylineAt, constructing }: Distr
       inkMaterial.opacity = inkOpacity(next);
       if (inkRef.current) inkRef.current.visible = next > 0.02;
     }
+
+    // §07.13a — the seat is hidden when its own nameplate lies on it. Measured
+    // per camera pose, not per frame: the plate is a DOM box of constant pixel
+    // width and the plot shrinks with distance, so the answer changes only when
+    // the camera does. Under `reduce`, and in a city nobody is flying through,
+    // this runs once and then stops writing.
+    const sitzMesh = sitzRef.current;
+    const plakette = plaketteRef.current;
+    if (sitzMesh && plakette) {
+      const k = state.camera.position;
+      const zuletzt = sitzKamera.current;
+      const kameraNeu =
+        !zuletzt ||
+        Math.abs(k.x - zuletzt.x) + Math.abs(k.y - zuletzt.y) + Math.abs(k.z - zuletzt.z) > 0.02 ||
+        state.size.width !== zuletzt.breite;
+      if (kameraNeu) {
+        sitzKamera.current = { x: k.x, y: k.y, z: k.z, breite: state.size.width };
+        sitzMesh.visible = !bankUnterPlakette(
+          sitzMesh,
+          plakette,
+          state.camera,
+          state.gl.domElement,
+        );
+      }
+    }
   });
 
   return (
@@ -201,6 +310,35 @@ export function District({ placement, appearAt, skylineAt, constructing }: Distr
           <boxGeometry args={[ew || 0.3, 0.22, ed || 0.3]} />
         </mesh>
       ))}
+
+      {/* Z-06 — the risk band: casing plus core, flat outside the kerb stones.
+          One mesh per district, in one shared material. */}
+      {bandGeo && (
+        <mesh
+          geometry={bandGeo}
+          material={BAND_MATERIAL}
+          renderOrder={9}
+          frustumCulled={false}
+          raycast={() => null}
+        />
+      )}
+
+      {/* §07.13 — the seat. One shared geometry and one shared material for the
+          whole city, placed in the kerb margin on the camera side; it answers
+          the pointer exactly like the plot under it, because it is the plot's
+          furniture and not a second verb. */}
+      {seat && SEAT_GEO && (
+        <mesh
+          ref={sitzRef}
+          name="sitz"
+          geometry={SEAT_GEO_MARKE ?? SEAT_GEO}
+          material={SEAT_MATERIAL}
+          position={[seat.x, seat.y, seat.z]}
+          onClick={handleClick}
+          onPointerOver={handleOver}
+          onPointerOut={handleOut}
+        />
+      )}
 
       {/* The pointer's cut line around the plot — same contract as a building */}
       <lineSegments
@@ -280,6 +418,7 @@ export function District({ placement, appearAt, skylineAt, constructing }: Distr
           the tallest file's complexity, in the measuring mast's coordinates. */}
       <Html center position={[0, 0.6, d / 2 + 2.2]} zIndexRange={[8, 0]}>
         <div
+          ref={plaketteRef}
           className={`cf-plate${hasP0 ? " cf-plate-alarm" : ""}`}
           style={{ background: "#121210" }}
           aria-label={`${dir.name} — ${underground.total} ${t(lang, "hud.filesUnit")}`}

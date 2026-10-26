@@ -3,6 +3,10 @@ import type { DirLayout } from "./layout";
 import { surfacePoint, surfaceQuaternion, type WorldSurface } from "./worldSurface";
 
 export const WORLD_OVERVIEW_ELEVATION = 0.68;
+/** The heading a level is drawn from — south-east, the overview flight's own.
+ * The ONE azimuth for the shipped view: `cameraPresets.STANDARD_AZIMUTH` is
+ * this constant, not a restatement, and no default below re-types it. */
+export const WORLD_AZIMUTH = Math.atan2(0.75, 0.4);
 /** The camera the app mounts with (App.tsx) — every fit below assumes it. */
 export const WORLD_FOV_DEG = 52;
 export const WORLD_OVERVIEW_PADDING = { top: 0.6, bottom: 0.76, horizontal: 0.88 } as const;
@@ -96,7 +100,7 @@ export const HERO_FRAMING: WorldFraming = {
 export function fitWorldPoints(
   points: THREE.Vector3[],
   aspect: number,
-  azimuth = Math.atan2(0.75, 0.4),
+  azimuth = WORLD_AZIMUTH,
   fov = WORLD_FOV_DEG,
   framing: WorldFraming = OVERVIEW_FRAMING,
 ): WorldFit {
@@ -141,8 +145,8 @@ export function fitWorldOverview(
   layout: DirLayout,
   surface: WorldSurface,
   aspect: number,
-  azimuth = Math.atan2(0.75, 0.4),
-  fov = 52,
+  azimuth = WORLD_AZIMUTH,
+  fov = WORLD_FOV_DEG,
 ): WorldFit {
   return fitWorldPoints(overviewWorldPoints(layout, surface), aspect, azimuth, fov);
 }

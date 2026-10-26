@@ -40,6 +40,22 @@ export function medianOf(samples: readonly number[]): number {
 }
 
 /**
+ * The window as a rate, for the header.
+ *
+ * Deliberately the same median the governor decides from, not a second
+ * counter: two numbers for one quantity is how a readout ends up disagreeing
+ * with the switch that is named after it. Null while the window is still
+ * filling — a rate measured over the frames since the last tab switch is a
+ * guess about the machine, so the header says nothing rather than that.
+ */
+export function frameHz(samples: readonly number[]): number | null {
+  if (samples.length < WINDOW) return null;
+  const ms = medianOf(samples);
+  if (!(ms > 0) || !Number.isFinite(ms)) return null;
+  return Math.round(1000 / ms);
+}
+
+/**
  * One step of the machine: `lite` is the current state, `samples` the newest
  * WINDOW frame times, `streak` how many consecutive frames already matched
  * the pending direction. Returns the move and the streak to carry forward.

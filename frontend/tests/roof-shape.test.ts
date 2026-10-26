@@ -1,5 +1,10 @@
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import { crownBaseY, roofFor, ROOF_SHAPES, type RoofShape } from "../src/city/roofShape";
+import { WORLD_FOV_DEG, WORLD_OVERVIEW_ELEVATION } from "../src/city/worldFraming";
+import { farLodExitDistance, OVERVIEW_FACTOR } from "../src/city/layout";
+import { buildingFootprint } from "../src/city/mapping";
 
 /**
  * The roof used to be derived from the height — the same number the body already
@@ -81,5 +86,110 @@ describe("the crown sits on whichever body is drawn", () => {
     ]) {
       expect(crownBaseY(g)).toBeGreaterThanOrEqual(g.h);
     }
+  });
+});
+
+/**
+ * The four crowns have to be tellable apart at the distance a district is read
+ * as a whole — and the crown is a district-tier signal: past `farLodExitDistance`
+ * the renderer swaps the buildings for the heat grid, so no crown survives there.
+ *
+ * The number the inventory quoted (penthouse↔terrace ≈ 1.7 px, mast ≈ 2.9 px) is
+ * not a fixed property of the shapes: a crown feature's size on screen is a
+ * function of the building's own footprint (which is DATA, `buildingFootprint`),
+ * the camera range, and the overview elevation that squashes every ground-plane
+ * width. So this guard does not measure a screenshot — it projects the geometry
+ * the component actually emits, through the camera the app actually mounts
+ * (`worldFraming`'s fov and elevation, `layout`'s overview factor), at the
+ * SMALLEST footprint a crowned file can have (the pessimistic end).
+ *
+ * It reads the real scale factors out of Building.tsx so the test and the render
+ * cannot drift, exactly the way the crownBaseY and reveal guards do.
+ */
+const BUILDING_SRC = readFileSync(
+  resolve(import.meta.dirname, "../src/components/Building.tsx"),
+  "utf-8",
+);
+
+/** `w * <frac>` inside a named crown branch's first boxGeometry, plus its height. */
+function crownBox(
+  roofType: "penthouse" | "terrace",
+  which: "first" | "second" = "first",
+): { widthFrac: number; height: number } {
+  const block = BUILDING_SRC.slice(BUILDING_SRC.indexOf(`roofType === "${roofType}"`));
+  const matches = [...block.matchAll(/<boxGeometry args=\{\[w \* ([\d.]+), ([\d.]+),/g)];
+  const hit = which === "first" ? matches[0] : matches[1];
+  expect(hit, `no ${roofType} ${which} box found`).toBeDefined();
+  return { widthFrac: Number(hit![1]), height: Number(hit![2]) };
+}
+
+function mastScale(): { diameter: number; height: number } {
+  const block = BUILDING_SRC.slice(BUILDING_SRC.indexOf('roofType === "mast"'));
+  const hit = /scale=\{\[([\d.]+), ([\d.]+),/.exec(block);
+  expect(hit, "no mast cylinder scale found").toBeDefined();
+  return { diameter: Number(hit![1]), height: Number(hit![2]) };
+}
+
+// The tier boundary the crown is meant to be read at: the level's own overview
+// distance (OVERVIEW_FACTOR × bounds) seen under the overview elevation — the
+// same pair `fitWorldOverview` and the drill-in reveal agree on for bounds 100.
+const BOUNDS = 100;
+const RANGE = OVERVIEW_FACTOR * BOUNDS; // 160
+const TAN_HALF = Math.tan(((WORLD_FOV_DEG / 2) * Math.PI) / 180);
+const VIEW_H = 1000; // the shared readability convention (1600×1000)
+/** Screen px per world unit for a feature perpendicular to the view. */
+const PPU = VIEW_H / (2 * RANGE * TAN_HALF);
+/** A ground-plane width seen from the overview elevation loses sin(elevation). */
+const SQUASH = Math.sin(WORLD_OVERVIEW_ELEVATION);
+/** The smallest footprint a crowned file can stand on — pessimistic, not a mode. */
+const W_MIN = buildingFootprint({ exportedSymbols: 0 } as never);
+
+const MIN_PX = 3; // the readability floor the shapes must clear, worst case
+
+describe("the four crowns are tellable apart at the district tier boundary", () => {
+  it("is measuring at a distance the buildings are still drawn (not tiled)", () => {
+    // If the boundary sat past the heat grid, the guard would prove a crown
+    // legible where the renderer mounts none.
+    expect(RANGE).toBeLessThan(farLodExitDistance(BOUNDS));
+  });
+
+  it("gives the mast a body — a <3 px line is a speck, not a spike", () => {
+    const mast = mastScale();
+    // A vertical cylinder is seen side-on: its width is not foreshortened.
+    expect(mast.diameter * PPU).toBeGreaterThanOrEqual(MIN_PX);
+  });
+
+  it("separates the penthouse outline from the terrace plate by ≥ 3 px, worst axis", () => {
+    const penthouse = crownBox("penthouse");
+    const terracePlate = crownBox("terrace", "first");
+    const gapUnits = (terracePlate.widthFrac - penthouse.widthFrac) * W_MIN;
+    // The gap lives in the ground plane, so the pessimistic axis squashes it.
+    expect(gapUnits).toBeGreaterThan(0);
+    expect(gapUnits * PPU * SQUASH).toBeGreaterThanOrEqual(MIN_PX);
+  });
+
+  it("lifts the penthouse clear off a flat roofline", () => {
+    const penthouse = crownBox("penthouse");
+    expect(penthouse.height * PPU * Math.cos(WORLD_OVERVIEW_ELEVATION)).toBeGreaterThanOrEqual(
+      MIN_PX,
+    );
+  });
+
+  it("carries the massing without falsifying the body", () => {
+    // The cut is horizontal only: no crown may overhang its footprint (that
+    // would say the file has a wider API surface than it does)…
+    for (const frac of [
+      crownBox("penthouse").widthFrac,
+      crownBox("terrace", "first").widthFrac,
+      crownBox("terrace", "second").widthFrac,
+    ]) {
+      expect(frac).toBeLessThanOrEqual(1);
+    }
+    // …and the crown's own heights stay put, so nothing here moves the tower's
+    // measured top. Height tells complexity; the crown must not touch it.
+    expect(crownBox("penthouse").height).toBe(1.35);
+    expect(crownBox("terrace", "first").height).toBe(0.78);
+    expect(crownBox("terrace", "second").height).toBe(0.78);
+    expect(mastScale().height).toBe(2.6);
   });
 });

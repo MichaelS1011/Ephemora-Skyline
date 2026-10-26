@@ -351,8 +351,12 @@ describe("the empty world is wired to its streets", () => {
 
   it("draws the street and the traffic instanced, with no mesh of its own", () => {
     // not one plain <mesh> left in the crowd component: every part of the street
-    // and both vehicles live in the two instanced meshes
-    expect(crowd).not.toMatch(/<mesh[\s/>]/);
+    // and both vehicles live in the two instanced meshes. The single exception
+    // is §07.06's route stripe — one mesh for a whole walk, and only while an
+    // errand is open. That is the same rule this guard defends (one draw for the
+    // city, never one mesh per figure or per stripe), not an exemption from it.
+    expect(crowd.match(/<mesh[\s/>]/g) ?? []).toHaveLength(1);
+    expect(crowd).toMatch(/<mesh\s+ref=\{routeMeshRef\}/);
     expect(crowd).not.toContain("taxiRef");
     expect(crowd).not.toContain("busRef");
     expect(crowd).not.toContain("stopRef");

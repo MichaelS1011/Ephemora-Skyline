@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
   farLodExitDistance,
@@ -140,6 +142,49 @@ describe("overview framing stays inside the drawn band", () => {
     // last shot used, so the handover stays continuous.
     expect(OVERVIEW_FACTOR).toBeLessThan(LOD_THRESHOLDS.RELATIVE_EXIT);
     expect(overviewShot(200, 5).dist).toBeCloseTo(200 * OVERVIEW_FACTOR, 6);
+  });
+});
+
+describe("the reveal flies the level's own overview shot", () => {
+  // CityScene's reveal builds its flight from `overviewShot(layout.bounds,
+  // tallest)` — the same producer the store's drill-in flights use. Measured
+  // before this guard: the component capped the distance at 85 m and passed a
+  // 0.28 elevation the shot never emits, so every level whose fit needs more
+  // than 85 m (bounds > 53) landed closer than its own overview shot. The
+  // guard reads the component's source and the shot's arithmetic together,
+  // the way camera-elevation-contract reads the store's producers.
+  const sceneSrc = readFileSync(
+    resolve(import.meta.dirname, "../src/components/CityScene.tsx"),
+    "utf-8",
+  );
+  const revealFlight = (): string => {
+    const from = sceneSrc.indexOf("const shot = overviewShot(layout.bounds, tallest);");
+    expect(from, "CityScene no longer builds the reveal from overviewShot").toBeGreaterThanOrEqual(
+      0,
+    );
+    const tail = sceneSrc.slice(from);
+    return tail.slice(0, tail.indexOf("});"));
+  };
+
+  it("asks the shot for its distance and its elevation", () => {
+    expect(revealFlight()).toMatch(/distance:\s*shot\.dist,/);
+    expect(revealFlight()).toMatch(/elevation:\s*shot\.elevation,/);
+  });
+
+  it("the cap moved real shots inward — and never touched the demo level", () => {
+    // Demo level: the widest small plaza carrying the tallest crowned tower
+    // (the shape `frames the crown it is asked to frame` pins). Its shot fits
+    // inside 85 m, so dropping the cap changes this reveal not by one metre.
+    const demo = overviewShot(50, 47.6);
+    expect(demo.dist).toBeLessThanOrEqual(85);
+    expect(demo.elevation).toBe(0.32);
+    // A 200-unit level: the shot asks for 1.6 × bounds = 320 m — far inside
+    // the heat grid's margin at 699.2 m — while the cap landed the camera at
+    // 85 m, 235 m closer than the level's own framing.
+    const wide = overviewShot(200, 5);
+    expect(wide.dist).toBeCloseTo(320, 6);
+    expect(wide.dist).toBeGreaterThan(85);
+    expect(Math.min(wide.dist, 85)).toBe(85);
   });
 });
 

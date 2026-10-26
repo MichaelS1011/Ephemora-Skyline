@@ -348,24 +348,174 @@ export function authorColor(name: string): string {
   return AUTHOR_PALETTE[h % AUTHOR_PALETTE.length]!;
 }
 
-/** Residents are a scale reference, never a second security or language key.
- *  Mineral jackets and matte ceramic faces stay calm beside data colours. */
+/**
+ * Residents are a scale reference, never a second security or language key.
+ * Mineral jackets and matte ceramic faces stay calm beside data colours.
+ *
+ * Every value here is set against the size a resident is actually seen at, and
+ * that size has TWO scales, not one. The district camera looks down at
+ * `WORLD_OVERVIEW_ELEVATION` = 0.68 rad, so a vertical world unit lands on
+ * 0.7776 of a screen unit and a horizontal one on the whole of it: a resident
+ * measured 20 px tall on the plate is 14.82 px per local unit UP and 19.05 px
+ * per local unit ACROSS, and at 30 px it is 22.22 up / 28.58 across. The band
+ * 20–30 px is what the operator's two independent measurements (a motion diff
+ * and a static luminance profile) put the running app at, and every number in
+ * this file is checked against BOTH ends — see `ephe-readability.test.ts`.
+ * Selecting a resident does NOT bring the camera closer (`called` only stops
+ * the walker and turns it), so there is no close-up state in which a finer
+ * value edge would ever be visible. The floors below are stated in contrast
+ * ratio and enforced in `ephe-readability.test.ts`:
+ * - 1.4:1 minimum for an edge INSIDE the figure (coat hem, boot line) — the
+ *   narrowest band that still survives as a step on a 2.9 px wide limb at the
+ *   small end of the band, after tone mapping, fog and 8-bit quantisation;
+ * - 1.7:1 for the arm, which has to separate from the coat it hangs in front
+ *   of AND stay inside the figure's own silhouette;
+ * - 9:1 for the head mass, which is 4.2 px tall and 4.9 px wide at the small
+ *   end of the band, floats on sky, plaza or facade, and gets no outline to
+ *   help it. It used to be 7:1, and 7:1 was chosen without doing the arithmetic
+ *   on the road: the plaza (0.705) and the asphalt (0.138) are 4.007 ratio
+ *   points apart, so for ANY head tone darker than the asphalt the plaza edge
+ *   is exactly 4.007× the asphalt edge. 7:1 on the plaza therefore *forced*
+ *   1.75:1 over the road, and darkening the hair raises both edges at once —
+ *   there was never a trade to make. The tones below sit at ≥10.9:1 / ≥2.73:1.
+ * The block two before this one had the arm at exactly 1.000:1 (the sleeve wore
+ * the jacket's own hex) and the head at 1.004-1.056:1 against fog, plaza and
+ * plot — a figure with an invisible arm and an invisible skull.
+ */
 export const EPHE_PALETTE = {
   jackets: ["#426976", "#51786d", "#626e8b", "#82775f", "#527980", "#716e86", "#3f6971", "#796d60"],
-  /** Trousers sit between the boots and the darkest jacket in relative
-   *  luminance (0.089…0.098 against 0.059 and 0.124), so the leg reads as its own
-   *  mass: darker than the coat above it, lighter than the boot under it. */
-  trousers: ["#4d5966", "#5a534a", "#4d5c51"],
+  /**
+   * Index-aligned with `jackets`: the same mineral, 42% of the way to the pale
+   * shell. This is the arm. It is the only mass on the figure that overlaps
+   * another mass (it hangs in front of the coat), so it is the only one whose
+   * edge cannot be rescued by silhouette — it has to be carried by value.
+   * 1.79-2.09:1 against its own jacket (the pairing the renderer uses), 1.53:1
+   * worst case across any mix, 1.78-2.08:1 against the plaza behind it, and
+   * ≥4.3:1 against the boots, so a swinging arm never merges with the leg it
+   * passes. The column itself is 2.86 px wide at the small end of the size band
+   * and 4.29 px at the large end.
+   */
+  sleeves: ["#859d9f", "#8ea59a", "#98a0ab", "#aaa592", "#8ea6a5", "#a0a0a8", "#839d9c", "#a59f92"],
+  /**
+   * Trousers sit between the boots and the darkest jacket in relative
+   * luminance (0.068…0.070 against 0.034 and 0.124), so the leg reads as its own
+   * mass: darker than the coat above it, lighter than the boot under it. The
+   * gaps are the point — at the small end of the size band the hem is a 6.2 px
+   * coat meeting a 10.4 px leg column, and the old 1.17:1 worst-case step was
+   * small enough that the coat ran into the legs and the figure lost its waist.
+   * Now ≥1.44:1 at the hem and ≥1.40:1 at the boot — AND, since the coat is a
+   * flared lathe and the hips are pulled in, a 0.91 px ledge in the silhouette
+   * at the same line, so the waist no longer depends on the value step alone.
+   */
+  trousers: ["#404b57", "#514a41", "#3f4d43"],
+  /** Skin: the face band and the hands, the figure's two light accents. */
   shells: ["#e9e4d9", "#dce6dd", "#e3e8ed", "#e8dfd5"],
-  visor: "#253c47",
-  eyes: "#eff8f6",
-  boots: "#344850",
+  /**
+   * Hair, not a visor. The skull is the dark mass and the skin band is the
+   * light face inside it — the inverse of what this palette used to do, chosen
+   * because the world is high-key: a pale head measured 1.004:1 against the
+   * fog, 1.009:1 against a plot and 1.056:1 against the plaza, i.e. it had no
+   * edge with anything except asphalt (4.2:1).
+   *
+   * Round 1 stopped here and called the asphalt a cost. It was the wrong
+   * conclusion: these four tones sit at L 0.0149…0.0191, which is ≥10.9:1
+   * against plaza, plot and fog, ≥11.5:1 against the skin they carry, 5.8:1
+   * against the kerb stone the crowd actually walks on, 7.3:1 against the zebra
+   * it crosses on, and 2.73:1 against bare asphalt. That last number is the
+   * point of the block: the head now holds the 2.5:1 this project demands of
+   * every other edge in the world, on the one surface where it previously sat
+   * under it at 2.36:1 — and the four tones are no less distinct from each
+   * other than the old family was (pairwise ΔE00 2.2…7.6 against 1.6…7.1).
+   * The head and the cap share this family, so the figure's identity mass is
+   * one value everywhere it is seen.
+   */
+  hair: ["#16242c", "#1a2733", "#122329", "#1d2634"],
+  /** Ink, because the face it sits on is now the light one. 0.61 px across on a
+   *  20 px resident and 0.91 px on a 30 px one — below the pixel floor, kept
+   *  only so the face does not go blank if a camera ever does come close. */
+  eyes: "#20262e",
+  boots: "#26363d",
   helmet: "#c7b888",
   /** The contact patch a figure puts on the ground. Neutral, no hue to key. */
   contact: "#1c2126",
   /** The one gold selection mark; UI, never a finding grade. */
   selection: "#e8b23c",
 } as const;
+
+/** Everything one resident is dressed with. */
+export interface EpheOutfit {
+  readonly coat: string;
+  readonly sleeve: string;
+  readonly trouser: string;
+  readonly skin: string;
+  readonly hair: string;
+  readonly boot: string;
+  readonly eye: string;
+  readonly ground: string;
+}
+
+/**
+ * MASTER-2027 §04.05 — a whole outfit taken by ONE index.
+ *
+ * This is the crowd's own pairing (`Pedestrians.tsx:1217-1239`): coat and sleeve
+ * come from the same column because the sleeve is the one mass that overlaps
+ * another mass, and the other families wrap around their own length. Keeping the
+ * rule in the palette instead of in a second renderer is the point — a variant
+ * that a vitrine could dress a resident in, but the city could never walk, would
+ * be the second architecture §22 forbids.
+ *
+ * Free mixing was measured and rejected (`kontraste.json`: worst arm against
+ * "its" coat 1,53:1, below the 1,78:1 the same arm holds against the ground it
+ * stands on). So an index, not eight pickers.
+ */
+export function epheOutfit(index: number): EpheOutfit {
+  const p = EPHE_PALETTE;
+  return {
+    coat: p.jackets[index % p.jackets.length]!,
+    sleeve: p.sleeves[index % p.sleeves.length]!,
+    trouser: p.trousers[index % p.trousers.length]!,
+    skin: p.shells[index % p.shells.length]!,
+    hair: p.hair[index % p.hair.length]!,
+    boot: p.boots,
+    eye: p.eyes,
+    ground: p.contact,
+  };
+}
+
+/**
+ * The palette indices offered as variants. 0 is the shipped first family, so a
+ * reader who never touches the switch sees exactly the figure the crowd draws.
+ *
+ * Distance decides, not contrast: all eight columns hold every band the palette
+ * documents, so the only thing that separates a variant from a nuance is how far
+ * the jackets sit from each other in CIEDE2000 — measured pairwise, because two
+ * chips that are one jacket to each other are one chip too many.
+ *
+ * The arithmetic is `tests/colourMath.ts` (the guard's own, and the more precise
+ * of the two: the §04.05 probe carries a rounded Lab matrix and differs by up to
+ * 0,10 in the last digit). The offered three sit 12,86 (0↔1) · 20,58 (1↔7) ·
+ * 21,20 (0↔7) apart. Excluded: 6 (2,94 to 0) and 4 (6,64) are the same jacket in
+ * another light, 3 is 6,21 from 7 and 2 is 6,48 from 5 — pairs that would put two
+ * nearly identical chips side by side. A fourth chip IS reachable (1↔2 is 21,93,
+ * 0↔2 is 14,17), but both remaining candidates sit on a band foot: index 2 and
+ * index 5 put trouser against boot at exactly the documented 1,40, and index 3
+ * sits on the arm's 1,79. §04.05 chose 7 over 3 for that reason and §04.06 keeps
+ * the rule, so the row stays three wide.
+ */
+export const EPHE_VARIANTS = [0, 1, 7] as const;
+
+/**
+ * The mark of §04.07, and "none" is one of its three states: the brief asks for
+ * an *optional* Erkennungszeichen, not a uniform. Two shapes only — a dot and a
+ * diamond — because the figure stays "klein, geometrisch, low-poly-treu" and a
+ * third shape would be a costume.
+ *
+ * Declared here rather than in the vitrine because the storage module
+ * (`epheLook.ts`) has to validate a stored mark, and a storage module that
+ * imports a WebGL component cannot be tested without one.
+ */
+export const EPHE_MARKS = ["none", "dot", "diamond"] as const;
+export type EpheMark = (typeof EPHE_MARKS)[number];
 
 // One coherent day, and the one place it is not allowed to go.
 //
@@ -433,5 +583,19 @@ export const ENV = {
   windowCool: "#d9cfae",
   windowAlarm: "#ff4d5e",
   connection: "#e8b23c",
+  /**
+   * The static import tube borrows the two direction colours the legend
+   * already teaches — cyan arrives, violet leaves — because the hue band a
+   * third colour would have to sit in (25°–50°) is already held by the
+   * severity beacons and the clone laser. Measured in `worldPicture.test.ts`.
+   */
+  importIn: "#37e6ff",
+  importOut: "#b06bff",
+  /**
+   * Neither core clears the daylight frame on its own: violet reaches 1.03:1
+   * against the zenith, cyan 1.03:1 against the sun glow. The casing is what
+   * makes the arc visible — it holds ≥ 3.1:1 against every surface in ENV.
+   */
+  arcCasing: "#141a24",
   selection: "#e8503c",
 } as const;

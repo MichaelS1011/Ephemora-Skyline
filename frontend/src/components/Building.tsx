@@ -7,6 +7,7 @@ import type { CityFile, Severity } from "../city/types";
 import type { FocusTier } from "../city/focus";
 import type { VoxelLayout } from "../city/voxels";
 import { crownBaseY, roofFor } from "../city/roofShape";
+import { selectionContourGeometry } from "../city/selectionContour";
 import {
   languageColor,
   severityColor,
@@ -442,6 +443,30 @@ export function modeFactor(viewMode: ViewMode, alarm: boolean): number {
   return 0.35;
 }
 
+/**
+ * Z-03 — the contour of the chosen tower.
+ *
+ * The selected file was marked where it meets the ground: a gold ring at
+ * y = 0,09 and a pooled additive glow. That is the same assumption §07.11 and
+ * Z-01 had to give up on — a mark at the foot of something tall is behind its
+ * neighbours as soon as the city is dense, and a 20-unit tower puts its base
+ * out of sight long before its top is. The ring also sat on the plaza in a
+ * colour that measures 1,39:1 against it.
+ *
+ * So the marker is `selectionContourGeometry`: casing plus gold, at the roof
+ * line and around the footprint, in one vertex-coloured geometry. One mesh
+ * where the ring was one mesh — the contour costs no draw call the city did not
+ * already pay, and it names the building instead of the ground under it.
+ */
+const CONTOUR_MATERIAL = new THREE.MeshBasicMaterial({
+  vertexColors: true,
+  transparent: true,
+  opacity: 0.95,
+  side: THREE.DoubleSide,
+  depthWrite: false,
+  toneMapped: false,
+});
+
 // Radial ground glow under the selected building (one shared texture)
 let groundGlowTexture: THREE.CanvasTexture | null = null;
 
@@ -531,6 +556,13 @@ export interface BuildingProps {
    * active (nothing dimmed). Ignored when `dimmed` is already true.
    */
   focusTier?: FocusTier | null;
+  /**
+   * 005 Teil A: this file imports the selected one, so a change to the
+   * selection may have to be re-read here. Marked with a cased square on the
+   * ground — a different SHAPE from the round cycle ring and the gold
+   * selection ring, because the claim must not rest on colour alone.
+   */
+  blastAffected?: boolean;
   /** Construction cinematic: epoch ms when this building starts to rise. */
   appearAt?: number;
   constructing?: boolean;
@@ -583,6 +615,7 @@ export function Building({
   isLandmark = false,
   dimmed = false,
   focusTier = null,
+  blastAffected = false,
   appearAt,
   constructing = false,
   interactive = true,
@@ -803,6 +836,13 @@ export function Building({
   // stack. Against the sky nothing can occlude it.
   const barSegments = useMemo(() => findingBarSegments(file.findings), [file.findings]);
   const roofY = h + (stepped ? 0.6 : 1.0);
+  // The contour is built once per selection, not once per frame: its parts are
+  // absolute in world units, so a shared unit geometry could not carry them.
+  const contourGeo = useMemo(
+    () => (selected ? selectionContourGeometry(w, d, roofY) : null),
+    [selected, w, d, roofY],
+  );
+  useEffect(() => () => contourGeo?.dispose(), [contourGeo]);
   const barTop = barSegments.length ? barSegments[barSegments.length - 1]!.y1 : 0;
   const barRef = useRef<THREE.InstancedMesh>(null);
   const barDummy = useMemo(() => new THREE.Object3D(), []);
@@ -1035,7 +1075,6 @@ export function Building({
 
   const beaconRef = useRef<THREE.Mesh>(null);
   const beamRef = useRef<THREE.Mesh>(null);
-  const ringRef = useRef<THREE.Mesh>(null);
   const glowRef = useRef<THREE.Mesh>(null);
   const findingGlowRef = useRef<THREE.Mesh>(null);
   const groupRef = useRef<THREE.Group>(null);
@@ -1224,9 +1263,6 @@ export function Building({
     if (beamRef.current) {
       const bm = beamRef.current.material as THREE.MeshBasicMaterial;
       bm.opacity = 0.05 + Math.abs(Math.sin(t * 1.3)) * 0.09;
-    }
-    if (ringRef.current) {
-      ringRef.current.rotation.z = t * 0.6;
     }
     if (glowRef.current) {
       const gm = glowRef.current.material as THREE.MeshBasicMaterial;
@@ -1581,6 +1617,38 @@ export function Building({
         </mesh>
       )}
 
+      {/* 005 Teil A — this building imports the selected one. Two flat squares:
+          a dark casing carrying the edge, a cyan core saying which way the
+          dependency runs (the legend's own colour for an arriving import).
+          Bare cyan on the plaza measured 1.03:1 for the arcs and needed the
+          same casing there, so it needs one here. Square, not round: the cycle
+          ring above and the selection ring are both circles, and an impact
+          claim that shares their shape is only told apart by hue. */}
+      {blastAffected && (
+        <>
+          <mesh position={[0, 0.13, 0]} rotation={[-Math.PI / 2, 0, 0]} raycast={() => null}>
+            <planeGeometry args={[Math.max(w, d) * 1.5, Math.max(w, d) * 1.5]} />
+            <meshBasicMaterial
+              color={ENV.arcCasing}
+              transparent
+              opacity={0.92}
+              side={THREE.DoubleSide}
+              depthWrite={false}
+            />
+          </mesh>
+          <mesh position={[0, 0.14, 0]} rotation={[-Math.PI / 2, 0, 0]} raycast={() => null}>
+            <planeGeometry args={[Math.max(w, d) * 1.24, Math.max(w, d) * 1.24]} />
+            <meshBasicMaterial
+              color={ENV.importIn}
+              transparent
+              opacity={0.95}
+              side={THREE.DoubleSide}
+              depthWrite={false}
+            />
+          </mesh>
+        </>
+      )}
+
       {/* The crown — the finding, told in massing. Drawn for BOTH body kinds:
           an opened building becomes a voxel stack, and a crown that only lived
           on the legacy shell would disappear exactly when the reader came close
@@ -1598,7 +1666,13 @@ export function Building({
             <>
               {roofType === "penthouse" && (
                 <mesh position={[0, crownY + 0.68, 0]}>
-                  <boxGeometry args={[w * 0.68, 1.35, d * 0.68]} />
+                  {/* Setback penthouse, narrower than the terrace plate it sits
+                      under: the ~0.68 box was only 1.7 px apart from the terrace
+                      at the district overview (worst footprint + sin-elevation
+                      squash), so the two crowns collapsed into one lid. 0.5 opens
+                      the gap past 3 px — width only, height untouched, so the
+                      crown still says nothing about the tower's measured top. */}
+                  <boxGeometry args={[w * 0.5, 1.35, d * 0.5]} />
                   <meshStandardMaterial color={roofTone} {...crownProps} />
                 </mesh>
               )}
@@ -1621,7 +1695,7 @@ export function Building({
                   position={[0, crownY + 1.3, 0]}
                   geometry={UNIT_CYLINDER}
                   material={detailMats.metal}
-                  scale={[0.34, 2.6, 0.34]}
+                  scale={[0.48, 2.6, 0.48]}
                 />
               )}
             </>
@@ -1755,18 +1829,17 @@ export function Building({
         </>
       )}
 
-      {/* Selection ring + pooled ground glow */}
-      {selected && (
+      {/* Chosen tower: the contour (roof + foot, casing + core) and the pooled
+          ground glow that tells the reader this light comes from below. */}
+      {selected && contourGeo && (
         <>
-          <mesh ref={ringRef} position={[0, 0.09, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-            <ringGeometry args={[Math.max(w, d) * 0.72, Math.max(w, d) * 0.95, 40]} />
-            <meshBasicMaterial
-              color={BUILDING_SELECTION}
-              transparent
-              opacity={0.85}
-              side={THREE.DoubleSide}
-            />
-          </mesh>
+          <mesh
+            geometry={contourGeo}
+            material={CONTOUR_MATERIAL}
+            renderOrder={11}
+            frustumCulled={false}
+            raycast={() => null}
+          />
           <mesh ref={glowRef} position={[0, 0.06, 0]} rotation={[-Math.PI / 2, 0, 0]}>
             <planeGeometry args={[Math.max(w, d) * 3.4, Math.max(w, d) * 3.4]} />
             <meshBasicMaterial
@@ -1782,7 +1855,7 @@ export function Building({
       )}
 
       {/* Finding-focus glow: a pulsing ring when a triage finding targets this
-          file but the building is not selected (selection has its own ring). */}
+          file but the building is not selected (selection draws its contour). */}
       {findingFocus && !selected && (
         <mesh ref={findingGlowRef} position={[0, 0.08, 0]} rotation={[-Math.PI / 2, 0, 0]}>
           <ringGeometry args={[Math.max(w, d) * 0.65, Math.max(w, d) * 0.88, 40]} />

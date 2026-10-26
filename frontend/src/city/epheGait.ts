@@ -39,6 +39,79 @@ export function pivotMarch(phase: number): number {
   return Math.sin(phase * 2.4) * 0.4;
 }
 
+/**
+ * The same 0.4, as a fraction of a full stride, for the FOOT.
+ *
+ * `pivotMarch` only ever shaped the scalar `stride` the caller uses for the
+ * body bob; the feet are written from `footCycle`, which takes its amplitude
+ * as an argument and was always handed the walking one. So a resident stopped
+ * mid-corner to change kerb took a full 0.29-unit step on the spot — 6.4 px of
+ * foot travel at the size a resident is actually seen, on a figure that is not
+ * going anywhere. The pivot's footing is now 2.5 px.
+ */
+export const PIVOT_STRIDE = 0.4;
+
+/**
+ * Signed fore-aft travel of one hand, in units of the arm's amplitude.
+ *
+ * The planted foot cycle is a triangle wave through +amp at gait 0, −amp at π:
+ * it peaks on the quarter-points of `sin`. A hand driven by `sin(gait)` therefore
+ * reaches full swing exactly when the legs cross, and the figure shows its arms
+ * and its legs taking turns — the one combination that never happens on a body.
+ * Cosine puts the right hand back at the instant the right foot is forward,
+ * which is the contralateral half of a walk and the whole reason an arm swing
+ * is legible at all.
+ */
+export function armSwing(gaitPhase: number, side: -1 | 1): number {
+  return -side * Math.cos(gaitPhase);
+}
+
+/**
+ * The greeting hand, in local units of the 1.35-tall figure.
+ *
+ * A resident is 20 px tall at the small end of the measured band and 30 px at
+ * the large end, so the wave is the one signal on the figure that has to be
+ * legible as MOTION rather than as shape — and motion at 20 px is only there if
+ * a mass crosses a few pixels of screen. The shipped wave moved the hand 0.035
+ * units sideways, 1.6 px peak to peak, with the hand inside the head's own
+ * column. These numbers are set against both ends of the band, and the arc is
+ * the point: a hand that only slides sideways reads as a shift, one that comes
+ * down as it goes out reads as a wave.
+ */
+export const WAVE = {
+  /** The hand's height at the top of its arc: 0.14 above the crown. */
+  handY: 1.49,
+  /** How far it sinks at the far ends of the arc. */
+  dip: 0.03,
+  /** The hand's distance from the body's centre line, at the middle of the arc. */
+  centre: 0.345,
+  /** Half the sideways travel. */
+  reach: 0.095,
+  /** Fore-aft, so the arm is out in front of the shoulder and not beside it. */
+  forward: 0.16,
+  /** Beats per greeting cycle relative to the caller's clock. */
+  rate: 1.6,
+} as const;
+
+/** Sideways offset of the waving hand, added to `WAVE.centre`. */
+export function waveLateral(phase: number): number {
+  return Math.sin(phase * WAVE.rate) * WAVE.reach;
+}
+
+/**
+ * Height of the waving hand over the same phase: the arc's other half.
+ *
+ * This was `(1 - cos)`, a quarter period off the lateral sine — so over a beat
+ * the two were uncorrelated (measured Pearson r = +0.06) and the hand traced a
+ * closed loop rather than a lifted arc: it came back in at the same height it
+ * went out at. Driving the height from the lateral offset itself makes the
+ * gesture what the comment above `WAVE.reach` promises — out is down, in is up
+ * — and keeps the lowest point at `handY - dip`, clear of the crown.
+ */
+export function waveHeight(phase: number): number {
+  return WAVE.handY - (waveLateral(phase) / WAVE.reach) * WAVE.dip;
+}
+
 /** Per-second approach of walking speed toward its target. */
 export const ACCEL = 5;
 
@@ -195,4 +268,36 @@ export function socialStep(
     out.pushZ = (out.pushZ / magnitude) * PERSONAL_PUSH;
   }
   return out;
+}
+
+/**
+ * MASTER-2027 §07.11 — the look-around a resident takes when it arrives.
+ *
+ * A guide that reaches a building and freezes has ended its errand but not its
+ * sentence: nothing on the screen says "this is the place, and this is the
+ * block around it". One sweep of the shoulders says it. It is deliberately a
+ * *body* turn and not a head turn: the head is 0,26 units across and the face
+ * band moves 1,08 px for the ±0,3 rad idle glance (`ephe-readability.test.ts`),
+ * so a glance — however wide — is under the pixel this world can show, while a
+ * 44° shoulder turn changes a 9-px silhouette by about a third of its width.
+ */
+export const UMSEHEN = {
+  /** Seconds from "the target is in front of me" to "I am facing it again". */
+  dauer: 3.4,
+  /** Peak shoulder offset in radians (0,77 rad = 44° once the envelope is on). */
+  bogen: 1.1,
+} as const;
+
+/**
+ * The sweep at progress `f` (0 = arrival, 1 = home again), in radians.
+ *
+ * Two sines multiplied: `sin(2πf)` is the look left-then-right, `sin(πf)` is an
+ * envelope that starts and ends at zero with zero slope, so neither end of the
+ * movement is a jolt. Outside [0,1) — including a NaN progress — it is exactly
+ * zero, which is what makes a stopped simulation clock (reduced motion) a
+ * figure that never left its target.
+ */
+export function umsehenBogen(f: number): number {
+  if (!(f > 0) || f >= 1) return 0;
+  return Math.sin(f * Math.PI * 2) * Math.sin(f * Math.PI) * UMSEHEN.bogen;
 }

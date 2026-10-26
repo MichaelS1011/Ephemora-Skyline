@@ -270,6 +270,56 @@ export interface DirLayout {
    * is the level's half-extent measured about it.
    */
   centre: { x: number; z: number };
+  /**
+   * The lane a district chip is really drawn into, in world units: the
+   * SMALLEST distance between the centres of any two placed blocks.
+   *
+   * Why this number and not one read off `bounds`: `bounds` is the level's
+   * square — plaza, podium and rim included — so the pitch a uniform grid
+   * would give inside it (`2·bounds/√N`, which is what `fieldPx/√N` projects)
+   * is optimistic against the real Voronoi placement. Measured through this
+   * module's own `getDirLayout` on the 16 block-carrying levels of the repo
+   * self-scan (2026-10-26),
+   * the model overstates the gap on every level of more than one block — 1.06x
+   * to 1.27x — and the two levels the last rounds argued about are the tight
+   * ones: `frontend/src` 91.3 px model against a 73.8 px real lane,
+   * `docs/reviews` 91.3 px against 81.9 px.
+   *
+   * The far tier pins every chip with `<Html center>` exactly ON a block
+   * centre, so this is the denominator a chip that occupies a rectangle about
+   * that point has to answer to: two rectangles centred `d` apart overlap as
+   * soon as `(w1 + w2)/2 > d`, and capping EVERY chip at the smallest real `d`
+   * therefore makes overdraw impossible for every pair at the same time. It is
+   * also the conservative reading under any orbit azimuth — an `<Html>` plate
+   * has no depth order, so a pair aligned with the view direction overlaps just
+   * the same; only the radial distance says that.
+   *
+   * One pass over the placed blocks at layout build time, inside the cached
+   * `DirLayout` — never a second geometry pass per frame. With fewer than two
+   * blocks there is no pair to measure, and the level's own width
+   * (`2·bounds`) is the lane, because no chip here has a neighbour to cover.
+   * Optional on the type only so the hand-built
+   * layout literals in the test tree keep compiling; both shipped producers set
+   * it, and `tests/typeFloor.test.ts` pins that they do.
+   */
+  minBlockPitch?: number;
+}
+
+/**
+ * The smallest centre-to-centre distance between two placed blocks — see
+ * `DirLayout.minBlockPitch`. O(n²) over the level's own plots (a level's
+ * children are bounded by the directory, not by the repository), run once per
+ * built layout.
+ */
+function blockMinPitch(blocks: readonly { x: number; z: number }[], noNeighbour: number): number {
+  let min = Infinity;
+  for (let i = 0; i < blocks.length; i++) {
+    for (let j = i + 1; j < blocks.length; j++) {
+      const d = Math.hypot(blocks[i]!.x - blocks[j]!.x, blocks[i]!.z - blocks[j]!.z);
+      if (d < min) min = d;
+    }
+  }
+  return Number.isFinite(min) ? min : noNeighbour;
 }
 
 // ── Deterministic pseudo-random from path ──────────────────────────────────
@@ -442,6 +492,7 @@ function computeGridLayout(dir: CityDir, additional: readonly CityFile[]): DirLa
     plazaExtent,
     plazaCenter: { x: 0, z: 0 },
     centre,
+    minBlockPitch: blockMinPitch(blockPlacements, 2 * bounds),
   };
 }
 
@@ -679,6 +730,7 @@ function computeVoronoiLayout(dir: CityDir, additional: readonly CityFile[]): Di
     plazaExtent,
     plazaCenter: plazaCenter,
     centre,
+    minBlockPitch: blockMinPitch(blockPlacements, 2 * bounds),
   };
 }
 
@@ -747,6 +799,14 @@ export interface BuildSite {
   color: string;
   /** ms into the build when this unit starts to rise */
   offset: number;
+  /**
+   * What stands on this plot, in the payload's own words: the file id for a
+   * building. EPHE-AI EA-01 needs it because a plot is the one part of a
+   * resident's address that survives re-scanning the same folder — file ids are
+   * minted from the path. Absent for units that carry no file (a district block
+   * stands for many files, so it names none).
+   */
+  unitId?: string;
 }
 
 export interface BuildPlan {
@@ -875,6 +935,7 @@ export function planConstruction(
           span: Math.max(b.w, b.d),
           color: languageColor(b.file.language),
           offset: at - baseMs,
+          unitId: b.file.id,
         });
       },
     });
@@ -1146,7 +1207,13 @@ export function explainDistrictDraw(
   const lines: string[] = [];
   if (draw.folded > 0) {
     const cap = limits?.buildingsPerDirectory ?? draw.drawnHere;
-    lines.push(t(lang, "layout.drawnHere", { drawn: draw.drawnHere, files: draw.filesHere, cap }));
+    lines.push(
+      t(lang, draw.drawnHere === 1 ? "layout.drawnHereOne" : "layout.drawnHere", {
+        drawn: draw.drawnHere,
+        files: draw.filesHere,
+        cap,
+      }),
+    );
   }
   if (draw.plots > 0 && draw.filesBelow > 0) {
     lines.push(

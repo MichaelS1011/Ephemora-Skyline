@@ -3,6 +3,7 @@ import { readFileSync } from "fs";
 import path from "path";
 import * as THREE from "three";
 import { buildOpenWorld, standOnLane } from "../src/city/openWorldStreets";
+import { LEERWELT_POSE } from "../src/city/cameraPresets";
 
 /**
  * M1 — the Ephe's have to be *seen* on the empty world.
@@ -25,25 +26,18 @@ const MIN_PIXEL_HEIGHT = 3;
 /** At least this much of the graph has to be inside the frame. */
 const MIN_READABLE_SHARE = 0.9;
 
-/** The empty world's camera, read out of CityScene so the guard cannot drift
- *  away from the shot the component actually sets. CityScene sets two cameras:
- *  the crane's street-level start for a build, and this one for the bare world. */
+/** The empty world's camera. Its pose lives in one named constant —
+ *  `cameraPresets.LEERWELT_POSE` — which CityScene mounts and this guard reads
+ *  from the same import, so the two cannot drift apart. (CityScene sets two
+ *  cameras: the crane's street-level start for a build, and this one for the
+ *  bare world.) */
 function sceneCamera(): THREE.PerspectiveCamera {
-  const source = readFileSync(
-    path.resolve(import.meta.dirname, "../src/components/CityScene.tsx"),
-    "utf-8",
-  );
-  const emptyWorld = source.slice(source.indexOf("craneBuildRef.current = null;"));
-  const pos = /camera\.position\.set\(([-\d.]+),\s*([-\d.]+),\s*([-\d.]+)\)/.exec(emptyWorld);
-  const look = /camera\.lookAt\(([-\d.]+),\s*([-\d.]+),\s*([-\d.]+)\)/.exec(emptyWorld);
-  expect(pos, "CityScene no longer sets the empty world camera").not.toBeNull();
-  expect(look, "CityScene no longer aims the empty world camera").not.toBeNull();
   // the canvas mounts a 52° vertical fov; the frame is the measurement's
   const canvas = readFileSync(path.resolve(import.meta.dirname, "../src/App.tsx"), "utf-8");
   const fov = /fov:\s*(\d+(?:\.\d+)?)/.exec(canvas);
   const camera = new THREE.PerspectiveCamera(Number(fov?.[1] ?? 52), VIEW.w / VIEW.h, 0.5, 1600);
-  camera.position.set(Number(pos![1]), Number(pos![2]), Number(pos![3]));
-  camera.lookAt(new THREE.Vector3(Number(look![1]), Number(look![2]), Number(look![3])));
+  camera.position.set(...LEERWELT_POSE.position);
+  camera.lookAt(new THREE.Vector3(...LEERWELT_POSE.target));
   camera.updateMatrixWorld();
   return camera;
 }

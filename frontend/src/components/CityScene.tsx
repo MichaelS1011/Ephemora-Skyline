@@ -7,12 +7,29 @@ import { useStore } from "../stores/useStore";
 import { defaultOverviewPath } from "../city/overview";
 import { armRevealPulse, getDirLayout, overviewShot, REVEAL_FLIGHT_MS } from "../city/layout";
 import { prefersReducedMotion } from "../city/motion";
+import {
+  BAUBEGINN_POSE,
+  LEERWELT_POSE,
+  blickwinkelFür,
+  fitAnsicht,
+  isAnsicht,
+} from "../city/cameraPresets";
+import { currentVisit } from "../urlState";
 import { OPEN_WORLD_DIRECT_STEP, buildOpenWorld } from "../city/openWorldStreets";
 import { ENV } from "../city/palette";
 import { FLAT_SURFACE, surfaceForLayout } from "../city/worldSurface";
+import {
+  dataPlots,
+  plotWorldPoints,
+  fitWorldPoints,
+  HERO_FRAMING,
+  WORLD_FOV_DEG,
+  WORLD_OVERVIEW_ELEVATION,
+} from "../city/worldFraming";
+import { surfacePoint } from "../city/worldSurface";
 import { WorldSurfaceContext } from "../render/WorldSurface";
 import { SkyDome } from "../render/SkyDome";
-import { SUN_POSITION } from "../render/sky";
+import { LIGHT_RIG, SUN_POSITION } from "../render/sky";
 import {
   grownFootprint,
   groundFrameRadius,
@@ -173,15 +190,19 @@ export function CityScene() {
         // straight at the construction from a human eye-line. As buildings rise,
         // the crane pulls back smoothly to the presentation distance — the zoom
         // out IS the reveal, not a separate flight after it.
-        camera.position.set(centre.x + 14, 6, centre.z + 18);
-        camera.lookAt(centre.x, 2.5, centre.z);
+        camera.position.set(
+          centre.x + BAUBEGINN_POSE.dx,
+          BAUBEGINN_POSE.y,
+          centre.z + BAUBEGINN_POSE.dz,
+        );
+        camera.lookAt(centre.x, BAUBEGINN_POSE.targetY, centre.z);
       }
       return;
     }
     craneBuildRef.current = null;
     overviewRef.current = null;
-    camera.position.set(17, 10, 34);
-    camera.lookAt(0, 1, 0);
+    camera.position.set(...LEERWELT_POSE.position);
+    camera.lookAt(...LEERWELT_POSE.target);
   }, [cityData, buildStartedAt, camera, requestFly]);
 
   // City stands → fly to the presentation view. The crane pulled back during
@@ -204,25 +225,118 @@ export function CityScene() {
         duration: REVEAL_FLIGHT_MS / 1000,
       });
     } else {
-      const layout = getDirLayout(cityData, defaultOverviewPath(cityData));
-      const tallest = Math.max(
-        0,
-        ...layout.blocks.flatMap((b) => b.skyline.map((s) => s.h)),
-        ...layout.buildings.map((b) => b.h),
-      );
-      const shot = overviewShot(layout.bounds, tallest);
-      requestFly({
-        x: layout.centre.x,
-        z: layout.centre.z,
-        distance: Math.min(shot.dist, 85),
-        targetY: shot.targetY,
-        elevation: 0.28,
-        duration: REVEAL_FLIGHT_MS / 1000,
-      });
+      const path = defaultOverviewPath(cityData);
+      const layout = getDirLayout(cityData, path);
+      // §06.01 — an address that names a view gets that framing on arrival.
+      // The name is honoured inside the reveal, not by a second flight after
+      // it: measured, a hook that flew first was simply overwritten by this
+      // one (0 Px difference). An address that also names a district or a file
+      // keeps the reveal: the place outranks the angle.
+      const besuch = currentVisit();
+      const benannt =
+        besuch.district.length === 0 && !besuch.filePath && isAnsicht(besuch.ansicht)
+          ? besuch.ansicht
+          : null;
+      if (benannt) {
+        const fitted = fitAnsicht(
+          benannt,
+          layout,
+          surfaceForLayout(layout, path.length > 0),
+          gl.domElement.clientWidth / Math.max(1, gl.domElement.clientHeight),
+        );
+        requestFly({
+          position: fitted.position,
+          target: fitted.target,
+          duration: REVEAL_FLIGHT_MS / 1000,
+        });
+      } else {
+        const tallest = Math.max(
+          0,
+          ...layout.blocks.flatMap((b) => b.skyline.map((s) => s.h)),
+          ...layout.buildings.map((b) => b.h),
+        );
+        const shot = overviewShot(layout.bounds, tallest);
+        requestFly({
+          x: layout.centre.x,
+          z: layout.centre.z,
+          distance: shot.dist,
+          targetY: shot.targetY,
+          elevation: shot.elevation,
+          duration: REVEAL_FLIGHT_MS / 1000,
+        });
+      }
     }
     const pulse = armRevealPulse(cityData, Date.now(), prefersReducedMotion());
     if (pulse) useStore.setState({ revealPulse: pulse });
   }, [cityData, buildPhase, buildStartedAt, requestFly, poseRequest, shareHero]);
+
+  /**
+   * Z-01 (§07.11) — a guide the reader cannot see is a guide that did not walk.
+   *
+   * Measured: the Explorer reached its target, pointed, looked around, and
+   * across eight seconds not one pixel of it changed on the plate, because a
+   * neighbouring tower stood between the lens and the kerb it was sent to
+   * (`umsehen-messung.json`, and the same wall ends §07.06's route line out of
+   * frame). So when an errand opens — and once more when the figure arrives —
+   * the camera frames the target's frontage from the nearest direction with a
+   * clear line to it.
+   *
+   * Three rules the flight obeys, all of them deliberate: it happens **once**
+   * per errand, at hand-over, and never again while the reader watches — a
+   * second flight at the arrival was built first and measured away, because its
+   * own motion (112 212 of 113 739 changed pixels in the frame after the
+   * arrival) is the camera, not the guide, and it landed on top of the
+   * look-around it was supposed to reveal; an address that names a view or a
+   * pose keeps its own framing, because a place the reader typed outranks a
+   * place the app chose; and under reduced motion nothing flies at all — there
+   * is no walk to follow there either (§04.12).
+   */
+  const guide = useStore((s) => s.guide);
+  const geflogenRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!cityData || !guide) {
+      geflogenRef.current = null;
+      return;
+    }
+    if (prefersReducedMotion()) return;
+    const schluessel = `${guide.role}|${guide.targetFileId}`;
+    if (geflogenRef.current === schluessel) return;
+    const layout = getDirLayout(cityData, focusPath);
+    const plot = layout.buildings.find((b) => b.file.id === guide.targetFileId);
+    if (!plot) {
+      // Not drawn on this level: the errand was refused elsewhere, and a camera
+      // that flew to an invisible building would be the app's mistake, not the
+      // reader's.
+      return;
+    }
+    const surface = surfaceForLayout(layout, focusPath.length > 0);
+    const plots = dataPlots(layout);
+    const ziel = plots.find((s) => s.x === plot.x && s.z === plot.z) ?? {
+      x: plot.x,
+      z: plot.z,
+      w: plot.w,
+      d: plot.d,
+      top: plot.h + 1.5,
+    };
+    const rand = surfacePoint(surface, guide.x, 0.9, guide.z);
+    const kamera = camera.position;
+    const azimut = blickwinkelFür(
+      { x: rand.x, y: rand.y, z: rand.z },
+      Math.max(18, Math.hypot(kamera.x - rand.x, kamera.y - rand.y, kamera.z - rand.z) * 0.6),
+      WORLD_OVERVIEW_ELEVATION,
+      plots.filter((s) => s !== ziel),
+      Math.atan2(kamera.z - rand.z, kamera.x - rand.x),
+    );
+    const fitted = fitWorldPoints(
+      [...plotWorldPoints([ziel], surface), surfacePoint(surface, guide.x, 0, guide.z)],
+      gl.domElement.clientWidth / Math.max(1, gl.domElement.clientHeight),
+      azimut,
+      WORLD_FOV_DEG,
+      HERO_FRAMING,
+    );
+    geflogenRef.current = schluessel;
+    requestFly({ position: fitted.position, target: fitted.target, duration: 1.4 });
+  }, [cityData, guide, focusPath, camera, gl, requestFly]);
 
   const frame = useMemo(() => {
     if (!cityData) return { bounds: 60, centre: { x: 0, z: 0 }, radius: 60, surface: FLAT_SURFACE };
@@ -288,10 +402,18 @@ export function CityScene() {
           term is what is left after both: it was 0.65, and at 0.65 it added a
           flat third to every facade, which is exactly the amount that turns
           twenty-four language colours into four. */}
-      <hemisphereLight args={["#cfe3f2", "#4a5560", 1.15]} />
-      <directionalLight position={SUN_POSITION} intensity={1.5} color="#ffd9ac" />
-      <directionalLight position={[-45, 35, -35]} intensity={0.4} color="#9fc4e8" />
-      <ambientLight intensity={0.25} />
+      <hemisphereLight args={[LIGHT_RIG.hemiSky, LIGHT_RIG.hemiGround, LIGHT_RIG.hemiIntensity]} />
+      <directionalLight
+        position={SUN_POSITION}
+        intensity={LIGHT_RIG.sunIntensity}
+        color={LIGHT_RIG.sunColor}
+      />
+      <directionalLight
+        position={LIGHT_RIG.fillPosition}
+        intensity={LIGHT_RIG.fillIntensity}
+        color={LIGHT_RIG.fillColor}
+      />
+      <ambientLight intensity={LIGHT_RIG.ambientIntensity} />
       {/* Atmosphere scales with the current district size.
           The seam at the horizon is NOT this fog's job — `render/ground.ts`
           carries the floor into the haze tone with its own ramp, which is what

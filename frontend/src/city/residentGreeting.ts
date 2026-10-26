@@ -30,3 +30,25 @@ export function owesWave(
   if (offer !== "open" || stageBusy) return false;
   return nowS - lastWaveS >= WAVE_REPEAT_S;
 }
+
+/**
+ * What a called resident does with their arms.
+ *
+ * The reader's click already greeted them — and kept greeting for as long as the
+ * card stayed open, which is not a greeting but a wave on a timer nobody set.
+ * §04.08 makes it the short event the brief asks for: point at the finding the
+ * reader opened if there is one (that is the resident's day job), greet while the
+ * hold lasts, then stand and face the reader without an arm in the air.
+ *
+ * `greetUntil` is 0 while reduced motion is on, because the caller only starts a
+ * greeting when motion is allowed. A frozen simulation clock would otherwise
+ * never pass a deadline, and a resident would wave at a closed card forever.
+ */
+export function calledGesture(
+  pointing: boolean,
+  greetUntilS: number,
+  nowS: number,
+): "point" | "greet" | "idle" {
+  if (pointing) return "point";
+  return greetUntilS > nowS ? "greet" : "idle";
+}
