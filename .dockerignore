@@ -1,6 +1,6 @@
-node_modules
-dist
-.turbo
+**/node_modules
+**/dist
+**/.turbo
 .env
 .git
 *.log
@@ -15,3 +15,22 @@ coverage
 .eslintrc*
 .prettierrc*
 vitest*
+# Local agent scratch, handoff notes, team protocol state and packaging output.
+# None of these is a build input for docker/Dockerfile.* — they only bloat the
+# transfer to the daemon.
+.qoder
+.qoder-scratch
+_handoffs
+dist-package
+docs/reviews
+# Local tool caches and Finder metadata inside the workspace dirs. The lines
+# above are root-only, so they miss backend/ and frontend/, where
+# "COPY frontend/ ./frontend/" ships the traces into the builder layer. Nothing
+# here is a build input: ruff, turbo and tsc regenerate each of them on demand,
+# and three of these files carry absolute paths of this machine.
+**/.ruff_cache
+**/.hermes
+**/.video_agent
+**/.zcode
+**/*.tsbuildinfo
+**/.DS_Store

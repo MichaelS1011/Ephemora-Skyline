@@ -50,7 +50,16 @@ jobs:
         run: npm run build
 
   test:
-    name: Test
+    name: Test (Node ${{ matrix.node }})
+    # The node badge and `engines` state two floors — 20.19 and 22.12 — and the
+    # machine this project is written on runs 24. Testing one version while
+    # promising three is how a badge drifts away from the checks behind it, so
+    # `claims-surface.test.ts` now reads this list and refuses a promise the
+    # matrix does not keep.
+    strategy:
+      fail-fast: false
+      matrix:
+        node: ["20.19.0", "22.12.0", "24"]
     runs-on: ubuntu-latest
     needs: build
     # The runner has Docker and no semgrep binary. Without this the adapter's
@@ -67,7 +76,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v5
         with:
-          node-version: 20
+          node-version: ${{ matrix.node }}
           cache: npm
 
       - name: Install dependencies

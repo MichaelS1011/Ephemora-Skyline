@@ -36,6 +36,8 @@ export default [
         clearTimeout: "readonly",
         fetch: "readonly",
         crypto: "readonly",
+        /** Global since Node 17; the export tests deep-copy a result with it. */
+        structuredClone: "readonly",
         // TypeScript/ESNext
         navigator: "readonly",
       },
@@ -91,7 +93,6 @@ export default [
         clearInterval: "readonly",
         clearTimeout: "readonly",
         alert: "readonly",
-        setTimeout: "readonly",
         requestAnimationFrame: "readonly",
         cancelAnimationFrame: "readonly",
         // React JSX runtime
