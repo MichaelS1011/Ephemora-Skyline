@@ -26,6 +26,24 @@ import { mapResultToCityData } from "../src/utils/cityMapper.js";
 import { resultToSarif } from "../src/utils/sarif.js";
 
 /**
+ * Waiting without a clock. `VerdictStore.persist` chains onto the store's
+ * private `chain` and the handler has already answered by then, so the end of a
+ * write is a queue, not a duration: await what is pending and stop when the
+ * queue stops growing. These cases used to poll 100/200 `setTimeout(0)` turns,
+ * and on a loaded CI runner that budget was spent before the rename had been
+ * scheduled — the case failed on Node 20 and passed on 22 and 24, which is how
+ * a clock inside a test stays invisible until the machine gets busy.
+ */
+async function drainWrites(store: { chain: Promise<void> }): Promise<void> {
+  for (let round = 0; round < 50; round++) {
+    const pending = store.chain;
+    await pending;
+    if (store.chain === pending) return;
+  }
+  throw new Error("the store's write chain never settled");
+}
+
+/**
  * The state sentences of `docs/AGENTS.md`: nothing about the user's code leaves
  * the payload, nothing in the channel writes, and the paths it names are the
  * shipped ones. Each of those is a property of the code, so each is checked
@@ -580,13 +598,15 @@ describe("a verdict store that is still loading answers as one writer", () => {
    * exactly one write in this flow, so the first change IS the final state —
    * no waiting on a guessed number of ticks.
    */
-  async function awaitWritten(file: string, seeded: string): Promise<Payload> {
-    for (let tick = 0; tick < 100; tick++) {
-      await new Promise((resolve) => setTimeout(resolve, 0));
-      const now = payload(file);
-      if (JSON.stringify(now) !== seeded) return now;
-    }
-    throw new Error(`the store never wrote ${file}`);
+  async function awaitWritten(
+    file: string,
+    seeded: string,
+    store: { chain: Promise<void> },
+  ): Promise<Payload> {
+    await drainWrites(store);
+    const now = payload(file);
+    if (JSON.stringify(now) !== seeded) return now;
+    throw new Error(`the store settled its write chain without changing ${file}`);
   }
 
   it("a get racing a set in the same tick keeps the other project's bucket on disk", async () => {
@@ -616,7 +636,11 @@ describe("a verdict store that is still loading answers as one writer", () => {
       await expect(racing).resolves.toEqual({ [FP_A]: "reviewed" });
 
       expect(saved).toEqual({ [FP_B]: "to-fix" });
-      const written = await awaitWritten(file, seeded);
+      const written = await awaitWritten(
+        file,
+        seeded,
+        store as unknown as { chain: Promise<void> },
+      );
       expect(Object.keys(written.projects).sort(), "bucket A is gone from the file").toEqual([
         BUCKET_A,
         BUCKET_B,
@@ -698,11 +722,24 @@ describe("an unreadable verdict file is answered 503, never written over", () =>
     };
   }
 
-  /** The handlers answer through their own module-level store: import it fresh. */
+  /**
+   * The handlers answer through their own module-level store: import it fresh.
+   * The import is remembered, because the write a handler starts belongs to the
+   * store of THAT module — a later `routes()` call builds a different one.
+   */
+  let lastModule: { verdictStore: unknown } | null = null;
   async function routes() {
     vi.resetModules();
-    return import("../src/server/routes/verdicts.js");
+    const mod = await import("../src/server/routes/verdicts.js");
+    lastModule = mod;
+    return mod;
   }
+
+  /** The store the last handler call in this case wrote through. */
+  const lastStore = (): { chain: Promise<void> } => {
+    if (!lastModule) throw new Error("no handler ran yet in this case");
+    return lastModule.verdictStore as { chain: Promise<void> };
+  };
 
   const resultStore = {
     get: (id: string): AnalysisResult | undefined => (id === result.id ? result : undefined),
@@ -757,17 +794,22 @@ describe("an unreadable verdict file is answered 503, never written over", () =>
 
   /**
    * `persist` runs on the store's own chain AFTER the handler answered, so a
-   * synchronous `readBack` races the rename. There is exactly one pending write
-   * per case and the write is atomic, so the first sha change IS the final
-   * state — the same reasoning as `awaitWritten` in the race case above.
+   * synchronous `readBack` races the rename; the chain is drained first. There
+   * is exactly one pending write per case and the write is atomic, so the sha
+   * change after the drain IS the final state.
    */
-  async function awaitDisk(file: string, before: string | null): Promise<Payload> {
-    for (let tick = 0; tick < 200; tick++) {
-      await new Promise((resolve) => setTimeout(resolve, 0));
-      if (!existsSync(file)) continue;
-      if (sha(file) !== before) return readBack(file);
-    }
-    throw new Error(`the store never wrote ${file}`);
+  async function awaitDisk(
+    file: string,
+    before: string | null,
+    store: { chain: Promise<void> } = lastStore(),
+  ): Promise<Payload> {
+    await drainWrites(store);
+    if (existsSync(file) && sha(file) !== before) return readBack(file);
+    throw new Error(
+      `the store settled its write chain without writing ${file} ` +
+        `(exists=${existsSync(file)}, sha before=${before?.slice(0, 8) ?? "none"}, ` +
+        `after=${existsSync(file) ? sha(file).slice(0, 8) : "-"})`,
+    );
   }
 
   it("truncated bytes are `failed`: GET and PUT answer 503 and the file is untouched", async () => {
