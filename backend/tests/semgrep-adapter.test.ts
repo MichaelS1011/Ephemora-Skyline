@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { chmodSync, existsSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { SemgrepAdapter } from "../src/services/security/adapters/semgrep-adapter.js";
@@ -32,24 +32,32 @@ describe("SemgrepAdapter", () => {
    * first public CI run reaches for a registry image inside a test that waits
    * 30 s — the badge would measure the network.
    *
-   * Proved both ways against a `docker` that leaves a mark when it is asked.
+   * Proved both ways against a `docker` that COUNTS the times it was asked.
    * Asserting only "the call came back empty" would pass on a machine without
    * Docker, which is every machine except the one that matters.
+   *
+   * What is measured is the number of requests, not the wall clock: the bound
+   * here used to be "under two seconds", and it failed on the runs where the
+   * frontend suite was busy beside this one — a stopwatch under load measures
+   * the machine, not the gate. A closed fallback is the absence of a request,
+   * and that is countable in any load.
    */
   it("leaves Docker alone when the machine says its images are not an engine", async () => {
     const bin = mkdtempSync(path.join(tmpdir(), "fake-docker-bin-"));
-    const marker = path.join(bin, "was-asked");
+    const asked = path.join(bin, "was-asked.log");
     writeFileSync(
       path.join(bin, "docker"),
-      `#!/bin/sh\ntouch ${marker}\necho "Docker version 28.0.4, build fake"\n`,
+      `#!/bin/sh\nprintf asked\\n >> ${asked}\necho "Docker version 28.0.4, build fake"\n`,
     );
     chmodSync(path.join(bin, "docker"), 0o755);
+    const requests = () =>
+      existsSync(asked) ? readFileSync(asked, "utf8").split("\n").filter(Boolean).length : 0;
 
     const prevPath = process.env.PATH;
     const prevFlag = process.env.SEMGREP_DOCKER;
     // This test owns its environment. A sibling file that leaves the offline
     // switch on (rule-packs.test.ts sets SKYLINE_OFFLINE) changes what the
-    // adapter is allowed to reach for, and then the marker stays untouched for
+    // adapter is allowed to reach for, and then the counter stays untouched for
     // a reason that has nothing to do with the gate under test.
     const prevOffline = process.env.SKYLINE_OFFLINE;
     delete process.env.SKYLINE_OFFLINE;
@@ -63,23 +71,22 @@ describe("SemgrepAdapter", () => {
     try {
       delete process.env.SEMGREP_DOCKER;
       expect(await withoutDocker().scanBatch("/tmp")).toEqual([]);
-      expect(existsSync(marker), "with Docker on the machine, the fallback does reach for it").toBe(
-        true,
-      );
+      expect(
+        requests(),
+        "with Docker on the machine, the fallback does reach for it",
+      ).toBeGreaterThan(0);
 
-      rmSync(marker);
+      const beforeGate = requests();
       process.env.SEMGREP_DOCKER = "0";
       const gated = withoutDocker();
-      const started = Date.now();
       expect(await gated.scanBatch("/tmp")).toEqual([]);
-      expect(existsSync(marker), "SEMGREP_DOCKER=0 must close the fallback before any probe").toBe(
-        false,
+      expect(requests(), "SEMGREP_DOCKER=0 must close the fallback before any probe").toBe(
+        beforeGate,
       );
       expect(
         (gated as unknown as { dockerAvailable: boolean | null }).dockerAvailable,
         "the gate settles the state instead of leaving it to be probed again",
       ).toBe(false);
-      expect(Date.now() - started, "no probe, no pull, no waiting").toBeLessThan(2000);
     } finally {
       process.env.PATH = prevPath;
       if (prevOffline === undefined) delete process.env.SKYLINE_OFFLINE;
