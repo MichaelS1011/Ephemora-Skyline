@@ -33,7 +33,13 @@ function runAudit(report: unknown, status: number, gateSource?: string) {
     }
     return spawnSync(process.execPath, [script], {
       encoding: "utf8",
-      env: { ...process.env, PATH: `${dir}${path.delimiter}${process.env.PATH ?? ""}` },
+      env: {
+        ...process.env,
+        PATH: `${dir}${path.delimiter}${process.env.PATH ?? ""}`,
+        // The gate retries a broken audit call. Tests measure the behaviour, not
+        // the waiting, so the backoff is silenced here and pinned separately.
+        AUDIT_GATE_RETRY_MS: "0,0",
+      },
     });
   } finally {
     rmSync(dir, { recursive: true, force: true });
@@ -109,9 +115,25 @@ describe("dependency audit release gate", () => {
     expect(result.status).toBe(1);
     expect(result.stderr).toContain("could not be completed");
     expect(result.stdout).not.toContain("PASS");
+    expect(
+      (result.stdout.match(/retrying the audit/g) ?? []).length,
+      "a transport error is measured again, not accepted",
+    ).toBe(2);
+  });
+
+  it("keeps a real backoff between the retries", () => {
+    const source = readFileSync(
+      path.resolve(import.meta.dirname, "../../scripts/audit-gate.mjs"),
+      "utf8",
+    );
+    expect(source, "die Wartezeiten sind 2s und 5s, nicht 0").toContain("2000,5000");
   });
   it("refuses an incomplete report even when npm exits successfully", () => {
-    expect(runAudit({}, 0).status).toBe(1);
+    const result = runAudit({}, 0);
+    expect(result.status).toBe(1);
+    expect(result.stdout, "gueltiges JSON ohne Bericht ist kein Bericht").toContain(
+      "retrying the audit",
+    );
   });
   it("accepts a complete clean report", () => {
     expect(
@@ -189,5 +211,27 @@ describe("dependency audit release gate", () => {
     expect(result.stdout).toContain("· braces");
     expect(result.stdout).toContain("PASS");
     expect(result.stderr).not.toContain("FAIL");
+  });
+
+  it("says out loud when a waiver matches no finding today", () => {
+    // The shipped ALLOWED list carries one entry. On a report with nothing in
+    // it, that entry explains nothing — and a silent exception list is how a
+    // gate accumulates waivers nobody can still check against reality.
+    const result = runAudit(
+      { vulnerabilities: {}, metadata: { vulnerabilities: { high: 0, critical: 0 } } },
+      0,
+    );
+    expect(result.status).toBe(0);
+    expect(result.stdout).toContain("PASS");
+    expect(result.stderr).toContain(
+      "GHSA-vfj7-8cjw-p6xm is listed in ALLOWED but no finding carried it today",
+    );
+  });
+
+  it("stays quiet about the waiver while a finding still carries it", () => {
+    const result = runAudit(bracesOnlyReport(), 1);
+    expect(result.status).toBe(0);
+    expect(result.stdout).toContain("· braces");
+    expect(result.stderr).not.toContain("no finding carried it today");
   });
 });

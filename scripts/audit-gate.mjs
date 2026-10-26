@@ -98,22 +98,58 @@ function audit() {
   }
 }
 
+/**
+ * A complete report, or nothing. `npm audit` prints valid JSON for transport
+ * errors too, so a parseable answer is not yet an answer — and while a build is
+ * running, two npm processes can make the registry call fail once. Retrying a
+ * bounded number of times measures the audit again; accepting an incomplete
+ * report would silently turn a security gate into a pass.
+ */
+const ATTEMPTS = [
+  0,
+  ...(process.env.AUDIT_GATE_RETRY_MS ?? "2000,5000")
+    .split(",")
+    .map((s) => Number(s.trim()))
+    .filter((n) => Number.isFinite(n)),
+];
 let report;
-try {
-  report = audit();
-  // npm also prints JSON for transport errors. That is not an empty audit.
-  if (
-    !report ||
-    report.error ||
-    !report.metadata?.vulnerabilities ||
-    !report.vulnerabilities ||
-    typeof report.vulnerabilities !== "object" ||
-    Array.isArray(report.vulnerabilities)
-  ) {
-    throw new Error("npm did not return a complete vulnerability report");
+const incomplete = (r) =>
+  !r ||
+  r.error ||
+  !r.metadata?.vulnerabilities ||
+  !r.vulnerabilities ||
+  typeof r.vulnerabilities !== "object" ||
+  Array.isArray(r.vulnerabilities);
+
+let lastError = null;
+for (let attempt = 0; attempt < ATTEMPTS.length; attempt++) {
+  // Every attempt after the first is announced, even a wait of 0: the line is
+  // the proof that the audit was measured again, and a silent retry would make
+  // the gate's own test count nothing while it still ran.
+  if (attempt > 0) {
+    const wait = ATTEMPTS[attempt];
+    if (wait > 0) Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, wait /* ms */);
+    console.log(`retrying the audit after ${wait / 1000}s (attempt ${attempt + 1}) …`);
   }
-} catch (error) {
-  console.error(`FAIL — dependency audit could not be completed: ${error.message}`);
+  let candidate = null;
+  try {
+    candidate = audit();
+    lastError = null;
+  } catch (error) {
+    lastError = error;
+  }
+  if (candidate && !incomplete(candidate)) {
+    report = candidate;
+    break;
+  }
+  if (!lastError) lastError = new Error("npm did not return a complete vulnerability report");
+  report = null;
+}
+
+if (lastError || incomplete(report)) {
+  console.error(
+    `FAIL — dependency audit could not be completed: ${lastError?.message ?? "incomplete report"}`,
+  );
   process.exit(1);
 }
 const vulns = report.vulnerabilities;
@@ -199,4 +235,18 @@ if (failing.length) {
 }
 // Nothing failed, so an inert entry is not a finding — but it must not go unsaid.
 for (const dead of inert) console.error(`note: ${inertNote(dead)}`);
+/**
+ * A waiver for an advisory the audit did not report today. Not a finding, so it
+ * does not fail the gate — but it has to say itself out loud: an ALLOWED list
+ * nobody can still match against a real report is how a threshold gets lowered
+ * one silent entry at a time.
+ */
+const reportedIds = new Set(Object.values(vulns).flatMap((v) => [...directIds(v)]));
+for (const [id, a] of ACCEPTED) {
+  if (reportedIds.has(id) || inert.some((dead) => dead.id === id)) continue;
+  console.error(
+    `note: ${id} is listed in ALLOWED but no finding carried it today ` +
+      `(added ${a.added}, re-check ${a.recheck}) — delete the entry or state why it stays.`,
+  );
+}
 console.log("\nPASS — every high/critical finding is either fixed or explicitly accepted above.");
