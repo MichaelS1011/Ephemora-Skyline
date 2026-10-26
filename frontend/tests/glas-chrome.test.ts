@@ -2430,10 +2430,18 @@ describe("Stadt-Blatt: Gold verlässt Zustand und Angebot, der Fokusring bleibt"
  *   Wertungssignal mit Wort (`reviewLabelToFix`), läuft aber NICHT über
  *   `severityColor(…, colorblind)`: echter Befund, Betreiberfrage, keine
  *   stille Änderung. Ebenso gemeldet: die Amber-Familie (start-state-limits ist
- *   im Blatt dokumentiert; update-banner, rescue-button, share…), Zahlen-Tinten
- *   derselben Klasse wie Fall 17 (start-elapsed/budget-wait/stage-hold/figure,
- *   boot is-slow) und die Analyse-Kicker/Escape-Knopf — nicht in der Liste,
- *   hier namentlich geduldet, eine vierte ungemeldete Stelle macht rot. */
+ *   im Blatt dokumentiert; update-banner, rescue-button, share…, boot is-slow)
+ *   und die Analyse-Kicker — nicht in der Liste, hier namentlich geduldet,
+ *   eine weitere ungemeldete Stelle macht rot.
+ * Task-9-Räumung (2026-10-26, dieselbe Familie): die vier Ziffern-Tinten
+ *   (start-elapsed/budget-wait/stage-hold/state-figure) stehen jetzt auf
+ *   `--meta-strong` — dieselbe Leiter wie ihr Wort (7,0 gemessen auf dem
+ *   Kartenfeld über dem hellsten Grund); der Escape-Knopf des Analyse-Pickers
+ *   rahmt sich in `--glass-chrome-border` mit `--meta-strong`-Tinte (7,09 auf
+ *   dem Popover-Feld); die gedrückten Ephe-Chips tragen den Blatteigenen
+ *   Current-Schritt-Aufrieb (`--brand-ink`-Rand + Ink-Glanz, 15 auf der
+ *   Vitrine) statt `--focus-ring` als Dauerschmuck. `aria-pressed`, Wort und
+ *   Form bleiben; keine dieser Stellen malt je wieder Fokusfarbe. */
 describe("Gold-Sweep: die Restliste trägt ihre Zustände in words und Leiter-Tinten; Signale bleiben gemeldet", () => {
   const START = quelle("../src/design/start.css");
   const GLOBALS = quelle("../src/design/globals.css");
@@ -2443,6 +2451,7 @@ describe("Gold-Sweep: die Restliste trägt ihre Zustände in words und Leiter-Ti
   const HUD_SRC = quelle("../src/components/HudOverlay.tsx");
   const FIND_SRC = quelle("../src/components/FindingsPanel.tsx");
   const ANALYZE_SRC = quelle("../src/components/AnalyzePanel.tsx");
+  const LOOK_SRC = quelle("../src/components/EpheLookControls.tsx");
   const ARRIVAL_SRC = quelle("../src/components/ArrivalProgress.tsx");
   const SCAN_SRC = quelle("../src/components/ScanSummary.tsx");
   const BAND_SRC = quelle("../src/components/LiveBand.tsx");
@@ -2488,11 +2497,7 @@ describe("Gold-Sweep: die Restliste trägt ihre Zustände in words und Leiter-Ti
         "Wiederaufnahme-Link: gemeldeter Mitbewohner (nicht in der Liste)",
       ],
       [/\.start-plate$/, "Platten-Frost α 0,05 (Deko)"],
-      [/\.start-elapsed$/, "Ziffern-Tinte derselben Klasse wie Fall 17 — gemeldet, nicht geraeumt"],
       [/is-indeterminate::after$/, "Unentschieden-Schimmer (Animations-Deko)"],
-      [/\.start-budget-wait$/, "Ziffern-Tinte — gemeldet (Klasse Fall 17)"],
-      [/\.start-stage-hold$/, "Ziffern-Tinte — gemeldet (Klasse Fall 17)"],
-      [/\.start-state-figure$/, "Zustands-Ziffer (Deko-Akzent) — gemeldet"],
       [
         /start-state--/,
         "dokumentiertes Amber: a limit is amber (Schwere-Familie, Glyphen und Wörter tragen)",
@@ -2556,14 +2561,6 @@ describe("Gold-Sweep: die Restliste trägt ihre Zustände in words und Leiter-Ti
         /\[color:var\(--accent-gold\)\] tracking-widest/,
         "Kicker-Labels des Popovers (Deko/Marke, nicht in der Liste)",
       ],
-      [
-        /border border-\[var\(--accent-gold\)\]/,
-        "Neubefund, nicht in der Liste: Escape-Knopf des Pickers steht ständig in Ringfarbe — Klasse Guide-Chip, gemeldet",
-      ],
-      [
-        /text-\[color:var\(--accent-gold\)\] bg-transparent/,
-        "desselben Knopfes Tinte und Glanz — gemeldet",
-      ],
     ],
   };
 
@@ -2586,6 +2583,12 @@ describe("Gold-Sweep: die Restliste trägt ihre Zustände in words und Leiter-Ti
     ["globals.css", "live-Knopf-Hover", /^\.live-scan:hover$/],
     ["share.css", "blocked-Waschung", /^\.share-blocked$/],
     ["share.css", "live-Zeile", /^\.share-live$/],
+    ["start.css", "elapsed-Ziffer", /^\.start-elapsed$/],
+    ["start.css", "budget-Warte-Ziffer", /^\.start-budget-wait$/],
+    ["start.css", "Stufen-Halte-Ziffer", /^\.start-stage-hold$/],
+    ["start.css", "Zustands-Ziffer", /^\.start-state-figure$/],
+    ["start.css", "Varianten-Chip gedrückt", /^\.ephe-variant\[aria-pressed="true"\]$/],
+    ["start.css", "Marken-Chip gedrückt", /^\.ephe-mark\[aria-pressed="true"\]$/],
   ];
   const blätter: Record<string, string> = {
     "start.css": START,
@@ -2634,11 +2637,23 @@ describe("Gold-Sweep: die Restliste trägt ihre Zustände in words und Leiter-Ti
     expect(goldZeilen(HUD_SRC), "HudOverlay trägt wieder ein Gold-Literal").toHaveLength(0);
   });
 
-  it("lässt den Fokusring-Token nur noch in Fokusregeln des Stadt-Blatts", () => {
-    for (const [sel, body] of bloque(STADT)) {
-      if (body.includes("var(--focus-ring)")) {
-        expect(sel, `Dauerschmuck mit Ring-Token: ${sel}`).toMatch(/focus/);
+  it("lässt den Fokusring-Token nur noch in Fokusregeln des Stadt- und Start-Blatts", () => {
+    for (const [blatt, text] of [
+      ["stadt-ui.css", STADT],
+      ["start.css", START],
+    ] as const) {
+      for (const [sel, body] of bloque(text)) {
+        if (body.includes("var(--focus-ring)")) {
+          expect(sel, `Dauerschmuck mit Ring-Token in ${blatt}: ${sel}`).toMatch(/focus/);
+        }
       }
+    }
+    // der gedrückte Ephe-Chip: Zustand hat Rand + Glanz aus der Leiter, nie den Ring
+    for (const chip of ['.ephe-variant[aria-pressed="true"]', '.ephe-mark[aria-pressed="true"]']) {
+      const gedrückt = bloque(START).find(([sel]) => sel === chip);
+      expect(gedrückt, `${chip} ist aus dem Blatt gelaufen`).toBeTruthy();
+      expect((gedrückt as [string, string])[1]).toContain("var(--brand-ink)");
+      expect((gedrückt as [string, string])[1]).toContain("box-shadow");
     }
     const retry = bloque(STADT).find(([sel]) => sel === ".surface-failed-retry");
     expect(retry, "die Retry-Regel ist aus dem Blatt gelaufen").toBeTruthy();
@@ -2661,6 +2676,14 @@ describe("Gold-Sweep: die Restliste trägt ihre Zustände in words und Leiter-Ti
     expect(LANDING_SRC).toContain("landing.footprintStale");
     expect(STUDIO_SRC).toMatch(/className="share-blocked" role="status"/);
     expect(ANALYZE_SRC).toContain("picker.waiting");
+    // Task-9: der Fluchtweg des Pickers behält sein Wort und seinen Anker
+    expect(ANALYZE_SRC).toContain("picker.alternative");
+    expect(ANALYZE_SRC).toContain('aria-describedby="analyze-picker-status"');
+    // Task-9: die gedrückten Ephe-Chips behalten aria-pressed und ihr Wort
+    expect(LOOK_SRC).toContain("aria-pressed={index === look.jacket}");
+    expect(LOOK_SRC).toContain("aria-pressed={kind === look.mark}");
+    expect(LOOK_SRC).toContain("aria-label={t(lang, label)}");
+    expect(LOOK_SRC).toContain("aria-label={t(lang, MARK_LABELS[kind])}");
   });
 
   it("malt die Punkte in derselben Leiter wie ihr Wort", () => {
@@ -2682,6 +2705,18 @@ describe("Gold-Sweep: die Restliste trägt ihre Zustände in words und Leiter-Ti
       wert(START, /data-state="current"\] \.start-progress-dot$/, /border-color:\s*([^;]+);/),
     ).toBe("var(--brand-ink)");
     expect(wert(GLOBALS, /^\.live-dot$/, /background:\s*([^;]+);/)).toBe("var(--brand-ink)");
+    // Task-9: die vier Ziffern-Tinten stehen auf derselben Stufe wie ihr Wort
+    for (const ziffer of [
+      /^\.start-elapsed$/,
+      /^\.start-budget-wait$/,
+      /^\.start-stage-hold$/,
+      /^\.start-state-figure$/,
+    ]) {
+      expect(
+        wert(START, ziffer, /color:\s*([^;]+);/),
+        `${ziffer}: Ziffer außerhalb der Leiter-Tinte ihres Wortes`,
+      ).toBe("var(--meta-strong)");
+    }
   });
 
   it("misst die neuen Tinten über den Feldern, auf denen sie sitzen", () => {
@@ -2738,6 +2773,44 @@ describe("Gold-Sweep: die Restliste trägt ihre Zustände in words und Leiter-Ti
       contrast(rootToken("meta-strong"), feld),
       `meta-strong über Share-Feld ${feld}`,
     ).toBeGreaterThanOrEqual(STUFE);
+    // Task-9: Ziffern auf Fortschritts- und Zustandskarte (Wortspalten-Scrim
+    // ≥ 0,93, die kleinste Stufe über der die Karten stehen), Flucht-Tinte im
+    // Analyse-Popover, gedrückter Rand auf der Vitrine — jeweils über dem
+    // hellsten Grund, den die Stadt zeigen kann.
+    expect(START, "die Wortspalte der Landung hat ihre Scrim-Stufe verloren").toContain(
+      "rgba(23, 23, 21, 0.93)",
+    );
+    const wortscrim = toHex(composite(parseColor("rgba(23, 23, 21, 0.93)"), hellster));
+    const cssFeld = (sel: string, ground: string): string => {
+      const regel = bloque(START).find(([s]) => s === sel);
+      expect(regel, `${sel}: hat seine Feldregel verloren`).toBeTruthy();
+      const feldTint = (regel as [string, string])[1].match(/background:\s*(rgba\([^)]+\))/)?.[1];
+      expect(feldTint, `${sel}: kein Feldton zu messen`).toBeTruthy();
+      return toHex(composite(parseColor(feldTint as string), ground));
+    };
+    const meta = rootToken("meta-strong");
+    for (const [karte, feldName] of [
+      [".start-progress", "Fortschrittskarte"],
+      [".start-state", "Zustandskarte"],
+    ] as const) {
+      const kartenFeld = cssFeld(karte, wortscrim);
+      expect(
+        contrast(meta, kartenFeld),
+        `${meta} über ${feldName} ${kartenFeld} (Ziffern)`,
+      ).toBeGreaterThanOrEqual(STUFE);
+    }
+    const vitrineFeld = cssFeld(".ephe-preview-panel", hellster);
+    expect(
+      contrast(rootToken("brand-ink"), vitrineFeld),
+      `${rootToken("brand-ink")} über Vitrine ${vitrineFeld} (gedrückter Rand)`,
+    ).toBeGreaterThanOrEqual(STUFE);
+    const popTint = ANALYZE_SRC.match(/background:\s*"(rgba\([^)]+\))"/)?.[1];
+    expect(popTint, "das Analyse-Popover hat seine Feldtinte verloren").toBeTruthy();
+    const popFeld = toHex(composite(parseColor(popTint as string), hellster));
+    expect(
+      contrast(meta, popFeld),
+      `${meta} über Analyse-Popover ${popFeld} (Flucht-Tinte)`,
+    ).toBeGreaterThanOrEqual(STUFE);
   });
 
   it("fällt rot, sobald eine geraeumte Stelle wieder vergoldet wird (Positivkontrolle)", () => {
@@ -2766,5 +2839,42 @@ describe("Gold-Sweep: die Restliste trägt ihre Zustände in words und Leiter-Ti
     expect(nichtErlaubt, "die Zeilen-Wache ließ einen goldenen Offen-Rand durch").not.toHaveLength(
       0,
     );
+    // Task-9: dieselbe Kontrolle an jeder neu abgeräumten Stelle, an Kopien —
+    // die echten Blätter und Quellen bleiben unberührt.
+    const zifferKopie = START.replace(
+      /(\.start-elapsed\s*\{[^}]*?color:\s*)var\(--meta-strong\)/,
+      "$1var(--accent-gold)",
+    );
+    expect(zifferKopie, "die Ziffer-Kopie traf .start-elapsed nicht").not.toBe(START);
+    expect(goldSelektoren(zifferKopie), "die Wache ließ eine vergoldete Ziffer durch").toContain(
+      ".start-elapsed",
+    );
+    expect(goldSelektoren(START), "das echte Blatt ist schon betroffen").not.toContain(
+      ".start-elapsed",
+    );
+    const fluchtKopie = ANALYZE_SRC.replace(
+      "border border-[var(--glass-chrome-border)]",
+      "border border-[var(--accent-gold)]",
+    );
+    expect(fluchtKopie, "die Flucht-Kopie traf den Escape-Knopf nicht").not.toBe(ANALYZE_SRC);
+    const fluchtOhneGrund = goldZeilen(fluchtKopie).filter(
+      (z) => !(ERLAUBT_TSX["AnalyzePanel.tsx"] ?? []).some(([re]) => re.test(z)),
+    );
+    expect(
+      fluchtOhneGrund,
+      "die Zeilen-Wache ließ den goldenen Escape-Rand durch",
+    ).not.toHaveLength(0);
+    const ringKopie = START.replace(
+      '.ephe-variant[aria-pressed="true"] {\n  border-color: var(--brand-ink);',
+      '.ephe-variant[aria-pressed="true"] {\n  border-color: var(--focus-ring);',
+    );
+    expect(ringKopie, "die Ring-Kopie traf den gedrückten Chip nicht").not.toBe(START);
+    const dauerring = bloque(ringKopie).filter(
+      ([sel, body]) => body.includes("var(--focus-ring)") && !/focus/.test(sel),
+    );
+    expect(
+      dauerring,
+      "die Ring-Wache ließ den Dauerring am gedrückten Chip durch",
+    ).not.toHaveLength(0);
   });
 });

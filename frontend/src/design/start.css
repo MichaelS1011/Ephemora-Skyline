@@ -177,7 +177,10 @@
    sleeve beneath — so the control shows the pairing instead of offering two
    colours to mix by hand. Free mixing measured 1,53:1 arm against coat, under
    the 1,78:1 the same arm holds against the ground; the pair is the edge.
-   Gold is the selection mark, so the chosen chip is the one wearing it. */
+   The chosen chip wears the sheet's own current-step lift — a --brand-ink
+   frame with the soft ink halo the progress dot uses — never the focus
+   ring: `--focus-ring` paints where the cursor is, `aria-pressed` where
+   the choice is. The word (aria-label) and the outfit itself carry it too. */
 .ephe-preview-variants {
   display: flex;
   gap: 8px;
@@ -196,8 +199,8 @@
   border-color: rgba(242, 239, 232, 0.5);
 }
 .ephe-variant[aria-pressed="true"] {
-  border-color: var(--focus-ring);
-  box-shadow: 0 0 0 1px var(--focus-ring);
+  border-color: var(--brand-ink);
+  box-shadow: 0 0 0 3px rgba(242, 239, 232, 0.12);
 }
 .ephe-variant:focus-visible {
   outline: 2px solid var(--focus-ring);
@@ -239,8 +242,8 @@
   border-color: rgba(242, 239, 232, 0.5);
 }
 .ephe-mark[aria-pressed="true"] {
-  border-color: var(--focus-ring);
-  box-shadow: 0 0 0 1px var(--focus-ring);
+  border-color: var(--brand-ink);
+  box-shadow: 0 0 0 3px rgba(242, 239, 232, 0.12);
 }
 .ephe-mark:focus-visible {
   outline: 2px solid var(--focus-ring);
@@ -810,9 +813,12 @@
   text-transform: uppercase;
   color: var(--meta-faint);
 }
+/* Numerals wear the plate's ink ladder, never the focus gold: the elapsed
+   count sits beside a kicker and a percentage that already speak --meta-strong
+   (#a8a49a, 7,09:1 measured on this card's field). */
 .start-elapsed {
   font: 500 13px/1 var(--font-mono);
-  color: var(--accent-gold);
+  color: var(--meta-strong);
   font-variant-numeric: tabular-nums;
 }
 .start-progress-current {
@@ -872,7 +878,7 @@
   font-variant-numeric: tabular-nums;
 }
 .start-budget-wait {
-  color: var(--accent-gold);
+  color: var(--meta-strong);
 }
 .start-stages {
   list-style: none;
@@ -935,7 +941,7 @@
 .start-stage-hold {
   margin-left: auto;
   font-size: 11px;
-  color: var(--accent-gold);
+  color: var(--meta-strong);
   font-variant-numeric: tabular-nums;
 }
 .start-progress-meta {
@@ -1014,7 +1020,7 @@
   display: block;
   margin: 2px 0 1px;
   font: 600 26px/1.1 var(--font-mono);
-  color: var(--accent-gold);
+  color: var(--meta-strong);
   font-variant-numeric: tabular-nums;
 }
 .start-state-text {

@@ -216,14 +216,16 @@ export function AnalyzePanel({ className = "" }: { className?: string }) {
               </p>
               {/* The native dialog stays open as long as the person uses it; this
                   is the way out for the one who is waiting, and it opens only on
-                  their own click. */}
+                  their own click. It is a plain door, not a focus: the frame is
+                  the plate's chrome border and the ink the plate's ladder step —
+                  gold belongs to `--focus-ring` alone. */}
               {canUseAlternativePicker && (
                 <button
                   type="button"
                   onClick={openAlternativePicker}
                   aria-describedby="analyze-picker-status"
-                  className="w-full mt-2 py-1 rounded-sm font-mono text-[length:var(--fs-meta)] tracking-widest border border-[var(--accent-gold)]
-                             text-[color:var(--accent-gold)] bg-transparent hover:bg-[rgba(232,178,60,0.08)] transition-all duration-150"
+                  className="w-full mt-2 py-1 rounded-sm font-mono text-[length:var(--fs-meta)] tracking-widest border border-[var(--glass-chrome-border)]
+                             text-[color:var(--meta-strong)] bg-transparent hover:text-[color:var(--brand-ink)] hover:border-[var(--brand-ink)] transition-all duration-150"
                 >
                   {t(lang, "picker.alternative")}
                 </button>
