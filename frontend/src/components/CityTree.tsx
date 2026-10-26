@@ -14,6 +14,7 @@ import {
   undergroundPlateLine,
 } from "../city/layout";
 import { buildSidewalkNetwork, plazaLanes } from "../city/sidewalks";
+import { WORLD_FOV_DEG } from "../city/worldFraming";
 import { ENV } from "../city/palette";
 import { SurfaceAnchor, SurfaceCurves } from "../render/WorldSurface";
 import { reviewKeyFor } from "../reviews";
@@ -49,8 +50,14 @@ const CHIP_CHROME_PX = 14;
 const CHIP_ADVANCE_EM = 0.6;
 /** The value of `--fs-meta` (design/globals.css) the chip now declares, in px. */
 const CHIP_GLYPH_PX = 11;
-/** Vertical field of view of the shipped camera (`App.tsx` Canvas: fov 52). */
+/** Vertical field of view of the shipped camera. The one source is
+ * `city/worldFraming.WORLD_FOV_DEG`; the digit stays written here because
+ * `tests/typeFloor.test.ts` reads the chip budget off the shipped source —
+ * the tie below, not trust, keeps it from drifting from the source. */
 const CHIP_FOV_DEG = 52;
+// tsc check: if either side moves off the other, the comparison has no
+// literal overlap and the build stops (TS2367).
+const _CHIP_FOV_TIE = CHIP_FOV_DEG === WORLD_FOV_DEG;
 /** Canvas height of the desktop measuring convention (1280 × 800, role brief). */
 const CHIP_VIEW_H_PX = 800;
 

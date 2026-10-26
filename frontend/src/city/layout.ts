@@ -33,6 +33,7 @@ import {
   type VoronoiSite,
 } from "./voronoi";
 import { generateVoxelLayout, type VoxelLayout } from "./voxels";
+import { WORLD_PIVOT_Y } from "./worldFraming";
 
 // ── Placement types ────────────────────────────────────────────────────────
 
@@ -1019,7 +1020,10 @@ export function overviewShot(bounds: number, tallest: number): OverviewShot {
   const drawn = farLodExitDistance(bounds) * FAR_LOD_SAFE_RATIO;
   return {
     dist: Math.min(fits, drawn),
-    targetY: Math.max(1.5, tallest * 0.4),
+    // The eye line over bare ground is the orbit pivot itself — one constant
+    // (`worldFraming.WORLD_PIVOT_Y`, re-exported as `CameraRig.PIVOT_Y`),
+    // not the same number written twice.
+    targetY: Math.max(WORLD_PIVOT_Y, tallest * 0.4),
     elevation: 0.32,
   };
 }
@@ -1062,7 +1066,7 @@ export function craneShot(
   // to the presentation view — the pull-back IS the reveal, no separate flight.
   return {
     dist: Math.max(CRANE_MIN_DIST, radius * 2.2 + 12, top * CROWN_FACTOR),
-    targetY: Math.max(1.5, top * 0.35),
+    targetY: Math.max(WORLD_PIVOT_Y, top * 0.35),
     x: centre.x,
     z: centre.z,
   };

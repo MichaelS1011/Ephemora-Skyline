@@ -20,6 +20,7 @@
 import type { CityData } from "./types";
 import { findFileById, getDirLayout } from "./layout";
 import { findVoxelForLine } from "./voxels";
+import { WORLD_FOV_DEG } from "./worldFraming";
 
 /** A world point a flight can land on and an edge sign can point at. */
 export interface WorldTarget {
@@ -57,10 +58,11 @@ export function worldTargetForFinding(
 
 /**
  * The perspective camera's vertical field of view, degrees. The one number
- * the cone test and the app's camera share — `tests/waypoint.test.tsx` pins
- * this against the literal in App.tsx so the two cannot drift apart.
+ * the cone test and the app's camera share — it lives in
+ * `worldFraming.WORLD_FOV_DEG` and this is that constant, not a restatement.
+ * `tests/waypoint.test.tsx` still pins it against the literal in App.tsx.
  */
-export const CAMERA_FOV_DEG = 52;
+export const CAMERA_FOV_DEG = WORLD_FOV_DEG;
 
 /** Which screen edge the signal belongs to. */
 export type EdgeSide = "left" | "right" | "behind";

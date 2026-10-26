@@ -35,6 +35,7 @@ import { HelpTipProvider } from "./components/HelpTipProvider";
 import { useStore } from "./stores";
 import { t } from "./i18n";
 import { getDirLayout } from "./city/layout";
+import { WORLD_FOV_DEG } from "./city/worldFraming";
 import type { CityData } from "./city/types";
 import { currentVisit, writePoseParam, type CameraPose } from "./urlState";
 
@@ -42,6 +43,13 @@ import { currentVisit, writePoseParam, type CameraPose } from "./urlState";
 const POSE_GRAB_MS = 320;
 /** Write the camera to the address once the pilot has stopped for this long. */
 const POSE_SETTLE_MS = 700;
+/** The Canvas below mounts on a 52° vertical field — the digit stays literal
+ * because `tests/waypoint.test.tsx` pins the app's camera by reading this
+ * file's source. The one source of the number is
+ * `city/worldFraming.WORLD_FOV_DEG`; the tie lets the compiler notice if the
+ * source moves (no literal overlap → TS2367), the guard notices if this
+ * mount-point digit does. */
+const _CANVAS_FOV_TIE = WORLD_FOV_DEG === 52;
 
 const samePose = (a: CameraPose, b: CameraPose): boolean =>
   Math.abs(a.x - b.x) < 0.05 &&

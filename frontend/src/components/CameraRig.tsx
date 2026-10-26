@@ -8,7 +8,7 @@ import type { CameraInfo } from "../stores/useStore";
 import { getDirLayout } from "../city/layout";
 import type { CraneShot } from "../city/layout";
 import { getKeyboardMark } from "../interaction/keyboardMark";
-import { fitWorldOverview, WORLD_FOV_DEG } from "../city/worldFraming";
+import { fitWorldOverview, WORLD_FOV_DEG, WORLD_PIVOT_Y } from "../city/worldFraming";
 import { STANDARD_AZIMUTH, fitAnsicht, isAnsicht } from "../city/cameraPresets";
 import { currentVisit } from "../urlState";
 import {
@@ -181,8 +181,10 @@ const _look = new THREE.Vector3();
 const _euler = new THREE.Euler(0, 0, 0, "YXZ");
 const _pivot = new THREE.Vector3();
 
-/** Height of the turntable axis — matches the y a flight aims at. */
-export const PIVOT_Y = 1.5;
+/** Height of the turntable axis — matches the y a flight aims at. It IS that
+ * aim line's one constant (`worldFraming.WORLD_PIVOT_Y`), not a restatement:
+ * the `targetY` floors in `layout.overviewShot`/`craneShot` read the same. */
+export const PIVOT_Y = WORLD_PIVOT_Y;
 /** Street level — nothing the pilot flies through goes below it. */
 export const GROUND_Y = 1;
 /** How far ahead the free camera's orbit anchor sits on its own view axis.
