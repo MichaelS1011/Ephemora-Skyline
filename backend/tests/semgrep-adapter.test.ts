@@ -47,6 +47,12 @@ describe("SemgrepAdapter", () => {
 
     const prevPath = process.env.PATH;
     const prevFlag = process.env.SEMGREP_DOCKER;
+    // This test owns its environment. A sibling file that leaves the offline
+    // switch on (rule-packs.test.ts sets SKYLINE_OFFLINE) changes what the
+    // adapter is allowed to reach for, and then the marker stays untouched for
+    // a reason that has nothing to do with the gate under test.
+    const prevOffline = process.env.SKYLINE_OFFLINE;
+    delete process.env.SKYLINE_OFFLINE;
     process.env.PATH = `${bin}:${prevPath}`;
     const withoutDocker = () => {
       const adapter = new SemgrepAdapter();
@@ -76,6 +82,8 @@ describe("SemgrepAdapter", () => {
       expect(Date.now() - started, "no probe, no pull, no waiting").toBeLessThan(2000);
     } finally {
       process.env.PATH = prevPath;
+      if (prevOffline === undefined) delete process.env.SKYLINE_OFFLINE;
+      else process.env.SKYLINE_OFFLINE = prevOffline;
       if (prevFlag === undefined) delete process.env.SEMGREP_DOCKER;
       else process.env.SEMGREP_DOCKER = prevFlag;
       rmSync(bin, { recursive: true, force: true });
