@@ -56,11 +56,14 @@ export function ModeBar() {
               event.stopPropagation();
               setViewMode(id);
             }}
+            // One ring for the whole shell: no local focus style here — the
+            // global `:focus-visible { outline: … var(--focus-ring) }` in
+            // design/globals.css draws it, in the same weight as everywhere.
             className="font-mono text-[12px] px-1.5 py-0.5 rounded transition-all duration-150
-                       focus:outline-none focus:ring-1 focus:ring-[#e8503c] cursor-pointer
+                       cursor-pointer
                        hover:brightness-125 active:scale-[0.96]"
             style={{
-              color: active ? "#e8503c" : "var(--meta-strong)",
+              color: active ? "var(--brand-red)" : "var(--meta-strong)",
               background: active ? "rgba(232, 80, 60, 0.12)" : "transparent",
               border: `1px solid ${
                 active ? "rgba(232, 80, 60, 0.5)" : "rgba(150, 142, 128, 0.25)"

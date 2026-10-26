@@ -7,9 +7,15 @@ import { OUTBOUND_CALLS } from "../config/networkSurface";
 import { formatCount, formatDecimal, t, type Lang } from "../i18n";
 import { ts, tsCount } from "./startCopy";
 import type { CityData } from "../city/types";
-import { recentCities, type RecentCity } from "../recentCities";
+import { recentCities, recentCitiesRead, cityGoneForSure, type RecentCity } from "../recentCities";
+import { readArrivalStage, rememberArrivalStage, type ArrivalStage } from "../firstArrival";
+import { clearPendingRun, readPendingRun } from "../pendingRun";
+import { clearEpheLook, hasStoredLook } from "../epheLook";
 import { resetBackendVerdicts } from "../reviews";
 import { ScanExcludes } from "./ScanExcludes";
+import { EphePortrait } from "./EphePortrait";
+import { EphePreview } from "./EphePreview";
+import { ArrivalProgress } from "./ArrivalProgress";
 import "../design/start.css";
 
 export const BRAND = { ink: "#F2EFE8", red: "#E8503C", bg: "#161614", panel: "#1C1C1A" };
@@ -511,12 +517,23 @@ function ScanErrorCard({
  * the index underneath it filled up. */
 function RecentCities({ lang }: { lang: Lang }) {
   const [cities] = useState<RecentCity[]>(() => recentCities().slice(0, 6));
-  if (cities.length === 0) return null;
+  // "I cannot read your history" must not render as "you have no history",
+  // and the index used to answer a corrupt file with exactly that silence
+  // while the next opened city overwrote it (recentCities.ts:26 — the bytes
+  // now stay quarantined under codecity-recent:v1:unreadable). The word goes
+  // on this block's own kicker line; an honest empty list stays wordless.
+  const [unreadable] = useState(() => recentCitiesRead().state === "unreadable");
+  if (cities.length === 0 && !unreadable) return null;
   const now = Date.now();
   const nf = (n: number) => formatCount(lang, n);
   return (
     <nav className="start-recent" aria-label={ts(lang, "landing.recentAria")}>
       <p className="start-kicker">{ts(lang, "landing.recentTitle")}</p>
+      {unreadable && (
+        <p className="start-kicker" role="alert" data-recent-unreadable="true">
+          ⚠ {ts(lang, "landing.recentUnreadable")}
+        </p>
+      )}
       <ul>
         {cities.map((c) => {
           const mins = Math.max(0, Math.round((now - c.openedAt) / 60000));
@@ -555,8 +572,93 @@ export function Landing() {
   const scanProfile = useStore((s) => s.scanProfile);
   const lang = useStore((s) => s.prefs.lang);
   const setPref = useStore((s) => s.setPref);
+  const firstRun = useStore((s) => s.firstRun);
+  // §03.03 + §03.05 — the first-arrival sequence, the reader of `firstRun`
+  // (§03.02). A machine that has never shown a city gets two calm beats: a
+  // greeting, then a short "how it works". Each beat is one decision and waits
+  // for the reader — nothing advances on its own — and neither is a gate: the
+  // folder and demo actions below stay reachable, so an experienced reader skips
+  // straight past (§03). The durable stamp is written the moment a city arrives,
+  // so the sequence never returns once someone has been through the door.
+  //
+  // §03.08 — the beat itself is remembered, so the sequence is not restarted by a
+  // reload: the reader who pressed "Let's start" and lost the tab lands back on
+  // the introduction, and the one who skipped is not greeted again. `firstRun`
+  // still outranks the record — a machine that has shown a city has finished the
+  // introduction whatever the storage says about it.
+  const [arrival, setArrival] = useState<ArrivalStage>(() =>
+    firstRun ? readArrivalStage() : "done",
+  );
+  const goTo = (stage: ArrivalStage): void => {
+    rememberArrivalStage(stage);
+    setArrival(stage);
+  };
+  // §04.02 — the 3D preview is mounted only while it is open, so the start
+  // screen keeps its one WebGL context until someone asks to see the figure.
+  // §04.11 — the flag lives in the store, because the city opens the same panel
+  // from its own menu; two local copies would be two answers to one question.
+  const previewOpen = useStore((s) => s.showEpheVitrine);
+  const setPreviewOpen = useStore((s) => s.setShowEpheVitrine);
+  // §03.07 — Escape ends the introduction from any beat: the keyboard path to
+  // the same "Skip" the header button offers, so the guided sequence can be
+  // stopped without the mouse (§16.01). Guarded so it never fires while a field
+  // has focus, and only while the sequence is actually on screen.
+  useEffect(() => {
+    if (arrival === "done") return;
+    const onKey = (e: KeyboardEvent): void => {
+      if (e.key !== "Escape") return;
+      // While the 3D preview is open, Escape belongs to it — one key, one
+      // surface closing.
+      if (previewOpen) return;
+      const el = e.target as HTMLElement | null;
+      if (el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.isContentEditable))
+        return;
+      goTo("done");
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [arrival, previewOpen]);
   const [demoLoading, setDemoLoading] = useState(false);
   const [demoError, setDemoError] = useState("");
+  // §03.09 — a read this browser left running. Measured (`unterbrechung-messung.json`):
+  // the server finishes it — `complete` 4,8 s after a reload — and the city is
+  // then one address away, while the returning reader had nothing but the empty
+  // start screen. So the record is asked about ONCE, here, and only a city that
+  // is really finished is offered. A run still going keeps its record for the
+  // next visit rather than being announced as a result it does not have yet; a
+  // job the server no longer knows is forgotten. Nothing is polled, and a dead
+  // server is not read as a finished run.
+  const [resumeId, setResumeId] = useState<string | null>(null);
+  useEffect(() => {
+    const id = readPendingRun();
+    if (!id) return;
+    let abandoned = false;
+    fetch(`/api/status/${encodeURIComponent(id)}`)
+      .then((r) => (r.status === 404 ? "gone" : r.ok ? r.json() : "unknown"))
+      .then((d) => {
+        if (abandoned) return;
+        if (d === "gone") clearPendingRun(id);
+        else if (d && typeof d === "object" && (d as { status?: unknown }).status === "complete")
+          setResumeId(id);
+      })
+      .catch(() => {
+        // no answer, no claim: the record stays for the next visit
+      });
+    return () => {
+      abandoned = true;
+    };
+  }, []);
+  // §03.10 — the city this machine had open last, measured as the gap: at
+  // 1280×800 the "recently opened" row sits 814 px down, below the fold
+  // (`zuletzt-messung.json`), so a returning reader reached the generic landing
+  // first and their own project only by scrolling. This brings the newest one up
+  // to the actions — and only while the server can still be holding it: past its
+  // keep time the offer would be a link to a dead link notice, so it stays in
+  // the list below, where it reads as history rather than as a way back in.
+  const [lastCity] = useState<RecentCity | null>(() => {
+    const newest = recentCities()[0];
+    return newest && !cityGoneForSure(newest) ? newest : null;
+  });
   const prefs = useStore((s) => s.prefs);
   // Passive update note: the BACKEND queries public GitHub releases (cached,
   // anonymous) — the client sends nothing about itself. Dismissal is per
@@ -589,11 +691,36 @@ export function Landing() {
   const [foot, setFoot] = useState<Footprint | null>(null);
   const [footError, setFootError] = useState(false);
   const [footNote, setFootNote] = useState("");
+  const [nameCount, setNameCount] = useState(0);
+  /**
+   * How many resident names this browser holds (EPHE-AI EA-03). They are the
+   * second exception to "nothing is written" — the first is the verdicts — so
+   * the disclosure has to count them and a button has to be able to take them
+   * back. Read from the buckets themselves, not from a counter that could
+   * disagree with what is on disk.
+   */
+  const countStoredNames = (): number => {
+    let n = 0;
+    for (const k of Object.keys(localStorage)) {
+      if (!k.startsWith("codecity-ephe-names:")) continue;
+      try {
+        const parsed: unknown = JSON.parse(localStorage.getItem(k) ?? "{}");
+        if (parsed && typeof parsed === "object") n += Object.keys(parsed).length;
+      } catch {
+        // An unreadable bucket holds nothing a reader can lose
+      }
+    }
+    return n;
+  };
+  /** §04.09 — the third bucket the browser holds: one resident's look. */
+  const [lookSaved, setLookSaved] = useState(false);
   const readFootprint = async (): Promise<void> => {
     try {
       const res = await fetch("/api/footprint");
       if (!res.ok) throw new Error(String(res.status));
       setFoot((await res.json()) as Footprint);
+      setNameCount(countStoredNames());
+      setLookSaved(hasStoredLook());
       setFootError(false);
     } catch {
       setFootError(true);
@@ -613,7 +740,10 @@ export function Landing() {
       if (!res.ok) throw new Error(String(res.status));
       const d = (await res.json()) as { removed: number; bytesFreed: number };
       setFootNote(
-        ts(lang, "landing.footprintPurged", { n: d.removed, bytes: bytesOf(d.bytesFreed) }),
+        tsCount(lang, "landing.footprintPurged", "landing.footprintPurgedOne", d.removed, {
+          n: d.removed,
+          bytes: bytesOf(d.bytesFreed),
+        }),
       );
       await readFootprint();
     } catch {
@@ -627,8 +757,45 @@ export function Landing() {
     // the browser buckets would let the next scan resurrect what the person
     // just deleted. The button's label names the browser buckets it removed —
     // it does more than it says, never less.
-    resetBackendVerdicts();
-    setFootNote(ts(lang, "landing.footprintResetDone", { n: keys.length }));
+    // The more was refused while the machine copy reads unreadable — then the
+    // sentence says so, because "removed" alone would report a deletion the
+    // machine copy never got (the return value is the only honest narrator).
+    const machineDoorUsed = resetBackendVerdicts();
+    const oneBucket = keys.length === 1;
+    setFootNote(
+      ts(
+        lang,
+        machineDoorUsed
+          ? oneBucket
+            ? "landing.footprintResetDoneOne"
+            : "landing.footprintResetDone"
+          : oneBucket
+            ? "landing.footprintResetRefusedOne"
+            : "landing.footprintResetRefused",
+        { n: keys.length },
+      ),
+    );
+  };
+
+  const resetNames = (): void => {
+    const n = countStoredNames();
+    for (const k of Object.keys(localStorage)) {
+      if (k.startsWith("codecity-ephe-names:")) localStorage.removeItem(k);
+    }
+    // The screen's copy goes too, so the number on the line and the map the
+    // card reads agree the moment the button was pressed.
+    useStore.setState({ residentNames: {}, residentNamesBlocked: false });
+    setNameCount(0);
+    setFootNote(
+      ts(lang, n === 1 ? "landing.footprintNamesDoneOne" : "landing.footprintNamesDone", { n }),
+    );
+  };
+
+  /** §04.09 — the look goes back to the shipped figure, jacket and mark alike. */
+  const resetLook = (): void => {
+    clearEpheLook();
+    setLookSaved(false);
+    setFootNote(ts(lang, "landing.footprintLookDone"));
   };
 
   const {
@@ -699,6 +866,17 @@ export function Landing() {
           <span>Skyline</span>
         </a>
         <div className="flex items-center gap-4">
+          {/* §03.11 — the introduction can be asked for again. Nothing else in
+              the app offers it: `firstRun` decides the sequence silently, and the
+              dock's "First look" switches the in-city coach marks, not this.
+              Shown only while the sequence is off screen, so there is never a
+              second way into a guide that is already being shown, and pressing
+              it is the only thing that opens it. */}
+          {arrival === "done" && (
+            <button type="button" className="start-replay" onClick={() => goTo("welcome")}>
+              {t(lang, "landing.replayIntro")}
+            </button>
+          )}
           <span className="local-badge" title={t(lang, "landing.localBadgeNote")}>
             <span aria-hidden="true" />
             {t(lang, "landing.localBadge")}
@@ -726,6 +904,44 @@ export function Landing() {
         </div>
       )}
       <div className="landing-main">
+        {arrival !== "done" && (
+          <ArrivalProgress lang={lang} stage={arrival} onSkip={() => goTo("done")} />
+        )}
+        {arrival === "welcome" && (
+          <section
+            className="landing-welcome"
+            role="region"
+            aria-label={t(lang, "landing.welcomeAria")}
+          >
+            <h2 className="landing-welcome-title">{t(lang, "landing.welcomeTitle")}</h2>
+            <p className="landing-welcome-body">{t(lang, "landing.welcomeBody")}</p>
+            <button type="button" className="landing-welcome-begin" onClick={() => goTo("intro")}>
+              {t(lang, "landing.welcomeBegin")}
+            </button>
+          </section>
+        )}
+        {arrival === "intro" && (
+          <section
+            className="landing-guide"
+            role="region"
+            aria-label={t(lang, "landing.guideAria")}
+          >
+            <h2 className="landing-guide-title">{t(lang, "landing.guideTitle")}</h2>
+            <ol className="landing-guide-steps">
+              <li>{t(lang, "landing.guideStep1")}</li>
+              <li>{t(lang, "landing.guideStep2")}</li>
+              <li>{t(lang, "landing.guideStep3")}</li>
+            </ol>
+            <div className="landing-guide-actions">
+              <button type="button" className="landing-guide-back" onClick={() => goTo("welcome")}>
+                ← {t(lang, "landing.guideBack")}
+              </button>
+              <button type="button" className="landing-welcome-begin" onClick={() => goTo("done")}>
+                {t(lang, "landing.guideContinue")}
+              </button>
+            </div>
+          </section>
+        )}
         <section className="landing-intro" aria-labelledby="landing-title">
           <p className="landing-category">
             <span aria-hidden="true" className="landing-category-tick" />
@@ -785,6 +1001,38 @@ export function Landing() {
               {demoLoading ? t(lang, "landing.secondaryLoading") : t(lang, "landing.secondary")}
             </button>
           </div>
+          {/* One offer line, one way back into a city: what finished in the
+              reader's absence comes first (§03.09), the last opened city second
+              (§03.10). Both are the same shape on purpose — see `.landing-resume`
+              in start.css. */}
+          {(resumeId || lastCity) && (
+            <div className="landing-resume">
+              {resumeId ? (
+                <>
+                  <span className="landing-resume-body">{t(lang, "landing.resumeBody")}</span>
+                  <a
+                    className="landing-resume-open"
+                    href={`?city=${encodeURIComponent(resumeId)}`}
+                    onClick={() => clearPendingRun(resumeId)}
+                  >
+                    {t(lang, "landing.resumeOpen")} →
+                  </a>
+                </>
+              ) : (
+                <>
+                  <span className="landing-resume-body">
+                    {t(lang, "landing.lastBody", { folder: lastCity!.folder })}
+                  </span>
+                  <a
+                    className="landing-resume-open"
+                    href={`?city=${encodeURIComponent(lastCity!.id)}`}
+                  >
+                    {t(lang, "landing.lastOpen")} →
+                  </a>
+                </>
+              )}
+            </div>
+          )}
           {isPicking && (
             <div className="mt-3">
               <p id="picker-status" role="status" className="start-state-next">
@@ -870,6 +1118,21 @@ export function Landing() {
                     </p>
                   </>
                 )}
+                <p role="status" className="landing-footprint-count">
+                  {nameCount === 0
+                    ? t(lang, "landing.footprintNamesNone")
+                    : t(
+                        lang,
+                        nameCount === 1 ? "landing.footprintNamesOne" : "landing.footprintNames",
+                        { n: formatCount(lang, nameCount) },
+                      )}
+                </p>
+                {/* §04.09 — the third thing this browser keeps. One small object,
+                    but a disclosure that lists two of three is a promise with a
+                    hole in it, which is the reason this line exists. */}
+                <p role="status" className="landing-footprint-count">
+                  {t(lang, lookSaved ? "landing.footprintLook" : "landing.footprintLookNone")}
+                </p>
                 <div className="landing-footprint-actions">
                   <button type="button" className="btn-ghost" onClick={() => void readFootprint()}>
                     {t(lang, "landing.footprintRefresh")}
@@ -884,6 +1147,22 @@ export function Landing() {
                   </button>
                   <button type="button" className="btn-ghost" onClick={resetVerdicts}>
                     {t(lang, "landing.footprintReset")}
+                  </button>
+                  <button
+                    type="button"
+                    className="btn-ghost"
+                    onClick={resetNames}
+                    disabled={nameCount === 0}
+                  >
+                    {t(lang, "landing.footprintResetNames")}
+                  </button>
+                  <button
+                    type="button"
+                    className="btn-ghost"
+                    onClick={resetLook}
+                    disabled={!lookSaved}
+                  >
+                    {t(lang, "landing.footprintResetLook")}
                   </button>
                 </div>
                 {footNote && (
@@ -971,8 +1250,17 @@ export function Landing() {
             </details>
           )}
         </section>
-        <CityIllustration lang={lang} />
+        <div className="landing-visual">
+          <EphePortrait lang={lang} />
+          {/* §04.02 — the portrait is a drawing of the figure; this opens the
+              figure itself, in the city's own light, for as long as it is open. */}
+          <button type="button" className="start-ephe-open" onClick={() => setPreviewOpen(true)}>
+            {t(lang, "landing.previewOpen")}
+          </button>
+          <CityIllustration lang={lang} />
+        </div>
       </div>
+      {previewOpen && <EphePreview lang={lang} onClose={() => setPreviewOpen(false)} />}
       <RecentCities lang={lang} />
       <footer className="landing-footer">
         <span>{t(lang, "landing.footer1")}</span>

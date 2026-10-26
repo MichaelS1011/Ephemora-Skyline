@@ -75,6 +75,27 @@ export function extensionForMime(mimeType: string): "mp4" | "webm" {
   return mimeType.toLowerCase().includes("mp4") ? "mp4" : "webm";
 }
 
+/**
+ * The container and codec in words a person reads, from the encoder's own
+ * string. One dialog, one vocabulary: the studio's quality row and the result
+ * card both answer the codec question with this instead of printing a profile
+ * parameter at someone who is only deciding whether the file is postable. The
+ * raw string is never far — every caller keeps it in the element's `title`.
+ *
+ * A type this mapping does not know is returned unchanged: the label never
+ * invents a format the browser did not open.
+ */
+export function codecLabel(mime: string): string {
+  const type = mime.toLowerCase();
+  if (type.includes("mp4")) return type.includes("avc1") ? "MP4 · H.264" : "MP4";
+  if (type.includes("webm")) {
+    if (type.includes("vp9")) return "WebM · VP9";
+    if (type.includes("vp8")) return "WebM · VP8";
+    return "WebM";
+  }
+  return mime;
+}
+
 export function pickMimeType(
   candidates: string[] = MIME_CANDIDATES,
   supported: (type: string) => boolean = defaultIsSupported,

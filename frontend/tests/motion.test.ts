@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
+import { city, dir, file, finding } from "./helpers/cityFixture";
 
 /**
  * `prefers-reduced-motion` was honoured by the stylesheet and the camera rig
@@ -174,5 +175,63 @@ describe("the beacon's idle breath, and the transparency request", () => {
       bare.prefersReducedTransparency(),
       "an environment without the query has no request",
     ).toBe(false);
+  });
+});
+
+/**
+ * MASTER-2027 §04.12 — the one place the city decides whether to build itself
+ * in front of the reader.
+ *
+ * Measured live before it was pinned (`ruhe-lean-probe.mjs`,
+ * `ruhe-lean-messung.json`): on the pure WebGL picture — every surface beside
+ * the canvas's own ancestor chain hidden — a city arriving under
+ * `prefers-reduced-motion` changes **0 px per second** through the whole build
+ * window (t+2/6/10/15/25 s), while the same arrival without the request moves
+ * **609 174 px in its first second**. The rule that does that is `skipBuild` in
+ * `setCityData`; it had no test, so any refactor could hand the crane and the
+ * multi-second rise back to a reader who asked for calm — and `Building.tsx`
+ * already renders every tower at full height on the first frame, so the
+ * cinematic would then describe work the screen is not doing.
+ */
+describe("the construction cinematic and reduced motion", () => {
+  const stadt = (id: string) =>
+    city({
+      analysisId: id,
+      files: [file("src/evil.ts", "TypeScript", [finding({ severity: "P0" })])],
+      tree: dir({ path: "", name: "" }),
+    });
+
+  async function beiReduktion(matches: boolean) {
+    vi.resetModules();
+    localStorage.clear();
+    const media = installMedia(matches);
+    const { useStore } = await import("../src/stores/useStore");
+    return { media, useStore };
+  }
+
+  afterEach(() => {
+    vi.resetModules();
+  });
+
+  it("lets the city stand at once when the reader asked for calm", async () => {
+    const { useStore } = await beiReduktion(true);
+    useStore.getState().setCityData(stadt("calm-city"));
+    expect(useStore.getState().buildPhase).toBe("built");
+    expect(useStore.getState().constructionTotal).toBe(0);
+  });
+
+  it("raises it block by block when the reader did not", async () => {
+    const { useStore } = await beiReduktion(false);
+    useStore.getState().setCityData(stadt("loud-city"));
+    expect(useStore.getState().buildPhase).toBe("constructing");
+  });
+
+  it("replays on an explicit request, even under reduced motion", async () => {
+    // §03.11's own door: a reader who presses "again" asked for the sequence.
+    const { useStore } = await beiReduktion(true);
+    useStore.getState().setCityData(stadt("replay-city"));
+    expect(useStore.getState().buildPhase).toBe("built");
+    useStore.getState().replayConstruction();
+    expect(useStore.getState().buildPhase).toBe("constructing");
   });
 });

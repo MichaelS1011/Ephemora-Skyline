@@ -558,6 +558,23 @@ export const ROWS: Row[] = [
     ),
     owner: "components/KeyboardHints.tsx",
   },
+  // Z: the Celeste door. The access options live in ONE named section of the
+  // ••• menu; this key opens the menu with the caret already inside it, so
+  // asking for a calmer or clearer city costs one deliberate press and never
+  // a hunt. Implemented in the dock itself, beside the menu it opens.
+  {
+    id: "accessField",
+    keys: ["Z"],
+    codes: ["Z"],
+    group: "panels",
+    rank: 71,
+    text: T(
+      "hints.accessField",
+      "Open the access options — effects, color-safe palette, language",
+      "Zugangsoptionen öffnen — Effekte, farbsichere Palette, Sprache",
+    ),
+    owner: "components/ActionBar.tsx",
+  },
 ];
 
 export function rowsByRank(rows: Row[] = ROWS): Row[] {

@@ -11,7 +11,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useStore } from "../stores/useStore";
 import { formatCount } from "../i18n";
-import { CAPTURE_FORMATS, FORMAT_ORDER, type FormatId } from "../share/formats";
+import { CAPTURE_FORMATS, FORMAT_ORDER, codecLabel, type FormatId } from "../share/formats";
 import { tx, type ShareKey } from "../share/fallbackCopy";
 import { OPEN_STUDIO_EVENT } from "../share/studioBus";
 import { useCityCapture, type LengthMode } from "../hooks/useCityCapture";
@@ -291,7 +291,9 @@ export function ShareStudio() {
           </div>
           <div>
             <dt>{tx(lang, "quality.codec")}</dt>
-            <dd className="share-mono">{capture.mimeType ?? tx(lang, "studio.unsupported")}</dd>
+            <dd title={capture.mimeType ?? undefined}>
+              {capture.mimeType ? codecLabel(capture.mimeType) : tx(lang, "studio.unsupported")}
+            </dd>
           </div>
         </dl>
       )}

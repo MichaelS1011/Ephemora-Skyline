@@ -1,10 +1,9 @@
 /**
  * Griff — the styles of the keyboard's own feedback.
  *
- * New file on purpose: `design/globals.css` belongs to Lane TEXT (plan.md §4)
- * and its `canvas { outline: none }` at line 498 stays exactly as it is — the
- * focus ring this lane draws is an additional ring, not a rewrite of the global
- * one.
+ * New file on purpose: the `canvas { outline: none }` rule in the global
+ * stylesheet `design/globals.css` stays exactly as it is — the focus ring drawn
+ * here is an additional ring, not a rewrite of that global rule.
  */
 
 /* ── The sentence a key gets back ─────────────────────────────────────────── */

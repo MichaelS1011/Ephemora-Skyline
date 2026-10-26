@@ -87,13 +87,17 @@
   margin: 8px 0 12px;
   color: #b9b6ad;
 }
+/* "no recorder" is a status sentence, not a cursor: it rides role="status"
+   and its words, on the panel's own notice chrome (the plate's lift and
+   border) — the amber wash borrowed the focus ring's family and carried an
+   invented hex (#f0d79b). */
 .share-blocked {
   margin: 0 0 10px;
   padding: 8px 10px;
   border-radius: 8px;
-  background: rgba(232, 178, 60, 0.12);
-  border: 1px solid rgba(232, 178, 60, 0.35);
-  color: #f0d79b;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(242, 239, 232, 0.1);
+  color: var(--meta-strong);
 }
 
 .share-group {
@@ -280,7 +284,9 @@
   margin: 8px 0 0;
   font-family: "JetBrains Mono", ui-monospace, Menlo, monospace;
   font-size: 11px;
-  color: var(--accent-gold);
+  /* a status sentence with its own words (preparing/finalizing) — the panel's
+     status ink, not the focus ring's gold */
+  color: var(--meta-strong);
 }
 .share-error {
   margin: 0 0 10px;

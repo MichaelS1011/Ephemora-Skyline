@@ -13,7 +13,12 @@ import { act, createElement } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { ScanSummary } from "../src/components/ScanSummary";
 import { useStore } from "../src/stores/useStore";
-import { SEVERITY_COLOR, SEVERITY_CVD_COLOR, severityTextColor } from "../src/city/palette";
+import {
+  REVIEWED_BEACON_COLOR,
+  SEVERITY_COLOR,
+  SEVERITY_CVD_COLOR,
+  severityTextColor,
+} from "../src/city/palette";
 import { city, dir, file, finding, provenance } from "./helpers/cityFixture";
 import type { CityData, CityFile } from "../src/city/types";
 
@@ -150,5 +155,45 @@ describe("der Scan-Bescheid schaltet mit", () => {
     expect(cvd.status).toBe(asRgb(severityTextColor("P0", true)));
     expect(cvd.status).not.toBe(plain.status);
     expect(plain.status).not.toBe(plain.rule);
+  });
+});
+
+/* ── the clean branch is the one branch the switch does not reach ─────── */
+
+/**
+ * The per-file probe above only asks whether a file mentions `severityColor(`
+ * and `prefs.colorblind` anywhere — it ran green (3/3, measured 2026-10-25)
+ * while the clean branch of the summary chain painted `#29d398` inline,
+ * bypassing `REVIEWED_BEACON_COLOR` that every beacon surface reads
+ * (Tooltip.tsx:175/215). This guard reads the accent/statusInk chain itself
+ * and allows no hex literal inside it; the positive control proves the probe
+ * can turn red — a guard that cannot fail is not a gate.
+ */
+describe("der Clean-Akzent der ScanSummary liest das Beacon-Token, keine Inline-Hex", () => {
+  const summarySrc = readFileSync(path.join(SRC, "components", "ScanSummary.tsx"), "utf-8");
+  const from = summarySrc.indexOf("const accent = preview");
+  const to = summarySrc.indexOf("const status = demo", from);
+  if (from < 0 || to < 0) {
+    throw new Error("ScanSummary accent/statusInk chain not found — guard is blind");
+  }
+  const chain = summarySrc.slice(from, to);
+  const HEX_LITERAL = /["']#[0-9a-fA-F]{3,8}["']/;
+
+  it("hält keine Inline-Hex in der accent/statusInk-Kette", () => {
+    const hit = chain.match(HEX_LITERAL);
+    expect(hit, `inline hex in chain: ${hit?.join(", ")}`).toBeNull();
+  });
+
+  it("trägt das Beacon-Token in beiden Clean-Zweigen", () => {
+    expect(chain.match(/REVIEWED_BEACON_COLOR/g)).toHaveLength(2);
+  });
+
+  it("Das Token ist unverändert #29d398 — der Austausch ändert keinen Pixelton", () => {
+    expect(REVIEWED_BEACON_COLOR).toBe("#29d398");
+  });
+
+  it("Positive Kontrolle: eine injizierte Hex macht die Wache rot", () => {
+    const injected = chain.replace("REVIEWED_BEACON_COLOR", '"#29d398"');
+    expect(HEX_LITERAL.test(injected)).toBe(true);
   });
 });

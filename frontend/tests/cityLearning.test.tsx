@@ -136,6 +136,10 @@ describe("learning from the actual city", () => {
     await openGuide();
     await press("Evidence");
     expect(host.textContent).toContain("No real scan ran");
+    // N-05: the disclaimer has to cover the folders, not only the numbers. The
+    // demo ships a `mobile/` district, and a findings-only sentence left a
+    // reader free to read that district as a platform claim.
+    expect(host.textContent).toContain("invented example project");
     expect(host.textContent).toContain("This example is in test code");
   });
 

@@ -52,6 +52,18 @@
   font-size: 13px;
   color: var(--brand-ink);
 }
+/* The frame rate the city is running on. Tabular figures, so the number does
+   not shuffle its neighbours when it moves. */
+.workspace-fps {
+  font-variant-numeric: tabular-nums;
+  font-size: 13px;
+  color: var(--brand-ink);
+  white-space: nowrap;
+}
+.workspace-fps > span {
+  font-size: var(--fs-meta);
+  color: var(--meta-strong);
+}
 /* The door to the search field. The field itself is one of the surfaces the
    arrival budget folds, so the door has to read as a control (32 px, the same
    tone and rhythm as the chips beside it) and show when it is open. */
@@ -68,17 +80,117 @@
   color: var(--brand-ink);
   cursor: pointer;
 }
-.workspace-search-toggle:hover {
-  color: var(--accent-gold);
-}
+/* Hover is the shared `.btn-ghost` vocabulary already on this element —
+   vermilion edge, `--brand-ink` ink. Gold is the focus ring's colour and may
+   carry focus alone, so the door no longer lights up gold on hover. */
 .workspace-search-toggle[aria-expanded="true"] {
-  border-color: rgba(232, 178, 60, 0.45);
-  background: rgba(232, 178, 60, 0.12);
-  color: var(--accent-gold);
+  /* Open reads as a lifted neutral surface — the same edge token as the chrome
+     border and the lift `.panel-close:hover` wears — never as focus. The state
+     rides `aria-expanded`, the ⌕ glyph and the search field it opens. */
+  border-color: var(--glass-chrome-border);
+  background: rgba(255, 255, 255, 0.09);
+  color: var(--brand-ink);
 }
 .workspace-files > span {
   font-size: var(--fs-meta);
   color: var(--meta-strong);
+}
+
+/* ── Layer view (Z-05) ────────────────────────────────────────────────────
+   Four shares, one per layer the city is drawn from. No hue of its own: the
+   channels this app switches between are named in text and painted by one
+   accent (#e8503c, HeatmapToggle), and a fourth colour here would read as a
+   fourth thing the severity ramp already means. Ink on track, and the number
+   carries the claim. */
+.ctx-layers {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0 0 14px;
+}
+.ctx-layers-head {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.ctx-layers-title {
+  font-size: var(--fs-meta);
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--meta-strong);
+}
+.ctx-layers-note {
+  font-size: var(--fs-meta);
+  color: var(--meta);
+}
+.ctx-layer {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 56px auto;
+  align-items: center;
+  gap: 8px;
+}
+.ctx-layer-name {
+  font-size: 13px;
+  color: var(--brand-ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ctx-layer-bar {
+  display: block;
+  height: 4px;
+  border-radius: 999px;
+  background: rgba(168, 164, 154, 0.32);
+  overflow: hidden;
+}
+.ctx-layer-bar > i {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: var(--brand-ink);
+}
+.ctx-layer-pct {
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  color: var(--brand-ink);
+}
+
+/* ── Who works here (Z-07) ────────────────────────────────────────────────
+   Three rows, one per resident role. No hue of its own either: the badge is
+   the crowd's glyph — shape before colour, three different shapes — so the
+   list and the figure carry the same mark. */
+.ctx-roles {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 12px 0 0;
+}
+.ctx-role-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.ctx-role {
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr);
+  gap: 2px 8px;
+}
+.ctx-role-glyph {
+  grid-row: 1 / span 2;
+  font-size: 13px;
+  line-height: 1.4;
+  color: var(--brand-ink);
+}
+.ctx-role-name {
+  font-size: 13px;
+  color: var(--brand-ink);
+}
+.ctx-role-note {
+  font-size: var(--fs-meta);
+  color: var(--meta);
 }
 
 /* Severity chips — one shape per grade, so the order survives a screen that
@@ -532,13 +644,13 @@
   gap: 5px;
   min-height: 30px;
   padding: 0 8px;
-  border: 1px solid rgba(232, 178, 60, 0.34);
+  border: 1px solid rgba(242, 239, 232, 0.1);
   border-radius: 6px;
-  background: rgba(232, 178, 60, 0.07);
+  background: rgba(255, 255, 255, 0.05);
   font-family: var(--font-mono);
   font-size: var(--fs-meta);
   letter-spacing: 0.01em;
-  color: #d8c9a3;
+  color: var(--meta-strong);
 }
 .handoff-action:hover {
   filter: brightness(1.18);
@@ -797,8 +909,13 @@
   margin-top: 4px;
   padding: 6px 12px;
   border-radius: var(--radius-md);
-  border: 1px solid var(--focus-ring);
-  color: var(--focus-ring);
+  /* the ring token is the keyboard's voice — the global `:focus-visible`
+     fallback gives this button its ring; its resting face is the plate's
+     own chrome (same vocabulary as `.handoff-action`), and "Retry" is its
+     word */
+  border: 1px solid rgba(242, 239, 232, 0.1);
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--meta-strong);
   font-size: var(--fs-small, 12px);
 }
 
@@ -883,4 +1000,15 @@
   margin: 6px 0 0;
   font-size: var(--fs-meta);
   line-height: 1.5;
+}
+
+/* ZUGRIFF — the access section in the ••• menu. The state word sits at the
+   right edge of its row in the menu's own ink; the adoption note is the one
+   explanatory line above the switches the system moved. Both read from the
+   ladder tokens, so no new colour and no new size enters the shell. */
+.access-state-word {
+  color: var(--meta-strong);
+}
+.access-system-note {
+  color: var(--meta-strong);
 }

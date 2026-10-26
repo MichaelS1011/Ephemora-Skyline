@@ -18,18 +18,7 @@ import { formatCount, formatDecimal } from "../i18n";
 import type { CaptureResult } from "../hooks/useCityCapture";
 import { tx } from "../share/fallbackCopy";
 import { CREDIT_TEXT } from "../share/capture";
-
-/** The container and codec in a developer's words, from the encoder's own string. */
-export function codecLabel(mime: string): string {
-  const type = mime.toLowerCase();
-  if (type.includes("mp4")) return type.includes("avc1") ? "MP4 · H.264" : "MP4";
-  if (type.includes("webm")) {
-    if (type.includes("vp9")) return "WebM · VP9";
-    if (type.includes("vp8")) return "WebM · VP8";
-    return "WebM";
-  }
-  return mime;
-}
+import { codecLabel } from "../share/formats";
 
 export function ShareCard({
   result,

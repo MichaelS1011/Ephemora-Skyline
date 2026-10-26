@@ -1,6 +1,11 @@
 import type { Lang } from "../i18n";
 
-const COPY = {
+/**
+ * The learning-guide bridge. Exported so the i18n guard can hold it to the same
+ * EN+DE completeness the dictionary is held to — the gap that let an English
+ * word slip into a German sentence lived here, outside `DICT`.
+ */
+export const COPY = {
   title: { en: "Learn to read this city", de: "Diese Stadt lesen lernen" },
   structure: { en: "Structure", de: "Struktur" },
   shape: { en: "Shape", de: "Form" },
@@ -28,7 +33,7 @@ const COPY = {
   },
   colorText: {
     en: "Facade color identifies the language. Finding markers show scanner results. Grey unchecked areas mean a relevant check did not run. Ephe’s provide scale and city life, not a code-quality score.",
-    de: "Die Fassadenfarbe zeigt die Sprache. Fundmarker zeigen Scanner-Ergebnisse. Graue ungeprüfte Bereiche bedeuten, dass eine relevante Prüfung fehlte. Ephe’s geben Maßstab und Stadtleben, keinen Qualitätswert.",
+    de: "Die Fassadenfarbe zeigt die Sprache. Fundmarker zeigen Scanner-Ergebnisse. Graue ungeprüfte Bereiche bedeuten, dass eine relevante Prüfung fehlte. Ephe geben Maßstab und Stadtleben, keinen Qualitätswert.",
   },
   example: {
     en: "A file to compare with its shape",
@@ -48,9 +53,15 @@ const COPY = {
     en: "This example is in test code. Intentional fixtures and real credentials can both occur in tests; inspect the evidence.",
     de: "Dieses Beispiel liegt in Testcode. Tests können absichtliche Beispieldaten und echte Zugangsdaten enthalten; prüfe den Beleg.",
   },
+  /**
+   * "Sample findings · no scan" says the numbers were not measured; it says
+   * nothing about the folders. A visitor who sees a `mobile/` district in the
+   * demo reads a platform claim into it, so the sentence names the project
+   * itself as written for the demo.
+   */
   demo: {
-    en: "This city uses sample findings. No real scan ran; practice reading the sample evidence.",
-    de: "Diese Stadt verwendet Beispielfunde. Es lief kein echter Scan; übe hier das Lesen der Beispielbelege.",
+    en: "This city is an invented example project: its folders, files and findings are written for the demo. No real scan ran; practice reading the sample evidence here.",
+    de: "Diese Stadt ist ein erfundenes Beispielprojekt: Ordner, Dateien und Funde sind für die Demo geschrieben. Es lief kein echter Scan; übe hier das Lesen der Beispielbelege.",
   },
   next: { en: "Next step", de: "Nächster Schritt" },
   previous: { en: "Previous step", de: "Vorheriger Schritt" },

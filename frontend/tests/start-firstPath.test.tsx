@@ -501,13 +501,46 @@ describe("the wait while a scan runs", () => {
 
 describe("the boot screen", () => {
   /** The four typed-out boot lines advanced on a timer, whatever the server did. */
-  it("shows the city it is waiting for and the seconds it has waited", () => {
+  it("explains the city and keeps the scan id reachable as proof", () => {
     window.history.replaceState(null, "", "/?city=11ce2b42-d295-4759-8abd-8e05f5d30789");
     render(<LoadingScreen isVisible />);
-    expect(text()).toContain("Die Stadt unter diesem Link wird geladen");
-    expect(text()).toContain("11ce2b42");
+    const line = (host.querySelector(".start-boot-line")?.textContent ?? "")
+      .replace(/^\s*>\s*/, "")
+      .trim();
+    // the head is a plain sentence about the city, not a bare hex id
+    expect(line.startsWith("Dein Code wird hier zur Stadt")).toBe(true);
+    expect(line, "no naked analysis id as the main line").not.toMatch(/^[0-9a-f]{8}…[0-9a-f]{4}$/);
+    // the full scan id stays reachable — the proof this wait points at
+    expect(host.querySelector(".start-boot-id")?.getAttribute("title")).toContain(
+      "11ce2b42-d295-4759-8abd-8e05f5d30789",
+    );
+    // the short form survives only as a quiet mono remainder
+    expect(host.querySelector(".start-boot-id")?.textContent).toBe("11ce2b42…0789");
     expect(text()).not.toContain("Ready");
     expect(text()).not.toContain("Flugkamera");
+  });
+
+  /**
+   * `.start-boot` is `position: fixed; inset: 0; z-index: 100` (start.css). The
+   * screen stays mounted for the 450 ms fade after the city arrives, and
+   * `opacity: 0` alone still hit-tests — the invisible overlay swallowed the
+   * first click on the fresh city. `pointer-events: none` existed only on the
+   * `::before` scanline, never on the node itself.
+   */
+  it("stops catching clicks the moment it begins to fade", () => {
+    window.history.replaceState(null, "", "/");
+    render(<LoadingScreen isVisible />);
+    const boot = host.querySelector(".start-boot") as HTMLElement;
+    expect(boot, "the visible boot screen is there").toBeTruthy();
+    expect(window.getComputedStyle(boot).pointerEvents).not.toBe("none");
+    act(() => root.render(<LoadingScreen isVisible={false} />));
+    const fading = host.querySelector(".start-boot") as HTMLElement;
+    expect(fading, "the fade keeps the screen mounted for 450 ms").toBeTruthy();
+    expect(fading.style.opacity).toBe("0");
+    expect(
+      window.getComputedStyle(fading).pointerEvents,
+      "an invisible overlay must not eat clicks",
+    ).toBe("none");
   });
 });
 

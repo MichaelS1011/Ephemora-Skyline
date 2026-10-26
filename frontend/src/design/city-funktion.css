@@ -69,6 +69,180 @@
   margin-top: 1px;
 }
 
+/* The labelled import arc. It is the one city plate whose text carries a fact
+   the reader cannot get elsewhere — which file imports which — so it holds the
+   type scale's caption size rather than the plate default, and it does not
+   shrink with the camera. The border takes the direction colour the tube
+   already carries, so plate and arc agree. */
+.cf-plate-import {
+  font-size: var(--fs-small);
+  border-color: rgba(176, 107, 255, 0.62);
+}
+
+.cf-plate-import.is-in {
+  border-color: rgba(55, 230, 255, 0.62);
+}
+
+.cf-plate-import .cf-plate-under {
+  font-size: var(--fs-small);
+}
+
+/* The plate had to leave its arc to stay on screen: say which way the arc went,
+   so a plate beside a neighbour is never read as a plate about that neighbour. */
+.cf-plate-import[data-detached]::after {
+  content: attr(data-toward);
+  display: inline-block;
+  margin-left: 6px;
+  color: var(--meta-strong, #9aa7bd);
+}
+
+/* 005 Teil A — the dossier's impact block. Text at the panel's own sizes: a
+   claim about somebody else's file is not allowed to be smaller than the file
+   it is about. */
+.cf-blast {
+  margin-top: 14px;
+}
+
+.cf-blast-toggle {
+  font-size: var(--fs-small);
+  color: #cfe9f2;
+  background: rgba(55, 230, 255, 0.08);
+  border: 1px solid rgba(55, 230, 255, 0.42);
+  border-radius: 3px;
+  padding: 4px 8px;
+  cursor: pointer;
+}
+
+.cf-blast-toggle[aria-pressed="true"] {
+  background: rgba(55, 230, 255, 0.16);
+  border-color: rgba(55, 230, 255, 0.7);
+}
+
+.cf-blast-panel {
+  margin-top: 8px;
+  border-left: 2px solid rgba(55, 230, 255, 0.45);
+  padding-left: 9px;
+}
+
+.cf-blast-count {
+  font-size: var(--fs-small);
+  color: #c6d2e6;
+}
+
+.cf-blast-list {
+  list-style: none;
+  margin: 6px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.cf-blast-file {
+  font-size: var(--fs-small);
+  color: #dbe6f5;
+  background: none;
+  border: 0;
+  padding: 1px 0;
+  text-align: left;
+  cursor: pointer;
+}
+
+.cf-blast-file:hover {
+  text-decoration: underline;
+}
+
+.cf-blast-square {
+  color: #37e6ff;
+  margin-right: 5px;
+}
+
+.cf-blast-summarised {
+  font-size: var(--fs-meta);
+  color: var(--meta-strong, #9aa7bd);
+  margin-left: 6px;
+}
+
+.cf-blast-shown,
+.cf-blast-caveat,
+.cf-blast-empty {
+  font-size: var(--fs-small);
+  color: var(--meta-strong, #9aa7bd);
+  margin-top: 6px;
+}
+
+/* 005-B — the Explorer's badge. DOM above the figure, not a twelfth mesh. */
+.cf-guide-badge {
+  font-family: "JetBrains Mono", ui-monospace, Menlo, monospace;
+  font-size: var(--fs-meta);
+  line-height: 1.2;
+  white-space: nowrap;
+  color: #e8e2d2;
+  background: #121210;
+  border: 1px solid rgba(55, 230, 255, 0.55);
+  border-radius: 3px;
+  padding: 1px 4px;
+  pointer-events: none;
+  user-select: none;
+}
+
+.cf-guide-badge-security {
+  border-color: rgba(216, 205, 180, 0.6);
+}
+
+/* B12 — the third role. The glyph is the distinction (⛨ / ⚒ / ➤ are three
+   different shapes), the border tone only repeats it for a reader who can
+   tell them apart. */
+.cf-guide-badge-maintenance {
+  border-color: rgba(150, 200, 170, 0.6);
+}
+
+.cf-guide {
+  margin-top: 12px;
+}
+
+.cf-guide-lead {
+  font-size: var(--fs-small);
+  color: var(--meta-strong, #9aa7bd);
+}
+
+.cf-guide-list {
+  list-style: none;
+  margin: 6px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.cf-guide-file {
+  font-size: var(--fs-small);
+  color: #dbe6f5;
+  background: none;
+  border: 1px solid rgba(55, 230, 255, 0.28);
+  border-radius: 3px;
+  padding: 3px 6px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.cf-guide-file[aria-pressed="true"] {
+  background: rgba(55, 230, 255, 0.14);
+  border-color: rgba(55, 230, 255, 0.6);
+}
+
+.cf-guide-status,
+.cf-guide-more,
+.cf-guide-refused {
+  font-size: var(--fs-small);
+  color: var(--meta-strong, #9aa7bd);
+  margin-top: 6px;
+}
+
+.cf-guide-refused {
+  color: #e0c98a;
+}
+
 /* Height measuring mast (RoadSystem) */
 .cf-mast {
   font-family: "JetBrains Mono", ui-monospace, Menlo, monospace;

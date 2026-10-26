@@ -120,7 +120,9 @@ export function SecurityTour() {
             title={stop.file.path}
           >
             {stop.file.name}
-            <span className="font-normal" style={{ color: "#5a7090" }}>
+            {/* The path is a quiet word, not a second hue: the ladder's `--meta`
+                step reads 10,4:1 here where #5a7090 read 3,4:1. */}
+            <span className="font-normal" style={{ color: "var(--meta)" }}>
               {" "}
               — {stop.file.path}
             </span>

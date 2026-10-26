@@ -222,7 +222,10 @@ export function SearchBar() {
           className="w-full font-jetbrains text-xs pl-10 pr-10 py-3 rounded-lg outline-none transition-colors duration-150"
           style={{
             background: "rgba(18, 18, 16, 0.88)",
-            border: `1px solid ${open ? "rgba(232,178,60,0.6)" : "rgba(150,142,128,0.3)"}`,
+            /* `open` ⇄ focused here (onFocus opens, onBlur closes, outline is
+               none) — this is the input's focus face, so it wears the ring's
+               own token and light-theme override, not a gold literal. */
+            border: `1px solid ${open ? "var(--focus-ring)" : "rgba(150,142,128,0.3)"}`,
             color: "#e8e4da",
             backdropFilter: "blur(8px)",
             boxShadow: open ? "0 0 0 3px rgba(232,178,60,0.1)" : "none",

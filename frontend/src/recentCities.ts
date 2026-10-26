@@ -1,4 +1,5 @@
 import type { CityData } from "./city/types";
+import { readStoredJson, type StoredRead } from "./storageRead";
 
 /**
  * The cities this machine has opened.
@@ -34,22 +35,32 @@ export const CITY_STORE_MAX = 20;
 const KEY = "codecity-recent:v1";
 
 function read(): RecentCity[] {
-  if (typeof window === "undefined") return [];
-  try {
-    const raw = window.localStorage.getItem(KEY);
-    if (!raw) return [];
-    const parsed = JSON.parse(raw) as unknown;
-    if (!Array.isArray(parsed)) return [];
-    return parsed.filter(
-      (e): e is RecentCity =>
-        !!e &&
-        typeof (e as RecentCity).id === "string" &&
-        typeof (e as RecentCity).folder === "string" &&
-        typeof (e as RecentCity).openedAt === "number",
-    );
-  } catch {
-    return [];
-  }
+  const result = recentCitiesRead();
+  return result.state === "read" ? result.value : [];
+}
+
+/**
+ * The index of cities this browser opened answers three states, not two —
+ * the pattern prefs.ts shipped (`StoredRead` in storageRead.ts). The old
+ * `catch → []` made a corrupt index identical to "never opened a city", and
+ * it was a data-loss door with a timer on it: the next city anyone opened
+ * ran `recordCityVisit`, whose read said empty, and the write that followed
+ * stored that empty over the file. The unreadable bytes now stay verbatim
+ * under `codecity-recent:v1:unreadable` before any write can reach the key,
+ * and the entry screen says the difference out loud (`landing.recentUnreadable`).
+ */
+export function recentCitiesRead(): StoredRead<RecentCity[]> {
+  return readStoredJson(KEY, (parsed) =>
+    Array.isArray(parsed)
+      ? parsed.filter(
+          (e): e is RecentCity =>
+            !!e &&
+            typeof (e as RecentCity).id === "string" &&
+            typeof (e as RecentCity).folder === "string" &&
+            typeof (e as RecentCity).openedAt === "number",
+        )
+      : undefined,
+  );
 }
 
 function write(entries: RecentCity[]): boolean {
@@ -93,6 +104,10 @@ export function hasCityVisit(id: string | null | undefined): boolean {
  * Re-opening a city moves it to the front — the same touch the server's store
  * gives it on a read, so an actively browsed city stays at the top of both
  * lists instead of ageing out from under the person using it.
+ *
+ * `read()` runs FIRST and preserves any unreadable bytes in the quarantine
+ * slot before this write can replace the live key — the door that used to
+ * delete a corrupt index by accident is closed at the reader, not here.
  */
 export function recordCityVisit(city: CityData | null): void {
   if (!city?.analysisId) return;

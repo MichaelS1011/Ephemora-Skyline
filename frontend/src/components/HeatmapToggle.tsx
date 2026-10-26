@@ -54,7 +54,7 @@ export function HeatmapToggle() {
       aria-label={t(lang, "heat.groupAria")}
       data-tip={t(lang, "heat.groupTip")}
     >
-      <span className="font-mono text-[12px] tracking-wider text-[color:var(--meta)] mr-1">
+      <span className="font-mono text-[length:var(--fs-small)] tracking-wider text-[color:var(--meta)] mr-1">
         HEAT
       </span>
       {CHANNELS.map(({ id, label, tipKey }) => {
@@ -68,8 +68,11 @@ export function HeatmapToggle() {
             aria-disabled={unavailable || undefined}
             data-tip={unavailable ? t(lang, "heat.churnUnavailableTip") : t(lang, tipKey)}
             onClick={() => pick(id)}
-            className="font-mono text-[12px] tracking-wider px-1.5 py-0.5 rounded transition-all duration-150
-                       focus:outline-none focus:ring-1 focus:ring-[#e8503c] cursor-pointer
+            // One ring for the whole shell: no local focus style here — the
+            // global `:focus-visible { outline: … var(--focus-ring) }` in
+            // design/globals.css draws it, in the same weight as everywhere.
+            className="font-mono text-[length:var(--fs-small)] tracking-wider px-1.5 py-0.5 rounded transition-all duration-150
+                       cursor-pointer
                        hover:brightness-125 active:scale-[0.96]"
             style={{
               // No dimming: the switch sits on frosted chrome, and text there

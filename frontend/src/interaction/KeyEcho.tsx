@@ -23,9 +23,9 @@ import "../design/griff.css";
  * from KeyboardHints, which App renders unconditionally, so it is listening even
  * while the shortcut list is closed.
  *
- * Why a listener here rather than a change in App.tsx: `App.tsx` belongs to Lane
- * STAAT this wave (plan.md §4), and the request to fold both halves into
- * `bracketStep()` is filed in `devteam/requests/welt-griff.md`. Until that lands
+ * Why a listener here rather than a change in `App.tsx`: the two bracket halves
+ * are not yet folded into one walk through `bracketStep()` in
+ * `interaction/shortcuts.ts`. Until that lands
  * the split is exact — App acts on every level that has buildings, this component
  * acts on the ones that have none — so no key is ever handled twice.
  */

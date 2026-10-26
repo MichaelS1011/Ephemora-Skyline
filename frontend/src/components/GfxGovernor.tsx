@@ -13,15 +13,18 @@
 import { useRef } from "react";
 import { useFrame } from "@react-three/fiber";
 import { useStore } from "../stores/useStore";
-import { WINDOW, autoGfxDecision } from "../city/perf";
+import { WINDOW, autoGfxDecision, frameHz } from "../city/perf";
 
 const TAB_SWITCH_S = 0.5;
+/** How often the header's number may be rewritten, in ms. */
+const PUBLISH_MS = 500;
 
 export function GfxGovernor() {
   const samples = useRef<number[]>([]);
   const streak = useRef(0);
+  const zuletzt = useRef(0);
 
-  useFrame((_, delta) => {
+  useFrame((state, delta) => {
     const store = useStore.getState();
     if (store.gfxAutoDisabled || store.buildPhase === "constructing") return;
     if (delta > TAB_SWITCH_S) {
@@ -33,6 +36,16 @@ export function GfxGovernor() {
     const buf = samples.current;
     buf.push(ms);
     if (buf.length > WINDOW) buf.shift();
+    // The header's number is this window, not a second measurement. Published
+    // at most twice a second and only once the rounded rate has moved: a
+    // readout that ticks at 60 Hz is a re-render at 60 Hz. The renderer's own
+    // clock is the timebase, so the gate stops with the frames.
+    const hz = frameHz(buf);
+    const jetzt = state.clock.elapsedTime;
+    if (hz !== null && hz !== store.frameHz && jetzt - zuletzt.current > PUBLISH_MS / 1000) {
+      zuletzt.current = jetzt;
+      store.setFrameHz(hz);
+    }
     const { move, streak: next } = autoGfxDecision(
       store.prefs.gfxLite || store.autoGfxLite,
       buf,

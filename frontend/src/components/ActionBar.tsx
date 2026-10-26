@@ -22,6 +22,7 @@ import { openStudio } from "../share/studioBus";
 import { tx } from "../share/fallbackCopy";
 import { useCompactChrome } from "../hooks/useCompactChrome";
 import { severityTotal } from "../city/facts";
+import { systemAdoption } from "../prefs";
 
 interface ActionButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   label: string;
@@ -89,6 +90,11 @@ export function ActionBar() {
   const startTour = useStore((s) => s.startTour);
   const tourActive = useStore((s) => s.tourActive);
   const resetFocus = useStore((s) => s.resetFocus);
+  // §04.11 — restyling a resident the reader already named. The vitrine is the
+  // one surface where a jacket is a figure rather than 16 pixels, and the
+  // resident card must not grow a second verb to reach it, so the way in is the
+  // menu that already holds everything else that is asked for by name.
+  const setShowEpheVitrine = useStore((s) => s.setShowEpheVitrine);
   const showFindings = useStore((s) => s.showFindings);
   const setShowFindings = useStore((s) => s.setShowFindings);
   const analysisId = useStore((s) => s.analysisId);
@@ -132,6 +138,10 @@ export function ActionBar() {
   const moreRef = useRef<HTMLDivElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const moreButtonRef = useRef<HTMLButtonElement>(null);
+  /** The next menu opening starts the caret inside the Access section — the
+   *  Z binding asks for it, the pointer does not. A ref, not state: nothing
+   *  on screen reacts to it, only where the focus lands when the menu mounts. */
+  const menuSpotAccessRef = useRef(false);
   /**
    * The dock's live height, published as `--dock-h`. It wraps to a second row
    * on narrow screens, and the onboarding primer has to clear it — a fixed
@@ -158,13 +168,57 @@ export function ActionBar() {
 
   useEffect(() => {
     if (!menuOpen) return;
-    menuRef.current?.querySelector<HTMLButtonElement>("button:not([disabled])")?.focus();
+    // The Z binding asks for its own caret: when the menu opens because Access
+    // was called, it opens on the first option of that section, not at the
+    // top of an eighteen-row list. A pointer click keeps the old behaviour.
+    const scope = menuSpotAccessRef.current
+      ? (menuRef.current?.querySelector("#access-group") ?? menuRef.current)
+      : menuRef.current;
+    menuSpotAccessRef.current = false;
+    scope?.querySelector<HTMLButtonElement>("button:not([disabled])")?.focus();
     const onPointerDown = (event: PointerEvent): void => {
       if (!moreRef.current?.contains(event.target as Node)) setMenuOpen(false);
     };
     document.addEventListener("pointerdown", onPointerDown);
     return () => document.removeEventListener("pointerdown", onPointerDown);
   }, [menuOpen]);
+
+  /**
+   * Z opens the Access section from anywhere in a city — the Celeste rule:
+   * the help that removes shame has to be one deliberate press away, not a
+   * treasure hunt through •••. The guards are App.tsx's own: no modifier is
+   * held, the press does not land in a field someone is writing into, and no
+   * modal or the studio holds the keyboard. While the menu is already open
+   * the same press just moves the caret to the section.
+   */
+  useEffect(() => {
+    const onKeyDown = (event: globalThis.KeyboardEvent): void => {
+      if (event.defaultPrevented || event.metaKey || event.ctrlKey || event.altKey) return;
+      if (event.key.toLowerCase() !== "z") return;
+      if (!useStore.getState().cityData) return;
+      const el = event.target as HTMLElement | null;
+      if (
+        el &&
+        (el.tagName === "INPUT" ||
+          el.tagName === "TEXTAREA" ||
+          el.tagName === "SELECT" ||
+          el.isContentEditable)
+      )
+        return;
+      if (document.querySelector('[aria-modal="true"], .panel-share-studio')) return;
+      event.preventDefault();
+      if (menuRef.current) {
+        menuRef.current
+          .querySelector<HTMLButtonElement>("#access-group button:not([disabled])")
+          ?.focus();
+        return;
+      }
+      menuSpotAccessRef.current = true;
+      setMenuOpen(true);
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, []);
 
   /**
    * What the triage queue holds, and how much of it still needs a verdict.
@@ -194,6 +248,14 @@ export function ActionBar() {
    *  run is on its way the label says so in words, anything else (no scan, no
    *  folder behind the demo) is a step that leads nowhere and is struck. */
   const testsBlocked = !testing && (standalone || !analysisId || !cityOnDisk(cityData));
+
+  /** What the system set on the genuine first run — read while the menu is
+   *  open, never at arrival: this is an explanation for whoever looks at the
+   *  switches, not a surface that paints itself. */
+  const adoptedKeys = menuOpen ? systemAdoption() : [];
+  const adoptedWords = adoptedKeys
+    .map((k) => t(lang, k === "gfxLite" ? "actions.reduceEffects" : "actions.colorblindPalette"))
+    .join(", ");
 
   const closeMenu = (): void => {
     setMenuOpen(false);
@@ -376,10 +438,7 @@ export function ActionBar() {
             >
               {triageCursor + 1} / {triageTotal}
               {queue && queue.total > 0 && (
-                <span
-                  className="ml-1.5"
-                  style={{ color: queue.open > 0 ? "var(--accent-gold)" : "#29d398" }}
-                >
+                <span className="ml-1.5" style={{ color: "#dedbd3" }}>
                   · {queue.open}{" "}
                   {t(
                     lang,
@@ -438,10 +497,7 @@ export function ActionBar() {
                     folder starts on what is left, and this is the only place that
                     says so before the queue is opened. */}
                 {queue && queue.total > 0 && (
-                  <span
-                    className="font-mono text-xs tabular-nums"
-                    style={{ color: queue.open > 0 ? "var(--accent-gold)" : "#29d398" }}
-                  >
+                  <span className="font-mono text-xs tabular-nums" style={{ color: "#dedbd3" }}>
                     {compact ? (
                       queue.open
                     ) : (
@@ -709,6 +765,22 @@ export function ActionBar() {
                 <span aria-hidden="true">◉</span>
                 {t(lang, "resident.call")}
               </button>
+              {/* §04.11 — beside the door to the crowd, the door to the figure:
+                  renaming is the card's field, restyling needs the vitrine, and
+                  the card keeps its one verb. */}
+              <button
+                role="menuitem"
+                type="button"
+                onClick={() => {
+                  closeMenu();
+                  setShowEpheVitrine(true);
+                }}
+                className="flex min-h-10 w-full items-center gap-3 rounded-lg px-3 text-left hover:bg-white/5"
+                title={t(lang, "actions.lookTitle")}
+              >
+                <span aria-hidden="true">◍</span>
+                {t(lang, "actions.look")}
+              </button>
               {/* The arrival budget. These five surfaces no longer put
                   themselves on the screen when a city arrives — each row
                   names the thing it brings back, because a glyph-only chip
@@ -780,45 +852,73 @@ export function ActionBar() {
                   {t(lang, "actions.shortcuts")}
                 </button>
               </div>
-              {/* Display preference, not a scan action: it sits before the
+              {/* One place for every way this city can be made easier to
+                  take: the color-safe palette, the quieter effects and the
+                  language, each switched on its own, each saying its state
+                  as a word — never by colour or glyph alone. They used to
+                  sit as three loose rows in an eighteen-item list, and the
+                  Z key walks the caret straight in here. Display and access
+                  choices, not scan actions: the section stays before the
                   final "Copy city link" item so End keeps landing on the
-                  share action and the scan actions stay grouped on top. */}
-              <button
-                role="menuitemcheckbox"
-                type="button"
-                aria-checked={gfxLite}
-                onClick={() => setPref("gfxLite", !gfxLite)}
-                className="flex min-h-10 w-full items-center gap-3 rounded-lg px-3 text-left hover:bg-white/5"
+                  share action. */}
+              <div
+                role="group"
+                id="access-group"
+                aria-label={t(lang, "actions.access")}
+                className="action-view-group"
               >
-                <span aria-hidden="true">{gfxLite ? "◉" : "○"}</span>
-                {t(lang, "actions.reduceEffects")}
-              </button>
-              <button
-                role="menuitemcheckbox"
-                type="button"
-                aria-checked={colorblind}
-                onClick={() => setPref("colorblind", !colorblind)}
-                className="flex min-h-10 w-full items-center gap-3 rounded-lg px-3 text-left hover:bg-white/5"
-              >
-                <span aria-hidden="true">{colorblind ? "◉" : "○"}</span>
-                {t(lang, "actions.colorblindPalette")}
-              </button>
-              {/* The language control used to exist only on the landing screen,
-                  so anyone who had already entered a city had to leave it — via
-                  the logo — to read the tool in their own language. */}
-              <button
-                role="menuitem"
-                type="button"
-                onClick={() => {
-                  const next = lang === "de" ? "en" : "de";
-                  setPref("lang", next);
-                  setFeedback({ message: t(next, "actions.languageSwitched"), error: false });
-                }}
-                className="flex min-h-10 w-full items-center gap-3 rounded-lg px-3 text-left hover:bg-white/5"
-              >
-                <span aria-hidden="true">⇄</span>
-                {t(lang, "actions.language")}
-              </button>
+                <div className="action-view-heading">{t(lang, "actions.access")}</div>
+                {adoptedKeys.length > 0 && (
+                  <p className="access-system-note mx-3 mb-1 mt-2 text-xs leading-relaxed">
+                    {t(lang, "access.systemNote", { what: adoptedWords })}
+                  </p>
+                )}
+                <button
+                  role="menuitemcheckbox"
+                  type="button"
+                  aria-checked={gfxLite}
+                  onClick={() => setPref("gfxLite", !gfxLite)}
+                  className="flex min-h-10 w-full items-center gap-3 rounded-lg px-3 text-left hover:bg-white/5"
+                >
+                  <span aria-hidden="true">{gfxLite ? "◉" : "○"}</span>
+                  {t(lang, "actions.reduceEffects")}
+                  <span className="access-state-word ml-auto text-xs">
+                    {t(lang, gfxLite ? "actions.stateOn" : "actions.stateOff")}
+                  </span>
+                </button>
+                <button
+                  role="menuitemcheckbox"
+                  type="button"
+                  aria-checked={colorblind}
+                  onClick={() => setPref("colorblind", !colorblind)}
+                  className="flex min-h-10 w-full items-center gap-3 rounded-lg px-3 text-left hover:bg-white/5"
+                >
+                  <span aria-hidden="true">{colorblind ? "◉" : "○"}</span>
+                  {t(lang, "actions.colorblindPalette")}
+                  <span className="access-state-word ml-auto text-xs">
+                    {t(lang, colorblind ? "actions.stateOn" : "actions.stateOff")}
+                  </span>
+                </button>
+                {/* The language control used to exist only on the landing screen,
+                    so anyone who had already entered a city had to leave it — via
+                    the logo — to read the tool in their own language. */}
+                <button
+                  role="menuitem"
+                  type="button"
+                  onClick={() => {
+                    const next = lang === "de" ? "en" : "de";
+                    setPref("lang", next);
+                    setFeedback({ message: t(next, "actions.languageSwitched"), error: false });
+                  }}
+                  className="flex min-h-10 w-full items-center gap-3 rounded-lg px-3 text-left hover:bg-white/5"
+                >
+                  <span aria-hidden="true">⇄</span>
+                  {t(lang, "actions.language")}
+                  <span className="access-state-word ml-auto text-xs">
+                    {t(lang, lang === "de" ? "access.langGerman" : "access.langEnglish")}
+                  </span>
+                </button>
+              </div>
               <button
                 role="menuitem"
                 type="button"

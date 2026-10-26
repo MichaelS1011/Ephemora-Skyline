@@ -843,8 +843,10 @@ button:disabled {
   margin: 6px 0 0;
   overflow-wrap: anywhere;
 }
+/* stale rides its word (" · N stale") inside the `role="status"` sentence;
+   the gold was the focus ring's colour painting a data state. */
 .landing-footprint-stale {
-  color: var(--accent-gold);
+  color: var(--meta-strong);
 }
 .landing-footprint-actions {
   display: flex;
@@ -1052,10 +1054,14 @@ button:disabled {
 .city-coach {
   --meta: #c6c2b9;
   --meta-strong: #d6d3cb;
-  /* The count inside a bar is a word too. The brand gold reads 4,33:1 as 12 px
-     text over the plaza behind α 0,75 — the brightest ink on the shell's accent
-     scale, and the one that was not in the list until this line. On the reading
-     plates the brand gold stays what it is. */
+  /* Since the gold sweep (2026-10-26) the counts and the band buttons wear
+     this ladder's own inks (`--meta-strong`), not the brand gold: gold is the
+     focus ring and nothing else. What still reads through this token is the
+     ring itself — `--focus-ring` resolves via `--accent-gold` at the point of
+     use, so over the bright bars it takes this lifted step, not #e8b23c.
+     `tests/glas-chrome.test.ts` Fall 19 measures the ring and the new inks
+     on the fields these bars actually composite to. On the reading plates
+     the brand gold stays what it is. */
   --accent-gold: #ffd98a;
 }
 
@@ -1111,32 +1117,35 @@ button:disabled {
   width: 6px;
   height: 6px;
   border-radius: 50%;
-  background: var(--accent-gold);
+  /* The band is a `role="status"` sentence — the dot keeps the shape contrast
+     (full, hollow, red) and the bright chrome ink, never the focus gold. */
+  background: var(--brand-ink);
 }
 .live-band.is-error .live-dot {
   background: #e8503c;
 }
 .live-band.is-paused .live-dot {
   background: transparent;
-  border: 1px solid var(--accent-gold);
+  border: 1px solid var(--brand-ink);
 }
 .live-text {
   color: var(--meta-strong);
 }
 .live-counts {
-  color: var(--accent-gold);
+  color: var(--meta-strong);
   font-variant-numeric: tabular-nums;
 }
 .live-scan {
   padding: 3px 9px;
-  border: 1px solid rgba(255, 217, 138, 0.35);
+  border: 1px solid rgba(242, 239, 232, 0.1);
   border-radius: 6px;
-  color: var(--accent-gold);
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--meta-strong);
   font-size: var(--fs-meta);
   line-height: 1.2;
 }
 .live-scan:hover {
-  background: rgba(255, 217, 138, 0.1);
+  background: rgba(255, 255, 255, 0.09);
 }
 .workspace-brand {
   display: flex;
@@ -1316,6 +1325,26 @@ button:disabled {
   bottom: 96px !important;
   right: 22px !important;
   border-radius: 7px;
+}
+/* The plate's one sentence had no rule in any sheet, so the browser answered
+   for it. Measured off the running screen (2026-10-26, the stored 77-finding
+   scan, EN, 1280x800 @2x, read off the plate's own box and glyphs):
+   a 24px line box at the inherited 1,5 is 16px, 2,06x the plate's own 11px label
+   in ink height, and the row's 255px max-content set the plate's width to
+   266,98px — 67px wider than the 190px map it carries. `--fs-meta` is the step
+   this shell writes HUD and state text at (line 104, `.stage-list` below), and
+   it is the only step that keeps the common English sentence on ONE line inside
+   the map's column: 175px at 11px, 191px at 12px, 207px at 13px, wrapped with the
+   0,4086em advance this very row measured. The word is the plate's content, not
+   its caption, so it takes the shell's body ink while the label above it stays
+   `--meta-strong`. Line-height 1,4 and the 4px are the plate's own rhythm — the
+   keyboard row under the map and the title's `mb-1`. The margin is written out
+   so the gap is this sheet's decision rather than a reset's side effect. */
+.minimap-alarm {
+  font-size: var(--fs-meta);
+  line-height: 1.4;
+  margin: 0 0 4px;
+  color: var(--color-text);
 }
 /* R2-09 (screenshot 44-city-1280x720.png): at short desktop heights the
    minimap's 240 px box, anchored 96 px up, lands exactly over the height
@@ -2218,6 +2247,45 @@ div[role="status"].animate-toast-rise {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+/* EA-02 — role and task wrap rather than ellipsis: the line names what the
+   figure is doing, and a truncated "walking to security-scan…" says nothing. */
+.resident-role {
+  margin: 0 0 8px;
+  color: var(--meta-faint);
+  font: 400 11px/1.5 var(--font-mono);
+}
+
+.resident-claim {
+  margin: 0 0 10px;
+}
+
+.resident-claim-label {
+  display: block;
+  margin-bottom: 3px;
+  color: var(--color-text);
+  font: 600 11px/1.3 var(--font-ui);
+}
+
+.resident-claim-input {
+  width: 100%;
+  min-height: 30px;
+  padding: 4px 8px;
+  border-radius: 6px;
+  border: 1px solid rgba(242, 239, 232, 0.16);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--color-text);
+  font: 400 12px/1.3 var(--font-mono);
+}
+
+.resident-claim-input:focus {
+  outline: 1px solid var(--focus-ring);
+  outline-offset: 1px;
+}
+
+.resident-claim-input::placeholder {
+  color: var(--meta-faint);
+}
+
 .resident-action {
   width: 100%;
   min-height: 38px;

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useStore } from "../stores/useStore";
 import { useOrigin } from "../stores/useOrigin";
-import { severityColor, severityTextColor } from "../city/palette";
+import { REVIEWED_BEACON_COLOR, severityColor, severityTextColor } from "../city/palette";
 import { describeGitignoreSkips, scanVerdict } from "../city/provenance";
 import { narrowChromeWindow } from "../city/motion";
 import { formatCount, t, type Lang } from "../i18n";
@@ -260,7 +260,7 @@ export function ScanSummary({ demo = false }: { demo?: boolean }) {
   const accent = preview
     ? severityColor("P2", colorblind)
     : clean
-      ? "#29d398"
+      ? REVIEWED_BEACON_COLOR
       : unverified
         ? severityColor("P2", colorblind)
         : f.P0 > 0
@@ -278,7 +278,7 @@ export function ScanSummary({ demo = false }: { demo?: boolean }) {
   const statusInk = preview
     ? severityTextColor("P2", colorblind)
     : clean
-      ? "#29d398"
+      ? REVIEWED_BEACON_COLOR
       : unverified
         ? severityTextColor("P2", colorblind)
         : f.P0 > 0

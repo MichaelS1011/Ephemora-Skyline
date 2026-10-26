@@ -1,5 +1,7 @@
-import { useStore } from "../stores/useStore";
+import { useEffect, useMemo, useState } from "react";
+import { nextOpenTriageIndex, triageList, useStore } from "../stores/useStore";
 import { identityIsGuessed } from "../reviews";
+import { edgeSignalForWaypoint, worldTargetForFinding } from "../city/waypoint";
 import { topLanguages, languageColor, severityColor } from "../city/palette";
 import { scanVerdict } from "../city/provenance";
 import { BrandWordmark } from "./Landing";
@@ -19,6 +21,21 @@ const SEVERITIES = [
   { id: "P1", labelKey: "hud.sevHigh", shape: "◆" },
   { id: "P2", labelKey: "hud.sevMedium", shape: "●" },
 ] as const;
+
+/**
+ * The screen-edge waypoint: one pill AT THE EDGE the finding lies behind.
+ * The word carries the meaning ("left", "right", "behind") — the arrow glyph
+ * only repeats it for the eye, so colour and glyph are never sole carriers.
+ * No pulse, no animation: the sign's whole job is to be noticeable WITHOUT
+ * motion, which also keeps `prefers-reduced-motion` trivially honoured.
+ * Its distance is the straight line in city units, and its click is the
+ * dock's own stepper — no second flight path.
+ */
+const WAYPOINT_EDGE = {
+  left: { wordKey: "hud.wpLeft", arrow: "←", pos: "left-2 top-1/2 -translate-y-1/2" },
+  right: { wordKey: "hud.wpRight", arrow: "→", pos: "right-2 top-1/2 -translate-y-1/2" },
+  behind: { wordKey: "hud.wpBehind", arrow: "↓", pos: "bottom-4 left-4" },
+} as const;
 
 /**
  * "No findings" is the one header state that can be true and useless at the
@@ -54,11 +71,37 @@ export function HudOverlay({ apiStatus }: HudOverlayProps) {
   const constructionTotal = useStore((s) => s.constructionTotal);
   const requestBuildSkip = useStore((s) => s.requestBuildSkip);
   const lang = useStore((s) => s.prefs.lang);
+  const frameHz = useStore((s) => s.frameHz);
   const colorblind = useStore((s) => s.prefs.colorblind);
   const liveState = useStore((s) => s.live);
   const showLegend = useStore((s) => s.showLegend);
   const searchOpen = useStore((s) => s.showSearch);
   const setCityOnly = useStore((s) => s.setCityOnly);
+  const reviews = useStore((s) => s.reviews);
+  const ruleFilter = useStore((s) => s.ruleFilter);
+  const triageActive = useStore((s) => s.triageActive);
+  const triageCursor = useStore((s) => s.triageCursor);
+  const startTriage = useStore((s) => s.startTriage);
+  const nextTriage = useStore((s) => s.nextTriage);
+  const tourActive = useStore((s) => s.tourActive);
+  const cameraInfo = useStore((s) => s.cameraInfo);
+  const cameraMode = useStore((s) => s.cameraMode);
+  // The cone test needs the viewport's shape; a resize is the only moment
+  // the answer changes, so the aspect is state, not a per-frame read.
+  const [viewportAspect, setViewportAspect] = useState(
+    () => window.innerWidth / Math.max(1, window.innerHeight),
+  );
+  useEffect(() => {
+    const onResize = () => setViewportAspect(window.innerWidth / Math.max(1, window.innerHeight));
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, []);
+  // The queue the dock walks — same list, same filters, same order. Memoised
+  // on the city and the filters: a camera move must never re-sort the city.
+  const queue = useMemo(
+    () => (cityData ? triageList(cityData, threatFilter, ruleFilter) : []),
+    [cityData, threatFilter, ruleFilter],
+  );
   if (!cityData) return null;
   const totalFindings = severityTotal(cityData.findingsBySeverity);
 
@@ -85,6 +128,23 @@ export function HudOverlay({ apiStatus }: HudOverlayProps) {
   // says while it is open: the changed files were read by built-in rules, and
   // every external engine's answer belongs to the last full scan.
   const liveVisible = liveState.status !== "off" && liveState.analysisId === cityData.analysisId;
+  // The screen-edge waypoint walks the dock's queue FORWARD to the next entry
+  // WITHOUT a verdict — exactly where the dock's ▶ would land, and the sign's
+  // target is computed by the same `worldTargetForFinding` the flight uses.
+  // While the city is still under its crane or the tour is walking the
+  // reader, the sign says nothing: one navigator at a time.
+  const waypointFrom = triageActive ? triageCursor + 1 : 0;
+  const waypointAt = nextOpenTriageIndex(queue, reviews, waypointFrom, 1);
+  const waypointEntry = waypointAt >= 0 ? queue[waypointAt] : undefined;
+  const waypointLine = waypointEntry?.file.findings[waypointEntry.index]?.line;
+  const waypointTarget =
+    waypointEntry && waypointLine !== undefined
+      ? worldTargetForFinding(cityData, waypointEntry.file.id, waypointLine)
+      : null;
+  const waypoint =
+    !constructing && !tourActive && waypointTarget
+      ? edgeSignalForWaypoint(waypointTarget, cameraInfo, cameraMode, viewportAspect)
+      : null;
 
   return (
     <>
@@ -169,6 +229,15 @@ export function HudOverlay({ apiStatus }: HudOverlayProps) {
           </button>
           {!constructing && (
             <>
+              {/* The frame budget the city is actually running on. Same window
+                  the automatic graphics switch decides from, so the number and
+                  the switch can never tell two stories — and nothing at all
+                  while the window is still filling. */}
+              {frameHz !== null && (
+                <span className="workspace-fps" title={t(lang, "hud.fpsTitle")}>
+                  {frameHz} <span>{t(lang, "hud.fpsUnit")}</span>
+                </span>
+              )}
               <span className="workspace-files">
                 {preview ? (
                   <span
@@ -296,7 +365,7 @@ export function HudOverlay({ apiStatus }: HudOverlayProps) {
               >
                 <span
                   className="block h-full rounded-full transition-all duration-300"
-                  style={{ width: `${pct}%`, background: "#e8503c" }}
+                  style={{ width: `${pct}%`, background: "var(--brand-red)" }}
                 />
               </span>
             </>
@@ -305,11 +374,31 @@ export function HudOverlay({ apiStatus }: HudOverlayProps) {
             onClick={requestBuildSkip}
             aria-label={t(lang, "hud.skipAria")}
             className="shrink-0 rounded px-3 min-h-9 flex items-center font-mono text-[length:var(--fs-meta)] text-[color:var(--meta-strong)]
-                       transition-colors hover:text-[color:var(--accent-gold)] focus:outline-none focus:ring-1 focus:ring-[var(--accent-gold)]"
+                       transition-colors hover:text-[color:var(--brand-ink)] focus:outline-none focus:ring-1 focus:ring-[var(--focus-ring)]"
           >
             {t(lang, "hud.skip")} ⏭
           </button>
         </div>
+      )}
+      {waypoint && (
+        <button
+          type="button"
+          data-waypoint-edge={waypoint.side}
+          onClick={() => (triageActive ? nextTriage() : startTriage())}
+          aria-label={t(lang, "hud.wpAria", {
+            dir: t(lang, WAYPOINT_EDGE[waypoint.side].wordKey),
+            dist: Math.round(waypoint.distance),
+          })}
+          title={t(lang, "hud.wpTitle")}
+          className={`pointer-events-auto absolute z-40 flex items-center gap-2 rounded-lg px-3 min-h-9
+                     font-mono text-[length:var(--fs-meta)] text-[color:var(--meta-strong)]
+                     focus:outline-none focus:ring-1 focus:ring-[var(--focus-ring)] ${WAYPOINT_EDGE[waypoint.side].pos}`}
+          style={{ background: "var(--glass-bg)", border: "1px solid var(--glass-border)" }}
+        >
+          <span aria-hidden="true">{WAYPOINT_EDGE[waypoint.side].arrow}</span>
+          <span>{t(lang, WAYPOINT_EDGE[waypoint.side].wordKey)}</span>
+          <span aria-hidden="true">≈{Math.round(waypoint.distance)}</span>
+        </button>
       )}
     </>
   );

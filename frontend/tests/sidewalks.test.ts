@@ -3,11 +3,13 @@ import {
   buildSidewalkNetwork,
   graphPath,
   nearestNode,
+  approachNode,
   plazaLanes,
   CURB_OFFSET,
 } from "../src/city/sidewalks";
 import type { StreetLine } from "../src/city/layout";
-import { crossesStreetOffCrosswalk } from "../src/city/openWorldStreets";
+import { buildOpenWorld, crossesStreetOffCrosswalk } from "../src/city/openWorldStreets";
+import { planPolyline } from "../src/city/routeLine";
 
 /** A plus-shaped street grid: two crossing streets. */
 const CROSS_STREETS: StreetLine[] = [
@@ -215,5 +217,129 @@ describe("graphPath", () => {
   it("returns an empty path when start equals goal", () => {
     const idx = nearestNode(net, 0, CURB_OFFSET);
     expect(graphPath(net, idx, idx)).toHaveLength(0);
+  });
+});
+
+/**
+ * MASTER-2027 §07.05 — are the targets the city offers walkable?
+ *
+ * `routeTo` (`Pedestrians.tsx:1588-1613`) writes `e.path = graphPath(...)` and
+ * then sets `e.finalX` unconditionally. An empty path therefore has two readings
+ * that look different on screen: the figure already stands on the approach node
+ * (harmless, one step to the door), or there is no path at all — and then the
+ * figure walks across the block, and since §07.06 the world draws a stripe
+ * through the building while it does.
+ *
+ * The shipped kerb graph is one pure function (`buildOpenWorld()`, handed to
+ * every city at `CityScene.tsx:145`), so this is checkable exhaustively rather
+ * than by sampling, and it is measured in full in
+ * `docs/reviews/2026-10-23-master-2027/erreichbarkeit-messung.json`: 240 nodes,
+ * 448 edges, one component, 57 360 ordered pairs and 3 840 offered targets,
+ * none of them without a path.
+ */
+describe("every target the city offers is walkable (§07.05)", () => {
+  const world = buildOpenWorld();
+  const nodes = world.network.nodes;
+
+  const components = (): number[] => {
+    const farbe = new Int32Array(nodes.length).fill(-1);
+    const groessen: number[] = [];
+    for (let s = 0; s < nodes.length; s++) {
+      if (farbe[s] !== -1) continue;
+      const stack = [s];
+      farbe[s] = groessen.length;
+      let n = 0;
+      while (stack.length) {
+        const cur = stack.pop()!;
+        n += 1;
+        for (const nb of nodes[cur]!.adj)
+          if (farbe[nb] === -1) {
+            farbe[nb] = groessen.length;
+            stack.push(nb);
+          }
+      }
+      groessen.push(n);
+    }
+    return groessen;
+  };
+
+  it("is one kerb, not several: the whole graph is a single component", () => {
+    expect(nodes.length).toBe(240);
+    expect(components()).toEqual([240]);
+  });
+
+  it("routes every one of the 57 360 node pairs it has", () => {
+    let befragt = 0;
+    let ohnePfad: Array<[number, number]> = [];
+    for (let a = 0; a < nodes.length; a++)
+      for (let b = 0; b < nodes.length; b++) {
+        if (a === b) continue;
+        befragt += 1;
+        if (graphPath(world.network, a, b).length === 0) ohnePfad.push([a, b]);
+      }
+    expect(befragt).toBe(240 * 239);
+    expect(ohnePfad, `pairs without a path: ${JSON.stringify(ohnePfad.slice(0, 5))}`).toHaveLength(
+      0,
+    );
+  });
+
+  it("routes the targets the guide actually offers", () => {
+    // `GuideAction.tsx:112` aims at a plot's frontage; `approachNode` picks the
+    // kerb it is reached from. Every standing node against every such target.
+    let befragt = 0;
+    let ohnePfad = 0;
+    for (let start = 0; start < nodes.length; start += 5) {
+      const s = nodes[start]!;
+      for (let ziel = 0; ziel < nodes.length; ziel += 3) {
+        const z = nodes[ziel]!;
+        const from = nearestNode(world.network, s.x, s.z);
+        const to = approachNode(world.network, world.streets, z.x, z.z);
+        befragt += 1;
+        if (from !== to && graphPath(world.network, from, to).length === 0) ohnePfad += 1;
+      }
+    }
+    expect(befragt).toBe(48 * 80);
+    expect(ohnePfad).toBe(0);
+  });
+
+  it("keeps a walk across the city inside the time a reader watches", () => {
+    // Measured worst case: 24 hops, 75,4 units. At the crowd's stroll pace that
+    // is the longest errand the route line (§07.06) can ever be held open for —
+    // a longer number here means the graph got fragmented and paths detour.
+    let hops = 0;
+    let einheiten = 0;
+    for (let a = 0; a < nodes.length; a += 7)
+      for (let b = 0; b < nodes.length; b += 11) {
+        if (a === b) continue;
+        const p = graphPath(world.network, a, b);
+        if (p.length === 0) continue;
+        hops = Math.max(hops, p.length + 1);
+        let d = Math.hypot(nodes[a]!.x - nodes[p[0]!]!.x, nodes[a]!.z - nodes[p[0]!]!.z);
+        for (let i = 0; i + 1 < p.length; i++)
+          d += Math.hypot(
+            nodes[p[i]!]!.x - nodes[p[i + 1]!]!.x,
+            nodes[p[i]!]!.z - nodes[p[i + 1]!]!.z,
+          );
+        einheiten = Math.max(einheiten, d);
+      }
+    expect(hops).toBeLessThanOrEqual(30);
+    expect(einheiten).toBeLessThanOrEqual(90);
+  });
+
+  it("shows what a disconnected kerb would do, so the pin above has a meaning", () => {
+    // Two street pairs far apart: no path between them. `routeTo` would still
+    // set the off-graph final step, and §07.06's polyline would run straight
+    // from feet to door — across everything in between. The behaviour is the
+    // reason the four checks above are not decoration.
+    const zwei = buildSidewalkNetwork([
+      { x1: -20, z1: 0, x2: 20, z2: 0 },
+      { x1: 220, z1: 0, x2: 260, z2: 0 },
+    ]);
+    const a = nearestNode(zwei, -19, CURB_OFFSET);
+    const b = nearestNode(zwei, 259, CURB_OFFSET);
+    expect(graphPath(zwei, a, b)).toHaveLength(0);
+    const plan = planPolyline(-19, CURB_OFFSET, [], zwei.nodes, 259, CURB_OFFSET);
+    expect(plan).toHaveLength(2);
+    expect(Math.hypot(plan[1]!.x - plan[0]!.x, plan[1]!.z - plan[0]!.z)).toBeGreaterThan(270);
   });
 });

@@ -79,7 +79,9 @@ export function VoxelStructureBlock({ file }: { file: CityFile }) {
           style={{ color: "var(--meta-strong)" }}
           title={t(lang, "panel.voxelLegendTitle")}
         >
-          {t(lang, "panel.voxelLegend", { count: formatCount(lang, total) })}
+          {t(lang, total === 1 ? "panel.voxelLegendOne" : "panel.voxelLegend", {
+            count: formatCount(lang, total),
+          })}
         </span>
       </div>
       <div className="flex flex-col gap-0.5">
@@ -200,7 +202,9 @@ export function VoxelStructureBlock({ file }: { file: CityFile }) {
             className="font-jetbrains text-[length:var(--fs-meta)]"
             style={{ color: "var(--meta-strong)" }}
           >
-            {t(lang, "panel.moreSections", { count: sections.length - 24 })}
+            {t(lang, sections.length - 24 === 1 ? "panel.moreSectionsOne" : "panel.moreSections", {
+              count: sections.length - 24,
+            })}
           </div>
         )}
       </div>
@@ -506,8 +510,11 @@ export function RunTestsButton({
       <button
         onClick={() => void runTests([filePath])}
         disabled={busy || !analysisId || !analysisOnDisk}
+        // The button may wear its test-green body, but the keyboard ring is
+        // the shell's one ring: the global `:focus-visible` rule in
+        // design/globals.css draws it from --focus-ring, not a local colour.
         className="w-full mb-3 py-1.5 font-jetbrains text-[length:var(--fs-meta)] tracking-widest rounded-sm
-                 transition-all duration-150 hover:brightness-110 focus:outline-none focus:ring-1 focus:ring-[#29d398]
+                 transition-all duration-150 hover:brightness-110
                  disabled:opacity-40 cursor-pointer"
         style={{
           border: "1px solid rgba(41,211,152,0.45)",

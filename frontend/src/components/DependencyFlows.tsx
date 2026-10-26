@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef } from "react";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import type { DirLayout } from "../city/layout";
+import { ENV } from "../city/palette";
 import { useStore } from "../stores/useStore";
 import { reducedSettle } from "../city/motion";
 
@@ -27,8 +28,10 @@ interface FlowProps {
 
 const PARTICLES_PER_CURVE = 90;
 const CURVES_MAX = 24; // ≈ 2160 particles worst case
-const IN_COLOR = new THREE.Color("#37e6ff"); // cyan — data flowing in
-const OUT_COLOR = new THREE.Color("#b06bff"); // violet — data flowing out
+// The same two colours the static tubes carry in CityConnections and the legend
+// teaches in CoachMarks: cyan arrives, violet leaves.
+const IN_COLOR = new THREE.Color(ENV.importIn);
+const OUT_COLOR = new THREE.Color(ENV.importOut);
 const CYCLE_COLOR = new THREE.Color("#ff2e4d"); // red — circular dependency
 /** Curve sampler scratch — one per module, not one per particle per frame. */
 const _point = new THREE.Vector3();

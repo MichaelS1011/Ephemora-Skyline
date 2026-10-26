@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback } from "react";
 import type { CSSProperties, ReactNode } from "react";
 import { useStore } from "../stores/useStore";
-import { alarmWindowColors, CYCLE_RING_COLOR, heatLegendGradient } from "../city/palette";
+import { alarmWindowColors, CYCLE_RING_COLOR, ENV, heatLegendGradient } from "../city/palette";
 import { t, type DictKey } from "../i18n";
 import { ts } from "./startCopy";
 import "../design/start.css";
@@ -110,6 +110,14 @@ export function markerLegend(colorblind: boolean): LegendMarker[] {
       meaning: "legend.streamsMeaning",
       swatch: sw("#37e6ff"),
       secondSwatch: sw("#b06bff"),
+    },
+    {
+      // 005 Teil A. The same cyan as an arriving stream, because it is the same
+      // fact seen from the other end; the SQUARE is what separates it from every
+      // round ring in this key.
+      label: "legend.blastSquare",
+      meaning: "legend.blastSquareMeaning",
+      swatch: sw(ENV.importIn, { border: `2px solid ${ENV.arcCasing}` }),
     },
     {
       label: "legend.heat",

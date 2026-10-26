@@ -22,9 +22,11 @@ import { TriageAnnouncer } from "./components/TriageAnnouncer";
 import { CoachMarks } from "./components/CoachMarks";
 import { ActionBar } from "./components/ActionBar";
 import { ResidentCard } from "./components/ResidentCard";
+import { EphePreview } from "./components/EphePreview";
 import { ShareStudio } from "./components/ShareStudio";
 import { ContextCard } from "./components/ContextCard";
 import { LiveBridge } from "./live/LiveBridge";
+import { PrefsNote } from "./components/PrefsNote";
 import { SceneBoundary, SurfaceBoundary, SurfaceFailed } from "./components/SurfaceBoundary";
 import { useGlassStage } from "./render/useGlassStage";
 import { FindingsPanel } from "./components/FindingsPanel";
@@ -194,6 +196,11 @@ export default function App() {
   const cityOnly = useStore((s) => s.cityOnly);
   const setCityOnly = useStore((s) => s.setCityOnly);
   const selectedResident = useStore((s) => s.selectedResident);
+  // §04.11 — the vitrine, reachable from inside the city as well as from the
+  // start page, so a resident the reader already named can be restyled without
+  // the card growing a second verb.
+  const showEpheVitrine = useStore((s) => s.showEpheVitrine);
+  const setShowEpheVitrine = useStore((s) => s.setShowEpheVitrine);
 
   const [apiStatus, setApiStatus] = useState<"connecting" | "live" | "demo">("connecting");
   // Two failure paths for the world, because there are two places it can die:
@@ -639,6 +646,11 @@ export default function App() {
         </>
       )}
 
+      {/* Corrupt stored preferences speak for themselves, in landing and in
+          city alike: the failure happened before either screen was chosen,
+          and the defaults it masks run the whole visit. */}
+      <PrefsNote />
+
       {/* ── In-city UI ──────────────────────────────────────────────────── */}
       {inCity && (
         <>
@@ -684,6 +696,9 @@ export default function App() {
               <TriageAnnouncer />
               <ActionBar />
               {selectedResident !== null && <ResidentCard />}
+              {showEpheVitrine && (
+                <EphePreview lang={lang} onClose={() => setShowEpheVitrine(false)} />
+              )}
               <ContextCard />
               <Minimap show={showMinimap} />
               {showPrimer && <CoachMarks />}

@@ -1,10 +1,26 @@
 "use client";
 
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useFrame, useThree, type ThreeEvent } from "@react-three/fiber";
+import { Html } from "@react-three/drei";
 import * as THREE from "three";
 import { useStore } from "../stores/useStore";
+import { t } from "../i18n";
+import {
+  ROLE_GLYPH,
+  epheRoleOf,
+  onDuty,
+  pickCallable,
+  roleBearers,
+  type RoleBearers,
+  type EpheRole,
+  type GuideRequest,
+} from "../city/epheRoles";
+import { planPolyline, stripeGeometry, type RoutePoint } from "../city/routeLine";
 import { approachNode, graphPath, nearestNode, type SidewalkNetwork } from "../city/sidewalks";
+import { epheKey, type EpheIdentity } from "../city/epheIdentity";
+import { ephePresenceIdentity, plotOpenFindings, presenceSeats } from "../city/epheDuty";
+import { lookFor } from "../epheLook";
 import {
   STOP_BOARD,
   STOP_POST,
@@ -18,20 +34,28 @@ import {
   type Transit,
 } from "../city/openWorldStreets";
 import { prefersReducedMotion, reducedSettle } from "../city/motion";
-import { owesWave, WAVE_HOLD_S } from "../city/residentGreeting";
+import { calledGesture, owesWave, WAVE_HOLD_S } from "../city/residentGreeting";
 import { useWaveRhythm } from "../hooks/useWaveRhythm";
 import {
   ACCEL,
+  armSwing,
   footCycle,
   GAIT_RATE,
+  PIVOT_STRIDE,
   pivotMarch,
   ramp,
   socialStep,
   strideAmplitude,
   strideBlend,
+  STRIDE_RAMP,
+  UMSEHEN,
+  umsehenBogen,
+  WAVE,
+  waveHeight,
+  waveLateral,
 } from "../city/epheGait";
 import type { BuildSite } from "../city/layout";
-import { EPHE_PALETTE } from "../city/palette";
+import { ENV, EPHE_PALETTE } from "../city/palette";
 import { surfaceMatrix, surfacePoint } from "../city/worldSurface";
 import { useWorldSurface } from "../render/WorldSurface";
 
@@ -52,9 +76,12 @@ import { useWorldSurface } from "../render/WorldSurface";
  *   (coloured by the language the unit is made of) to the plot that is about
  *   to rise, set it on the roof as the tower comes up, and stroll on
  *
- * Five instanced draws carry the whole crowd, including arms and hands;
- * +2 carry builders' helmets and blocks. Traffic shares two instanced draws,
- * and conversations use a three-sprite pool.
+ * Five instanced draws carry the whole crowd, including arms and hands
+ * (body, head, face band, eyes, and one eleven-slot limb pass per figure);
+ * +2 carry builders' helmets and blocks, +2 are the ground marks every figure
+ * gets a slot in (contact patch, and one shared selection ring), +2 carry the
+ * street and its traffic. Nothing here draws per figure: a city of 72 residents
+ * costs the same crowd draws as a city of 6.
  */
 
 interface StreetLine {
@@ -69,6 +96,8 @@ export interface HomeSpot {
   z: number;
   doorX: number;
   doorZ: number;
+  /** The file standing on this plot, as the payload names it (EA-01). */
+  unitId: string | null;
 }
 
 type Mode =
@@ -83,6 +112,7 @@ type Mode =
   | "toTaxi"
   | "inTaxi"
   | "toSite"
+  | "guide"
   | "work";
 
 interface Ephe {
@@ -104,6 +134,9 @@ interface Ephe {
    *  the feet home at an arrival, so neither ends in a pose the figure
    *  would have to teleport out of. */
   blend: number;
+  /** Stride amplitude while turning on the spot, ramped so a figure that
+   *  stops to pivot does not halve its step in a single frame. 1 otherwise. */
+  pivotAmp: number;
   /** True while turning on the spot rather than cutting a corner. */
   pivot: boolean;
   color: THREE.Color;
@@ -111,6 +144,8 @@ interface Ephe {
   tx: number;
   tz: number;
   pause: number;
+  /** How far the rest pose has taken hold, 0 = walking stance, 1 = resting. */
+  restBlend: number;
   mode: Mode;
   home: number; // home spot index
   anim: number; // grow/shrink 0..1
@@ -118,6 +153,35 @@ interface Ephe {
   chatUntil: number;
   /** Simulation time until which the resident stands and waves at the reader. */
   greetUntil: number;
+  /** 005-B: set once the Explorer has walked its errand and turned to the
+   *  target — the arrival the panel waits for before it says anything. */
+  guideArrived: boolean;
+  /**
+   * §07.11 — simulation time at which the arriving guide started its look-around,
+   * or null while it is not looking. Read only in the arrived branch, and it
+   * clears itself when the sweep is home, so a new errand never inherits an old
+   * one's phase.
+   */
+  umsehenSeit: number | null;
+  /**
+   * 005-B: this figure carries the Explorer role. The crew and the transit
+   * picks skip it on purpose: a resident that can be handed to a bus or a build
+   * site is not a guide, and a guide that got called away mid-errand is the
+   * shadow the brief warns about — a figure that appears to lead you somewhere
+   * and then does something else.
+   */
+  isExplorer: boolean;
+  /** B11 — the same exclusion for the resident that follows the security tour. */
+  isSecurity: boolean;
+  /** B12 — and for the resident that carries the maintenance errand. */
+  isMaintenance: boolean;
+  /**
+   * EPHE-AI EA-01 — where this figure lives, in terms that survive a re-scan
+   * and a level change: the plot it is a citizen of, and its seat there. The
+   * array index is not an identity (the crowd is rebuilt per level), so
+   * anything that has to remember a figure reads this instead.
+   */
+  identity: EpheIdentity;
   hidden: boolean; // inside a building / in a vehicle
   ride: "taxi" | "bus" | null;
   // sidewalk graph state
@@ -142,7 +206,7 @@ interface Ephe {
 
 const WALKER_COLORS = EPHE_PALETTE.jackets;
 
-export type EpheGesture = "idle" | "chat" | "carry" | "lift" | "greet" | "point";
+export type EpheGesture = "idle" | "chat" | "carry" | "lift" | "greet" | "point" | "rest";
 
 /**
  * The body plan of one resident, in units of the 1.35-tall person.
@@ -151,7 +215,7 @@ export type EpheGesture = "idle" | "chat" | "carry" | "lift" | "greet" | "point"
  * no legs at all, a torso that reached within 0.10 of the ground, and a
  * silhouette that read as one pale blob at every distance the city is actually
  * looked at. The plan below is what a person's outline is made of — crown 1.35,
- * head 0.95…1.35, torso 0.41…0.95, hip 0.45, knee 0.26, ankle 0.08 — so the legs
+ * head 1.094…1.35, coat 0.68…1.10, hip 0.70, knee 0.40, ankle 0.10 — so the legs
  * are the lower half of the figure the way they are on a body, and the gait has
  * something to bend. `openCityLifeFraming.test.ts` budgets exactly 1.35 of
  * height for the ≥3 px rule, so the crown is a contract, not a taste choice.
@@ -164,20 +228,184 @@ export const FIGURE = {
    * the hip without reaching for the floor. The shipped figure had a torso that
    * ended 0.10 above the ground, a head of a quarter of the body, and no leg at
    * all — which is why it read as a ball with boots.
+   *
+   * What each mass is worth ON SCREEN is a different number in each direction,
+   * because the district camera looks down at 0.68 rad: a vertical world unit
+   * lands on 0.7776 of a screen unit and a horizontal one on the whole of it.
+   * At the small end of the measured band (a 20 px resident) that is 14.82 px
+   * per unit up and 19.05 across; at the large end (30 px) 22.22 up and 28.58
+   * across. In the 20 px column, from the top: head 4.88 px wide and 3.79 px
+   * tall, face 3.35 × 3.07 px, coat 7.05 px wide and 8.0 px tall, sleeve and
+   * hand 2.86 px, thigh 2.86 px, the standing gap between the ankles 1.91 px.
+   * Nothing here has room for detail below about 0.05 units, which is why the
+   * face is one band and not a nose.
    */
-  headY: 1.24,
-  headR: 0.11,
+  headY: 1.222,
+  headR: 0.128,
   bodyY: 0.89,
   bodyHalf: 0.21,
-  bodyR: 0.175,
+  /** The coat's widest point, which is its hem. See `coat` below. */
+  bodyR: 0.185,
   hipY: 0.7,
   kneeY: 0.4,
   ankleY: 0.1,
   /** above the torso centre */
   shoulderY: 0.16,
-  hipWidth: 0.085,
+  hipWidth: 0.062,
   shoulderWidth: 0.19,
+  /**
+   * The coat's own outline, as (radius, height) pairs in local units, from the
+   * hem at −0.21 to the top of the shoulders at +0.21. It is a LATHE, not a
+   * capsule, for one measurable reason: a capsule's bottom is a dome, so the
+   * coat faded into the legs over its own radius (0.175 units = 2.6 px of the
+   * 20 px figure) and the waist line the operator's luminance profile picked
+   * up at y = 370-373 was a 3-row gradient, not an edge. This profile ends on a
+   * flat hem at a radius 0.048 units wider than the legs under it, which is a
+   * 0.91 px ledge at the small end of the band and 1.37 px at the large end,
+   * and it narrows to 0.086 at the shoulder line so the head sits on a collar
+   * rather than on a pill.
+   */
+  coat: [
+    [0, -0.21],
+    [0.185, -0.21],
+    [0.181, -0.14],
+    [0.172, -0.05],
+    [0.161, 0.04],
+    [0.15, 0.115],
+    [0.126, 0.172],
+    [0.086, 0.205],
+    [0, 0.21],
+  ] as const,
+  /**
+   * The face band, as half-extents and an offset from the skull's centre. The
+   * band's vertical centre sits `faceY` BELOW the head's centre so the hair
+   * owns the top 37% of the skull and the skin the lower 63% — the split the
+   * reference image measures (hair 0-13%, face 13-35% of the figure's height).
+   */
+  faceY: -0.0475,
+  faceR: 0.088,
+  faceUp: 0.0805,
+  faceDip: 0.032,
+  faceAt: 0.0954,
+  /** The hair cap: a dark mass IN FRONT of the top of the face band, so the
+   *  hairline is an occlusion edge and not a shading gradient. */
+  capY: 0.063,
+  capR: 0.145,
+  capUp: 0.055,
+  capDip: 0.115,
+  capAt: 0.02,
+  /** The eye marks, which have to clear the face band's own surface. */
+  eyeY: -0.03,
+  eyeAt: 0.118,
+  eyeSide: 0.038,
 } as const;
+
+/**
+ * The limb pass's slots per figure. Ten of them are the body; the eleventh is
+ * the hair cap, which is why it lives here and not in a mesh of its own: one
+ * more instanced mesh is one more draw call for the whole crowd, and the
+ * crowd's budget is eleven.
+ */
+export const LIMB_SLOTS = 11;
+
+/**
+ * The rest pose's measurement switch: `?ruhe=0` turns the posture off and
+ * leaves everything else alone.
+ *
+ * It exists because the crowd's pauses come from `Math.random()`, so two builds
+ * cannot be compared frame for frame — the same figure is walking in one and
+ * resting in the other by chance. Only a same-build toggle separates the pose
+ * from the crowd's own noise, and that separation is the measurement.
+ */
+const RUHE_AN = (() => {
+  if (typeof window === "undefined") return true;
+  try {
+    return new URLSearchParams(window.location.search).get("ruhe") !== "0";
+  } catch {
+    return true;
+  }
+})();
+export const LIMB = {
+  bootR: 0,
+  bootL: 1,
+  sleeveR: 2,
+  sleeveL: 3,
+  handR: 4,
+  handL: 5,
+  thighR: 6,
+  thighL: 7,
+  shinR: 8,
+  shinL: 9,
+  cap: 10,
+} as const;
+
+/**
+ * How far above the ground plane the contact patch is drawn.
+ *
+ * It used to be 0.016, which is under every flat thing a resident can stand on:
+ * the kerb boxes are 0.08 tall centred at y=0.04 (top 0.08) and they are drawn
+ * ON `CURB_OFFSET` = 2.18 — the exact line the sidewalk graph puts its nodes
+ * on — and the zebra tops out at 0.07. So the patch was depth-clipped by the
+ * stone under the figure's own feet: for a slim resident (radius 0.285 against
+ * a 0.275 half-width band) about 96% of the disc was hidden, and for a broad
+ * one (0.4275) still about 62%. 0.09 clears the highest paint in the world by
+ * 0.01 units — 0.15 px on screen, and 40 steps of the depth buffer at the
+ * district camera's 36-54 unit range, which is enough to stop the fight. The
+ * lift itself is 0.09 of the figure's 1.35 units, i.e. 1.33 px at the small end
+ * of the size band and 2.0 px at the large end.
+ * `ephe-readability.test.ts` checks it against the real plate list.
+ */
+export const CONTACT_PATCH_Y = 0.09;
+
+/**
+ * The called resident's mark, as an annulus in the ground plane.
+ *
+ * `selection` is gold on a pale plaza: 1.39:1 against the ground and 1.48:1
+ * against a plot, which no amount of opacity fixes. The hue is the operator's
+ * accent and stays. What was fixable is the band: the ground plane is seen at
+ * the overview's 0.68 rad elevation, so the ring's near and far edges are
+ * foreshortened by sin(0.68) = 0.629 while its sides keep their whole width —
+ * 0.1 units of gold was 2.67 px at the sides and 1.2 px across the top and the
+ * bottom of the ellipse at the small end of the band, i.e. half the ring was
+ * landing on a single pixel. 0.17 units is 3.24 px and 2.04 px there, and 4.86
+ * px and 3.05 px at the large end. The outer radius holds at 0.5: 19.1 px wide
+ * and 12.0 px tall at the small end, so the mark stays the size of a person and
+ * not of a block.
+ */
+export const SELECTION_RING = { inner: 0.33, outer: 0.5 } as const;
+
+/**
+ * The azimuth a called figure holds when the clock is frozen.
+ *
+ * Reduced motion stops the crowd by holding `dt` at 0, and every turn in the
+ * loop is a ramp over `dt` — including the called figure's turn to the lens. So
+ * the one gesture that says "this is the resident you picked" never arrives:
+ * the wave stays off because its deadline runs on the same frozen clock, and
+ * the body keeps showing its back. What is left is the gold ring, 1.39:1 on the
+ * plaza and 1.48:1 on a plot, which is a weak cue at any size and the only cue
+ * here.
+ *
+ * The turn cannot be re-animated — that is motion the reader asked not to have.
+ * It can be *finished*: the ramp has a target, `atan2(lens - figure)` on the
+ * ground plane, and setting that target once is a change of posture, not of
+ * motion. So the call site writes it in the effect the click already runs, once,
+ * and the loop keeps writing the same angle every frame without moving it.
+ * Repeating the write lands on the same number (it is a fixed point), which is
+ * what makes this a snap rather than an animation.
+ *
+ * With motion allowed the angle comes back untouched: the ramp in the `called`
+ * branch owns that turn, and a direct write would teleport a body the reader is
+ * watching walk. No clock, no rate and no distance enter this function, so it
+ * cannot become a per-frame loop of its own.
+ */
+export function calledSnapAngle(
+  reduced: boolean,
+  angle: number,
+  at: { x: number; z: number },
+  lens: { x: number; z: number },
+): number {
+  return reduced ? Math.atan2(lens.x - at.x, lens.z - at.z) : angle;
+}
 
 export interface EpheLimbPose {
   footX: number;
@@ -202,6 +430,7 @@ export function writeEpheLimbPose(
   gaitPhase?: number,
   strideAmp = 0.13,
   blend = 1,
+  restBlend = 0,
 ): void {
   const step = Math.max(-1, Math.min(1, stride)) * side;
   out.footX = side * 0.12;
@@ -224,7 +453,11 @@ export function writeEpheLimbPose(
   // A hanging arm ends below the hip, not at it: 0.45 put the hands beside the
   // waistband, where they read as two extra lumps on a snowman.
   out.handY = 0.5;
-  out.handZ = -step * 0.13;
+  // The arm answers the legs, not the clock. With a gait phase in hand the
+  // swing is the cosine the planted foot is peaked against, so the right hand
+  // is back exactly where the right foot is forward; without one (tests, task
+  // poses) it follows the scalar stride as it always did.
+  out.handZ = gaitPhase === undefined ? -step * 0.13 : armSwing(gaitPhase, side) * 0.13 * blend;
   if (gesture === "carry") {
     out.handX = side * 0.25;
     out.handY = 0.74;
@@ -237,15 +470,56 @@ export function writeEpheLimbPose(
     out.handY = 0.86 + Math.sin(gesturePhase) * 0.025;
     out.handZ = 0.19;
   } else if (gesture === "greet" && side === 1) {
-    out.handY = 1.12 + Math.sin(gesturePhase * 1.6) * 0.035;
-    out.handZ = 0.12;
-    out.handX = side * 0.27;
+    // The wave has to clear the skull at EVERY point of its arc. It used to end
+    // at 1.12 — inside the head's own column, moving 1.6 px peak-to-peak — and
+    // round 1 raised the centre to 1.40, which put the hand's *centre* 0.74 px
+    // above the crown line at the small end of the band while the sphere's
+    // bottom edge (1.325) was still below it: the hand overlapped the head
+    // instead of standing clear of it. `WAVE` lifts the whole arc so the hand's
+    // near edge clears the crown by 0.52 px and its centre by 1.33-2.07 px at
+    // 20 px, and it doubles the sideways travel to 3.62 px — 126% of the hand's
+    // own 2.86 px width, which is the ratio at which a moving blob stops
+    // reading as noise and starts reading as intent.
+    out.handY = waveHeight(gesturePhase);
+    out.handZ = WAVE.forward;
+    out.handX = side * (WAVE.centre + waveLateral(gesturePhase));
   } else if (gesture === "point" && side === 1) {
-    out.handY = 1.02;
-    out.handZ = 0.36;
+    // 1.02 was 0.03 BELOW the shoulder, so the guide's arm sagged toward the
+    // ground it was not pointing at; round 1 raised it to 1.18, which is 1.93 px
+    // above the shoulder line at the small end of the band — a level arm, not an
+    // upward one. 1.24 is 2.82 px above it against a 0.40-unit reach, so the
+    // arm leaves the body's front face by 4.79 px at the worst heading and 7.62
+    // px at the best, and it points slightly UP at the tower it names.
+    out.handY = 1.24;
+    out.handZ = 0.4;
     out.handX = side * 0.16;
+  } else if (gesture === "rest") {
+    // §07.12 — standing on one leg, the way a person does when they wait.
+    // A figure that stops walking currently freezes with its feet together and
+    // both arms dead straight down, which is the one posture the city already
+    // shows for "called and attending" — so a pause read as attention, and the
+    // square's waiting figures were indistinguishable from the guide's.
+    //
+    // Weight on the -1 leg: that foot stays under the hip and that knee stays
+    // near straight. The +1 leg steps out and forward, its knee takes the bend,
+    // and the arms answer one another — the hand over the free leg comes
+    // forward, the other falls behind. `restBlend` is the caller's ramp, so the
+    // pose arrives over a quarter-second instead of snapping: at 15-22 px per
+    // unit these offsets are 2-4 px, and a 4 px jump in one frame is the pop
+    // this file exists to prevent.
+    const r = restBlend;
+    if (side === 1) {
+      out.footX = 0.12 + 0.16 * r;
+      out.footZ = 0.12 * r;
+      out.kneeForward = 0.022 + 0.05 * r;
+      out.handZ = 0.1 * r;
+    } else {
+      out.handZ = -0.08 * r;
+    }
+    out.handX = side * (0.28 + 0.04 * r);
   }
 }
+
 /**
  * How many Ephe's this frame actually needs.
  *
@@ -284,6 +558,26 @@ export const BUS_MIN_PLOTS = 12;
  * the planted foot cycle below is calibrated against the same distance.
  */
 const WALK_SPEED = 1.35;
+
+/**
+ * The weight shift, exported so `ephe-readability.test.ts` can hold it to the
+ * pixel floor instead of to an adjective.
+ *
+ * `idleAmp` used to be 0.012 — 0.27 px of travel, under a quarter of the pixel
+ * it would have to move to be seen, so the standing "weight shift" existed only
+ * in the comment. 0.03 is 0.67 px of torso, and with the head carried further
+ * (on a body the sway is a lean over the weight-bearing hip, so the skull
+ * describes the largest arc and the feet none) 1.04 px of head: a fifth of the
+ * 4.9 px skull's own width. `idleRate` went from 0.8 to 0.62 rad/s with it, so
+ * the bigger shift is slower and calmer, not busier — 10.1 s per cycle.
+ * `headGain` is what makes a 7.8 px column worth moving at all.
+ */
+export const SWAY = {
+  idleAmp: 0.03,
+  idleRate: 0.62,
+  walkAmp: 0.028,
+  headGain: 1.55,
+} as const;
 
 const TAXI_SPEED = 6;
 const BUS_SPEED = 5.5;
@@ -343,8 +637,15 @@ function makeEphe(
   net: SidewalkNetwork | null,
   homes: HomeSpot[],
   total: number,
+  /** Work presence: the plot this seat belongs to, per `epheDuty`. Empty when
+   *  the level has no plots, and identical to the old round-robin when no plot
+   *  carries open work — the same scan then seats the same crowd. */
+  seats: readonly number[],
+  /** Wer die drei Arbeiten traegt — aus dem Werk gelesen, nicht aus dem Index. */
+  bearers: RoleBearers,
 ): Ephe {
   const shape = ((i * 61) % 100) / 100;
+  const home = homes.length > 0 ? (seats[i % Math.max(1, seats.length)] ?? i % homes.length) : -1;
   const e: Ephe = {
     x: 0,
     z: 0,
@@ -356,17 +657,29 @@ function makeEphe(
     gait: (i * 1.7) % (Math.PI * 2),
     vel: 0,
     blend: 0,
+    pivotAmp: 1,
     pivot: false,
     color: new THREE.Color(WALKER_COLORS[i % WALKER_COLORS.length]!),
     tx: 0,
     tz: 0,
     pause: 0,
+    restBlend: 0,
     mode: "walk",
-    home: homes.length > 0 ? i % homes.length : -1,
+    home,
+    identity: ephePresenceIdentity(
+      i,
+      homes.map((h) => h.unitId),
+      seats,
+    ),
     anim: 1,
     chatPartner: -1,
     chatUntil: 0,
     greetUntil: 0,
+    guideArrived: false,
+    umsehenSeit: null,
+    isExplorer: i === bearers.explorer,
+    isSecurity: i === bearers.security,
+    isMaintenance: i === bearers.maintenance,
     hidden: false,
     ride: null,
     node: 0,
@@ -473,12 +786,23 @@ export function Pedestrians({
 }) {
   const surface = useWorldSurface();
   const { camera, scene } = useThree();
+  const lang = useStore((s) => s.prefs.lang);
   const selectedResident = useStore((s) => s.selectedResident);
   const selectResident = useStore((s) => s.selectResident);
   const residentCall = useStore((s) => s.residentCall);
   const residentGreet = useStore((s) => s.residentGreet);
   const residentGreeted = useStore((s) => s.residentGreeted);
   const markResidentGreeted = useStore((s) => s.markResidentGreeted);
+  // §04.10 — the two facts that decide who wears the chosen look. Subscribed, so
+  // naming a resident or turning a jacket recolours the crowd in the same frame
+  // rather than on the next scan.
+  const epheLook = useStore((s) => s.epheLook);
+  const residentNames = useStore((s) => s.residentNames);
+  // Work presence (EPHE task #2): which plots still owe a decision. Read-only
+  // through the queue's own exported functions — the store is not touched from
+  // here, and neither is the frame loop: these two feed a render-time memo.
+  const cityData = useStore((s) => s.cityData);
+  const reviews = useStore((s) => s.reviews);
   const residentRingRef = useRef<THREE.InstancedMesh | null>(null);
   const bodyRef = useRef<THREE.InstancedMesh>(null);
   const headRef = useRef<THREE.InstancedMesh>(null);
@@ -490,10 +814,28 @@ export function Pedestrians({
   const cargoRef = useRef<THREE.InstancedMesh>(null);
   const plateRef = useRef<THREE.InstancedMesh>(null);
   const postRef = useRef<THREE.InstancedMesh>(null);
+  /** Follows the Explorer's head while an errand is open (005-B). */
+  const guideRef = useRef<THREE.Group | null>(null);
+  /** The same for the resident that follows the security tour (B11). */
+  const securityRef = useRef<THREE.Group | null>(null);
+  /** And for the resident carrying the maintenance errand (B12). */
+  const maintenanceRef = useRef<THREE.Group | null>(null);
   /** Re-arms whenever motion comes back, so the next reduced period parks the
    *  traffic once rather than every frame. */
   const trafficSettledRef = useRef(false);
   const spriteRefs = useRef<Array<THREE.Sprite | null>>([null, null, null]);
+
+  /**
+   * §07.06 — the route of the resident that was sent somewhere, drawn on the
+   * ground. Written once per errand and never per frame: the stripe is the plan
+   * the reader agreed to, not a progress bar, so it does not creep under them
+   * as the walk proceeds. `routeOwner` says which role the line belongs to,
+   * because three errand effects run for one request and only the owner may
+   * clear it.
+   */
+  const [routePlan, setRoutePlan] = useState<RoutePoint[] | null>(null);
+  const routeOwner = useRef<{ role: EpheRole; bearer: Ephe } | null>(null);
+  const routeMeshRef = useRef<THREE.Mesh | null>(null);
 
   const onGraph = !!network && network.nodes.length > 0;
   const hasStreets = !!streets && streets.length > 0;
@@ -515,8 +857,42 @@ export function Pedestrians({
   /** See {@link BUS_MIN_PLOTS}. */
   const busLine = openWorld || homes.length >= BUS_MIN_PLOTS;
 
+  /**
+   * Work presence: seat → plot, recomputed whenever the queue's verdicts
+   * change. It deliberately does NOT feed the walkers memo's deps: rebuilding
+   * the crowd would teleport every figure, and a resident that decides one
+   * finding must not watch the whole population jump. The crowd re-reads the
+   * seats where it already changes hands anyway — at build, and on the way out
+   * of a doorway (the exit branch in the frame loop), never on a timer.
+   */
+  const presence = useMemo(() => {
+    const plots = plotOpenFindings(
+      homes.map((h) => h.unitId),
+      cityData,
+      reviews,
+    );
+    const seats = presenceSeats(plots, crowd);
+    // The badge follows the work: the security figure is the body seated on the
+    // plot with the most findings still undecided. No open work, no bearer — an
+    // unearned badge would claim a fact the queue does not hold.
+    return { seats, plots, bearers: roleBearers(seats, plots, crowd) };
+  }, [homes, cityData, reviews, crowd]);
+  const presenceRef = useRef(presence);
+  presenceRef.current = presence;
+
   const walkers = useMemo<Ephe[]>(
-    () => Array.from({ length: crowd }, (_, i) => makeEphe(i, bounds, network, homes, crowd)),
+    () =>
+      Array.from({ length: crowd }, (_, i) =>
+        makeEphe(
+          i,
+          bounds,
+          network,
+          homes,
+          crowd,
+          presenceRef.current.seats,
+          presenceRef.current.bearers,
+        ),
+      ),
     [crowd, bounds, network, homes],
   );
 
@@ -553,10 +929,13 @@ export function Pedestrians({
     scene.traverse((o) => {
       if ((o as THREE.Mesh).isMesh) occluders.push(o);
     });
-    let best = -1;
-    let bestScore = Infinity;
     let fallback = -1;
     let fallbackDistance = Infinity;
+    // Every figure that is on screen, unoccluded and walking. Who of them
+    // answers is `pickCallable`'s decision — including the rule that a resident
+    // the reader named answers before the nearest stranger does.
+    const names = useStore.getState().residentNames;
+    const seen: { at: number; score: number; claimed: boolean }[] = [];
     for (let i = 0; i < walkers.length; i++) {
       const e = walkers[i]!;
       if (e.hidden || e.mode !== "walk") continue;
@@ -582,47 +961,16 @@ export function Pedestrians({
       const hit = ray.intersectObjects(occluders, false)[0];
       if (hit && hit.distance < distance - 0.9) continue;
       const score = projected.x * projected.x + (projected.y + 0.25) * (projected.y + 0.25);
-      if (score < bestScore) {
-        bestScore = score;
-        best = i;
-      }
+      seen.push({ at: i, score, claimed: epheKey(e.identity) in names });
     }
-    selectResident(best >= 0 ? best : fallback);
+    const picked = pickCallable(seen) ?? fallback;
+    const e = walkers[picked];
+    selectResident(
+      picked,
+      e ? epheKey(e.identity) : epheKey({ plot: null, seat: picked }),
+      e ? epheRoleOf(e) : null,
+    );
   }, [residentCall, walkers, camera, selectResident]);
-
-  // A called resident leaves the everyday loop, stands and turns to the reader.
-  // Deselect restores a normal stroller; no path or schedule state is lost
-  // because the call is only offered for a resident that was walking.
-  const previousSelected = useRef<number | null>(null);
-  useEffect(() => {
-    const prev = previousSelected.current;
-    if (prev !== null && prev !== selectedResident) {
-      const old = walkers[prev];
-      if (old && old.mode === "called") {
-        old.mode = "walk";
-        old.path = [];
-        old.finalX = null;
-        old.pause = 0;
-        old.look = 0;
-      }
-    }
-    if (selectedResident !== null) {
-      const e = walkers[selectedResident];
-      if (!e || e.hidden || e.mode !== "walk") {
-        selectResident(null);
-      } else {
-        e.mode = "called";
-        e.tx = e.x;
-        e.tz = e.z;
-        e.path = [];
-        e.finalX = null;
-        e.pause = 0;
-        e.vel = 0;
-        e.look = 0;
-      }
-    }
-    previousSelected.current = selectedResident;
-  }, [selectedResident, walkers, selectResident]);
 
   // Builders on the stage at once: most of the population, because the plots
   // that rise in the same second are scattered all over the city.
@@ -729,6 +1077,55 @@ export function Pedestrians({
     textures: null as Array<THREE.CanvasTexture | null> | null,
     time: 0,
   });
+
+  // A called resident leaves the everyday loop, stands and turns to the reader.
+  // Deselect restores a normal stroller; no path or schedule state is lost
+  // because the call is only offered for a resident that was walking.
+  const previousSelected = useRef<number | null>(null);
+  useEffect(() => {
+    const prev = previousSelected.current;
+    if (prev !== null && prev !== selectedResident) {
+      const old = walkers[prev];
+      if (old && old.mode === "called") {
+        old.mode = "walk";
+        old.path = [];
+        old.finalX = null;
+        old.pause = 0;
+        old.look = 0;
+        // The reader stopped looking. An unfinished greeting must not follow
+        // them back into the everyday loop as a resident waving while walking.
+        old.greetUntil = 0;
+      }
+    }
+    if (selectedResident !== null) {
+      const e = walkers[selectedResident];
+      if (!e || e.hidden || e.mode !== "walk") {
+        selectResident(null);
+      } else {
+        e.mode = "called";
+        e.tx = e.x;
+        e.tz = e.z;
+        e.path = [];
+        e.finalX = null;
+        e.pause = 0;
+        e.vel = 0;
+        e.look = 0;
+        // §04.08 — the click is the greeting's trigger, and the hold is its
+        // length: `WAVE_HOLD_S` of wave, then a resident who stands and looks.
+        // Under reduced motion the deadline stays 0 on purpose (see
+        // `calledGesture`): the simulation clock does not run there, so a
+        // greeting started here would never end.
+        if (!prefersReducedMotion()) e.greetUntil = sim.current.time + WAVE_HOLD_S;
+        // ...and because the same freeze holds the loop's turn at 0 rad per
+        // frame, the click sets the azimuth that turn was aiming at here, once.
+        // The reader sees the called resident face the lens without anything
+        // moving; with motion allowed the call returns the angle untouched and
+        // the ramp keeps sole charge of the turn.
+        e.angle = calledSnapAngle(prefersReducedMotion(), e.angle, e, camera.position);
+      }
+    }
+    previousSelected.current = selectedResident;
+  }, [selectedResident, walkers, selectResident, sim]);
   // Fresh walkers hold no claim — a stale index would point at the previous
   // city's figures and leave a site claimed by someone who no longer exists
   if (sim.current.walkers !== walkers) {
@@ -792,8 +1189,8 @@ export function Pedestrians({
     // refreshed by the renderer. Without this the position was current and the
     // projection still pointed along the previous leg of the arrival.
     camera.updateMatrixWorld();
-    let best = -1;
     let bestDistance = Infinity;
+    let best = -1;
     for (let i = 0; i < walkers.length; i++) {
       const e = walkers[i]!;
       if (e.hidden || e.mode !== "walk" || e.greetUntil > sim.current.time) continue;
@@ -880,7 +1277,11 @@ export function Pedestrians({
    * `FIGURE` above for what each number is and why the plan changed.
    */
   const bodyGeo = useMemo(
-    () => new THREE.CapsuleGeometry(FIGURE.bodyR, FIGURE.bodyHalf * 2 - FIGURE.bodyR * 2, 4, 10),
+    () =>
+      new THREE.LatheGeometry(
+        FIGURE.coat.map(([r, y]) => new THREE.Vector2(r, y)),
+        12,
+      ),
     [],
   );
   const headGeo = useMemo(() => new THREE.SphereGeometry(FIGURE.headR, 12, 8), []);
@@ -894,7 +1295,8 @@ export function Pedestrians({
   // hard contact edge and reads as floating; measured as `contactLumaDelta`, the
   // crowd sat at −2.8 to −3.6, i.e. the ground under a figure was BRIGHTER than
   // the ground behind it. Rotated flat here once, so the per-frame write is a
-  // position and a scale.
+  // position and a scale. Its HEIGHT is the part that had to change — see
+  // `CONTACT_PATCH_Y`.
   const shadowGeo = useMemo(() => {
     const g = new THREE.CircleGeometry(0.3, 14);
     g.rotateX(-Math.PI / 2);
@@ -937,10 +1339,22 @@ export function Pedestrians({
   // One ring for the called resident, flat in the ground plane. Instanced like
   // the rest of the HUD-in-world marks: one draw for the whole city, not one.
   const selectionGeo = useMemo(() => {
-    const g = new THREE.RingGeometry(0.4, 0.5, 40);
+    const g = new THREE.RingGeometry(SELECTION_RING.inner, SELECTION_RING.outer, 40);
     g.rotateX(-Math.PI / 2);
     return g;
   }, []);
+  /** §07.06 — one mesh for the whole route, built once per errand and thrown
+   *  away with it. Not instanced: there is never more than one walk on screen
+   *  to trace, and the crowd's instance budget stays where it is pinned. */
+  const routeGeo = useMemo(
+    () => (routePlan ? stripeGeometry(routePlan, surface) : null),
+    [routePlan, surface],
+  );
+  useEffect(() => {
+    return () => {
+      routeGeo?.dispose();
+    };
+  }, [routeGeo]);
   // The street is two geometries and no more: a unit box and a unit cylinder,
   // scaled and coloured per instance. Asphalt, kerb, zebra bars, lane dashes,
   // block pads, both vehicle bodies, the sign board are boxes; the sign post and
@@ -983,29 +1397,41 @@ export function Pedestrians({
       if (m.current) m.current.count = crowd;
     }
     if (eyeRef.current) eyeRef.current.count = crowd * 2;
-    if (limbRef.current) limbRef.current.count = crowd * 10;
+    if (limbRef.current) limbRef.current.count = crowd * LIMB_SLOTS;
     walkers.forEach((e, i) => {
-      mesh.setColorAt(i, e.color);
-      const shellHex = EPHE_PALETTE.shells[i % EPHE_PALETTE.shells.length]!;
-      const trouserHex = EPHE_PALETTE.trousers[i % EPHE_PALETTE.trousers.length]!;
-      headRef.current?.setColorAt(i, scratchColor.set(shellHex));
+      // §04.10 — a resident the reader named wears the look the reader chose;
+      // every other figure keeps the crowd's own column. One colour per instance
+      // is already how the crowd is dressed, so this costs no draw call and no
+      // second renderer — and `epheLook.jacket` is an offered index by
+      // construction (`readEpheLook`), so the pair stays index-aligned.
+      const outfit = lookFor(epheLook, epheKey(e.identity) in residentNames, i);
+      mesh.setColorAt(i, scratchColor.set(outfit.coat));
+      const skinHex = outfit.skin;
+      const trouserHex = outfit.trouser;
+      const hairHex = outfit.hair;
+      // Index-aligned with `jackets`, because the coat and its sleeves are one
+      // garment seen in two lights, and the pairing is the whole edge.
+      const sleeveHex = outfit.sleeve;
+      headRef.current?.setColorAt(i, scratchColor.set(hairHex));
+      faceRef.current?.setColorAt(i, scratchColor.set(skinHex));
       for (let side = 0; side < 2; side++) {
-        // 0-1 boots · 2-3 sleeves · 4-5 hands · 6-7 thighs · 8-9 shins.
-        // Each write sets the scratch colour itself: `scratchColor` is one shared
-        // object, so holding it in a variable across the loop hands whatever was
-        // set last to everything after it — which is how the legs came out the
-        // colour of the hands.
-        limbRef.current?.setColorAt(i * 10 + side, scratchColor.set(EPHE_PALETTE.boots));
-        limbRef.current?.setColorAt(i * 10 + 2 + side, e.color);
-        limbRef.current?.setColorAt(i * 10 + 4 + side, scratchColor.set(shellHex));
-        limbRef.current?.setColorAt(i * 10 + 6 + side, scratchColor.set(trouserHex));
-        limbRef.current?.setColorAt(i * 10 + 8 + side, scratchColor.set(trouserHex));
+        // 0-1 boots · 2-3 sleeves · 4-5 hands · 6-7 thighs · 8-9 shins ·
+        // 10 the hair cap. Each write sets the scratch colour itself:
+        // `scratchColor` is one shared object, so holding it in a variable
+        // across the loop hands whatever was set last to everything after it —
+        // which is how the legs came out the colour of the hands.
+        limbRef.current?.setColorAt(i * LIMB_SLOTS + side, scratchColor.set(EPHE_PALETTE.boots));
+        limbRef.current?.setColorAt(i * LIMB_SLOTS + 2 + side, scratchColor.set(sleeveHex));
+        limbRef.current?.setColorAt(i * LIMB_SLOTS + 4 + side, scratchColor.set(skinHex));
+        limbRef.current?.setColorAt(i * LIMB_SLOTS + 6 + side, scratchColor.set(trouserHex));
+        limbRef.current?.setColorAt(i * LIMB_SLOTS + 8 + side, scratchColor.set(trouserHex));
       }
+      limbRef.current?.setColorAt(i * LIMB_SLOTS + LIMB.cap, scratchColor.set(hairHex));
     });
-    for (const ref of [bodyRef, headRef, limbRef]) {
+    for (const ref of [bodyRef, headRef, faceRef, limbRef]) {
       if (ref.current?.instanceColor) ref.current.instanceColor.needsUpdate = true;
     }
-  }, [walkers, crowd, scratchColor]);
+  }, [walkers, crowd, scratchColor, epheLook, residentNames]);
 
   // Hats and carried blocks start collapsed (scale 0) so nothing pokes out of
   // the ground before the first frame positions them; every walker gets the
@@ -1368,6 +1794,124 @@ export function Pedestrians({
     e.finalX = null;
   };
 
+  /** The three residents that carry work: the Explorer the reader sends, the
+   *  Security figure that follows the tour, and the Maintenance figure asked
+   *  about a building's complexity. */
+  const { explorer, security, maintenance } = presence.bearers;
+  const guide = useStore((s) => s.guide);
+  const cancelGuide = useStore((s) => s.cancelGuide);
+
+  /**
+   * 005-B — hand an errand to one resident, and take it back when it ends. The
+   * walk itself happens in the frame loop; this only sets the target, because an
+   * errand arrives as a store write (from the dossier, or from a tour step), not
+   * as a per-frame decision. `last` keeps it to one attempt per request: the
+   * component re-renders for many reasons, and re-checking the figure each time
+   * would let a passing bus or build site cancel a guide already on its way. A
+   * figure that cannot take the errand at all — in a vehicle, inside a building,
+   * mid-rise — is refused here rather than teleported.
+   */
+  const assignErrand = (
+    role: EpheRole,
+    e: Ephe | undefined,
+    wanted: GuideRequest | null,
+    last: { current: GuideRequest | null },
+  ): void => {
+    // §07.06 — the line belongs to this errand and to no other: taking the
+    // errand back — refused, cancelled, handed a new crowd — takes the line
+    // back with it. `role` guards it because three effects run for one request
+    // and only the one that owns the line may clear it.
+    const forget = (): void => {
+      if (routeOwner.current?.role !== role) return;
+      routeOwner.current = null;
+      setRoutePlan(null);
+    };
+    if (!e) {
+      // A crowd too small to carry this role, or a role this city does not
+      // staff: the errand is taken back, not left claimed by nobody. Without
+      // this the dossier would go on saying "walking" to a figure that never
+      // moved.
+      last.current = wanted ?? null;
+      forget();
+      if (wanted) cancelGuide();
+      return;
+    }
+    if (!wanted) {
+      last.current = null;
+      forget();
+      if (e.mode === "guide") {
+        e.mode = "walk";
+        e.guideArrived = false;
+        resumeWalk(e);
+      }
+      return;
+    }
+    if (last.current === wanted) return;
+    const busy =
+      e.hidden ||
+      e.mode === "inside" ||
+      e.mode === "enter" ||
+      e.mode === "exit" ||
+      e.mode === "inTaxi" ||
+      e.mode === "boarding" ||
+      e.mode === "waitBus" ||
+      e.mode === "toTaxi" ||
+      e.mode === "toSite" ||
+      e.mode === "work";
+    last.current = wanted;
+    if (busy) {
+      forget();
+      cancelGuide();
+      return;
+    }
+    e.mode = "guide";
+    e.guideArrived = false;
+    e.pause = 0;
+    routeTo(e, wanted.x, wanted.z);
+    // §07.06 — the plan the figure now holds, drawn once: its own feet, every
+    // kerb node still to come, the door at the end. `walkToward` runs each of
+    // those as a straight leg, so the stripe cannot promise a route the body
+    // does not take.
+    routeOwner.current = { role, bearer: e };
+    setRoutePlan(planPolyline(e.x, e.z, e.path, network?.nodes ?? [], e.finalX, e.finalZ));
+  };
+
+  const lastExplorer = useRef<GuideRequest | null>(null);
+  const lastSecurity = useRef<GuideRequest | null>(null);
+  const lastMaintenance = useRef<GuideRequest | null>(null);
+  // A rebuilt crowd is a rebuilt world: the sent figure is a new object with no
+  // plan, so a line carried over from the previous crowd would describe a walk
+  // nobody is taking. Cleared before the three effects below, which cannot
+  // bring it back — an errand already claimed returns without re-reading it.
+  useEffect(() => {
+    routeOwner.current = null;
+    setRoutePlan(null);
+  }, [walkers]);
+  useEffect(() => {
+    assignErrand(
+      "explorer",
+      explorer === null ? undefined : walkers[explorer],
+      guide?.role === "explorer" ? guide : null,
+      lastExplorer,
+    );
+  }, [guide, explorer, walkers]);
+  useEffect(() => {
+    assignErrand(
+      "security",
+      security === null ? undefined : walkers[security],
+      guide?.role === "security" ? guide : null,
+      lastSecurity,
+    );
+  }, [guide, security, walkers]);
+  useEffect(() => {
+    assignErrand(
+      "maintenance",
+      maintenance === null ? undefined : walkers[maintenance],
+      guide?.role === "maintenance" ? guide : null,
+      lastMaintenance,
+    );
+  }, [guide, maintenance, walkers]);
+
   const randomVisibleWalker = (pred: (e: Ephe) => boolean): number => {
     const start = Math.floor(Math.random() * walkers.length);
     for (let k = 0; k < walkers.length; k++) {
@@ -1386,8 +1930,8 @@ export function Pedestrians({
    * kerb just never filled.
    */
   const nearestWalker = (x: number, z: number, pred: (e: Ephe) => boolean): number => {
-    let best = -1;
     let bestD = Infinity;
+    let best = -1;
     for (let i = 0; i < walkers.length; i++) {
       const e = walkers[i]!;
       if (!pred(e) || e.hidden) continue;
@@ -1494,7 +2038,18 @@ export function Pedestrians({
       S.tEnter -= dt;
       if (S.tEnter <= 0) {
         S.tEnter = 4.5 + Math.random() * 4;
-        const i = randomVisibleWalker((e) => e.mode === "walk" && e.pause <= 0);
+        // A figure that has just stepped into a doorway is not available as a
+        // guide for the next four seconds, and the reader who asked got told
+        // "no free Maintenance Ephe" — so the three role figures stay on the
+        // street, the same way they stay out of a taxi and off a build site.
+        // A NAMED resident stays out too: measured after a reload, fourteen
+        // presses of `C` never reached the one the reader had claimed, because
+        // it had walked into its own building and the caller only picks bodies
+        // it can see. A resident somebody called Atlas is not scenery.
+        const claimed = useStore.getState().residentNames;
+        const i = randomVisibleWalker(
+          (e) => e.mode === "walk" && e.pause <= 0 && !onDuty(e, epheKey(e.identity) in claimed),
+        );
         if (i >= 0) {
           const e = walkers[i]!;
           const h = homes[e.home % homes.length]!;
@@ -1665,7 +2220,11 @@ export function Pedestrians({
             taxi.phase = taxi.phase === 0 ? 1 : 0; // alternate pickup / dropoff
             if (taxi.phase === 1) {
               const i = randomVisibleWalker(
-                (e) => e.mode === "walk" && e.pause <= 0 && e.chatPartner < 0,
+                (e) =>
+                  e.mode === "walk" &&
+                  e.pause <= 0 &&
+                  e.chatPartner < 0 &&
+                  !onDuty(e, epheKey(e.identity) in useStore.getState().residentNames),
               );
               if (i >= 0) {
                 const e = walkers[i]!;
@@ -1891,7 +2450,11 @@ export function Pedestrians({
           const i = nearestWalker(
             st.stopPoint.x,
             st.stopPoint.z,
-            (e) => e.mode === "walk" && e.pause <= 0 && e.chatPartner < 0,
+            (e) =>
+              e.mode === "walk" &&
+              e.pause <= 0 &&
+              e.chatPartner < 0 &&
+              !onDuty(e, epheKey(e.identity) in useStore.getState().residentNames),
           );
           if (i < 0) break;
           const e = walkers[i]!;
@@ -1931,10 +2494,17 @@ export function Pedestrians({
         for (let b = 0; b < walkers.length && S.build.claimed.size < CREW_SIZE; b++) {
           const w = walkers[b]!;
           // A figure standing at a plot is exactly the one to use, so a paused
-          // walk is not a reason to skip it — only a chat or a ride is.
-          if (w.mode !== "walk" || w.chatPartner >= 0 || w.hidden) continue;
-          let best = -1;
+          // walk is not a reason to skip it — only a chat or a ride is. And the
+          // three role figures are never the crew: each one is somebody's guide.
+          if (
+            w.mode !== "walk" ||
+            w.chatPartner >= 0 ||
+            w.hidden ||
+            onDuty(w, epheKey(w.identity) in useStore.getState().residentNames)
+          )
+            continue;
           let bestD = Infinity;
+          let best = -1;
           for (let i = 0; i < sites.length; i++) {
             if (S.build.claimed.has(i) || S.build.settled.has(i)) continue;
             const s = sites[i]!;
@@ -2007,6 +2577,30 @@ export function Pedestrians({
       }
     }
 
+    /** A limb is a stretched sphere between two joints, so the leg and the arm
+     *  share one helper: mid-point, direction, half-length. Hoisted out of the
+     *  per-figure loop: it closes over nothing that changes, and declaring it
+     *  inside cost one fresh closure per figure per frame — 72 of them, 4320 a
+     *  second, all of it garbage for the sake of a helper that never varies. */
+    const writeBone = (
+      slot: number,
+      ax: number,
+      ay: number,
+      az: number,
+      bx: number,
+      by: number,
+      bz: number,
+      radius: number,
+    ) => {
+      dummy.position.set((ax + bx) / 2, (ay + by) / 2, (az + bz) / 2);
+      armDirection.set(bx - ax, by - ay, bz - az);
+      const length = armDirection.length();
+      dummy.quaternion.setFromUnitVectors(armUp, armDirection.normalize());
+      dummy.scale.set(radius, length / 2, radius);
+      dummy.updateMatrix();
+      limbRef.current?.setMatrixAt(slot, surfaceMatrix(surface, dummy.matrix));
+    };
+
     // ── walkers ────────────────────────────────────────────────────────────
     walkers.forEach((e, i) => {
       const previousX = e.x;
@@ -2053,6 +2647,61 @@ export function Pedestrians({
         e.angle += Math.max(-4 * dt, Math.min(4 * dt, diff));
         e.vel = ramp(e.vel, 0, ACCEL, dt);
         e.look = 0;
+      } else if (e.mode === "guide") {
+        // 005-B: the Explorer is on the errand the reader gave it. It walks the
+        // sidewalk graph to the target building's own plot point, stops inside
+        // it, and turns to face what it was sent to — the same body turn the
+        // called resident already uses, so no second animation is invented.
+        const g = useStore.getState().guide;
+        if (!g) {
+          e.mode = "walk";
+          e.guideArrived = false;
+          resumeWalk(e);
+        } else if (!e.guideArrived) {
+          if (planStep(e, dt) && Math.hypot(e.x - g.x, e.z - g.z) < 1.6) {
+            e.guideArrived = true;
+            e.tx = e.x;
+            e.tz = e.z;
+            e.finalX = null;
+            e.path = [];
+          }
+        } else {
+          const want = Math.atan2(g.x - e.x, g.z - e.z);
+          let diff = want - e.angle;
+          while (diff > Math.PI) diff -= Math.PI * 2;
+          while (diff < -Math.PI) diff += Math.PI * 2;
+          // §07.11 — arrival is not a full stop. Once the target is in front of
+          // it, the guide takes in the block: one sweep of the shoulders, the
+          // visor leading as it does in every corner, home again after
+          // `UMSEHEN.dauer`. Driven by simulation time, so a stopped clock is a
+          // figure that never left its target (`umsehenBogen(0)` is 0), and the
+          // panel's sentence keeps its old moment: it waits for the first face
+          // toward the target, which is the frame the sweep starts in.
+          if (e.umsehenSeit !== null && (now - e.umsehenSeit) / UMSEHEN.dauer >= 1)
+            e.umsehenSeit = null;
+          if (e.umsehenSeit === null && Math.abs(diff) < 0.14) e.umsehenSeit = now;
+          const kehr = umsehenBogen(
+            e.umsehenSeit === null ? 0 : (now - e.umsehenSeit) / UMSEHEN.dauer,
+          );
+          let dreh = want + kehr - e.angle;
+          while (dreh > Math.PI) dreh -= Math.PI * 2;
+          while (dreh < -Math.PI) dreh += Math.PI * 2;
+          e.angle += Math.max(-4 * dt, Math.min(4 * dt, dreh));
+          e.look = ramp(
+            e.look,
+            Math.abs(dreh) > 0.04 ? Math.max(-0.6, Math.min(0.6, dreh)) : 0,
+            5,
+            dt,
+          );
+          e.vel = ramp(e.vel, 0, ACCEL, dt);
+          // Reported once, and only once the turn is essentially done: the
+          // panel waits for this before it says anything, so an explanation
+          // never arrives while the figure is still walking.
+          if (Math.abs(diff) < 0.14) {
+            const st = useStore.getState();
+            if (st.guidePhase !== "arrived") st.setGuidePhase("arrived");
+          }
+        }
       } else if (e.mode === "enter") {
         if (planStep(e, dt)) {
           e.anim -= dt * 1.5;
@@ -2133,6 +2782,16 @@ export function Pedestrians({
       const turning = !moving && e.pivot && e.mode === "walk";
       if (turning) e.gait += dt * 7;
       e.blend = strideBlend(e.blend, moving || turning, dt);
+      // Ramped, not switched: a figure that stops to pivot arrives with `blend`
+      // already at 1, so dropping the step to 40% in one frame would move the
+      // planted foot 3.8 px in an instant — the exact pop this whole file is
+      // about. Same 4-per-second rate the stride itself uses.
+      e.pivotAmp = ramp(e.pivotAmp, turning ? PIVOT_STRIDE : 1, STRIDE_RAMP, dt);
+      // §07.12 — the rest pose arrives and leaves on the same ramp the stride
+      // uses, and only for a walker that is standing: a figure that is greeting,
+      // working, chatting, pointing or being called keeps its own posture.
+      const resting = RUHE_AN && e.mode === "walk" && !moving && !turning && e.pause > 0;
+      e.restBlend = ramp(e.restBlend, resting ? 1 : 0, STRIDE_RAMP, dt);
       const stride = moving
         ? Math.sin(e.gait) * e.blend
         : turning
@@ -2157,14 +2816,17 @@ export function Pedestrians({
       // A walk is a weight shifting from one foot to the other, not a body
       // gliding above them. The stance foot stays planted; the hips, chest,
       // head and arms lean a little over it. Waiting figures keep a smaller,
-      // slower version of the same shift so the square does not freeze.
+      // slower version of the same shift so the square does not freeze — the
+      // numbers and why they had to grow are on `SWAY`.
       const forwardX = Math.sin(e.angle);
       const forwardZ = Math.cos(e.angle);
       const sway = moving
-        ? Math.sin(e.gait) * 0.022 * e.blend
-        : Math.sin(now * 0.8 + e.phase) * 0.012;
+        ? Math.sin(e.gait) * SWAY.walkAmp * e.blend
+        : Math.sin(now * SWAY.idleRate + e.phase) * SWAY.idleAmp;
       const swayX = forwardZ * sway;
       const swayZ = -forwardX * sway;
+      const headSwayX = swayX * SWAY.headGain;
+      const headSwayZ = swayZ * SWAY.headGain;
       // Personal space is a drawing offset: the path, crosswalk and door
       // contracts still read e.x/e.z. Everything the viewer sees moves.
       const renderX = e.x + e.px;
@@ -2193,79 +2855,118 @@ export function Pedestrians({
       // shoulders. One damped width factor, used by head, face and eyes alike.
       const headW = (1 + (e.fat - 1) * 0.25) * grow * visibleScale;
       const headY = y + (FIGURE.headY - FIGURE.bodyY) * e.tall * grow;
-      dummy.position.set(renderX + swayX, headY, renderZ + swayZ);
+      dummy.position.set(renderX + headSwayX, headY, renderZ + headSwayZ);
       dummy.scale.set(headW, e.tall * grow * visibleScale, headW);
       dummy.updateMatrix();
       heads.setMatrixAt(i, surfaceMatrix(surface, dummy.matrix));
 
-      // Ceramic heads, an ink visor and two pearl eyes carry the facing direction.
-      // Limbs reuse a single instanced sphere mesh for boots, thighs, shins,
-      // sleeves and hands.
+      // The Explorer's badge rides above that figure's head. It is DOM, not a
+      // mesh, on purpose: the crowd is drawn in eleven instanced passes and a
+      // role that added a twelfth would pay a draw call for one figure.
+      if (i === security && securityRef.current) {
+        securityRef.current.position.set(
+          renderX + headSwayX,
+          headY + FIGURE.capY * e.tall * grow + FIGURE.capUp * 2.4,
+          renderZ + headSwayZ,
+        );
+      }
+      if (i === maintenance && maintenanceRef.current) {
+        maintenanceRef.current.position.set(
+          renderX + headSwayX,
+          headY + FIGURE.capY * e.tall * grow + FIGURE.capUp * 2.4,
+          renderZ + headSwayZ,
+        );
+      }
+      if (i === explorer && guideRef.current) {
+        // Above the hair cap, which tops out at headY + capY + capUp — the
+        // badge must not sit on the figure's own head.
+        guideRef.current.position.set(
+          renderX + headSwayX,
+          headY + FIGURE.capY * e.tall * grow + FIGURE.capUp * 2.4,
+          renderZ + headSwayZ,
+        );
+      }
+
+      // A dark hair mass, a light face band and two ink marks carry the facing
+      // direction. Limbs reuse a single instanced sphere mesh for boots, thighs,
+      // shins, sleeves, hands and the hair cap.
       const width = e.fat * grow * visibleScale;
       const strideAmp = strideAmplitude(e.tall, width);
-      // The visor leads a corner; standing figures glance around instead of
-      // staring down the same axis for as long as the page is open.
+      // The face leads a corner; standing figures glance around instead of
+      // staring down the same axis for as long as the page is open. The idle
+      // term used to be ±0.12 rad, which moves the face band 0.19 px at the
+      // small end of the size band — under a fifth of the pixel it would have
+      // to cross to read as a glance. ±0.30 rad is 1.08 px, which is 22% of the
+      // skull's own width, and it is still a glance and not a stare.
       const look =
-        e.mode === "chat"
-          ? 0
-          : e.look * 0.6 + (!moving ? Math.sin(now * 0.35 + e.phase) * 0.12 : 0);
+        e.mode === "chat" ? 0 : e.look * 0.6 + (!moving ? Math.sin(now * 0.35 + e.phase) * 0.3 : 0);
       const faceAngle = e.angle + look;
       const faceForwardX = Math.sin(faceAngle);
       const faceForwardZ = Math.cos(faceAngle);
       dummy.rotation.set(0, faceAngle, 0);
-      // The visor sits ON the head: the head is 0.15 across, so the face band
-      // goes at 0.11 in front of the centre, not at 0.2 where it floated off the
-      // skull as soon as the head stopped being a melon.
+      // The face sits ON the skull, at 0.745 of its radius in front of the
+      // centre — 0.082 on the old 0.22 head, 0.0954 on the 0.256 one — so it
+      // stays a patch on a head rather than a balloon off it. It hangs BELOW the
+      // skull's centre by `faceY`, which puts the hairline at 37% of the head's
+      // height and the skin at 63%, the split the reference image measures, and
+      // takes the band from 1.63 px tall to 3.07 px at the small end of the
+      // band. Its width is 69% of the skull's, against the reference's 66%.
       dummy.position.set(
-        renderX + swayX + faceForwardX * 0.082 * headW,
-        headY,
-        renderZ + swayZ + faceForwardZ * 0.082 * headW,
+        renderX + headSwayX + faceForwardX * FIGURE.faceAt * headW,
+        headY + FIGURE.faceY * vScale,
+        renderZ + headSwayZ + faceForwardZ * FIGURE.faceAt * headW,
       );
-      dummy.scale.set(0.085 * headW, 0.055 * vScale, 0.03 * headW);
+      dummy.scale.set(FIGURE.faceR * headW, FIGURE.faceUp * vScale, FIGURE.faceDip * headW);
       dummy.updateMatrix();
       faceRef.current?.setMatrixAt(i, surfaceMatrix(surface, dummy.matrix));
+      // The cap. It is placed FORWARD of the face band's own surface, so the
+      // hairline is an occlusion edge — dark in front of light — instead of the
+      // shading gradient the band's top edge used to be. Its radius is 0.017
+      // units past the skull's, which is 0.32 px of brim on each side at the
+      // small end, and it sits under the crown so the figure's 1.35 contract
+      // holds. It rides in the crowd's existing limb pass (slot 10) because a
+      // new instanced mesh here is a new draw call for the whole city.
+      dummy.position.set(
+        renderX + headSwayX + faceForwardX * FIGURE.capAt * headW,
+        headY + FIGURE.capY * vScale,
+        renderZ + headSwayZ + faceForwardZ * FIGURE.capAt * headW,
+      );
+      dummy.scale.set(FIGURE.capR * headW, FIGURE.capUp * vScale, FIGURE.capDip * headW);
+      dummy.updateMatrix();
+      limbRef.current?.setMatrixAt(i * LIMB_SLOTS + LIMB.cap, surfaceMatrix(surface, dummy.matrix));
       const gesture: EpheGesture =
-        e.mode === "called"
-          ? livePoint
+        e.mode === "guide"
+          ? e.guideArrived
             ? "point"
-            : "greet"
-          : e.greetUntil > now
-            ? "greet"
-            : e.mode === "chat"
-              ? "chat"
-              : e.mode === "work"
-                ? "lift"
-                : e.mode === "toSite"
-                  ? "carry"
-                  : "idle";
-      /** A limb is a stretched sphere between two joints, so the leg and the arm
-       *  share one helper: mid-point, direction, half-length. */
-      const writeBone = (
-        slot: number,
-        ax: number,
-        ay: number,
-        az: number,
-        bx: number,
-        by: number,
-        bz: number,
-        radius: number,
-      ) => {
-        dummy.position.set((ax + bx) / 2, (ay + by) / 2, (az + bz) / 2);
-        armDirection.set(bx - ax, by - ay, bz - az);
-        const length = armDirection.length();
-        dummy.quaternion.setFromUnitVectors(armUp, armDirection.normalize());
-        dummy.scale.set(radius, length / 2, radius);
-        dummy.updateMatrix();
-        limbRef.current?.setMatrixAt(slot, surfaceMatrix(surface, dummy.matrix));
-      };
+            : "idle"
+          : e.mode === "called"
+            ? calledGesture(livePoint !== null, e.greetUntil, now)
+            : e.greetUntil > now
+              ? "greet"
+              : e.mode === "chat"
+                ? "chat"
+                : e.mode === "work"
+                  ? "lift"
+                  : e.mode === "toSite"
+                    ? "carry"
+                    : resting
+                      ? "rest"
+                      : "idle";
+      // Eleven limb instances per figure: 0-1 boots, 2-3 sleeves, 4-5 hands,
+      // 6-7 thighs, 8-9 shins, 10 the hair cap — all written from one pose
+      // call, all drawn in the crowd's single limb pass.
       for (let side = 0; side < 2; side++) {
         const lateral = side === 0 ? -1 : 1;
         dummy.position.set(
-          renderX + swayX + (faceForwardX * 0.098 + faceForwardZ * lateral * 0.038) * headW,
-          headY + 0.02 * vScale,
-          renderZ + swayZ + (faceForwardZ * 0.098 - faceForwardX * lateral * 0.038) * headW,
+          renderX +
+            headSwayX +
+            (faceForwardX * FIGURE.eyeAt + faceForwardZ * lateral * FIGURE.eyeSide) * headW,
+          headY + FIGURE.eyeY * vScale,
+          renderZ +
+            headSwayZ +
+            (faceForwardZ * FIGURE.eyeAt - faceForwardX * lateral * FIGURE.eyeSide) * headW,
         );
-        // Pearl eyes at 0.7 of their old size: on a 0.15 head two full-size
+        // Ink marks at 0.7 of their old size: on a head this size two full-size
         // spheres read as googly eyes rather than a face.
         dummy.scale.setScalar(vScale * 0.5);
         dummy.updateMatrix();
@@ -2278,7 +2979,10 @@ export function Pedestrians({
           now * 2.8 + e.phase,
           e.gait,
           strideAmp,
-          e.blend,
+          // The pivot's shorter step rides in on the same ease the start and
+          // stop use, so a figure adjusting its footing never snaps.
+          e.blend * e.pivotAmp,
+          e.restBlend,
         );
         if (gesture === "idle") limbPose.handZ *= e.armStyle;
         const footX = renderX + (forwardZ * limbPose.footX + forwardX * limbPose.footZ) * width;
@@ -2288,7 +2992,7 @@ export function Pedestrians({
         dummy.scale.set(0.1 * width, 0.075 * vScale, 0.17 * width);
         dummy.position.set(footX, footYw, footZ);
         dummy.updateMatrix();
-        limbRef.current?.setMatrixAt(i * 10 + side, surfaceMatrix(surface, dummy.matrix));
+        limbRef.current?.setMatrixAt(i * LIMB_SLOTS + side, surfaceMatrix(surface, dummy.matrix));
 
         // The leg: hip → knee → ankle. The knee holds its own height and leads
         // the hip→ankle line to the side that is striding, which is what turns
@@ -2301,8 +3005,21 @@ export function Pedestrians({
         const kneeY = FIGURE.kneeY * vScale;
         const kneeZ = (hipZ + footZ) / 2 + forwardZ * kneeLead;
         const ankleYw = footYw + 0.055 * vScale;
-        writeBone(i * 10 + 6 + side, hipX, hipYw, hipZ, kneeX, kneeY, kneeZ, 0.085 * width);
-        writeBone(i * 10 + 8 + side, kneeX, kneeY, kneeZ, footX, ankleYw, footZ, 0.07 * width);
+        // The thigh is 0.075, not 0.085: with the hip joint pulled in to 0.062
+        // that puts the leg's outer edge 0.137 from the centre line against the
+        // coat's 0.185 hem, which is the 0.91 px waist ledge the hem needs. At
+        // 0.085 the legs reached 0.170 and the coat had no flank at all.
+        writeBone(i * LIMB_SLOTS + 6 + side, hipX, hipYw, hipZ, kneeX, kneeY, kneeZ, 0.075 * width);
+        writeBone(
+          i * LIMB_SLOTS + 8 + side,
+          kneeX,
+          kneeY,
+          kneeZ,
+          footX,
+          ankleYw,
+          footZ,
+          0.07 * width,
+        );
 
         const handX =
           renderX + swayX + (forwardZ * limbPose.handX + forwardX * limbPose.handZ) * width;
@@ -2313,7 +3030,7 @@ export function Pedestrians({
         const shoulderY = y + FIGURE.shoulderY * vScale;
         const shoulderZ = renderZ + swayZ - forwardX * lateral * FIGURE.shoulderWidth * width;
         writeBone(
-          i * 10 + 2 + side,
+          i * LIMB_SLOTS + 2 + side,
           shoulderX,
           shoulderY,
           shoulderZ,
@@ -2326,14 +3043,19 @@ export function Pedestrians({
         dummy.position.set(handX, handY, handZ);
         dummy.scale.set(0.075 * width, 0.075 * vScale, 0.075 * width);
         dummy.updateMatrix();
-        limbRef.current?.setMatrixAt(i * 10 + 4 + side, surfaceMatrix(surface, dummy.matrix));
+        limbRef.current?.setMatrixAt(
+          i * LIMB_SLOTS + 4 + side,
+          surfaceMatrix(surface, dummy.matrix),
+        );
       }
 
       if (shadows) {
-        // The contact patch, flat on the ground under the figure's own feet.
+        // The contact patch, flat on the ground under the figure's own feet. It
+        // follows the feet, not the sway: a weight shift does not move where a
+        // body touches down.
         const reach = visibleScale > 0 ? 0.95 * width : 0;
         dummy.rotation.set(0, 0, 0);
-        dummy.position.set(renderX, 0.016, renderZ);
+        dummy.position.set(renderX, CONTACT_PATCH_Y, renderZ);
         dummy.scale.set(reach, reach, 1);
         dummy.updateMatrix();
         shadows.setMatrixAt(i, surfaceMatrix(surface, dummy.matrix));
@@ -2342,7 +3064,7 @@ export function Pedestrians({
       if (hats) {
         // only builders wear the hat; everyone else collapses to scale 0
         const builder = (e.mode === "work" || e.mode === "toSite") && visibleScale > 0;
-        dummy.position.set(renderX + swayX, headY + 0.1 * vScale, renderZ + swayZ);
+        dummy.position.set(renderX + headSwayX, headY + 0.1 * vScale, renderZ + headSwayZ);
         dummy.rotation.set(0, 0, 0);
         dummy.scale.set(builder ? width : 0, builder ? vScale : 0, builder ? width : 0);
         dummy.updateMatrix();
@@ -2417,6 +3139,16 @@ export function Pedestrians({
       }
     }
 
+    // §07.06 — the stripe lives exactly as long as the walk it describes.
+    // Arrival is the end of the plan, so the line goes with it instead of
+    // staying on the pavement to claim a route nobody is walking any more. The
+    // geometry itself is not touched here: this is one boolean per frame.
+    const route = routeMeshRef.current;
+    if (route) {
+      const bearer = routeOwner.current?.bearer;
+      route.visible = !!bearer && bearer.mode === "guide" && !bearer.guideArrived && !bearer.hidden;
+    }
+
     // the sign and the two vehicles, written from their poses every frame so a
     // still frame (dt = 0) is still a complete frame
     placeTraffic();
@@ -2434,7 +3166,7 @@ export function Pedestrians({
           const e = walkers[id];
           if (!e || e.hidden || e.mode !== "walk") return;
           event.stopPropagation();
-          selectResident(id);
+          selectResident(id, epheKey(e.identity), epheRoleOf(e));
         }}
       >
         <meshStandardMaterial roughness={0.85} metalness={0.02} />
@@ -2442,14 +3174,20 @@ export function Pedestrians({
       <instancedMesh ref={headRef} args={[headGeo, undefined, count]} frustumCulled={false}>
         <meshStandardMaterial roughness={0.78} />
       </instancedMesh>
-
       <instancedMesh ref={faceRef} args={[faceGeo, undefined, count]} frustumCulled={false}>
-        <meshStandardMaterial color={EPHE_PALETTE.visor} roughness={0.75} />
+        {/* White base, per-instance skin: the face is the light patch on a dark
+            skull now, and each resident keeps their own skin tone the same way
+            they keep their own coat. */}
+        <meshStandardMaterial roughness={0.72} />
       </instancedMesh>
       <instancedMesh ref={eyeRef} args={[eyeGeo, undefined, count * 2]} frustumCulled={false}>
         <meshBasicMaterial color={EPHE_PALETTE.eyes} />
       </instancedMesh>
-      <instancedMesh ref={limbRef} args={[limbGeo, undefined, count * 10]} frustumCulled={false}>
+      <instancedMesh
+        ref={limbRef}
+        args={[limbGeo, undefined, count * LIMB_SLOTS]}
+        frustumCulled={false}
+      >
         <meshStandardMaterial roughness={0.9} />
       </instancedMesh>
       {/* The contact patch under every figure: one flat disc, no light of its
@@ -2467,7 +3205,6 @@ export function Pedestrians({
           depthWrite={false}
         />
       </instancedMesh>
-
       {/* One gold ring marks the resident the reader called. Not a second body:
           one mesh, no per-figure label, no new permanent surface. */}
       <instancedMesh
@@ -2486,14 +3223,28 @@ export function Pedestrians({
           side={THREE.DoubleSide}
         />
       </instancedMesh>
-
-      {/* Builder hats — only in the scene while build sites are scheduled */}
+      {/* §07.06 — the route of the resident the reader sent, painted on the
+          kerb it walks. Ink, not a new hue: `arcCasing` is the one colour in
+          the world already measured to hold ≥ 3.1:1 against every surface a
+          ground line can cross (plot 13.4, ground 12.6, crosswalk 8.4, kerb
+          6.6, asphalt 3.1). One mesh, no new instance budget. */}
+      {routeGeo && (
+        <mesh ref={routeMeshRef} geometry={routeGeo} renderOrder={9} frustumCulled={false}>
+          <meshBasicMaterial
+            color={ENV.arcCasing}
+            transparent
+            opacity={0.9}
+            depthWrite={false}
+            side={THREE.DoubleSide}
+          />
+        </mesh>
+      )}
+      {/* Builder hats — only in the scene while build sites are scheduled */}{" "}
       {buildSites && (
         <instancedMesh ref={hatRef} args={[hatGeo, undefined, count]} frustumCulled={false}>
           <meshStandardMaterial roughness={0.5} />
         </instancedMesh>
       )}
-
       {/* The blocks in their hands — one per builder, tinted by the language
           the unit it is placing is written in */}
       {buildSites && (
@@ -2501,7 +3252,6 @@ export function Pedestrians({
           <meshStandardMaterial roughness={0.75} metalness={0.05} />
         </instancedMesh>
       )}
-
       {/* The street and its traffic: two instanced meshes, one unit box and one
           unit cylinder, scaled and coloured per instance. Everything flat lives
           in the box mesh (asphalt, kerb, zebra bars, lane dashes, block pads,
@@ -2520,7 +3270,55 @@ export function Pedestrians({
       <instancedMesh ref={postRef} args={[postGeo, undefined, postInstances]} frustumCulled={false}>
         <meshStandardMaterial color="#ffffff" roughness={0.9} metalness={0.05} />
       </instancedMesh>
-
+      {/* 005-B — the Explorer's badge, and only while it is on an errand. A
+          role the reader cannot see doing anything is decoration, so the mark
+          appears with the task and goes when the task does. */}
+      {guide?.role === "maintenance" && maintenance !== null && (
+        <group ref={maintenanceRef}>
+          <Html center zIndexRange={[9, 0]}>
+            <div
+              className="cf-guide-badge cf-guide-badge-maintenance"
+              role="img"
+              aria-label={t(lang, "guide.maintenanceBadge")}
+              title={t(lang, "guide.maintenanceBadge")}
+            >
+              {ROLE_GLYPH.maintenance}
+            </div>
+          </Html>
+        </group>
+      )}
+      {guide?.role === "security" && security !== null && (
+        <group ref={securityRef}>
+          <Html center zIndexRange={[9, 0]}>
+            <div
+              className="cf-guide-badge cf-guide-badge-security"
+              role="img"
+              aria-label={t(lang, "guide.securityBadge")}
+              title={t(lang, "guide.securityBadge")}
+            >
+              {ROLE_GLYPH.security}
+            </div>
+          </Html>
+        </group>
+      )}
+      {guide?.role === "explorer" && explorer !== null && (
+        <group ref={guideRef}>
+          <Html center zIndexRange={[9, 0]}>
+            {/* Glyph only, and the word in its accessible name: a resident is
+                20-30 px on the district camera, and a badge that spells
+                "Explorer" beside it is bigger than the figure it marks. The
+                dossier says the role in words; the plaza says it in shape. */}
+            <div
+              className="cf-guide-badge"
+              role="img"
+              aria-label={t(lang, "guide.badge")}
+              title={t(lang, "guide.badge")}
+            >
+              {ROLE_GLYPH.explorer}
+            </div>
+          </Html>
+        </group>
+      )}
       {/* Chat bubbles — binary small talk */}
       {bubbleTextures.map((tex, i) => (
         <sprite

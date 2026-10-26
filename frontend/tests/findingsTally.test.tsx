@@ -4,6 +4,7 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { FindingsPanel } from "../src/components/FindingsPanel";
 import { useStore } from "../src/stores/useStore";
+import { t, type DictKey } from "../src/i18n";
 import type { CityData, CityDir, CityFile, CityFinding, Severity } from "../src/city/types";
 
 /**
@@ -225,5 +226,131 @@ describe("the project tally (Beurteilt X / Y)", () => {
     expect(container.textContent).toContain(
       "Gespeicherte Bewertungen ohne passenden Fund in dieser Stadt: 2",
     );
+  });
+
+  /**
+   * The tally's second silent surface, handed over by the round that shipped
+   * the InfoPanel note (ledger 2026-10-26T02:40:01): the line hangs on the
+   * BROWSER copy (`Object.keys(reviews).length > 0`). With the machine copy
+   * unreadable and this browser empty, the slot renders nothing at all — and
+   * silence reads exactly like "you have judged nothing". A state must not be
+   * carried by the presence or absence of a number, so the same slot answers in
+   * words. Three store states, one element: the merged copy that read (the
+   * machine's keys arrive as `fp:<fingerprint>`), the browser standing alone,
+   * and the copy that will not read over an empty browser.
+   */
+  describe("what the tally slot says about the machine copy", () => {
+    const unreadableKey = "findings.judgedTallyUnreadable" as DictKey;
+    const threeReadable = (): CityData =>
+      city(
+        [
+          file("a.ts", [{ ...finding("rule_a"), fingerprint: "aaa1" }, finding("rule_b")]),
+          file("b.ts", [finding("rule_c")]),
+        ],
+        { P0: 0, P1: 0, P2: 3 },
+      );
+
+    it("keeps the number when the machine copy read — merged verdicts, English", async () => {
+      await show(<FindingsPanel />, threeReadable(), {
+        reviews: { "fp:aaa1": "reviewed", "a.ts#1": "to-fix" },
+        verdictsUnreadable: false,
+      });
+      expect(tally()?.textContent).toContain("Reviewed 2 / 3");
+      expect(container.textContent).not.toContain(t("en", unreadableKey));
+    });
+
+    it("keeps the number when only this browser judged — no backend answer", async () => {
+      await show(<FindingsPanel />, threeReadable(), {
+        reviews: { "a.ts#1": "to-fix" },
+        verdictsUnreadable: false,
+      });
+      expect(tally()?.textContent).toContain("Reviewed 1 / 3");
+      expect(container.textContent).not.toContain(t("en", unreadableKey));
+    });
+
+    it("says the words instead of a zero when the copy will not read — English", async () => {
+      await show(<FindingsPanel />, threeReadable(), {
+        reviews: {},
+        verdictsUnreadable: true,
+      });
+      const line = tally();
+      expect(
+        line,
+        "the machine copy could not be read, the browser is empty and the tally slot says nothing",
+      ).toBeTruthy();
+      expect(line!.getAttribute("data-judged-tally")).toBe("unreadable");
+      expect(line!.getAttribute("role"), "the words arrive too late for a screen reader").toBe(
+        "alert",
+      );
+      // the mark travels with the words: colour is never the sole carrier
+      expect((line!.textContent ?? "").trim().startsWith("⚠")).toBe(true);
+      expect(line!.textContent).toContain(t("en", unreadableKey));
+      // and no digit stands in for a tally that was never read
+      expect(line!.textContent).not.toMatch(/\d/);
+      expect(container.textContent).not.toContain("Reviewed 0 / 3");
+    });
+
+    it("sagt die Worte statt einer Null — Deutsch", async () => {
+      await show(<FindingsPanel />, threeReadable(), {
+        reviews: {},
+        verdictsUnreadable: true,
+        prefs: { ...useStore.getInitialState().prefs, lang: "de" },
+      });
+      const line = tally();
+      expect(
+        line,
+        "die Maschinenkopie ist unlesbar, der Browser leer und die Zeile fehlt",
+      ).toBeTruthy();
+      expect(line!.textContent).toContain(t("de", unreadableKey));
+      expect(line!.textContent).not.toMatch(/\d/);
+      expect(container.textContent).not.toContain("Beurteilt 0 / 3");
+      expect(container.textContent).not.toContain("Reviewed");
+    });
+  });
+});
+
+/**
+ * One screen, one name for one class. The chip at the top read a class as a
+ * person does ("Hardcoded secret"); the row underneath it read the same class
+ * as the engine wrote it (`HARDCODED_SECRET`), so the list asked the reader to
+ * learn a second vocabulary for nothing. The row now takes its words from the
+ * same door as the chip, and the id that finds the rule file moves into the
+ * tooltip — the deal the chip already makes.
+ */
+describe("the class a finding row reads by", () => {
+  const consoleUsage = (): CityFinding => ({
+    ...finding("CONSOLE_USAGE", "P1"),
+    type: "CONSOLE_USAGE",
+    ruleId: "regex:CONSOLE_USAGE",
+    label: "Debug logging left in",
+    labelDe: "Debug-Ausgabe im Code",
+  });
+  const one = (f: CityFinding) => city([file("a.ts", [f])], { P0: 0, P1: 1, P2: 0 });
+  const meta = () => container.querySelector(".finding-row-meta")?.textContent ?? "";
+  const tooltip = () => container.querySelector(".finding-row")?.getAttribute("title") ?? "";
+
+  it("reads the curated words in English and keeps the full id in the tooltip", async () => {
+    await show(<FindingsPanel />, one(consoleUsage()));
+    expect(meta()).toContain("Debug logging left in");
+    expect(meta()).not.toContain("CONSOLE_USAGE");
+    expect(tooltip()).toContain("regex:CONSOLE_USAGE");
+  });
+
+  it("reads the curated words in German as well", async () => {
+    await show(<FindingsPanel />, one(consoleUsage()), {
+      prefs: { ...useStore.getInitialState().prefs, lang: "de" },
+    });
+    expect(meta()).toContain("Debug-Ausgabe im Code");
+    expect(meta()).not.toContain("CONSOLE_USAGE");
+    expect(tooltip()).toContain("regex:CONSOLE_USAGE");
+  });
+
+  it("never leaves a class newer than the table without a word", async () => {
+    // No label carried, no curated row: the id stays, because it is the one
+    // thing a reader can search with — but it is never nothing.
+    await show(<FindingsPanel />, one(finding("SOMETHING_NEW")));
+    expect(meta().trim()).not.toBe("");
+    expect(meta()).toContain("SOMETHING_NEW");
+    expect(tooltip()).toContain("SOMETHING_NEW");
   });
 });

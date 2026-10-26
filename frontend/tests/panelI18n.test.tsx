@@ -326,14 +326,22 @@ describe("Englisch bleibt, was vor der Übersetzung im DOM stand", () => {
     // Werkzeug- und Formatnamen.
     expect(new Set(kopien)).toEqual(
       new Set([
+        // Sprache wird in der Sprache selbst genannt (Endonym), deshalb ist der
+        // deutsche Wert hier mit Absicht identisch: ein Leser, der die
+        // Oberflaechensprache nicht kennt, erkennt "English" und "Deutsch".
+        "access.langEnglish",
+        "access.langGerman",
         "actions.triage",
         "actions.tourShort",
         "hints.catNavigation",
-        "hints.catTriage",
         "profile.standard",
         "studio.video",
         "engine.secrets",
         "cat.secrets",
+        // Die Maßeinheit der Bildrate. „Bilder/s" wäre eine Übersetzung, die
+        // niemand liest, und ein de-englisches Paar für dieselbe Abkürzung nur
+        // Rauschen in der Liste.
+        "hud.fpsUnit",
       ]),
     );
   });
@@ -503,5 +511,189 @@ describe("die Panels antworten in der gewählten Sprache", () => {
     ].map((b) => (b.textContent ?? "").replace("✓ ", "").trim());
     expect(categoryLabels).toEqual(FINDING_CATEGORIES.map((c) => t("en", c.label)));
     expect(host.textContent ?? "").toContain(t("en", "profile.durationNote"));
+  });
+});
+
+/**
+ * #52 — InfoPanel stand voll harter englischer Chip-Wörter im JSX. Vier davon
+ * nennen auf Englisch, WAS für ein Turm steht (DEAD CODE?, CYCLE, COV,
+ * CLONE ×) — die gehen jetzt durchs Wörterbuch. Gerendert wird auf einer
+ * Datei, die jeden Chip-Feldträger trägt, in beiden Sprachen, und die
+ * Englisch-Werte bleiben wörtlich die alten Buchstaben (#49 Regel b).
+ * Bewusst englisch geblieben — dieselben Wörter, die der deutsche Tooltip
+ * selbst schreibt: CHURN ("Git-Churn"), API ("API-Fläche"), AST ("AST-Funde"),
+ * SECRETS ("hartkodierte Secrets"), dazu die sprachneutralen Maße LOC, KB, cx.
+ */
+describe("InfoPanel: die Chip-Wörter sprechen die gewählte Sprache", () => {
+  async function chipPanel(lang: Lang): Promise<HTMLElement> {
+    // jsdom kennt beides nicht; der SourceBlock fragt bei Findings automatisch.
+    vi.stubGlobal(
+      "matchMedia",
+      vi.fn(() => ({ matches: false, addEventListener: () => {} })),
+    );
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => {
+        throw new Error("offline — der SourceBlock muss das schlucken");
+      }),
+    );
+    const { finding } = await import("./helpers/cityFixture");
+    const rich = file(
+      "frontend/src/db.js",
+      "JavaScript",
+      [
+        finding({
+          type: "EVAL_USAGE",
+          ruleId: "regex:EVAL_USAGE",
+          category: "injection",
+          provenance: "semgrep",
+          severity: "P0",
+          line: 7,
+          message: "eval usage",
+        }),
+        finding({
+          type: "HARDCODED_SECRET",
+          category: "secrets",
+          provenance: "gitleaks",
+          severity: "P1",
+          line: 12,
+        }),
+      ],
+      undefined,
+      {
+        linesOfCode: 1204,
+        cyclomaticComplexity: 14,
+        churnScore: 3.2,
+        commitCount: 41,
+        exportedSymbols: 7,
+        deadCodeCandidate: true,
+        bytes: 200_000,
+        inCycle: true,
+        coveragePct: 42,
+        clonePartners: [{ id: "f-other", path: "frontend/src/other.js", lines: 12 }],
+        topAuthor: "m.soppa",
+      },
+    );
+    return show(createElement((await import("../src/components/InfoPanel")).InfoPanel), lang, {
+      cityData: city({ files: [rich], scanProvenance: provenance() }),
+      selectedUnit: { kind: "file", id: rich.id },
+      focusPath: ["archiv"],
+    });
+  }
+
+  it("Deutsch: die vier Chip-Wörter deutsch, Einheiten und Lehnwörter stehen, kein einziges englisches Label", async () => {
+    const host = await chipPanel("de");
+    const s = text(host);
+    expect(s).toContain("TOTER CODE?");
+    expect(s).toContain("ZYKLUS");
+    expect(s).toContain("ABDECKUNG 42 %");
+    expect(s).toContain("KLON ×1");
+    expect(s).toContain("→ BEZIRK ÖFFNEN");
+    // geprüfte Beibehaltungen, an den deutschen Zahlen gemessen:
+    expect(s).toContain("CHURN 3,20");
+    expect(s).toContain("1.204 LOC");
+    expect(s).toContain("cx 14");
+    expect(s).toContain("195 KB");
+    expect(s).toContain("API 7");
+    expect(s).toContain("AST");
+    expect(s).toContain("SECRETS");
+    // Zwei Flächen ignoriert diese Zeile bewusst, beide gehören nicht diesem
+    // Panel an: der gesprittene `<style>`-Block (Focus-Puls-Keyframes —
+    // Maschinen-Code, keine Label) und der harte englische placeholder in
+    // OpenInIde.tsx:88 "/absolute/path/to/repo" — Nebenfund, übergeben, hier
+    // erst wieder reingelassen, wenn diese Lane ihn gefixt hat.
+    const foreign = (o: string) => o.startsWith("@keyframes") || o === "/absolute/path/to/repo";
+    expect(offenders(host).filter((o) => !foreign(o))).toEqual([]);
+    expect(offenders(host).some((o) => o === "/absolute/path/to/repo")).toBe(true);
+  });
+
+  it("Englisch: jeder Chip bleibt byte-identisch zum vormaligen Inline-Wort", async () => {
+    const host = await chipPanel("en");
+    const s = text(host);
+    expect(s).toContain("DEAD CODE?");
+    expect(s).toContain("CYCLE");
+    expect(s).toContain("COV 42%");
+    expect(s).toContain("CLONE ×1");
+    expect(s).toContain("→ OPEN DISTRICT");
+    expect(s).toContain("CHURN 3.20");
+    expect(s).toContain("1,204 LOC");
+    expect(s).toContain("cx 14");
+    expect(s).toContain("195 KB");
+    expect(s).toContain("API 7");
+    expect(s).toContain("AST");
+    expect(s).toContain("SECRETS");
+  });
+
+  it("die vier neuen Schlüssel sind keine EN/DE-Kopien", () => {
+    for (const key of [
+      "panel.chipDeadCode",
+      "panel.chipCycle",
+      "panel.chipCoverage",
+      "panel.chipClone",
+    ] as DictKey[]) {
+      expect(DICT[key]!.en.trim()).not.toBe(DICT[key]!.de.trim());
+    }
+  });
+});
+
+/**
+ * Die Klassen-Wache, nicht der Einzelfall: kein hartes englisches Wort (>3
+ * Buchstaben) darf mehr als JSX-Textknoten in InfoPanel.tsx stehen, außer er
+ * steht auf der begründeten Allowliste. greift die Quelle, nicht den Render —
+ * damit die nächste Panel-Änderung nicht auf dieselbe Weise regressiert.
+ */
+describe("InfoPanel-Klasse: kein hartes englisches JSX-Wort ohne Wörterbuch", () => {
+  const ALLOW: Record<string, string> = {
+    CHURN:
+      "Lehnwort, in beiden Sprachen identisch — der deutsche Tooltip schreibt selbst 'Git-Churn' (panel.churnTitle, de); stadt-ui-verdicts pinnt das Chip-Wort.",
+    API: "etablierte Abkürzung, in beiden Sprachen identisch; deutscher Tooltip 'API-Fläche' (panel.apiTitle).",
+    AST: "etablierte Abkürzung, in beiden Sprachen identisch; deutscher Tooltip 'AST-Funde' (panel.astTitle).",
+    SECRETS:
+      "Sicherheits-Fachlehnwort, in beiden Sprachen identisch; deutscher Tooltip 'hartkodierte Secrets' (panel.secretsTitle).",
+    LOC: "sprachneutrale Zähleinheit (lines of code); Bedeutung im Tooltip (panel.locTitle).",
+    KB: "SI-Einheit, sprachneutral.",
+    CX: "Formelsymbol für zyklomatische Komplexität, sprachneutral; Erklärung im Tooltip (panel.cxTitle).",
+  };
+
+  function englishWordsInJsxText(source: string): string[] {
+    const code = source
+      .replace(/\/\*[\s\S]*?\*\//g, " ")
+      .replace(/"(?:[^"\\\n]|\\.)*"/g, '""')
+      .replace(/'(?:[^'\\\n]|\\.)*'/g, "''")
+      .replace(/`(?:[^`\\]|\\.)*`/g, "``")
+      .replace(/\/\/[^\n]*/g, " ");
+    const hits: string[] = [];
+    // ein JSX-Textknoten steht zwischen `>`/`}` und dem nächsten `<`/`{`
+    for (const m of code.matchAll(/([>}])\s*([^<>{}]+?)(?=[<{])/g)) {
+      const seg = m[2]!;
+      // `} catch {`, `} else {` — Steuerkonstrukte, keine Copy; ein echter
+      // Textknoten kann nie genau ein reserviertes Wort sein
+      if (/^(catch|else|finally|return|case|default)$/.test(seg.trim())) continue;
+      // Code-Fetzen (Klamern, Operatoren, Punkte) sind keine Copy — raus damit
+      if (/[()[\];=|&:.,!"'`\\#$%^*+/\d]/.test(seg)) continue;
+      for (const word of seg.toUpperCase().match(/[A-Z]{4,}/g) ?? []) {
+        if (!ALLOW[word]) hits.push(`${word} (in "${seg.trim()}")`);
+      }
+    }
+    return hits;
+  }
+
+  it("die Messregel sieht ein englisches Wort im Textknoten (Gegenprobe) und läss Einheiten durch", () => {
+    expect(englishWordsInJsxText("<span>\n            DEAD CODE?\n          </span>")).toEqual([
+      'DEAD (in "DEAD CODE?")',
+      'CODE (in "DEAD CODE?")',
+    ]);
+    expect(englishWordsInJsxText("<span>\n            CHURN {v}\n          </span>")).toEqual([]);
+    expect(englishWordsInJsxText("<span>\n            {n} LOC\n          </span>")).toEqual([]);
+    expect(englishWordsInJsxText("const p = list.map((x) => x.path).join(', ');")).toEqual([]);
+  });
+
+  it("InfoPanel.tsx hält die Regel: nur die begründete Allowliste bleibt englisch", async () => {
+    const { readFileSync } = await import("node:fs");
+    const { fileURLToPath } = await import("node:url");
+    const { resolve } = await import("node:path");
+    const here = resolve(fileURLToPath(import.meta.url), "..");
+    const source = readFileSync(resolve(here, "../src/components/InfoPanel.tsx"), "utf-8");
+    expect(englishWordsInJsxText(source)).toEqual([]);
   });
 });

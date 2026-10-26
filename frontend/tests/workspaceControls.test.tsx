@@ -147,6 +147,16 @@ describe("city action menu", () => {
     expect(document.activeElement).toBe(button("City image or video"));
   });
 
+  it("opens the vitrine, so a named resident can be restyled from the city", async () => {
+    // §04.11 — renaming is the card's field; the jacket needs the figure at
+    // full size, and the card must not grow a second verb to reach it.
+    await click(button("More"));
+    expect(useStore.getState().showEpheVitrine).toBe(false);
+    await click(button("Look"));
+    expect(useStore.getState().showEpheVitrine).toBe(true);
+    expect(container.querySelector('[role="menu"]')).toBeNull();
+  });
+
   it("explains clipboard failures instead of failing silently", async () => {
     Object.defineProperty(navigator, "clipboard", {
       configurable: true,

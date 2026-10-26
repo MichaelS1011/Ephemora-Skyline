@@ -115,6 +115,27 @@ export const SUN_POSITION: [number, number, number] = [
   ENV.sunDirection[2],
 ];
 
+/**
+ * The four lamps the world is lit by, in one place.
+ *
+ * They were four literals inside `CityScene`, and the 3D figure preview (§04.02)
+ * needs the same key light to show the same resident: a figure lit differently
+ * reads as a different colour family, and the palette's contrast numbers are
+ * stated against this rig. Living here rather than in a component also keeps
+ * them out of the inline-hex budget — three.js takes numbers, not tokens.
+ */
+export const LIGHT_RIG = {
+  hemiSky: "#cfe3f2",
+  hemiGround: "#4a5560",
+  hemiIntensity: 1.15,
+  sunColor: "#ffd9ac",
+  sunIntensity: 1.5,
+  fillColor: "#9fc4e8",
+  fillIntensity: 0.4,
+  fillPosition: [-45, 35, -35] as [number, number, number],
+  ambientIntensity: 0.25,
+} as const;
+
 export const SKY_VERTEX_SHADER = /* glsl */ `
   varying vec3 vViewDir;
   void main() {

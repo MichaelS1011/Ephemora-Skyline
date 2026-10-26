@@ -268,16 +268,31 @@ export function Minimap({ show = true }: { show?: boolean }) {
   return (
     <div
       className="city-minimap absolute bottom-4 right-4 z-10 pointer-events-auto"
+      /* The plate wears the shell's material instead of its own numbers. It
+         carries two sentences — the title and the alarm line — so it takes the
+         thick reading material, written as the one `background` the other plates
+         use. Measured on the running screen before this changed (2026-10-25,
+         1280×800 @2×, demo and the stored 77-finding scan): an inline
+         `rgba(16, 16, 14, 0.85)` with `blur(4px)` kept its translucency and its
+         blur while the rest of the shell went solid under
+         `prefers-reduced-transparency: reduce` — a declaration no sheet can
+         answer. With the tokens the same probe reads α 1 and `none`. */
       style={{
-        background: "rgba(16, 16, 14, 0.85)",
-        border: "1px solid rgba(232,80,60,0.2)",
-        backdropFilter: "blur(4px)",
+        background: "var(--glass-chrome-sheen), var(--material-read-bg)",
+        border: "1px solid var(--glass-chrome-border)",
+        backdropFilter: "var(--glass-chrome-blur)",
         padding: 4,
       }}
     >
+      {/* The label of a surface is not an alarm. Half of the brand red measured
+         1,83–1,92:1 over the plate's own fields and 2,2–2,8:1 in pixels — not a
+         quiet word, an unreadable one. The shell's secondary label ink holds
+         5,86:1 at its `:root` step and 11,07:1 as the shell scatters it
+         (`tests/glas-chrome.test.ts`); the red stays where it carries meaning,
+         in the plots below. */}
       <div
         className="font-mono text-[length:var(--fs-meta)] tracking-widest mb-1 px-0.5"
-        style={{ color: "rgba(232,80,60,0.5)" }}
+        style={{ color: "var(--meta-strong)" }}
       >
         {t(lang, "minimap.title")}{" "}
         {focusPath.length > 0 ? `· /${focusPath.join("/")}` : t(lang, "minimap.overview")}

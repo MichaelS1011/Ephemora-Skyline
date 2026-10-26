@@ -18,6 +18,9 @@ import { focusBelongsToFile, lineSegmentFor } from "../findings/panelLogic";
 import { learningCopy } from "./learningCopy";
 import { FOCUS_PULSE_CSS, FindingRow, SEVERITY_WORD } from "./FindingCard";
 import { RunTestsButton, SourceBlock, VoxelStructureBlock } from "./FilePanels";
+import { BlastRadiusBlock } from "./BlastRadiusBlock";
+import { GuideAction } from "./GuideAction";
+import { MaintenanceAction } from "./MaintenanceAction";
 import "../design/stadt-ui.css";
 import "../design/learning.css";
 
@@ -34,6 +37,7 @@ export function InfoPanel() {
   const analysisId = useStore((s) => s.analysisId);
   const reviews = useStore((s) => s.reviews);
   const verdictsBlocked = useStore((s) => s.verdictsBlocked);
+  const verdictsUnreadable = useStore((s) => s.verdictsUnreadable);
   const focusedFindingKey = useStore((s) => s.focusedFindingKey);
   const triageActive = useStore((s) => s.triageActive);
   const triageCursor = useStore((s) => s.triageCursor);
@@ -313,6 +317,15 @@ export function InfoPanel() {
               ⚠ {t(lang, "panel.verdictsBlocked")}
             </p>
           )}
+          {/* The other half of the same truth: the copy this machine keeps was
+              there and would not read. An empty verdict list is not "nothing was
+              judged" here, and the line that says so carries the word — the
+              note's own neutral ink is not the signal. */}
+          {verdictsUnreadable && (
+            <p className="panel-note" role="alert" data-verdicts-unreadable="true">
+              ⚠ {t(lang, "panel.verdictsUnreadable")}
+            </p>
+          )}
         </>
       ) : unchecked ? (
         /* The same file hovers grey in the city and its heat tile is grey:
@@ -396,9 +409,9 @@ export function InfoPanel() {
           onClick={() => setFocusPath(hit.chain, { keepSelection: true })}
           className="w-full mb-3 py-1.5 font-jetbrains text-[length:var(--fs-meta)] tracking-widest rounded-sm transition-all duration-150 hover:opacity-90"
           style={{
-            border: "1px solid rgba(232,178,60,0.4)",
-            color: "#f2d5a0",
-            background: "rgba(232,178,60,0.07)",
+            border: "1px solid rgba(242,239,232,0.14)",
+            color: "var(--brand-ink)",
+            background: "rgba(255,255,255,0.05)",
           }}
         >
           {t(lang, "panel.openDistrict", { path: hit.chain.join("/") })}
@@ -468,7 +481,7 @@ export function InfoPanel() {
             }}
             title={t(lang, "panel.deadCodeTitle")}
           >
-            DEAD CODE?
+            {t(lang, "panel.chipDeadCode")}
           </span>
         )}
         {file.bytes !== undefined && file.bytes >= 150_000 && (
@@ -494,7 +507,7 @@ export function InfoPanel() {
             }}
             title={t(lang, "panel.cycleTitle")}
           >
-            CYCLE
+            {t(lang, "panel.chipCycle")}
           </span>
         )}
         {file.coveragePct !== undefined && (
@@ -508,7 +521,7 @@ export function InfoPanel() {
             }}
             title={t(lang, "panel.coverageTitle")}
           >
-            COV {file.coveragePct}%
+            {t(lang, "panel.chipCoverage", { pct: file.coveragePct })}
           </span>
         )}
         {file.clonePartners && file.clonePartners.length > 0 && (
@@ -523,7 +536,7 @@ export function InfoPanel() {
               paths: file.clonePartners.map((p) => p.path).join(", "),
             })}
           >
-            CLONE ×{file.clonePartners.length}
+            {t(lang, "panel.chipClone", { count: file.clonePartners.length })}
           </span>
         )}
         {file.topAuthor && (
@@ -611,6 +624,18 @@ export function InfoPanel() {
           payload carries section data) */}
         <VoxelStructureBlock file={file} />
 
+        {/* 005 Teil A — who imports this file, and what that does and does not
+            claim. Off until the reader asks for it. */}
+        <BlastRadiusBlock />
+
+        {/* 005-B — the same edges, walked. Offered only where a connection
+            really exists. */}
+        <GuideAction />
+
+        {/* 005-B12 — the third role, and exactly one metric behind it: the `cx`
+            figure above. Absent for data files and for files with no branch. */}
+        <MaintenanceAction />
+
         {/* Real source with flagged finding lines — lazy, one fetch per file
           (keyed by file.id so the cache resets on building change). While the
           triage targets this file, the source auto-loads and the focused
@@ -688,7 +713,11 @@ function TestResultsBlock({ filePath }: { filePath: string }) {
           className="px-2 pb-1.5 font-jetbrains text-[length:var(--fs-meta)]"
           style={{ color: "var(--meta)" }}
         >
-          {t(lang, "panel.moreFailures", { count: result.failures.length - 3 })}
+          {t(
+            lang,
+            result.failures.length - 3 === 1 ? "panel.moreFailuresOne" : "panel.moreFailures",
+            { count: result.failures.length - 3 },
+          )}
         </div>
       )}
     </div>

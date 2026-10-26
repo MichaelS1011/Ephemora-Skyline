@@ -24,7 +24,7 @@ function ProgressBar({ progress, stage }: { progress: number; stage: string }) {
         <span className="font-mono text-[length:var(--fs-meta)] text-[color:var(--accent-gold)] tracking-widest analyze-stage">
           {progressLine(lang, stage) || t(lang, "analyze.initializing")}
         </span>
-        <span className="font-mono text-[length:var(--fs-meta)] text-[#e8503c] ml-2 shrink-0">
+        <span className="font-mono text-[length:var(--fs-meta)] text-[color:var(--brand-red)] ml-2 shrink-0">
           {progress}%
         </span>
       </div>
@@ -110,8 +110,11 @@ export function AnalyzePanel({ className = "" }: { className?: string }) {
     }
   }, [isOpen]);
 
+  /* The frame speaks the result (red alarm, brand red), and otherwise it is
+     plain chrome — the gold is the focus ring's colour and the popover's
+     border is not focus. */
   const borderColor =
-    state === "error" ? "#ff0044" : state === "success" ? "#e8503c" : "var(--accent-gold)";
+    state === "error" ? "#ff0044" : state === "success" ? "#e8503c" : "var(--glass-chrome-border)";
 
   return (
     <div className={`analyze-control relative ${className}`}>
@@ -128,10 +131,12 @@ export function AnalyzePanel({ className = "" }: { className?: string }) {
         title={t(lang, "analyze.toggleTitle")}
         className="analyze-trigger"
       >
-        {/* Progress leaks onto the toggle: with the panel closed the running
-            analysis would otherwise be invisible to the user */}
+        {/* The percentage stands once on the plate — on the bar, with the
+            quantity in aria-valuenow. The toggle carries the running state as
+            a WORD, so a closed panel still says something runs; its accessible
+            name keeps the state too ("analyze.toggleAriaAnalyzing"). */}
         {isAnalyzing
-          ? `${isOpen ? "▲" : "▼"} ${analysisProgress}%`
+          ? `${isOpen ? "▲" : "▼"} ${t(lang, "analyze.analyzing")}`
           : isOpen
             ? t(lang, "analyze.close")
             : t(lang, "analyze.open")}
@@ -170,16 +175,18 @@ export function AnalyzePanel({ className = "" }: { className?: string }) {
             aria-busy={isAnalyzing}
             aria-label={isAnalyzing ? t(lang, "analyze.pickAriaBusy") : t(lang, "analyze.pickAria")}
             className="w-full mt-2 py-2 font-mono text-xs tracking-widest rounded-sm border transition-all duration-150
-                       disabled:opacity-50 disabled:cursor-not-allowed"
+                       disabled:cursor-not-allowed"
             style={{
               background: isAnalyzing ? "rgba(232,80,60,0.05)" : "rgba(232,80,60,0.1)",
               borderColor: isAnalyzing ? "#a03a2c" : "#e8503c",
-              color: isAnalyzing ? "#a03a2c" : "#e8503c",
+              color: "var(--brand-red)",
             }}
           >
             {isPicking ? (
               <span className="flex items-center justify-center gap-2">
-                <span className="inline-block w-2 h-2 rounded-full bg-[var(--accent-gold)] animate-pulse" />
+                {/* the wait says itself in the word beside it — the pulse dot
+                    keeps the band's live ink, never the focus gold */}
+                <span className="inline-block w-2 h-2 rounded-full bg-[var(--brand-ink)] animate-pulse" />
                 {t(lang, "picker.waiting")}
               </span>
             ) : state === "collecting" ? (
@@ -226,7 +233,7 @@ export function AnalyzePanel({ className = "" }: { className?: string }) {
 
           {state === "collecting" && collected.files > 0 && (
             <div className="mt-2 font-mono text-[length:var(--fs-meta)] text-[color:var(--meta-strong)] text-center">
-              {t(lang, "analyze.filesBytes", {
+              {t(lang, collected.files === 1 ? "analyze.filesBytesOne" : "analyze.filesBytes", {
                 files: collected.files,
                 kb: formatDecimal(lang, collected.bytes / 1024, 0),
               })}
@@ -251,7 +258,7 @@ export function AnalyzePanel({ className = "" }: { className?: string }) {
             <div
               role="status"
               aria-live="polite"
-              className="mt-3 px-2 py-1.5 border border-[#e8503c] rounded font-mono text-[length:var(--fs-meta)] text-[#e8503c]"
+              className="mt-3 px-2 py-1.5 border border-[#e8503c] rounded font-mono text-[length:var(--fs-meta)] text-[color:var(--brand-red)]"
               style={{ background: "rgba(232,80,60,0.08)" }}
             >
               {t(lang, "analyze.success")}

@@ -5,6 +5,7 @@ import {
   languageColor,
   REVIEWED_BEACON_COLOR,
   severityColor,
+  severityTextColor,
   threatColor,
   UNCHECKED_COLOR,
 } from "../city/palette";
@@ -117,6 +118,11 @@ export function Tooltip() {
   let accent = "#f2d5a0";
   let badge = "";
   let badgeColor = "";
+  /** Same grade, two inks — the `severityTextColor` rule. `UNCHECKED_COLOR` was
+   *  authored for tile and beacon AREA (palette.ts pins its floor at 2,5:1), and
+   *  as 12 px badge WORD it read 2,9–3,5:1. The word goes on the shell's ladder;
+   *  the signal colour stays on the wash and the border. */
+  let badgeInk = "";
   let hint = "";
 
   if (isBlock) {
@@ -124,10 +130,11 @@ export function Tooltip() {
     const block = layout.blocks.find((b) => b.dir.path === blockPath);
     if (!block) return null;
     title = block.dir.name;
-    subtitle = t(lang, "tooltip.folderSubtitle", {
-      files: block.dir.fileCount,
-      loc: formatCount(lang, block.dir.linesOfCode),
-    });
+    subtitle = t(
+      lang,
+      block.dir.fileCount === 1 ? "tooltip.folderSubtitleOne" : "tooltip.folderSubtitle",
+      { files: block.dir.fileCount, loc: formatCount(lang, block.dir.linesOfCode) },
+    );
     const counts = block.dir.findingsBySeverity;
     // The chain used to stop at P1: a district whose only findings were medium
     // fell into the else and was announced green as "keine Funde". Measured on
@@ -139,6 +146,12 @@ export function Tooltip() {
     if (worst) {
       accent = severityColor(worst, colorblind);
       badgeColor = severityColor(worst, colorblind);
+      // The same grade, two inks: the area keeps the pure alarm tone (wash,
+      // border, beacon), the badge WORD sits on `severityTextColor`, which is
+      // palette.ts's step for a sentence. Measured on this plate, the colour-
+      // blind P1 blue is 3,6:1 as a word — the area tone was never written for
+      // text, and here it was spelling one.
+      badgeInk = severityTextColor(worst, colorblind);
       const n = counts[worst];
       badge = t(
         lang,
@@ -170,6 +183,7 @@ export function Tooltip() {
           { n: unchecked, engines: missing.join(", ") },
         );
         badgeColor = UNCHECKED_COLOR;
+        badgeInk = "var(--meta-strong)";
       } else {
         badge = t(lang, "tooltip.badgeNone");
         badgeColor = REVIEWED_BEACON_COLOR;
@@ -213,6 +227,7 @@ export function Tooltip() {
         ? t(lang, "tooltip.fileBadgeUnchecked", { loc, engines: b.file.unverifiedBy!.join(", ") })
         : t(lang, "tooltip.fileBadgeNone", { loc });
       badgeColor = isUncheckedClean(b.file) ? UNCHECKED_COLOR : REVIEWED_BEACON_COLOR;
+      badgeInk = badgeColor === UNCHECKED_COLOR ? "var(--meta-strong)" : "";
       hint = byKeyboard
         ? resolve(lang, {
             key: "tooltip.noFindingsOrbitHintKeyboard",
@@ -238,7 +253,7 @@ export function Tooltip() {
         borderRadius: 4,
         padding: "0.55rem 0.7rem",
         fontFamily: "var(--font-mono)",
-        fontSize: "0.75rem",
+        fontSize: "var(--fs-small)",
         color: "var(--brand-ink)",
         pointerEvents: "none",
         zIndex: 50,
@@ -282,7 +297,7 @@ export function Tooltip() {
         <span
           className="font-jetbrains text-[length:var(--fs-meta)] px-1.5 py-px rounded-sm"
           style={{
-            color: badgeColor,
+            color: badgeInk || badgeColor,
             background: `${badgeColor}15`,
             border: `1px solid ${badgeColor}44`,
           }}

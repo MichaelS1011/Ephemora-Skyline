@@ -34,12 +34,19 @@ export interface VisitState {
   /** The file PATH, not the scan's id: a path reads in a shared link. */
   filePath: string | null;
   pose: CameraPose | null;
+  /**
+   * §06.01 — a named view (`übersicht`, `hero`, `straße`). Read as a string and
+   * checked by `cameraPresets.isAnsicht`, because the preset module owns what a
+   * name means; the address only carries it.
+   */
+  ansicht: string | null;
 }
 
 const CITY = "city";
 const DISTRICT = "district";
 const FILE = "file";
 const POSE = "cam";
+const ANSICHT = "ansicht";
 
 /** 3 decimals ≈ 1 mm in world units, and it keeps the address short. */
 const r3 = (n: number) => Math.round(n * 1000) / 1000;
@@ -66,6 +73,7 @@ export function readVisitState(search: string): VisitState {
     district: district ? district.split("/").filter(Boolean) : [],
     filePath: q.get(FILE),
     pose: decodePose(q.get(POSE)),
+    ansicht: q.get(ANSICHT),
   };
 }
 

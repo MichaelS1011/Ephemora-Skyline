@@ -46,6 +46,269 @@
   text-underline-offset: 5px;
   text-decoration-color: #e8503c;
 }
+/* §03.11 — the ask for a second look, in the header's utility row. Deliberately
+   the quietest thing on the screen: it is a door for someone who is looking for
+   it, never an announcement. */
+.landing-shell.start-v2 .start-replay {
+  font: 400 var(--fs-small)/1.2 var(--font-mono);
+  letter-spacing: 0.04em;
+  color: var(--meta-faint);
+  background: none;
+  border: none;
+  padding: 4px 2px;
+  min-height: 28px;
+  text-align: left;
+  cursor: pointer;
+}
+.landing-shell.start-v2 .start-replay:hover {
+  color: var(--meta-strong);
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+.landing-shell.start-v2 .start-replay:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+/* ── 4d. The isolated 3D preview of the figure (§04.02) ────────────────────
+   The portrait is a drawing; this is the body the crowd walks. Opened on ask
+   only, so the start screen keeps its one WebGL context until someone looks. */
+.landing-shell.start-v2 .start-ephe-open {
+  font: 400 var(--fs-small)/1.2 var(--font-mono);
+  letter-spacing: 0.04em;
+  color: var(--meta-faint);
+  background: none;
+  border: none;
+  padding: 4px 2px;
+  min-height: 28px;
+  cursor: pointer;
+}
+.landing-shell.start-v2 .start-ephe-open:hover {
+  color: var(--meta-strong);
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+.landing-shell.start-v2 .start-ephe-open:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+.ephe-preview-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  /* §04.11 — the panel is a modal, and inside the city it is mounted in the
+     overlay layer, which is `pointer-events: none` with only its cards taking
+     clicks. Without this line the vitrine opens over the city and nothing in it
+     can be pressed — the jacket chips and the click-outside dismissal below
+     both inherit the layer's refusal. Measured: the resident card's own text
+     answered the click at the chip's centre. */
+  pointer-events: auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(8, 8, 7, 0.55);
+  backdrop-filter: blur(4px);
+}
+.ephe-preview-panel {
+  width: 480px;
+  max-width: 100%;
+  padding: 14px 16px 16px;
+  border: 1px solid rgba(232, 178, 60, 0.3);
+  border-radius: 12px;
+  background: rgba(18, 18, 16, 0.96);
+  box-shadow:
+    0 0 24px rgba(232, 178, 60, 0.12),
+    0 8px 24px rgba(0, 0, 0, 0.5);
+}
+.ephe-preview-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.ephe-preview-title {
+  margin: 0;
+  font-size: var(--fs-body);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: #f2efe8;
+}
+.ephe-preview-close {
+  min-width: 34px;
+  min-height: 30px;
+  border: 1px solid rgba(242, 239, 232, 0.17);
+  border-radius: 8px;
+  background: none;
+  color: var(--meta-strong);
+  cursor: pointer;
+}
+.ephe-preview-close:hover {
+  color: #f2efe8;
+  border-color: rgba(242, 239, 232, 0.3);
+}
+.ephe-preview-close:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+.ephe-preview-stage {
+  height: 420px;
+  margin: 10px 0 8px;
+  border-radius: 10px;
+  /* An opaque case, not a window: the start screen's own world is alive behind
+     the panel, and letting it show through made the figure sit on moving pixels
+     — and made "did the turntable stop?" unmeasurable. */
+  background:
+    radial-gradient(circle at 50% 34%, rgba(255, 255, 255, 0.07), rgba(0, 0, 0, 0) 64%), #141412;
+  cursor: grab;
+  /* one pointer gesture belongs to the figure, not to the page under it */
+  touch-action: none;
+}
+.ephe-preview-stage:active {
+  cursor: grabbing;
+}
+.ephe-preview-stage:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: -2px;
+}
+
+/* ── 4f. The jacket switch (§04.05) ─────────────────────────────────────────
+   Each chip is painted with one palette column's OWN pair — coat on top, its
+   sleeve beneath — so the control shows the pairing instead of offering two
+   colours to mix by hand. Free mixing measured 1,53:1 arm against coat, under
+   the 1,78:1 the same arm holds against the ground; the pair is the edge.
+   Gold is the selection mark, so the chosen chip is the one wearing it. */
+.ephe-preview-variants {
+  display: flex;
+  gap: 8px;
+  margin: 0 0 8px;
+}
+.ephe-variant {
+  width: 40px;
+  height: 28px;
+  padding: 0;
+  border: 1px solid rgba(242, 239, 232, 0.24);
+  border-radius: 7px;
+  background-color: transparent;
+  cursor: pointer;
+}
+.ephe-variant:hover {
+  border-color: rgba(242, 239, 232, 0.5);
+}
+.ephe-variant[aria-pressed="true"] {
+  border-color: var(--focus-ring);
+  box-shadow: 0 0 0 1px var(--focus-ring);
+}
+.ephe-variant:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+/* ── 4g. The optional mark (§04.07) ─────────────────────────────────────────
+   The mark picker shares the jacket row because it is the same kind of
+   decision, and is divided from it because it is not one of the jackets. The
+   chips are drawn from `currentColor`, which the panel sets to the palette's
+   own helmet sand — the tone the figure actually wears — so the chip cannot
+   drift from the body it previews. */
+.ephe-preview-choices {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin: 0 0 8px;
+}
+.ephe-preview-variants {
+  margin: 0;
+}
+.ephe-preview-marks {
+  display: flex;
+  gap: 6px;
+  padding-left: 14px;
+  border-left: 1px solid rgba(242, 239, 232, 0.14);
+}
+.ephe-mark {
+  width: 28px;
+  height: 28px;
+  padding: 5px;
+  border: 1px solid rgba(242, 239, 232, 0.24);
+  border-radius: 7px;
+  background: none;
+  color: inherit;
+  cursor: pointer;
+}
+.ephe-mark:hover {
+  border-color: rgba(242, 239, 232, 0.5);
+}
+.ephe-mark[aria-pressed="true"] {
+  border-color: var(--focus-ring);
+  box-shadow: 0 0 0 1px var(--focus-ring);
+}
+.ephe-mark:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+.ephe-mark-shape {
+  display: block;
+  width: 100%;
+  height: 100%;
+  background: currentColor;
+}
+.ephe-mark-dot {
+  clip-path: circle(46% at 50% 50%);
+}
+.ephe-mark-diamond {
+  clip-path: polygon(50% 2%, 98% 50%, 50% 98%, 2% 50%);
+}
+.ephe-mark-none {
+  color: var(--meta-faint);
+  background: linear-gradient(
+    to top right,
+    transparent 43%,
+    currentColor 43%,
+    currentColor 57%,
+    transparent 57%
+  );
+}
+.ephe-preview-note {
+  margin: 0;
+  max-width: 46ch;
+  font-size: var(--fs-meta);
+  line-height: 1.5;
+  color: var(--meta-faint);
+}
+
+/* ── 4e. The name at the figure (§04.04) ───────────────────────────────────
+   The tag is the figure's own, so it is sized to the longest name the rule
+   allows: 24 characters of JetBrains Mono measured 202 px at 14 px against a
+   446 px stage, so the whole legal name fits above the head without covering it. */
+.ephe-name-tag {
+  padding: 3px 9px;
+  border: 1px solid rgba(232, 178, 60, 0.35);
+  border-radius: 999px;
+  background: rgba(18, 18, 16, 0.88);
+  font: 500 var(--fs-small)/1.2 var(--font-mono);
+  letter-spacing: 0.02em;
+  color: #f2efe8;
+  white-space: nowrap;
+}
+.ephe-preview-name-input {
+  display: block;
+  width: 100%;
+  min-height: 34px;
+  margin: 0 0 8px;
+  padding: 6px 10px;
+  border: 1px solid rgba(242, 239, 232, 0.17);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.03);
+  font-size: var(--fs-body);
+  color: #f2efe8;
+}
+.ephe-preview-name-input::placeholder {
+  color: var(--meta-faint);
+}
+.ephe-preview-name-input:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
 
 /* ── 3. The two columns and their axes ──────────────────────────────────── */
 .landing-shell.start-v2 .landing-main {
@@ -92,6 +355,268 @@
   line-height: 1.72;
   color: #b1b1a8;
   margin: 0 0 28px;
+}
+
+/* ── 4a. The calm welcome (§03.03) ─────────────────────────────────────────
+   The first thing a brand-new reader sees, and the only thing they must
+   decide: a single "Let's start". It is a quiet card, not a modal — the
+   folder and demo below stay reachable so an experienced reader skips it.
+   One entrance fade, removed under reduced motion (section 12). */
+.landing-shell.start-v2 .landing-welcome {
+  max-width: 620px;
+  margin: 0 0 26px;
+  padding: 16px 18px 18px;
+  border: 1px solid rgba(242, 239, 232, 0.12);
+  border-left: 2px solid var(--accent-gold);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.02);
+  animation: landing-welcome-in 0.28s ease-out;
+}
+.landing-shell.start-v2 .landing-welcome-title {
+  margin: 0 0 6px;
+  font-size: clamp(19px, 2.1vw, 24px);
+  line-height: 1.1;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: #f2efe8;
+}
+.landing-shell.start-v2 .landing-welcome-body {
+  margin: 0 0 14px;
+  max-width: 52ch;
+  font-size: var(--fs-body);
+  line-height: 1.65;
+  color: #b1b1a8;
+}
+.landing-shell.start-v2 .landing-welcome-begin {
+  min-height: 42px;
+  padding: 10px 18px;
+  border-radius: 8px;
+  font-size: var(--fs-body);
+  background: var(--accent-gold);
+  border: 1px solid var(--accent-gold);
+  color: #201e18;
+}
+.landing-shell.start-v2 .landing-welcome-begin:hover {
+  filter: brightness(1.08);
+}
+.landing-shell.start-v2 .landing-welcome-begin:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+/* ── 4a-2. The short introduction (§03.05) ─────────────────────────────────
+   The second beat of the first arrival: three plain steps in the same quiet
+   card. One "Continue", and a smaller "Skip" beside it — the reader can end
+   the intro from either, and the real actions below stay reachable throughout.
+   No step counter, no paging: that is §03.06 and §03.07, not here. */
+.landing-shell.start-v2 .landing-guide {
+  max-width: 620px;
+  margin: 0 0 26px;
+  padding: 16px 18px 18px;
+  border: 1px solid rgba(242, 239, 232, 0.12);
+  border-left: 2px solid var(--accent-gold);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.02);
+  animation: landing-welcome-in 0.28s ease-out;
+}
+.landing-shell.start-v2 .landing-guide-title {
+  margin: 0 0 10px;
+  font-size: clamp(19px, 2.1vw, 24px);
+  line-height: 1.1;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: #f2efe8;
+}
+.landing-shell.start-v2 .landing-guide-steps {
+  margin: 0 0 16px;
+  padding-left: 22px;
+  max-width: 56ch;
+  font-size: var(--fs-body);
+  line-height: 1.7;
+  color: #b1b1a8;
+}
+.landing-shell.start-v2 .landing-guide-steps li {
+  margin: 0 0 6px;
+}
+.landing-shell.start-v2 .landing-guide-steps li::marker {
+  color: var(--accent-gold);
+}
+.landing-shell.start-v2 .landing-guide-actions {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+.landing-shell.start-v2 .landing-guide-back {
+  min-height: 42px;
+  padding: 10px 14px;
+  border-radius: 8px;
+  background: none;
+  border: 1px solid rgba(242, 239, 232, 0.17);
+  font-size: var(--fs-body);
+  color: var(--meta-strong);
+}
+.landing-shell.start-v2 .landing-guide-back:hover {
+  color: #f2efe8;
+  border-color: rgba(242, 239, 232, 0.3);
+}
+.landing-shell.start-v2 .landing-guide-back:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+/* ── 4b-2. The one offer line under the actions (§03.09, §03.10) ───────────
+   One line, one way back into a city: a read that finished in the reader's
+   absence, or the city they had open last. It sits under the actions because
+   that is where the reader's own decision lives; this only says a second one is
+   ready. Both states share this shape on purpose — `.landing-resume` is the
+   slot, not the §03.09 sentence. */
+.landing-shell.start-v2 .landing-resume {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  margin: 14px 0 0;
+  padding: 10px 14px;
+  max-width: 620px;
+  border-left: 2px solid var(--accent-gold);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.02);
+  font-size: var(--fs-body);
+  color: #b1b1a8;
+}
+.landing-shell.start-v2 .landing-resume-open {
+  color: var(--accent-gold);
+  text-decoration: none;
+  white-space: nowrap;
+}
+.landing-shell.start-v2 .landing-resume-open:hover {
+  text-decoration: underline;
+}
+.landing-shell.start-v2 .landing-resume-open:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+/* ── 4c. The visible progress of the setup (§03.06) ────────────────────────
+   A quiet line above the current card: a filled mark for a beat that is done,
+   a ring for the one on screen, a faint dot for the one ahead. No count, no
+   bar that creeps — it names where the reader is, nothing more. */
+.landing-shell.start-v2 .start-progress-steps {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 16px;
+  margin: 0 0 12px;
+}
+.landing-shell.start-v2 .start-progress-steps ol {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.landing-shell.start-v2 .start-progress-steps li {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font: 500 var(--fs-small)/1 var(--font-mono);
+  letter-spacing: 0.04em;
+  color: var(--meta-faint);
+}
+.landing-shell.start-v2 .start-progress-steps li[data-state="done"] {
+  color: var(--meta-strong);
+}
+.landing-shell.start-v2 .start-progress-steps li[data-state="current"] {
+  color: #f2efe8;
+}
+.landing-shell.start-v2 .start-progress-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  border: 1.5px solid currentColor;
+  background: transparent;
+  flex: none;
+}
+/* State, not focus: done is the filled shape, current the lit ring, and each
+   step already says its word (aria-current + label). Gold is the ring colour
+   of `--focus-ring` and must not paint where the cursor is not. */
+.landing-shell.start-v2 .start-progress-steps li[data-state="done"] .start-progress-dot {
+  background: var(--meta-strong);
+  border-color: var(--meta-strong);
+}
+.landing-shell.start-v2 .start-progress-steps li[data-state="current"] .start-progress-dot {
+  border-color: var(--brand-ink);
+  box-shadow: 0 0 0 3px rgba(242, 239, 232, 0.12);
+}
+.landing-shell.start-v2 .start-progress-next {
+  font: 400 var(--fs-small)/1 var(--font-mono);
+  color: var(--meta-faint);
+}
+/* §03.07 — the sequence's one Skip, pushed to the right so it reads as chrome
+   of the guide, not as a competing action on the card below. */
+.landing-shell.start-v2 .start-progress-skip {
+  margin-left: auto;
+  min-height: 30px;
+  padding: 4px 8px;
+  background: none;
+  border: none;
+  font: 500 var(--fs-small)/1 var(--font-mono);
+  letter-spacing: 0.04em;
+  color: var(--meta-strong);
+}
+.landing-shell.start-v2 .start-progress-skip:hover {
+  color: #f2efe8;
+}
+.landing-shell.start-v2 .start-progress-skip:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+@keyframes landing-welcome-in {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* ── 4b. The resident at the centre (§03.04) ───────────────────────────────
+   The Ephe stands above the schematic city in the right column, so the first
+   figure a reader meets is the one they will make their own. The two-column
+   pairing (intro | resident+city) is pinned to explicit columns so the
+   first-run welcome — which spans the full width above them — never nudges
+   the resident out of place. */
+.landing-shell.start-v2 .landing-welcome,
+.landing-shell.start-v2 .landing-guide {
+  grid-column: 1 / -1;
+}
+.landing-shell.start-v2 .landing-intro {
+  grid-column: 1;
+}
+.landing-shell.start-v2 .landing-visual {
+  grid-column: 2;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+.landing-shell.start-v2 .start-ephe {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+.landing-shell.start-v2 .start-ephe figcaption {
+  font: 400 var(--fs-small)/1.5 var(--font-mono);
+  color: var(--meta-faint);
+  text-align: center;
+  max-width: 34ch;
 }
 
 /* ── 4. The offer: two buttons, then what they cost ─────────────────────── */
@@ -731,6 +1256,12 @@
   .start-progress .progress-track span {
     transition: none;
   }
+  .landing-shell.start-v2 .landing-welcome {
+    animation: none;
+  }
+  .landing-shell.start-v2 .landing-guide {
+    animation: none;
+  }
 }
 
 /* ── 13. The scan-summary card ──────────────────────────────────────────── */
@@ -837,23 +1368,27 @@
   font: 400 12.5px/1.5 var(--font-ui);
   color: #e6e1d7;
 }
+/* A sibling of the pin and the strip-open below, in the strip's own neutral
+   chrome: the gold is the focus ring's colour, and the chip speaks its word
+   ("Take the tour →"); the guide's accent stays on its who-label. */
 .start-summary-guide-go,
 .start-summary-strip-guide {
   display: inline-flex;
   align-items: center;
   min-height: 28px;
   padding: 0 10px;
-  border: 1px solid rgba(232, 178, 60, 0.5);
+  border: 1px solid rgba(242, 239, 232, 0.16);
   border-radius: 4px;
-  color: var(--accent-gold);
-  background: rgba(232, 178, 60, 0.08);
+  color: #cfcabe;
+  background: rgba(255, 255, 255, 0.03);
   font: 500 11px/1 var(--font-mono);
   letter-spacing: 0.04em;
   cursor: pointer;
 }
 .start-summary-guide-go:hover,
 .start-summary-strip-guide:hover {
-  background: rgba(232, 178, 60, 0.16);
+  border-color: rgba(232, 80, 60, 0.6);
+  color: #f2efe8;
 }
 .start-summary-guide-go:focus-visible,
 .start-summary-strip-guide:focus-visible {
@@ -916,9 +1451,12 @@
   padding: 5px 8px;
   cursor: pointer;
 }
+/* The pinned state is carried by its shape (◉ vs ○), its word ("Unpin"/"Pin")
+   and aria-pressed — the lift here is the strip's own bright ink, never the
+   focus ring's gold. */
 .start-summary-pin.is-on {
-  border-color: rgba(232, 178, 60, 0.55);
-  color: var(--accent-gold);
+  border-color: var(--glass-chrome-border);
+  color: var(--brand-ink);
 }
 .start-summary-pin:hover,
 .start-summary-strip-open:hover {

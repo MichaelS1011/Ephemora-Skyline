@@ -144,7 +144,7 @@ describe("inhabited architectural model", () => {
     expect(other.handZ).toBe(carry.handZ);
   });
 
-  it("raises the greeting hand above the stroll, and only on one side", () => {
+  it("raises the greeting hand clear of the head, and only on one side", () => {
     const idle = pose();
     writeEpheLimbPose(idle, 0, 1, "idle");
     const greet = pose();
@@ -152,29 +152,117 @@ describe("inhabited architectural model", () => {
     expect(greet.handY).toBeGreaterThan(idle.handY + 0.5);
     expect(greet.handZ).toBeGreaterThan(0); // in front of the body, not behind
     expect(greet.handX).toBeGreaterThan(0);
-    // the other arm keeps hanging: a wave, not a jumping jack
+    // The other arm keeps hanging: a wave, not a jumping jack
     const other = pose();
     writeEpheLimbPose(other, 0, -1, "greet", 0.4);
     expect(other.handY).toBe(idle.handY);
   });
 
+  /**
+   * A wave that stays inside the head's own column is not a wave. Round 1
+   * measured this at a single scale and reported the raised hand as clearing the
+   * crown by 1.1 px; the district camera looks down at 0.68 rad, so a vertical
+   * clearance of 0.05 units is 0.86 px there, and the hand SPHERE's near edge
+   * sat 0.025 units BELOW the crown line — the hand overlapped the head at every
+   * phase. It now clears the crown at every phase of the arc.
+   */
+  it("puts the waving hand above the crown and gives it a visible swing", () => {
+    const crown = pose();
+    writeEpheLimbPose(crown, 0, 1, "greet", 0);
+    let lowest = Infinity;
+    let leftmost = Infinity;
+    let rightmost = -Infinity;
+    for (let f = 0; f < 200; f++) {
+      const p = pose();
+      writeEpheLimbPose(p, 0, 1, "greet", (f / 200) * 4);
+      lowest = Math.min(lowest, p.handY);
+      leftmost = Math.min(leftmost, p.handX);
+      rightmost = Math.max(rightmost, p.handX);
+      // the hand never crosses to the other side of the body
+      expect(p.handX).toBeGreaterThan(0);
+    }
+    // clears the top of the head even at the bottom of its arc, and even for the
+    // sphere's near edge: 1.46 − 0.075 against a 1.35 crown
+    expect(lowest - 0.075 - FIGURE.crown).toBeGreaterThanOrEqual(0.03);
+    // and travels far enough to be a motion and not a rounding error. The
+    // sample grid does not land exactly on the extremes of the arc, so the
+    // measured 0.19 is 0.19 units of travel to two decimal places.
+    expect(rightmost - leftmost).toBeGreaterThanOrEqual(0.185);
+    // the hand clears the shoulder line and the head beside it, so the arm is
+    // its own mass rather than a bump on the skull
+    expect(crown.handX).toBeGreaterThanOrEqual(FIGURE.headR + FIGURE.shoulderWidth);
+    // and at the inner end of its travel it still does not touch the skull
+    expect(leftmost - 0.075).toBeGreaterThan(FIGURE.headR);
+  });
+
   it("keeps faces and jackets visible without assigning residents a finding colour", () => {
+    // The skull is the dark mass and the skin band the light face inside it.
+    // Both directions are pinned: the head has to separate from the pale world
+    // (see `ephe-readability.test.ts` for those numbers) and the face from the
+    // head it is set into, or the resident has no front. The floor moved from 7
+    // to 9 with the hair tones, because the two edges are one ratio apart, not
+    // a trade-off.
     for (const shell of EPHE_PALETTE.shells) {
-      expect(contrast(shell, EPHE_PALETTE.visor)).toBeGreaterThan(7);
+      for (const hair of EPHE_PALETTE.hair) {
+        expect(contrast(shell, hair)).toBeGreaterThan(9);
+      }
     }
     for (const jacket of EPHE_PALETTE.jackets) {
       expect(contrast(jacket, ENV.ground)).toBeGreaterThan(2);
     }
     const paints: readonly string[] = [
       ...EPHE_PALETTE.jackets,
+      ...EPHE_PALETTE.sleeves,
       ...EPHE_PALETTE.shells,
+      ...EPHE_PALETTE.hair,
+      ...EPHE_PALETTE.trousers,
       EPHE_PALETTE.helmet,
-      EPHE_PALETTE.visor,
+      EPHE_PALETTE.eyes,
       EPHE_PALETTE.boots,
     ];
     for (const alarm of [...Object.values(SEVERITY_COLOR), ...Object.values(SEVERITY_CVD_COLOR)]) {
       expect(paints).not.toContain(alarm);
     }
+  });
+
+  /**
+   * The coat is a lathe profile, not a capsule, and the profile is the waist.
+   * Two rules keep it honest: it has to end on a FLAT hem (otherwise the coat
+   * fades into the legs over its own radius and the hem is a gradient), and it
+   * has to be widest at that hem and narrow all the way to the collar (otherwise
+   * it is a ball again).
+   */
+  it("tapers the coat from a flat hem to a collar the head can sit on", () => {
+    const profile = FIGURE.coat;
+    expect(profile[0]![1]).toBe(-FIGURE.bodyHalf);
+    expect(profile[profile.length - 1]![1]).toBe(FIGURE.bodyHalf);
+    expect(profile[0]![0]).toBe(0); // closed at the centre line
+    expect(profile[profile.length - 1]![0]).toBe(0);
+    // the hem is a flat face: two consecutive points at the same height
+    expect(profile[1]![1]).toBe(profile[0]![1]);
+    // and from the hem up, every step is narrower than the one below it
+    for (let i = 1; i < profile.length - 1; i++) {
+      expect(profile[i + 1]![0]).toBeLessThanOrEqual(profile[i]![0]);
+    }
+    // the widest point is the hem, and it is the value the readability floors use
+    expect(Math.max(...profile.map((p) => p[0]))).toBe(FIGURE.bodyR);
+    // the collar is narrow enough that the head reads as a head on a body
+    expect(profile[profile.length - 2]![0]).toBeLessThan(FIGURE.headR);
+    // and the legs clear it: hip joint plus thigh sits inside the hem's radius
+    expect(FIGURE.hipWidth + 0.075).toBeLessThan(FIGURE.bodyR - 0.04);
+  });
+
+  /**
+   * The cap is the same hair family as the skull it covers — one value for the
+   * figure's identity mass — and it is drawn in the crowd's existing limb pass.
+   * A second hair colour would split the head into two values inside a 3.8 px
+   * column, which is the mistake the previous block of this palette made.
+   */
+  it("keeps the cap one value with the skull and under the crown", () => {
+    expect(FIGURE.headY + FIGURE.capY + FIGURE.capUp).toBeLessThanOrEqual(FIGURE.crown);
+    // the face band is the only light thing on the head, and it is below the cap
+    expect(FIGURE.faceY + FIGURE.faceUp).toBeLessThan(FIGURE.capY + FIGURE.capUp);
+    expect(FIGURE.faceY - FIGURE.faceUp).toBeGreaterThan(-FIGURE.headR - 0.01);
   });
 });
 

@@ -69,6 +69,7 @@ export function FindingsPanel() {
   const ruleFilter = useStore((s) => s.ruleFilter);
   const setRuleFilter = useStore((s) => s.setRuleFilter);
   const reviews = useStore((s) => s.reviews);
+  const verdictsUnreadable = useStore((s) => s.verdictsUnreadable);
   const closeRef = useRef<HTMLButtonElement>(null);
   /** Rule chips show the frequent ones; this reveals the long tail. */
   const [showAllRules, setShowAllRules] = useState(false);
@@ -133,6 +134,29 @@ export function FindingsPanel() {
   const allFindingsLabel = useCallback(
     (rule: string) => ruleClassLabel(everyFinding, rule, lang, ruleClasses),
     [everyFinding, lang, ruleClasses],
+  );
+  /**
+   * The words each rule CLASS is read by, resolved once per scan and language.
+   *
+   * The chips already asked this question and answered it in words; the rows
+   * answered it with the engine id, so one screen named the same class two ways
+   * — a chip "Hardcoded secret" over a line reading `HARDCODED_SECRET`. The rows
+   * now take the same answer from the same door. Keyed by class (`type`), not by
+   * the filter rule, because a row states which kind of thing was found while a
+   * chip states which rule to filter on. The id a reader searches with stays in
+   * the tooltip and on the detail card, where it is useful.
+   */
+  const labelByClass = useMemo(() => {
+    const labels = new Map<string, string>();
+    for (const { type } of everyFinding) {
+      if (!labels.has(type))
+        labels.set(type, ruleClassLabel(everyFinding, type, lang, ruleClasses));
+    }
+    return labels;
+  }, [everyFinding, lang, ruleClasses]);
+  const classLabel = useCallback(
+    (finding: CityFinding) => labelByClass.get(finding.type) ?? finding.type,
+    [labelByClass],
   );
 
   const ruleChips = useMemo(() => {
@@ -266,8 +290,14 @@ export function FindingsPanel() {
           {/* V2: the project's own progress, permanent once the first verdict
               exists — the return visit sees its earlier work at once. The
               orphaned variant counts the stranded verdicts in the same line,
-              labelled apart, so the tally never silently loses them. */}
-          {Object.keys(reviews).length > 0 && (
+              labelled apart, so the tally never silently loses them.
+              The slot answers whether or not a number exists: hanging the line
+              on the BROWSER copy alone let it go silent exactly when the
+              machine copy would not read and this browser held nothing, and
+              silence reads as "you have judged nothing". The words carry that
+              third state — never a `0 / N` that was never counted, never the
+              note's neutral ink on its own. */}
+          {Object.keys(reviews).length > 0 ? (
             <p className="panel-subtitle" data-judged-tally>
               {t(
                 lang,
@@ -279,9 +309,17 @@ export function FindingsPanel() {
                 },
               )}
             </p>
-          )}
+          ) : verdictsUnreadable ? (
+            <p className="panel-note" role="alert" data-judged-tally="unreadable">
+              ⚠ {t(lang, "findings.judgedTallyUnreadable")}
+            </p>
+          ) : null}
           {undrawn > 0 && (
-            <p className="panel-note">{t(lang, "findings.undrawn", { count: undrawn })}</p>
+            <p className="panel-note">
+              {t(lang, undrawn === 1 ? "findings.undrawnOne" : "findings.undrawn", {
+                count: undrawn,
+              })}
+            </p>
           )}
           {orphanedReviews > 0 && (
             <p className="panel-note">
@@ -398,7 +436,13 @@ export function FindingsPanel() {
             >
               {showAllRules
                 ? t(lang, "findings.fewerRules")
-                : t(lang, "findings.moreRules", { count: ruleCounts.size - RULE_CHIP_LIMIT })}
+                : t(
+                    lang,
+                    ruleCounts.size - RULE_CHIP_LIMIT === 1
+                      ? "findings.moreRulesOne"
+                      : "findings.moreRules",
+                    { count: ruleCounts.size - RULE_CHIP_LIMIT },
+                  )}
             </button>
           )}
         </div>
@@ -455,6 +499,12 @@ export function FindingsPanel() {
         )}
         {visibleGroups.map(({ file, worst, count, findings: groupFindings }) => {
           const fileSeverity: Severity = worst === 0 ? "P0" : worst === 1 ? "P1" : "P2";
+          // One finding in one file is one finding, not "1 findings".
+          const countTitle = t(
+            lang,
+            count === 1 ? "findings.countTitleOne" : "findings.countTitle",
+            { count },
+          );
           const accent = severityColor(fileSeverity, colorblind);
           const isSelected = selectedUnit?.kind === "file" && selectedUnit.id === file.id;
           const reviewedCount = groupFindings.filter(
@@ -485,10 +535,7 @@ export function FindingsPanel() {
                     <span className="finding-reviewed" title={t(lang, "findings.reviewedTitle")}>
                       {t(lang, "findings.reviewedCount", { reviewed: reviewedCount, count })}
                     </span>
-                    <span
-                      className="finding-count"
-                      title={t(lang, "findings.countTitle", { count })}
-                    >
+                    <span className="finding-count" title={countTitle}>
                       {count}
                     </span>
                   </span>
@@ -522,10 +569,13 @@ export function FindingsPanel() {
                           useStore.getState().setFocusedFindingKey(findingKey(file.id, index));
                         }}
                         className="finding-row"
-                        title={t(lang, "findings.findingTitle", {
+                        // The row names the class in words, so the id it is
+                        // searched with moves one hover away — the same deal
+                        // the filter chip above makes with its reader.
+                        title={`${t(lang, "findings.findingTitle", {
                           name: file.name,
                           line: finding.line,
-                        })}
+                        })} · ${ruleIdOf(finding)}`}
                       >
                         {review && (
                           <span
@@ -552,7 +602,7 @@ export function FindingsPanel() {
                           <FindingMessage finding={finding} />
                           <span className="finding-row-meta">
                             {t(lang, "panel.sourceLine", { line: finding.line })}{" "}
-                            <span aria-hidden="true">·</span> {finding.type}
+                            <span aria-hidden="true">·</span> {classLabel(finding)}
                           </span>
                         </span>
                       </button>

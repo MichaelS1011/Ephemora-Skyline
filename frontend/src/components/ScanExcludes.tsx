@@ -11,22 +11,32 @@
 import { useState } from "react";
 import {
   MAX_EXCLUDE_PATHS,
-  loadExcludes,
+  loadExcludesRead,
   parseExcludes,
   saveExcludes,
 } from "../config/scanProfiles";
 import { formatCount, t, type Lang } from "../i18n";
 
 export function ScanExcludes({ lang }: { lang: Lang }) {
-  const [draft, setDraft] = useState<string>(() => loadExcludes().join(", "));
-  const [saved, setSaved] = useState<string[]>(() => loadExcludes());
+  // Read once through the honest reader: a corrupt file is NOT "no excludes"
+  // (storageRead.ts; tests/storage-class-honest.test.ts). The list the field
+  // shows is empty because nothing could be honoured — the line below says
+  // that, and the bytes stay quarantined however this field saves next.
+  const [read] = useState(() => loadExcludesRead());
+  const [committed, setCommitted] = useState<string[] | null>(null);
+  const [draft, setDraft] = useState<string>(() =>
+    read.state === "read" ? read.value.join(", ") : "",
+  );
+  const saved = committed ?? (read.state === "read" ? read.value : []);
 
   /** Parse, store, and put the stored shape back in the field — what the user
-   *  sees after a commit is what the next scan will read. */
+   *  sees after a commit is what the next scan will read. A committed list is
+   *  also the reader choosing to move on from an unreadable file: the note
+   *  ends, the quarantine slot keeps the bytes regardless. */
   const commit = (): void => {
     const next = parseExcludes(draft);
     saveExcludes(next);
-    setSaved(next);
+    setCommitted(next);
     setDraft(next.join(", "));
   };
 
@@ -45,12 +55,16 @@ export function ScanExcludes({ lang }: { lang: Lang }) {
       />
       <span id="scan-exclude-rule">{t(lang, "cap.excludeRule")}</span>
       <span role="status" aria-live="polite">
-        {saved.length === 0
-          ? t(lang, "cap.excludeNone")
-          : t(lang, saved.length === 1 ? "cap.excludeCountOne" : "cap.excludeCount", {
-              n: count(saved.length),
-              max: count(MAX_EXCLUDE_PATHS),
-            })}
+        {read.state === "unreadable" && committed === null ? (
+          <>⚠ {t(lang, "cap.excludeUnreadable")}</>
+        ) : saved.length === 0 ? (
+          t(lang, "cap.excludeNone")
+        ) : (
+          t(lang, saved.length === 1 ? "cap.excludeCountOne" : "cap.excludeCount", {
+            n: count(saved.length),
+            max: count(MAX_EXCLUDE_PATHS),
+          })
+        )}
       </span>
     </label>
   );

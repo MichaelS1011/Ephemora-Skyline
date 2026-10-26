@@ -9,7 +9,7 @@ import {
   type ScanProfile,
 } from "../config/scanProfiles";
 import { FINDING_CATEGORIES, categoryMeta } from "../config/findingCategories";
-import { fetchRulePacks } from "../config/rulePacks";
+import { fetchRulePacks, loadSavedPacksRead } from "../config/rulePacks";
 import { ProfileConfirmDialog } from "./ProfileConfirmDialog";
 import "../design/profile-picker.css";
 import { t } from "../i18n";
@@ -25,6 +25,13 @@ export function ProfileChips({ variant }: { variant: "landing" | "analyze-panel"
   const availablePacks = useStore((s) => s.availablePacks);
   const setAvailablePacks = useStore((s) => s.setAvailablePacks);
   const [detailFor, setDetailFor] = useState<ScanProfile | null>(null);
+  const [packsUnreadable, setPacksUnreadable] = useState(false);
+  // The other door of the same class: not the disk question to the backend,
+  // but the SAVED SELECTION on this browser. Corrupt bytes used to load as
+  // "no packs chosen" and the store's prune-on-set turned that into a fresh
+  // save over the file. The bytes now stay quarantined (rulePacks.ts); this
+  // is the word, in the note family the row already uses.
+  const [packsStorageUnreadable] = useState(() => loadSavedPacksRead().state === "unreadable");
   const active = scanProfile ?? loadSavedProfile();
   const meta = SCAN_PROFILES.find((p) => p.id === active) ?? SCAN_PROFILES[1]!;
   const effectiveCategories = categoriesForProfile(active, scanCategories);
@@ -37,12 +44,21 @@ export function ProfileChips({ variant }: { variant: "landing" | "analyze-panel"
   // Which packs exist is a question about the disk, so it is asked of the
   // backend once per mount — and only where the answer is on screen. Asking
   // anyway would leave a network call for decoration nobody can see.
-  // An empty answer shows no chips: an empty choice is honest, a fake one is not.
+  // An empty answer shows no chips: an empty choice is honest, a fake one is
+  // not. A read that failed is not an empty answer: it says so in words, and
+  // it must not reach setAvailablePacks — pruning saved ids against bytes
+  // nobody read would rewrite the selection from a failure.
   useEffect(() => {
     if (!showsScope) return;
     let cancelled = false;
-    void fetchRulePacks().then((packs) => {
-      if (!cancelled) setAvailablePacks(packs);
+    void fetchRulePacks().then((result) => {
+      if (cancelled) return;
+      if (result.state === "read") {
+        setPacksUnreadable(false);
+        setAvailablePacks(result.packs);
+      } else {
+        setPacksUnreadable(result.state === "unreadable");
+      }
     });
     return () => {
       cancelled = true;
@@ -104,6 +120,20 @@ export function ProfileChips({ variant }: { variant: "landing" | "analyze-panel"
           </div>
         </>
       )}
+      {showsScope && packsUnreadable && (
+        <p className="profile-description pack-note" role="alert" data-packs-unreadable="true">
+          ⚠ {t(lang, "profile.packsUnreadable")}
+        </p>
+      )}
+      {showsScope && packsStorageUnreadable && (
+        <p
+          className="profile-description pack-note"
+          role="alert"
+          data-packs-storage-unreadable="true"
+        >
+          ⚠ {t(lang, "profile.packsStorageUnreadable")}
+        </p>
+      )}
       {showsScope && availablePacks.length > 0 && (
         <>
           <p className="category-caption">{t(lang, "profile.packsCaption")}</p>
@@ -124,7 +154,7 @@ export function ProfileChips({ variant }: { variant: "landing" | "analyze-panel"
                   onClick={() => toggleScanPack(pack.id)}
                   aria-pressed={on}
                   title={
-                    t(lang, "profile.packTip", {
+                    t(lang, pack.ruleCount === 1 ? "profile.packTipOne" : "profile.packTip", {
                       count: pack.ruleCount,
                       source: pack.source,
                       license: pack.license,

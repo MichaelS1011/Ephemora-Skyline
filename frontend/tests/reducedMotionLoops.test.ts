@@ -23,6 +23,10 @@ const MUST_HONOUR = [
   "CloneLasers.tsx",
   "VoxelMesh.tsx",
   "District.tsx",
+  // §04.02 — the 3D preview's turntable. It is the only motion the start screen
+  // adds, and it reads the same shared signal, so a reader who asked for no
+  // motion gets a still figure rather than a slowly spinning one.
+  "EphePreview.tsx",
 ];
 
 /**

@@ -10,6 +10,8 @@ import { topLanguages, languageColor, severityColor, authorColor } from "../city
 import { MarkerLegend } from "./CoachMarks";
 import { SinceLastScan } from "./SinceLastScan";
 import { CityLearningGuide } from "./CityLearningGuide";
+import { LayerView } from "./LayerView";
+import { RoleNotes } from "./RoleNotes";
 import { learningCopy } from "./learningCopy";
 import { useCompactChrome } from "../hooks/useCompactChrome";
 import "../design/stadt-ui.css";
@@ -53,7 +55,7 @@ export function ContextCard() {
     return (
       <button
         onClick={() => setCollapsed(false)}
-        className="absolute z-20 pointer-events-auto context-reopen flex items-center gap-2 px-3.5 py-3 rounded-lg text-[13px] font-medium"
+        className="absolute z-20 pointer-events-auto context-reopen flex items-center gap-2 px-3.5 py-3 rounded-lg text-[length:var(--fs-body)] font-medium"
         style={{
           background: "rgba(24, 24, 22, 0.95)",
           border: "1px solid rgba(150,142,128,0.3)",
@@ -99,7 +101,7 @@ export function ContextCard() {
     unverified > 0
       ? nothingScanned
         ? t(lang, "ctx.uncheckedDemo")
-        : t(lang, "ctx.unchecked", {
+        : t(lang, unverified === 1 ? "ctx.uncheckedOne" : "ctx.unchecked", {
             unverified,
             total: dir.fileCount,
             by:
@@ -108,7 +110,10 @@ export function ContextCard() {
       : "";
   const testLine =
     findingsInTests > 0 && totalFindings > 0
-      ? t(lang, "ctx.testFindings", { inTests: findingsInTests, total: totalFindings })
+      ? t(lang, findingsInTests === 1 ? "ctx.testFindingsOne" : "ctx.testFindings", {
+          inTests: findingsInTests,
+          total: totalFindings,
+        })
       : "";
   const kinds = summarizeCategories(dir.findingsByCategory, (id) =>
     t(lang, categoryMeta(id).label),
@@ -139,9 +144,13 @@ export function ContextCard() {
     >
       <div className="flex items-start justify-between gap-2 mb-4">
         <div className="min-w-0 flex-1">
-          <div className="text-[12px] mb-1" style={{ color: "#aaa69c" }}>
+          <div className="text-[length:var(--fs-small)] mb-1" style={{ color: "#aaa69c" }}>
             {t(lang, isRoot ? "ctx.project" : "ctx.district")}
           </div>
+          {/* 15 px is above the ladder: design/globals.css stops at `--fs-body`
+              13 px and has no display step, so this title keeps its literal
+              rather than dropping to the size of the copy under it. Pinned by
+              `tests/glas-chrome.test.ts` — a new size there goes red. */}
           <h2
             className="font-jetbrains text-[15px] font-semibold truncate"
             title={isRoot ? cityData.repo.name : dir.name}
@@ -150,7 +159,7 @@ export function ContextCard() {
           </h2>
           {!isRoot && (
             <div
-              className="font-jetbrains text-[12px] truncate mt-1"
+              className="font-jetbrains text-[length:var(--fs-small)] truncate mt-1"
               style={{ color: "#aaa69c" }}
               title={`/${dir.path}`}
             >
@@ -190,12 +199,17 @@ export function ContextCard() {
 
       <CityLearningGuide />
 
+      {/* The two census figures are the card's loudest fact and sit above the
+          ladder for the same reason as the title: 22 px has no step to snap to
+          (top is `--fs-body` 13 px), and a 13 px numeral next to a 12 px label
+          would repeat the label's size instead of outranking it. Pinned by
+          `tests/glas-chrome.test.ts`. */}
       <dl
         className="grid grid-cols-2 gap-4 pb-4"
         style={{ borderBottom: "1px solid rgba(150,142,128,0.18)" }}
       >
         <div title={t(lang, "ctx.filesTip")}>
-          <dt className="text-[12px] mb-1" style={{ color: "#aaa69c" }}>
+          <dt className="text-[length:var(--fs-small)] mb-1" style={{ color: "#aaa69c" }}>
             {t(lang, "ctx.files")}
           </dt>
           <dd className="text-[22px] font-semibold leading-none tabular-nums">
@@ -213,7 +227,7 @@ export function ContextCard() {
           </dd>
         </div>
         <div title={t(lang, "ctx.codeLinesTip")}>
-          <dt className="text-[12px] mb-1" style={{ color: "#aaa69c" }}>
+          <dt className="text-[length:var(--fs-small)] mb-1" style={{ color: "#aaa69c" }}>
             {t(lang, "ctx.codeLines")}
           </dt>
           <dd className="text-[22px] font-semibold leading-none tabular-nums">
@@ -239,7 +253,7 @@ export function ContextCard() {
               style={{ color: "#aaa69c" }}
               title={t(lang, "ctx.dataLinesTip")}
             >
-              {t(lang, "ctx.dataLines", {
+              {t(lang, dataLines === 1 ? "ctx.dataLinesOne" : "ctx.dataLines", {
                 count: formatCount(lang, dataLines),
                 labels: dataLabels ? ` (${dataLabels})` : "",
               })}
@@ -318,7 +332,7 @@ export function ContextCard() {
       <div className="py-4" style={{ borderBottom: "1px solid rgba(150,142,128,0.18)" }}>
         {totalFindings > 0 ? (
           <>
-            <div className="text-[13px] font-medium mb-2.5">
+            <div className="text-[length:var(--fs-body)] font-medium mb-2.5">
               {totalFindings === 1
                 ? t(lang, "ctx.findingsOne")
                 : t(lang, "ctx.findingsMany", { count: formatCount(lang, totalFindings) })}
@@ -340,7 +354,7 @@ export function ContextCard() {
                   findings[sev] > 0 ? (
                     <span
                       key={sev}
-                      className="inline-flex items-center gap-1.5 text-[12px]"
+                      className="inline-flex items-center gap-1.5 text-[length:var(--fs-small)]"
                       data-severity={sev}
                       style={{
                         color: severityColor(sev, colorblind),
@@ -369,16 +383,21 @@ export function ContextCard() {
                 }}
                 title={t(lang, "ctx.reviewFileTip", { path: inScope.file.path })}
               >
-                <div className="text-[12px] font-medium mb-1" style={{ color: "#f18a7b" }}>
+                <div
+                  className="text-[length:var(--fs-small)] font-medium mb-1"
+                  style={{ color: "#f18a7b" }}
+                >
                   {t(lang, "ctx.reviewHighest")}
                 </div>
-                <div className="font-jetbrains text-[12px] truncate">{inScope.file.name}</div>
+                <div className="font-jetbrains text-[length:var(--fs-small)] truncate">
+                  {inScope.file.name}
+                </div>
               </button>
             )}
           </>
         ) : (
           <div
-            className="text-[13px] flex items-center gap-2"
+            className="text-[length:var(--fs-body)] flex items-center gap-2"
             style={{ color: checked ? "#a2d4b4" : "#b8beb9" }}
             data-context-verdict={checked ? "checked" : "unchecked"}
           >
@@ -390,7 +409,7 @@ export function ContextCard() {
 
       {langs.length > 0 && (
         <div className="pt-4">
-          <div className="text-[12px] mb-2.5" style={{ color: "#aaa69c" }}>
+          <div className="text-[length:var(--fs-small)] mb-2.5" style={{ color: "#aaa69c" }}>
             {t(lang, "ctx.languages")}
           </div>
           <div className="flex h-1.5 rounded-full overflow-hidden mb-3" aria-hidden>
@@ -408,7 +427,7 @@ export function ContextCard() {
             {langs.map((language) => (
               <div
                 key={language.name}
-                className="flex items-center gap-1.5 min-w-0 text-[12px]"
+                className="flex items-center gap-1.5 min-w-0 text-[length:var(--fs-small)]"
                 title={t(lang, "ctx.langShare", {
                   name: language.name,
                   pct: Math.round((language.lines / totalLangLines) * 100),
@@ -438,11 +457,11 @@ export function ContextCard() {
         >
           {/* #52: a person does not belong between language shares — own
               block with a heading that says what the number means. */}
-          <div className="text-[12px] mb-2.5" style={{ color: "#aaa69c" }}>
+          <div className="text-[length:var(--fs-small)] mb-2.5" style={{ color: "#aaa69c" }}>
             {t(lang, "ctx.authorship")}
           </div>
           <div
-            className="flex items-center gap-2 text-[12px]"
+            className="flex items-center gap-2 text-[length:var(--fs-small)]"
             title={t(lang, "ctx.authored", {
               author: dir.topAuthor,
               pct: Math.round((dir.topAuthorShare ?? 0) * 100),
@@ -471,7 +490,7 @@ export function ContextCard() {
           onClick={() => setLegendOpen((open) => !open)}
           aria-expanded={legendOpen}
           aria-controls="context-city-legend"
-          className="w-full flex items-center justify-between gap-2 text-[13px] py-2 text-left"
+          className="w-full flex items-center justify-between gap-2 text-[length:var(--fs-body)] py-2 text-left"
           style={{ color: "#c5c0b5" }}
         >
           {t(lang, "ctx.legendToggle")}
@@ -480,6 +499,12 @@ export function ContextCard() {
         {legendOpen && (
           <div id="context-city-legend" className="pt-2">
             <MarkerLegend columns={1} />
+            {/* Z-05 — the four layers, under the same disclosure as the colour
+                key: both answer "what is this picture made of", and neither is
+                on the screen at arrival, where the word budget lives. */}
+            <LayerView />
+            {/* Z-07 — and the kinds of figure standing in it. */}
+            <RoleNotes />
           </div>
         )}
       </div>

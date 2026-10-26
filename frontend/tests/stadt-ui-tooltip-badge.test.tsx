@@ -11,7 +11,12 @@ import { act, createElement } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { Tooltip } from "../src/components/Tooltip";
 import { useStore } from "../src/stores/useStore";
-import { SEVERITY_CVD_COLOR, UNCHECKED_COLOR, severityColor } from "../src/city/palette";
+import {
+  SEVERITY_CVD_COLOR,
+  UNCHECKED_COLOR,
+  severityColor,
+  severityTextColor,
+} from "../src/city/palette";
 import { missingEnginesForDistrict, uncheckedFileCount } from "../src/city/provenance";
 import { addSeverityCounts, city, dir, file, finding, provenance } from "./helpers/cityFixture";
 import type { CityData, CityDir, CityFinding, Severity } from "../src/city/types";
@@ -178,7 +183,13 @@ describe("der Bezirksknopf weiß, ob überhaupt etwas hinsah", () => {
     const shown = badge()!.textContent ?? "";
     expect(shown).not.toContain("keine Funde");
     expect(shown).toBe("3 Dateien, von gitleaks, semgrep nicht geprüft");
-    expect(badge()!.style.color).toBe(rgb(UNCHECKED_COLOR));
+    // Same grade, two inks: the WORD rides the shell's ladder, the unchecked
+    // signal stays on the badge's wash and border — colour is never alone.
+    // jsdom folds the 8-digit hex washes into rgba(), so the triplet is the
+    // carrier the assertion reads.
+    expect(badge()!.style.color).toBe("var(--meta-strong)");
+    expect(badge()!.style.background).toContain(rgb(UNCHECKED_COLOR).slice(4, -1));
+    expect(badge()!.style.border).toContain(rgb(UNCHECKED_COLOR).slice(4, -1));
   });
 
   it("counts one unverified file in the singular it means", async () => {
@@ -231,7 +242,15 @@ describe("die Farbe ist nicht die einzige Botschaft, aber sie schaltet mit", () 
     expect(badge()!.style.color, "the hover badge never reads the colour-blind switch").not.toBe(
       plain,
     );
-    expect(badge()!.style.color).toBe(rgb(SEVERITY_CVD_COLOR.P0));
+    // Same grade, two inks (the rule the unchecked line already follows): the
+    // WORD rides `severityTextColor`, the alarm tone stays on the wash and the
+    // border. Measured on the plate, the colour-blind P0 area tone as a word is
+    // 4,04:1 and the P1 blue 3,06:1 — under the house step; the word ink lifts
+    // both over 4,5. `glas-chrome.test.ts` owns those ratios.
+    expect(badge()!.style.color).toBe(rgb(severityTextColor("P0", true)));
+    expect(badge()!.style.background).toContain(rgb(SEVERITY_CVD_COLOR.P0).slice(4, -1));
+    expect(badge()!.style.border).toContain(rgb(SEVERITY_CVD_COLOR.P0).slice(4, -1));
+    expect(severityTextColor("P0", true)).not.toBe(SEVERITY_CVD_COLOR.P0);
     expect(severityColor("P2", true)).toBe(SEVERITY_CVD_COLOR.P2);
   });
 });
