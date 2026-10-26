@@ -106,8 +106,12 @@ describe("the long tail", () => {
    * cannot grow while that migration is scheduled; it went DOWN the day this
    * file was written, and every later drop should replace the budget with the
    * new number rather than raise it.
+   *
+   * 2026-10-22: the import arc's two cores moved to `ENV`, which took the count
+   * from 220 to 218 — and showed the budget had been sitting 69 above its own
+   * measurement since. It is the number, not the headroom.
    */
-  const HEX_BUDGET = 289;
+  const HEX_BUDGET = 218;
 
   it("holds the inline hex count in DOM components at its measured number", () => {
     const dom = files.filter(

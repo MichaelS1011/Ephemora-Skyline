@@ -299,3 +299,120 @@ describe("the four machine-describing GET routes carry the origin guard", () => 
     }
   });
 });
+
+/**
+ * A count printed in a public document is a claim about `index.ts`, not about the
+ * other documents. SECURITY.md named ten acting routes while README.md and
+ * docs/API.md still said nine and left the tenth out of the list they enumerate —
+ * `POST /api/analyze-local/:id/live`, the route that folds a live delta into a
+ * finished scan. The tally below is therefore measured from the source, and each
+ * document must state the same numbers and name every route it counts.
+ */
+describe("the guard counts the public documents state", () => {
+  const source = readFileSync(path.resolve(import.meta.dirname, "../src/server/index.ts"), "utf-8");
+
+  /** One registration = `app.<method>("<path>", localOnlyRoute, …)`, import excluded. */
+  const registrations = [
+    ...source.matchAll(/app\.(get|post|put|patch|delete)\(\s*"([^"]+)"\s*,\s*localOnlyRoute/g),
+  ];
+  const acting = registrations.filter((m) => m[1] !== "get").map((m) => m[2]!);
+  const reading = registrations.filter((m) => m[1] === "get").map((m) => m[2]!);
+
+  const spelled = [
+    "zero",
+    "one",
+    "two",
+    "three",
+    "four",
+    "five",
+    "six",
+    "seven",
+    "eight",
+    "nine",
+    "ten",
+    "eleven",
+    "twelve",
+    "thirteen",
+    "fourteen",
+    "fifteen",
+    "sixteen",
+    "seventeen",
+    "eighteen",
+    "nineteen",
+    "twenty",
+  ];
+
+  /** The sentence piece that carries a count: the text right before the anchor. */
+  const clauseBefore = (text: string, anchor: string): string | null => {
+    const line = text.split("\n").find((l) => l.includes(anchor));
+    if (!line) return null;
+    const parts = line.slice(0, line.indexOf(anchor)).split(/[.;:]\s|\s+—\s+/);
+    return parts[parts.length - 1] ?? null;
+  };
+
+  /** Numbers a clause spells out — a digit is not a spelled count. */
+  const numbersIn = (clause: string): string[] =>
+    (clause.match(/[A-Za-z]+/g) ?? [])
+      .map((word) => word.toLowerCase())
+      .filter((word) => spelled.includes(word));
+
+  /** The routes a clause enumerates after its anchor, as written items. */
+  const itemsAfter = (text: string, anchor: string): string[] => {
+    const line = text.split("\n").find((l) => l.includes(anchor));
+    if (!line) return [];
+    const rest = line.slice(line.indexOf(anchor) + anchor.length).replace(/^[\s:*—(]+/, "");
+    const stop = rest.search(/\s+—\s+|\)|\.\s|\.$/);
+    return (stop === -1 ? rest : rest.slice(0, stop))
+      .split(",")
+      .map((item) => item.replace(/^(and|or)\s+/i, "").trim())
+      .filter(Boolean);
+  };
+
+  it("registers fifteen guarded routes: ten acting, five reading", () => {
+    expect(registrations.length).toBe(15);
+    expect(acting.length).toBe(10);
+    expect(reading.length).toBe(5);
+    /**
+     * Every mention of the guard is one registration plus the import line. A route
+     * wired in a shape this tally misses would change the mention count instead and
+     * fail here, rather than dropping out of the published number unnoticed.
+     */
+    expect((source.match(/localOnlyRoute/g) ?? []).length, "guard mentions in index.ts").toBe(
+      registrations.length + 1,
+    );
+    expect(acting, "the live-delta route is one of the ten").toContain(
+      "/api/analyze-local/:id/live",
+    );
+  });
+
+  for (const doc of ["README.md", "docs/API.md", "SECURITY.md"]) {
+    it(`${doc} says ten acting and five reading, as the source does`, () => {
+      const text = readFileSync(path.resolve(import.meta.dirname, "../..", doc), "utf-8");
+      const claims: [string, string, number][] = [
+        ["the guarded total", "carry the origin guard", registrations.length],
+        ["the acting routes", "beyond answering a question", acting.length],
+        ["the reads", "of the local program", reading.length],
+      ];
+      for (const [what, anchor, count] of claims) {
+        const clause = clauseBefore(text, anchor);
+        expect(clause, `${doc} no longer states ${what} in words`).not.toBeNull();
+        expect(
+          numbersIn(clause!),
+          `${doc}: ${what} is spelled "${numbersIn(clause!).join("/")}", source says ${spelled[count]}`,
+        ).toEqual([spelled[count]]);
+      }
+      const acts = itemsAfter(text, "beyond answering a question");
+      expect(acts, `${doc}: the acting list must name all ${acting.length} routes`).toHaveLength(
+        acting.length,
+      );
+      expect(
+        acts.join(", "),
+        `${doc}: the live delta is an acting route, so its list names it`,
+      ).toMatch(/live delta/);
+      expect(
+        itemsAfter(text, "of the local program"),
+        `${doc}: the read list must name all ${reading.length} routes`,
+      ).toHaveLength(reading.length);
+    });
+  }
+});

@@ -9,11 +9,17 @@
  * exception explicit, dated and reviewable.
  *
  * Rule: every high or critical finding must trace back to an advisory listed
- * below with a reason and a re-check date. Anything else fails the build.
+ * below with a reason, a dated entry and a re-check date that has not run out.
+ * Anything else fails the build. An exception is only good while it is honest:
+ * real UTC dates, re-check at most 180 days after it was added, and today still
+ * inside that window. Past the date it stops counting and the finding fails.
  *
  *   node scripts/audit-gate.mjs
  */
 import { execFileSync } from "child_process";
+
+/** Longest window an exception may claim, in calendar days. */
+const RECHECK_CAP_DAYS = 180;
 
 /**
  * Findings that are accepted, with why. Removing an entry the moment upstream
@@ -31,6 +37,53 @@ const ALLOWED = new Map([
     },
   ],
 ]);
+
+/**
+ * Today, UTC calendar day. Read from the system clock once and nowhere else:
+ * no argument, no environment seam — an escape hatch here would be an escape
+ * hatch in CI, and the date is what makes the exception reviewable at all.
+ */
+const TODAY_UTC = new Date().toISOString().slice(0, 10);
+
+/** Calendar day as a day number, or null when the string is not a real UTC date. */
+function utcDay(value) {
+  if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return null;
+  const ms = Date.parse(`${value}T00:00:00Z`);
+  if (Number.isNaN(ms)) return null;
+  // Round trip: the lenient parser rolls 2026-02-30 over to 2026-03-02.
+  if (new Date(ms).toISOString().slice(0, 10) !== value) return null;
+  return ms / 86_400_000;
+}
+
+/** Why an entry no longer counts, or null while it still does. */
+function expiryReason(entry) {
+  const added = utcDay(entry.added);
+  const recheck = utcDay(entry.recheck);
+  if (added === null) return `added "${entry.added}" is not a real UTC date`;
+  if (recheck === null) return `recheck "${entry.recheck}" is not a real UTC date`;
+  if (recheck < utcDay(TODAY_UTC)) return `recheck ${entry.recheck} is past due`;
+  if (recheck < added) return `recheck ${entry.recheck} is before added ${entry.added}`;
+  if (recheck - added > RECHECK_CAP_DAYS)
+    return (
+      `recheck ${entry.recheck} is more than ${RECHECK_CAP_DAYS} days ` +
+      `past added ${entry.added}`
+    );
+  return null;
+}
+
+/**
+ * Exceptions that are still good today. An expired or malformed entry is not a
+ * pass: the advisory simply stops being explained and lands in the failing list.
+ */
+const ACCEPTED = new Map();
+const inert = [];
+for (const [id, entry] of ALLOWED) {
+  const reason = expiryReason(entry);
+  if (reason) inert.push({ id, reason });
+  else ACCEPTED.set(id, entry);
+}
+const inertNote = (dead) =>
+  `${dead.id} is listed in ALLOWED but does not count: ${dead.reason} (today ${TODAY_UTC} UTC)`;
 
 function audit() {
   try {
@@ -99,7 +152,7 @@ while (grew) {
     }
     const own = [...directIds(v)];
     const deps = (v.via ?? []).filter((x) => typeof x === "string");
-    const ownAllowed = own.length > 0 && own.every((id) => ALLOWED.has(id));
+    const ownAllowed = own.length > 0 && own.every((id) => ACCEPTED.has(id));
     const depsExplained = deps.length > 0 && deps.every((d) => explained.has(d));
     if (
       (own.length === 0 || ownAllowed) &&
@@ -119,7 +172,10 @@ console.log(`npm audit: ${JSON.stringify(report.metadata?.vulnerabilities ?? {})
 if (accepted.length) {
   console.log(`\nAccepted by the gate (${accepted.length} package path(s)):`);
   for (const [name] of accepted) console.log(`  · ${name}`);
-  for (const [id, a] of ALLOWED) {
+  // Only an exception that explains a real high/critical finding counts as one.
+  const explainedIds = new Set(accepted.flatMap(([, v]) => [...directIds(v)]));
+  for (const [id, a] of ACCEPTED) {
+    if (!explainedIds.has(id)) continue;
     console.log(`\n  ${id} — ${a.title}`);
     console.log(`    why: ${a.why}`);
     console.log(`    added ${a.added}, re-check ${a.recheck} — ${a.ref}`);
@@ -133,8 +189,14 @@ if (failing.length) {
       console.error(
         typeof via === "string" ? `      via package ${via}` : `      ${via.title} — ${via.url}`,
       );
+    for (const id of directIds(v)) {
+      const dead = inert.find((entry) => entry.id === id);
+      if (dead) console.error(`      ${inertNote(dead)}`);
+    }
   }
   console.error("\nFix the dependency, or add the advisory to ALLOWED with a reason and a date.");
   process.exit(1);
 }
+// Nothing failed, so an inert entry is not a finding — but it must not go unsaid.
+for (const dead of inert) console.error(`note: ${inertNote(dead)}`);
 console.log("\nPASS — every high/critical finding is either fixed or explicitly accepted above.");

@@ -14,7 +14,7 @@ import { SemgrepAdapter } from "./adapters/semgrep-adapter.js";
 import { DependencyAdapter } from "./adapters/dependency-adapter.js";
 import { OsvAdapter } from "./adapters/osv-adapter.js";
 import { RuffAdapter } from "./adapters/ruff-adapter.js";
-import { dedupIssues, SEVERITY_ORDER } from "./dedup.js";
+import { dedupIssues, compareBySeverityThenLine } from "./dedup.js";
 import { categoryOf } from "./categories.js";
 import { enrichIssues } from "./finding-knowledge.js";
 import { maskIssueFrames } from "./redact.js";
@@ -241,9 +241,7 @@ export class SecurityScanner {
       enrichIssues(issues, target.content);
       const merged = this.filterForPath(dedupIssues([...target.vulnerabilities, ...issues]), rel);
       added += merged.length - target.vulnerabilities.length;
-      target.vulnerabilities = merged.sort(
-        (a, b) => SEVERITY_ORDER[a.severity] - SEVERITY_ORDER[b.severity] || a.line - b.line,
-      );
+      target.vulnerabilities = merged.sort(compareBySeverityThenLine);
     }
     void provenance;
     return added;
@@ -287,9 +285,7 @@ export class SecurityScanner {
     }
     const deduped = this.filterForPath(dedupIssues(all), filePath);
     // Sort by severity order P0>P1>P2 then line
-    deduped.sort(
-      (a, b) => SEVERITY_ORDER[a.severity] - SEVERITY_ORDER[b.severity] || a.line - b.line,
-    );
+    deduped.sort(compareBySeverityThenLine);
     // The boundary masks, not only the enrichment pass. An adapter that reads
     // the source line itself — gitleaks without its binary — never goes through
     // enrichIssues, and its raw `code` is what a user then exports. Whatever an

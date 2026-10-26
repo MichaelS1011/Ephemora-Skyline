@@ -205,7 +205,24 @@ describe("the surface a stranger reads", () => {
         expect(required, "package.json states no supported node engine").toBe(
           "^20.19.0 || >=22.12.0",
         );
-        expect(badgeByLabel("node").value.replace(/[^\d.]/g, "")).toBe("20.19");
+        const badge = badgeByLabel("node").value.replace(/[^\d.]/g, "");
+        expect(badge).toBe("20.19");
+        // N-06: the badge stated two floors and CI tested one version, so the
+        // claim had no check behind it. Every version `engines` names has to
+        // appear in the test matrix, and the floor the badge prints with it.
+        const matrix: string[] = [
+          ...read(".github/workflows/ci.yml").matchAll(/^\s*node:\s*\[([^\]]*)\]/gm),
+        ].flatMap((row: RegExpExecArray) =>
+          [...(row[1] ?? "").matchAll(/["']([^"']+)["']/g)].map((e) => e[1]!),
+        );
+        expect(matrix.length, "the test job names no node version matrix").toBeGreaterThan(0);
+        for (const wanted of required.match(/\d+\.\d+\.\d+/g) ?? []) {
+          expect(matrix, `engines promises node ${wanted}, which no CI job runs`).toContain(wanted);
+        }
+        expect(
+          matrix.some((v) => v.startsWith(badge)),
+          `the node badge promises ${badge}+, which no CI job runs`,
+        ).toBe(true);
       },
       typescript: () =>
         expect(declaredVersions("typescript")).toContain(badgeByLabel("typescript").value),

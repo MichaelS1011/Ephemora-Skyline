@@ -38,7 +38,7 @@ function installedCopies(name: string): string[] {
     .map((dir) => json<{ version: string }>(`${dir}/${name}/package.json`).version);
 }
 
-describe("the runtime the documents ask for (README.md:63, docs/GETTING_STARTED.md:22-27)", () => {
+describe("the runtime the documents ask for (README.md:64, docs/GETTING_STARTED.md:22-27)", () => {
   const engines = json<{ engines: { node: string; npm: string } }>("package.json").engines;
 
   it("matches the Node versions required by the installed Vite runtime", () => {
@@ -145,7 +145,7 @@ describe("TypeScript: the one number the documents may not disagree about", () =
   });
 });
 
-describe("the gates the README tells a reader to run (README.md:75-87)", () => {
+describe("the gates the README tells a reader to run (README.md:78-90)", () => {
   const root = json<{ scripts: Record<string, string> }>("package.json");
   const gateCommands = ["lint", "type-check", "test", "build"];
 
@@ -195,7 +195,7 @@ describe("the names and cadences a reader can check (README.md:11, docs/GETTING_
     expect(new Set(intervals)).toEqual(new Set(["weekly"]));
   });
 
-  it("keeps the two workspaces the README's install line promises (README.md:68)", () => {
+  it("keeps the two workspaces the README's install line promises (README.md:70)", () => {
     expect(json<{ workspaces: string[] }>("package.json").workspaces).toEqual([
       "frontend",
       "backend",

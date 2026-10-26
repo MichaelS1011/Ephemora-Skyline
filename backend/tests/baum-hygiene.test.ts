@@ -35,8 +35,6 @@ function git(...args: string[]): string[] {
 
 /** What a commit from this tree would carry. */
 const DELIVERED = git("ls-files", "--cached", "--others", "--exclude-standard");
-/** The part of it that is not in the index yet, so .gitignore still governs it. */
-const UNTRACKED = git("ls-files", "--others", "--exclude-standard");
 const DELIVERED_SET = new Set(DELIVERED);
 
 const read = (rel: string): string => readFileSync(path.join(REPO, rel), "utf-8");

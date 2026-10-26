@@ -4,7 +4,6 @@ import type { AnalysisResult } from "../src/models/index.js";
 import {
   buildHandoffLines,
   compareScans,
-  fingerprintIndex,
   handleHandoff,
   handleVerify,
 } from "../src/server/routes/agent.js";

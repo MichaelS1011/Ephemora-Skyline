@@ -5,6 +5,7 @@ import type { DroppedFiles } from "../../city/types";
 import type { AnalysisState, FolderPlan, LocalFile } from "../useLocalAnalysis";
 import type { LiveFileMeta } from "../../live/types";
 import { hasSubtleCrypto, sha256Hex } from "../../live/files";
+import { notePendingRun } from "../../pendingRun";
 
 /**
  * The upload half of the local flow, split out of `useLocalAnalysis.ts` (K3):
@@ -259,6 +260,9 @@ export async function uploadAndAnalyze(
       return;
     }
     deps.jobIdRef.current = data.id;
+    // §03.09 — from this answer on, a run exists that outlives this tab. Noted
+    // before the first poll, because the reload that loses it can come next.
+    notePendingRun(data.id);
     deps.waitingRef.current = true;
     deps.pollStatus(data.id, run);
   } catch (err) {

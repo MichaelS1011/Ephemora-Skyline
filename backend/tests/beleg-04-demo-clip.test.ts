@@ -88,7 +88,6 @@ const one = (type: string): Box => {
   return box;
 };
 const u32 = (at: number): number => bytes.readUInt32BE(at);
-const u16 = (at: number): number => bytes.readUInt16BE(at);
 
 /** Handler fourcc of each track ('vide', 'soun', …). */
 const handlers = (): string[] =>

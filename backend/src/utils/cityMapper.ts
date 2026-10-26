@@ -31,7 +31,7 @@ import {
   findingFingerprint,
   normalizeIdentityPath,
 } from "../services/security/finding-identity.js";
-import type { FindingCategory } from "../models/index.js";
+import { THREAT_SCORE, type FindingCategory } from "../models/index.js";
 import type { AnalysisResult, FileAnalysis, ProjectSummary } from "../models/index.js";
 
 export type Severity = "P0" | "P1" | "P2";
@@ -322,7 +322,6 @@ const DETAIL_FILES_TOTAL = 1400;
 const FILE_CONNECTIONS_MAX = 400;
 const DIR_CONNECTIONS_MAX = 200;
 
-const SEVERITY_SCORE: Record<Severity, number> = { P0: 10, P1: 7, P2: 3 };
 const SEVERITY_ORDER: Severity[] = ["P0", "P1", "P2"];
 
 /** Representative towers per district skyline (rendered while zoomed out). */
@@ -374,7 +373,7 @@ function findCircularFiles(files: FileAnalysis[], pathSet: Set<string>): Set<str
 
 /** Weight a subtree file for skyline selection: risk dominates, size breaks ties. */
 function skylineWeight(f: FileAnalysis): number {
-  const risk = f.vulnerabilities.reduce((s, v) => s + (SEVERITY_SCORE[v.severity] ?? 0), 0);
+  const risk = f.vulnerabilities.reduce((s, v) => s + (THREAT_SCORE[v.severity] ?? 0), 0);
   // A fixture never becomes the tower the user sees from orbit.
   return roleWeight(f) * 100_000_000 + risk * 10_000 + Math.min(f.lines.code, 2000);
 }
@@ -480,7 +479,7 @@ function fileSortKey(f: FileAnalysis): number {
 }
 
 function findingsSortKey(findings: FileAnalysis["vulnerabilities"]): number {
-  return findings.reduce((max, v) => Math.max(max, SEVERITY_SCORE[v.severity] ?? 0), 0);
+  return findings.reduce((max, v) => Math.max(max, THREAT_SCORE[v.severity] ?? 0), 0);
 }
 
 // ── Directory trie ─────────────────────────────────────────────────────────
@@ -686,7 +685,7 @@ export function mapResultToCityData(result: AnalysisResult): CityData {
       for (const v of f.vulnerabilities) {
         dirNode.findingsBySeverity[v.severity] = (dirNode.findingsBySeverity[v.severity] ?? 0) + 1;
         dirNode.findingsByCategory[v.category ?? "unclassified"] += 1;
-        const score = SEVERITY_SCORE[v.severity] ?? 0;
+        const score = THREAT_SCORE[v.severity] ?? 0;
         if (inTest) {
           dirNode.findingsInTests += 1;
           dirNode.testThreatScore += score;
@@ -733,7 +732,7 @@ export function mapResultToCityData(result: AnalysisResult): CityData {
     dirNode.topFindings = dirNode.topFindings
       .sort(
         (a, b) =>
-          (SEVERITY_SCORE[b.severity] ?? 0) - (SEVERITY_SCORE[a.severity] ?? 0) ||
+          (THREAT_SCORE[b.severity] ?? 0) - (THREAT_SCORE[a.severity] ?? 0) ||
           Number(a.inTest === true) - Number(b.inTest === true),
       )
       .slice(0, 3);
@@ -945,7 +944,7 @@ function mapCityFile(
     ...new Set([...(missingFor?.(f.language) ?? []), ...(f.liveRefreshed ? liveStale : [])]),
   ];
   const findings = [...f.vulnerabilities]
-    .sort((a, b) => (SEVERITY_SCORE[b.severity] ?? 0) - (SEVERITY_SCORE[a.severity] ?? 0))
+    .sort((a, b) => (THREAT_SCORE[b.severity] ?? 0) - (THREAT_SCORE[a.severity] ?? 0))
     // the file itself carries the role
     .map((v) => toCityFinding(v, undefined, f.path));
   const churn = f.churn;

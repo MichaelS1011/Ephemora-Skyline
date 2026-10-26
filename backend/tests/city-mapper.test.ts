@@ -99,6 +99,33 @@ describe("mapResultToCityData", () => {
     expect(result.tree.topFindings[0]!.type).toBe("SQL_INJECTION");
   });
 
+  it("weighs the city on its own 10 / 7 / 3 scale, whatever a scanner shipped", () => {
+    // Characterization before the score table moved to one shared home. Two
+    // facts are pinned here, and both are today's behaviour:
+    //  1. The threat score is the MAPPER's severity scale (10 + 7 + 3 = 20),
+    //     summed over the subtree — not the `score` field the finding carries.
+    //     A stray scanner score of 99 must not reach the city.
+    //  2. The same table orders what the panel shows first: directory
+    //     `topFindings` and the file's own finding list run P0 → P1 → P2.
+    const city = mapResultToCityData(
+      makeResult([
+        makeFile({
+          path: "src/db.ts",
+          vulnerabilities: [
+            { type: "EVAL_USAGE", severity: "P2", score: 0, line: 7, code: "z", message: "m" },
+            { type: "SQL_INJECTION", severity: "P0", score: 10, line: 5, code: "x", message: "m" },
+            { type: "XSS", severity: "P1", score: 99, line: 6, code: "y", message: "m" },
+          ],
+        }),
+      ]),
+    );
+
+    expect(city.tree.threatScore).toBe(20);
+    expect(city.tree.topFindings.map((f) => f.severity)).toEqual(["P0", "P1", "P2"]);
+    const db = city.tree.children[0]!.detailFiles[0]!;
+    expect(db.findings.map((f) => f.severity)).toEqual(["P0", "P1", "P2"]);
+  });
+
   it("caps detail files per directory and reports the rest as remainingFiles", () => {
     const many = Array.from({ length: 60 }, (_, i) =>
       makeFile({

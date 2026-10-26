@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { DICT, t, type DictKey } from "../src/i18n";
+import { COPY, learningCopy } from "../src/components/learningCopy";
 
 const keys = Object.keys(DICT) as DictKey[];
 
@@ -49,5 +50,59 @@ describe("t()", () => {
   it("returns unknown keys unchanged instead of throwing", () => {
     expect(t("en", "no.such.key" as DictKey)).toBe("no.such.key");
     expect(t("de", "no.such.key" as DictKey, { name: "x" })).toBe("no.such.key");
+  });
+});
+
+/**
+ * The learning guide reads its texts from `learningCopy.ts`, a bridge that lives
+ * outside `DICT`. The dictionary is held to EN+DE completeness by the tests
+ * above; this bridge was not — and that gap is exactly why an English word
+ * could sit in a German sentence ("Ephe's provide …") without a single guard
+ * turning red. The same two rules now cover it, plus a bleed check that a
+ * German sentence may not carry an English word taken from its English twin.
+ */
+describe("learningCopy bridge is bilingual too", () => {
+  const keys = Object.keys(COPY) as (typeof COPY extends Record<infer K, unknown> ? K : never)[];
+
+  /** Loanwords/units that legitimately stand in German text, each with a reason. */
+  const ALLOW = new Map<string, string>([
+    ["scanner", "technischer Begriff, im Deutschen so gebräuchlich"],
+    ["scan", "Technikwort, auch im Deutschen „Scan“"],
+    ["code", "Lehnwort in „Code-Maßstab“ / „Codeumfang“"],
+    ["tests", "Mehrzahl des Lehnworts „Test“"],
+    ["demo", "Kurzwort, im Deutschen gebräuchlich"],
+    ["imports", "Programmbegriff im deutschen Satz"],
+    ["ephe", "Eigenname der Ephemora-Bewohner, in beiden Sprachen gleich"],
+  ]);
+
+  const words = (s: string): string[] => s.toLowerCase().match(/[a-zäöüß]+/g) ?? [];
+
+  it("has a non-empty English and German value for every key", () => {
+    expect(keys.length).toBeGreaterThan(4);
+    for (const key of keys) {
+      expect(COPY[key].en.trim(), `en is empty for "${key}"`).not.toBe("");
+      expect(COPY[key].de.trim(), `de is empty for "${key}"`).not.toBe("");
+    }
+  });
+
+  it("carries no English word (over 3 letters) that its German twin just copied", () => {
+    for (const key of keys) {
+      const enWords = new Set(words(COPY[key].en));
+      const bleed = words(COPY[key].de).filter(
+        (w) => w.length > 3 && enWords.has(w) && !ALLOW.has(w),
+      );
+      expect(bleed, `English bleed in "${key}": ${bleed.join(", ")}`).toEqual([]);
+    }
+  });
+
+  it("uses no English possessive plural in a German sentence", () => {
+    for (const key of keys) {
+      expect(/[A-Za-z][’']s\b/.test(COPY[key].de), `Denglish apostrophe in "${key}"`).toBe(false);
+    }
+  });
+
+  it("learningCopy answers the bridge in both languages", () => {
+    expect(learningCopy("en", "title")).toBe("Learn to read this city");
+    expect(learningCopy("de", "title")).toBe("Diese Stadt lesen lernen");
   });
 });

@@ -225,24 +225,63 @@ const verdictsRoute = (analysisId: string): string =>
   `/api/result/${encodeURIComponent(analysisId)}/verdicts`;
 
 /**
+ * What asking the machine copy for its verdicts can answer.
+ *
+ * `read` — the file answered; the map is what it holds, and an empty map is a
+ * real answer ("nothing judged yet"). `absent` — the backend did not answer, or
+ * this scan is not known to it: the browser copy stands alone, exactly as before
+ * the route existed. `unreadable` — the route answered 503 with the body code
+ * `verdicts_unreadable`: the file is there and its bytes cannot be read.
+ * Reading that as `absent` is the failure this function used to have: the person
+ * who triaged forty findings yesterday got a city that looked unreviewed, and
+ * the delete door stayed open over bytes that might still be recoverable.
+ */
+export type VerdictRead =
+  | { state: "read"; reviews: Record<string, ReviewStatus> }
+  | { state: "absent" }
+  | { state: "unreadable" };
+
+/**
+ * Latched by a read that came back unreadable and cleared by one that did not.
+ * It is what closes the write doors for the rest of the visit — the same fact
+ * the backend enforces on disk, applied on the side that has to stop asking.
+ */
+let machineCopyUnreadable = false;
+
+/**
  * The machine copy for a scan, asked by the project bucket this browser
- * derived. `null` means the backend did not answer — the browser copy stands
- * alone, exactly as before the route existed.
+ * derived.
  */
 export async function fetchBackendReviews(
   analysisId: string,
   project: string,
-): Promise<Record<string, ReviewStatus> | null> {
-  if (!analysisId || !project) return null;
+): Promise<VerdictRead> {
+  if (!analysisId || !project) return { state: "absent" };
   try {
     const res = await fetch(`${verdictsRoute(analysisId)}?project=${encodeURIComponent(project)}`, {
       headers: { Accept: "application/json" },
     });
-    if (!res.ok) return null;
+    if (res.status === 503) {
+      // Only the code the store itself names is read as a broken file: a 503
+      // from something else in front of it is a server that is not answering,
+      // and saying "your verdicts could not be read" about that would be a new
+      // alarm with no evidence behind it.
+      const code = await res
+        .json()
+        .then((b) => (b as { code?: unknown } | undefined)?.code)
+        .catch(() => undefined);
+      if (code === "verdicts_unreadable") {
+        machineCopyUnreadable = true;
+        return { state: "unreadable" };
+      }
+      return { state: "absent" };
+    }
+    if (!res.ok) return { state: "absent" };
     const body = (await res.json()) as { reviews?: Record<string, ReviewStatus> };
-    return cleanReviews(body.reviews);
+    machineCopyUnreadable = false;
+    return { state: "read", reviews: cleanReviews(body.reviews) };
   } catch {
-    return null;
+    return { state: "absent" };
   }
 }
 
@@ -258,7 +297,10 @@ function cleanReviews(raw: unknown): Record<string, ReviewStatus> {
 /**
  * Write the full map through to the machine copy, serialized so two quick
  * verdicts cannot land out of order. Failures are tolerated: the browser copy
- * still holds the verdict, and the next load adopts and re-pushes it.
+ * still holds the verdict, and the next load adopts and re-pushes it. While the
+ * copy answers unreadable nothing is sent at all — the backend refuses to write
+ * over a file it could not read, so asking repeatedly would only dress a refused
+ * write up as a saved one.
  */
 let verdictWriteChain: Promise<void> = Promise.resolve();
 
@@ -267,7 +309,7 @@ export function pushBackendReviews(
   project: string,
   reviews: Record<string, ReviewStatus>,
 ): void {
-  if (!analysisId || !project) return;
+  if (!analysisId || !project || machineCopyUnreadable) return;
   const body = JSON.stringify({ project, reviews });
   verdictWriteChain = verdictWriteChain
     .then(() =>
@@ -281,7 +323,18 @@ export function pushBackendReviews(
     .catch(() => undefined);
 }
 
-/** The entry screen's "delete my verdicts" clears the machine copy too. */
-export function resetBackendVerdicts(): void {
+/**
+ * The entry screen's "delete my verdicts" clears the machine copy too.
+ *
+ * Returns whether the door was used. While the last read answered
+ * `verdicts_unreadable` it is not: a reset writes an empty file, so pressing
+ * delete over bytes that cannot currently be listed is how a person's whole
+ * triage history becomes unrecoverable — with the screen having just told them
+ * there was nothing to find. The browser buckets the button names are still
+ * cleared by the caller; only the machine copy is left alone.
+ */
+export function resetBackendVerdicts(): boolean {
+  if (machineCopyUnreadable) return false;
   fetch("/api/verdicts/reset", { method: "POST" }).catch(() => undefined);
+  return true;
 }

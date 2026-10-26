@@ -17,9 +17,14 @@ import {
   tourStops,
   type CraneShot,
 } from "../city/layout";
-import { findVoxelForLine } from "../city/voxels";
+import { worldTargetForFinding } from "../city/waypoint";
 import { defaultOverviewPath } from "../city/overview";
 import type { ResidentOffer } from "../city/residentGreeting";
+import type { EpheRole, GuideRequest } from "../city/epheRoles";
+import { securityClaimFor } from "../city/epheRoles";
+import { prefersReducedMotion } from "../city/motion";
+import { loadEpheNames, normaliseName, saveEpheName } from "../epheNames";
+import { readEpheLook, saveEpheLook, type EpheLook } from "../epheLook";
 import {
   loadSavedProfile,
   saveProfile,
@@ -42,6 +47,8 @@ import { loadPrefs, savePrefs, type Prefs } from "../prefs";
 import { EMPTY_LIVE_STATE, type LiveState, type PendingLiveScan } from "../live/types";
 import { mergeEngineGaps } from "../city/provenance";
 import { hasCityVisit, recordCityVisit } from "../recentCities";
+import { hasArrivedBefore, markArrived } from "../firstArrival";
+import { clearPendingRun } from "../pendingRun";
 import { anchorFor, verifyAnchorScannedAt, verifyScans, type VerifyReport } from "../verify";
 import {
   clearVisitParams,
@@ -335,6 +342,14 @@ interface AppState {
   viewMode: ViewMode;
   setViewMode: (m: ViewMode) => void;
 
+  /**
+   * 005 Teil A: mark the files that import the selected one. Off by default —
+   * an impact claim is a question the reader asks, not a layer the city wears.
+   * Cleared with the city, like every other view state.
+   */
+  blastOn: boolean;
+  setBlastOn: (v: boolean) => void;
+
   // ── Triage — work the findings queue one finding at a time ─────────────
   triageActive: boolean;
   triageCursor: number; // index into the triage list (0-based)
@@ -382,10 +397,31 @@ interface AppState {
    * `catch {}`. Reported so the screen can say the verdict is session-only.
    */
   verdictsBlocked: boolean;
+  /**
+   * The machine copy of this project's verdicts could not be read.
+   *
+   * The backend owns one JSON file next to the browser's own storage, and it
+   * answers 503 `verdicts_unreadable` rather than serve an empty map it cannot
+   * justify. `absent` (no backend in reach) leaves the browser copy standing
+   * alone and says nothing; this flag is only for the file that is there and
+   * will not read — the case where an unreviewed city would be a lie.
+   */
+  verdictsUnreadable: boolean;
   setReview: (key: string, status: ReviewStatus | null) => void;
 
   // ── User preferences (lang, rendering effects, CVD palette) ────────────
   prefs: Prefs;
+  /**
+   * Whether this browser has never shown a city (§03.02).
+   *
+   * Read once when the store is built, so the first paint already knows whether
+   * to greet a newcomer or drop a returning reader back into the work. It is the
+   * machine's memory of one arrival, not this screen's — a second folder is still
+   * `false`, and `markArrived` sets it on the first city so the NEXT launch reads
+   * `false`. Nothing consumes it yet; the calm welcome state (§03.03) is its
+   * first reader.
+   */
+  firstRun: boolean;
   setPref: <K extends keyof Prefs>(key: K, value: Prefs[K]) => void;
   /**
    * Switch the passive release check on or off, and say what it is now.
@@ -445,7 +481,56 @@ interface AppState {
    * the index back through `selectResident`.
    */
   selectedResident: number | null;
-  selectResident: (index: number | null) => void;
+  /**
+   * EPHE-AI EA-01 — what the selected figure IS, not where it sits in the
+   * array: `plot:<file id>#<seat>` when the level drew its home, null when the
+   * caller had no identity to hand over. The index is rebuilt with every level;
+   * this string survives a re-scan of the same folder, so it is what a name, a
+   * role or a bound model can be keyed by.
+   */
+  residentIdentity: string | null;
+  /**
+   * Which job the called figure carries, handed over by the renderer that owns
+   * the crowd: the roles are index arithmetic over the live population, and a
+   * card that recomputed them would have to guess the crowd size. Null when the
+   * level draws no role figure — an unnamed citizen, which is the normal case.
+   */
+  residentRole: EpheRole | null;
+  /**
+   * Names the reader has given residents in this session, keyed by their
+   * address. Deliberately a map and not one field: the card moves from figure
+   * to figure, and a name that followed the selection instead of the resident
+   * would rename everybody. Nothing is stored yet — that is EA-03, and the key
+   * is already the stable one it needs.
+   */
+  residentNames: Record<string, string>;
+  nameResident: (key: string, name: string | null) => void;
+  /**
+   * Whether the last name failed to reach storage. The card's own sentence
+   * promises the name outlives the session, and a promise the browser refused
+   * to keep has to be taken back out loud.
+   */
+  residentNamesBlocked: boolean;
+  /**
+   * §04.10 — the look the reader chose, in state as well as on disk, so the
+   * crowd can recolour the moment it changes. The browser-wide key of §04.09 is
+   * the source at boot; `applyEpheLook` is the only door, because a state that
+   * can drift from its own storage is how §04.09's promise breaks.
+   */
+  epheLook: EpheLook;
+  /** Whether the last look failed to reach storage — same honesty rule as names. */
+  epheLookBlocked: boolean;
+  /** A partial choice: the panel picks one thing at a time, the store merges. */
+  applyEpheLook: (next: Partial<EpheLook>) => void;
+  /**
+   * §04.11 — the vitrine is reachable from inside a city, not only from the
+   * start page. Renaming is the card's field; restyling needs the figure itself
+   * on a size where a jacket can be seen, and the card must not grow a second
+   * verb to provide it. One flag, one panel, the same door `showSearch` uses.
+   */
+  showEpheVitrine: boolean;
+  setShowEpheVitrine: (v: boolean) => void;
+  selectResident: (index: number | null, identity?: string | null, role?: EpheRole | null) => void;
   residentCall: number;
   requestResidentCall: () => void;
   /** A one-shot wave from the crowd when the city is finished. */
@@ -465,9 +550,36 @@ interface AppState {
   residentPoint: { x: number; z: number; until: number } | null;
   pointResidentAt: (x: number, z: number, until: number) => void;
 
+  /**
+   * 005-B — the Explorer's errand. A guide exists only while a reader asks for
+   * one AND the pair of files really is joined by an import edge: `claim` is the
+   * edge the city states, never a sentence written around a guess. `x`/`z` are
+   * the target building's own plot point, resolved by the caller from the same
+   * layout the city drew — the resident is never handed a place nothing stands.
+   * `phase` is the resident's report: `walking` until it arrives, `arrived` once
+   * it stands at the target and points.
+   */
+  guide: GuideRequest | null;
+  guidePhase: "walking" | "arrived" | null;
+  startGuide: (guide: GuideRequest) => void;
+  /**
+   * B11 — the Security resident follows the tour without becoming it. Called
+   * with the stop the tour just opened: if that building stands on the level the
+   * camera has reached, the resident is sent to its frontage; if not, no errand
+   * is created and the tour goes on saying what it always said. The tour's own
+   * panel, order and Escape stay untouched.
+   */
+  syncTourGuide: (fileId: string) => void;
+  setGuidePhase: (p: "walking" | "arrived") => void;
+  cancelGuide: () => void;
+
   // ── Auto-Gfx (perf.ts): the frame budget decides, until a hand doesn't ─
   autoGfxLite: boolean;
   setAutoGfxLite: (v: boolean) => void;
+  /** The same window the governor decides from, published as Hz for the
+   *  header. Null until the window is full — a half-seen rate is a guess. */
+  frameHz: number | null;
+  setFrameHz: (v: number) => void;
   /** True once the visitor touched the manual switch — the automation
    *  yields for the visit, the same law the construction crane follows. */
   gfxAutoDisabled: boolean;
@@ -614,8 +726,9 @@ export function openTriageCount(list: TriageEntry[], reviews: ReviewMap): number
 
 /**
  * Voxel-focus V3: fly the camera close to the voxel that represents a
- * source line. Composes placement + section base + cell (the renderer's
- * transform, plus the 0.3 body lift Building applies to its voxel group).
+ * source line. The target arithmetic lives in `city/waypoint.ts` — the ONE
+ * source both the flight and the screen-edge waypoint read (placement +
+ * section base + cell, plus the 0.3 body lift Building applies).
  * No-op when the file/placement/layout has no materialized cell for the
  * line — the caller's previous flyRequest (building center) stays intact.
  */
@@ -625,21 +738,17 @@ function flyToVoxel(
   fileId: string,
   line: number,
 ): void {
-  const hit = findFileById(city, fileId);
-  if (!hit) return;
-  const layout = getDirLayout(city, hit.chain);
-  const placement = layout.buildings.find((b) => b.file.id === fileId);
-  const voxels = placement?.voxels;
-  if (!placement || !voxels) return;
-  const found = findVoxelForLine(voxels, line);
-  if (!found) return;
-  const section = voxels.sections[found.sectionIndex]!;
-  const s = voxels.voxelSize;
-  const wx = placement.x + section.base.x + found.cell.x * s;
-  const wz = placement.z + section.base.z + found.cell.z * s;
-  const wy = 0.3 + (found.cell.y + 0.5) * s;
+  const target = worldTargetForFinding(city, fileId, line);
+  if (!target) return;
   set({
-    flyRequest: { x: wx, z: wz, distance: 7, duration: 1.0, targetY: wy, nonce: ++flyNonce },
+    flyRequest: {
+      x: target.x,
+      z: target.z,
+      distance: 7,
+      duration: 1.0,
+      targetY: target.y,
+      nonce: ++flyNonce,
+    },
   });
 }
 
@@ -731,10 +840,22 @@ export const useStore = create<AppState>((set, get) => {
       firstVerdictKey: null,
       cityOnly: false,
       selectedResident: null,
+      residentIdentity: null,
+      residentRole: null,
       residentCall: 0,
       residentPoint: null,
       residentOffer: "open",
+      guide: null,
+      guidePhase: null,
       shareHero: null,
+      // A triage round walks the findings of THIS city. Tearing the city down
+      // has to tear the queue down with it: the store used to carry a running
+      // round and its anchored total into a Landing screen that holds nothing
+      // to count, and only the next `setCityData` cleaned it up.
+      triageActive: false,
+      triageCursor: 0,
+      triageTotal: 0,
+      focusedFindingKey: null,
     });
     if (typeof window !== "undefined") clearVisitParams(push);
   };
@@ -749,17 +870,24 @@ export const useStore = create<AppState>((set, get) => {
    * one this person just made), then pushed back so the machine copy carries
    * the merge and the scan registers itself for the agent's read-only route.
    * A backend that does not answer leaves the browser copy standing alone —
-   * the behavior this app had before the route existed.
+   * the behavior this app had before the route existed. A backend that answers
+   * and cannot read its file is NOT that: the verdicts are there and lost to
+   * this visit, so the screen has to say so instead of showing an unreviewed
+   * city, and nothing is merged or pushed over it.
    */
   const adoptMachineVerdicts = async (
     analysisId: string,
     project: string,
     local: Record<string, ReviewStatus>,
   ): Promise<void> => {
-    const backend = await fetchBackendReviews(analysisId, project);
-    if (!backend) return;
-    const merged = { ...backend, ...local };
+    const read = await fetchBackendReviews(analysisId, project);
     if (get().cityData?.analysisId !== analysisId) return; // a newer city arrived
+    if (read.state === "unreadable") {
+      set({ verdictsUnreadable: true });
+      return;
+    }
+    if (read.state === "absent") return;
+    const merged = { ...read.reviews, ...local };
     if (Object.keys(merged).length !== Object.keys(local).length) {
       saveReviews(project, merged);
       set({
@@ -803,7 +931,12 @@ export const useStore = create<AppState>((set, get) => {
       // The construction cinematic is for the city a person is seeing for the
       // first time on this machine, not for the tenth reload of a visit they are
       // in the middle of (measured: every reload re-raised 10 of 10 buildings).
+      // Under reduced motion the city stands at once: Building.tsx already
+      // renders every tower visible and scaled to 1 on the first frame, so a
+      // multi-second build counter and crane flight would describe work that
+      // is not happening on screen. Skip the schedule entirely.
       const seenBefore = hasCityVisit(data?.analysisId);
+      const skipBuild = !seenBefore && prefersReducedMotion();
       set({
         cityData: data,
         focusPath: restored.chain,
@@ -818,6 +951,7 @@ export const useStore = create<AppState>((set, get) => {
         // A new city is a neutral stage: the previous repo's view mode must not
         // dim or re-lighten the fresh skyline before the user has chosen a lens.
         viewMode: "structure",
+        blastOn: false,
         tourActive: false,
         tourIndex: 0,
         // The deferred surfaces are folded again for a city that has not been
@@ -826,13 +960,18 @@ export const useStore = create<AppState>((set, get) => {
         showMinimap: false,
         showHeat: false,
         showSearch: false,
+        showEpheVitrine: false,
         showPrimer: false,
         showShortcuts: false,
         cityOnly: false,
         selectedResident: null,
+        residentIdentity: null,
+        residentRole: null,
         residentCall: 0,
         residentPoint: null,
         residentOffer: "open",
+        guide: null,
+        guidePhase: null,
         triageActive: false,
         triageCursor: 0,
         triageTotal: 0,
@@ -841,6 +980,11 @@ export const useStore = create<AppState>((set, get) => {
         reviews,
         orphanedReviews: countStrandedVerdicts(reviews, data),
         verdictsBlocked: false,
+        // A new city asks the machine copy again; a warning about the last
+        // visit's read must not survive into a visit that never made one.
+        verdictsUnreadable: false,
+        residentNames: loadEpheNames(data),
+        residentNamesBlocked: false,
         // V3: a city arrives unarmed — CityScene arms the pulse with the reveal
         // flight of THIS build, and never with one from a previous city.
         revealPulse: null,
@@ -854,7 +998,7 @@ export const useStore = create<AppState>((set, get) => {
           get().cityData?.analysisId === (data?.analysisId ?? null)
             ? get().verify
             : { status: "idle" },
-        buildPhase: data ? (seenBefore ? "built" : "constructing") : "empty",
+        buildPhase: data ? (seenBefore || skipBuild ? "built" : "constructing") : "empty",
         buildStartedAt: data ? Date.now() : 0,
         constructionDone: 0,
         constructionTotal: 0,
@@ -863,6 +1007,14 @@ export const useStore = create<AppState>((set, get) => {
         poseRequest: pose ? { pose, nonce: ++poseNonce } : null,
       });
       if (data) recordCityVisit(data);
+      // The one place a city reaches the screen is also where "this machine has
+      // arrived" gets stamped, so a first-run reading never survives a city. The
+      // current `firstRun` is left in place for this visit's welcome to read;
+      // only the next launch comes back `false`.
+      if (data) markArrived();
+      // §03.09 — and the record of the read that produced it is spent. Matched by
+      // id, so opening some other city never forgets a run still going.
+      if (data?.analysisId) clearPendingRun(data.analysisId);
       // every scan is noted with its folder shape, whether or not anyone asks
       // later: the comparison needs the earlier scan even if it was a drive-by
       if (data?.analysisId) anchorFor(data);
@@ -897,6 +1049,7 @@ export const useStore = create<AppState>((set, get) => {
       if (!current || !data.analysisId || current.analysisId !== data.analysisId) return;
       mergeEngineGaps(data);
       const reviews = loadReviewsForCity(data);
+      set({ residentNames: loadEpheNames(data) });
       const selected = get().selectedUnit;
       const keptSelection =
         selected?.kind === "file" ? (findFileById(data, selected.id) ? selected : null) : selected;
@@ -906,6 +1059,14 @@ export const useStore = create<AppState>((set, get) => {
         orphanedReviews: countStrandedVerdicts(reviews, data),
         selectedUnit: keptSelection,
       });
+      // The dock's triage line prints two numbers side by side: the stepper's
+      // `cursor+1 / triageTotal`, both anchored in the store, and the open count
+      // recounted from `cityData` (ActionBar.tsx:180-189, :382-388). A delta
+      // that changes the finding set changes the length of that queue, so the
+      // anchored total has to move with it — `reanchorTriage` keeps the focused
+      // finding where it is when the delta leaves it in the queue, and clamps
+      // the cursor when the new queue is shorter or empty.
+      reanchorTriage(set, get);
     },
 
     /** Tear the city down and return to the Landing screen ("start over"). */
@@ -1133,6 +1294,9 @@ export const useStore = create<AppState>((set, get) => {
     viewMode: "structure",
     setViewMode: (m) => set({ viewMode: m }),
 
+    blastOn: false,
+    setBlastOn: (v) => set({ blastOn: v }),
+
     // ── Triage implementation ────────────────────────────────────────────────
     triageActive: false,
     triageCursor: 0,
@@ -1225,6 +1389,7 @@ export const useStore = create<AppState>((set, get) => {
     reviews: {},
     orphanedReviews: 0,
     verdictsBlocked: false,
+    verdictsUnreadable: false,
     revealPulse: null,
     firstVerdictKey: null,
     setReview: (key, status) => {
@@ -1253,6 +1418,7 @@ export const useStore = create<AppState>((set, get) => {
     },
 
     prefs: loadPrefs(),
+    firstRun: !hasArrivedBefore(),
     setPref: (key, value) => {
       const prefs = { ...get().prefs, [key]: value };
       savePrefs(prefs);
@@ -1295,14 +1461,57 @@ export const useStore = create<AppState>((set, get) => {
     cityOnly: false,
     setCityOnly: (v) =>
       set(
-        v ? { cityOnly: true, selectedResident: null, residentPoint: null } : { cityOnly: false },
+        v
+          ? {
+              cityOnly: true,
+              selectedResident: null,
+              residentIdentity: null,
+              residentRole: null,
+              residentPoint: null,
+            }
+          : { cityOnly: false },
       ),
     selectedResident: null,
-    selectResident: (index) =>
+    residentIdentity: null,
+    residentRole: null,
+    residentNames: {},
+    residentNamesBlocked: false,
+    epheLook: readEpheLook(),
+    epheLookBlocked: false,
+    applyEpheLook: (look) =>
+      set((s) => {
+        const merged = { ...s.epheLook, ...look };
+        return { epheLook: merged, epheLookBlocked: !saveEpheLook(merged) };
+      }),
+    showEpheVitrine: false,
+    setShowEpheVitrine: (v) => set({ showEpheVitrine: v }),
+    nameResident: (key, name) =>
+      set((s) => {
+        const next = { ...s.residentNames };
+        const kept = normaliseName(name);
+        if (kept === "") delete next[key];
+        else next[key] = kept;
+        // Durable when the address names a plot; a `street:` name is a crowd
+        // number of this level and is deliberately not written anywhere.
+        const written = saveEpheName(get().cityData, key, name);
+        return { residentNames: next, residentNamesBlocked: !written };
+      }),
+    selectResident: (index, identity = null, role = null) =>
       set(
         index === null
-          ? { selectedResident: null, residentPoint: null }
-          : { selectedResident: index, residentPoint: null, residentOffer: "taken" },
+          ? {
+              selectedResident: null,
+              residentIdentity: null,
+              residentRole: null,
+              residentPoint: null,
+            }
+          : {
+              selectedResident: index,
+              residentIdentity: identity,
+              residentRole: role,
+              residentPoint: null,
+              residentOffer: "taken",
+            },
       ),
     residentCall: 0,
     requestResidentCall: () => set((s) => ({ residentCall: s.residentCall + 1 })),
@@ -1315,8 +1524,44 @@ export const useStore = create<AppState>((set, get) => {
     residentPoint: null,
     pointResidentAt: (x, z, until) => set({ residentPoint: { x, z, until } }),
 
+    // ── 005-B Ephe guides ────────────────────────────────────────────────────
+    guide: null,
+    guidePhase: null,
+    startGuide: (guide) => set({ guide, guidePhase: "walking" }),
+    syncTourGuide: (fileId) => {
+      const { cityData } = get();
+      if (!cityData || prefersReducedMotion()) return;
+      const hit = findFileById(cityData, fileId);
+      if (!hit) return;
+      const claim = securityClaimFor(hit.file);
+      // No finding, nothing to point at. The tour says what the payload holds
+      // and the resident stays a resident.
+      if (!claim) return;
+      const placement = getDirLayout(cityData, hit.chain).buildings.find(
+        (b) => b.file.id === fileId,
+      );
+      // Same frontage rule the Explorer got: the plot centre is inside the
+      // tower, and a guide that arrives behind the building it explains has led
+      // the reader nowhere.
+      if (!placement) return;
+      set({
+        guide: {
+          role: "security",
+          targetFileId: fileId,
+          x: placement.x,
+          z: placement.z + placement.d / 2 + 0.8,
+          claim,
+        },
+        guidePhase: "walking",
+      });
+    },
+    setGuidePhase: (p) => set({ guidePhase: p }),
+    cancelGuide: () => set({ guide: null, guidePhase: null }),
+
     autoGfxLite: false,
     setAutoGfxLite: (v) => set({ autoGfxLite: v }),
+    frameHz: null,
+    setFrameHz: (v) => set({ frameHz: v }),
     gfxAutoDisabled: false,
 
     scanProfile: loadSavedProfile(),
@@ -1364,9 +1609,18 @@ export const useStore = create<AppState>((set, get) => {
       if (!cityData || tourStops(cityData).length === 0) return;
       set({ tourActive: true, tourIndex: 0 });
       const stop = tourStops(cityData)[0];
-      if (stop) get().navigateToFile(stop.file.id);
+      if (stop) {
+        get().navigateToFile(stop.file.id);
+        get().syncTourGuide(stop.file.id);
+      }
     },
-    endTour: () => set({ tourActive: false }),
+    // The tour ends: the resident that was following it has no stop left to
+    // point at. Only its own errand is cleared — an Explorer the reader sent
+    // out on their own question is not the tour's to cancel.
+    endTour: () => {
+      if (get().guide?.role === "security") set({ guide: null, guidePhase: null });
+      set({ tourActive: false });
+    },
     nextTour: () => {
       const { cityData, tourIndex } = get();
       if (!cityData) return;
@@ -1374,7 +1628,9 @@ export const useStore = create<AppState>((set, get) => {
       if (stops.length === 0) return;
       const next = Math.min(stops.length - 1, tourIndex + 1);
       set({ tourIndex: next });
-      get().navigateToFile(stops[next]!.file.id);
+      const stop = stops[next]!;
+      get().navigateToFile(stop.file.id);
+      get().syncTourGuide(stop.file.id);
     },
     prevTour: () => {
       const { cityData, tourIndex } = get();
@@ -1383,7 +1639,9 @@ export const useStore = create<AppState>((set, get) => {
       if (stops.length === 0) return;
       const prev = Math.max(0, tourIndex - 1);
       set({ tourIndex: prev });
-      get().navigateToFile(stops[prev]!.file.id);
+      const stop = stops[prev]!;
+      get().navigateToFile(stop.file.id);
+      get().syncTourGuide(stop.file.id);
     },
 
     isLoading: false,

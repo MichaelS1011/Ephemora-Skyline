@@ -7,7 +7,7 @@ import {
   SUPPORTED_EXTENSIONS,
   supportedExtensionsLabel,
 } from "../src/services/analyzer/orchestrator.js";
-import { detectLanguage, ENV_FILE, isDataFile } from "../src/services/analyzer/metrics.js";
+import { detectLanguage, ENV_FILE } from "../src/services/analyzer/metrics.js";
 import { REGEX_PATTERNS, RegexAdapter } from "../src/services/security/adapters/regex-adapter.js";
 import { FINDING_KNOWLEDGE } from "../src/services/security/finding-knowledge.js";
 

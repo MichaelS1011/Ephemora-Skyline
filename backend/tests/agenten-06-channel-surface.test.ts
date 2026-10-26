@@ -1,9 +1,21 @@
-import { describe, it, expect } from "vitest";
-import { existsSync, readFileSync } from "fs";
+import { describe, it, expect, vi } from "vitest";
+import {
+  existsSync,
+  lstatSync,
+  mkdtempSync,
+  readFileSync,
+  readlinkSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from "fs";
+import { createHash } from "crypto";
+import os from "os";
 import path from "path";
 import type { Request, Response } from "express";
 import type { AnalysisResult, FileAnalysis } from "../src/models/index.js";
 import { buildHandoffLines, handleHandoff, handleVerify } from "../src/server/routes/agent.js";
+import { VerdictStore } from "../src/server/routes/verdicts.js";
 import {
   expectedOrigins,
   isForeignBrowserRequest,
@@ -537,5 +549,393 @@ describe("the result and verify routes answer their contract", () => {
     expect(sarif.runs[0]!.results).toHaveLength(
       result.files.reduce((sum, f) => sum + f.vulnerabilities.length, 0),
     );
+  });
+});
+
+/**
+ * "One file, one writer" (verdicts.ts) only holds while the load is ONE promise.
+ * With a boolean flag flipped before the `readFile` await, a second caller in
+ * the same tick was let past an empty map: the write serialised only its own
+ * bucket and renamed that over the file, so every other project's verdicts on
+ * disk were gone — permanent data loss for a folder the browser is not showing.
+ *
+ * Driven through a temp `CODECITY_VERDICTS_FILE`, never the real home file.
+ */
+describe("a verdict store that is still loading answers as one writer", () => {
+  const BUCKET_A = "p-0000000000000001";
+  const BUCKET_B = "p-0000000000000002";
+  const FP_A = "fp:aaaaaaaaaaaaaaaa";
+  const FP_B = "fp:bbbbbbbbbbbbbbbb";
+
+  type Payload = {
+    version: number;
+    projects: Record<string, { at: number; reviews: Record<string, string> }>;
+  };
+
+  const payload = (file: string): Payload => JSON.parse(readFileSync(file, "utf-8")) as Payload;
+
+  /**
+   * The write itself is fire-and-forget on the store's own chain, so the only
+   * observable end state is "the file stopped being what we seeded". There is
+   * exactly one write in this flow, so the first change IS the final state —
+   * no waiting on a guessed number of ticks.
+   */
+  async function awaitWritten(file: string, seeded: string): Promise<Payload> {
+    for (let tick = 0; tick < 100; tick++) {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      const now = payload(file);
+      if (JSON.stringify(now) !== seeded) return now;
+    }
+    throw new Error(`the store never wrote ${file}`);
+  }
+
+  it("a get racing a set in the same tick keeps the other project's bucket on disk", async () => {
+    const dir = mkdtempSync(path.join(os.tmpdir(), "codecity-verdicts-race-"));
+    const file = path.join(dir, "verdicts.json");
+    const previous = process.env.CODECITY_VERDICTS_FILE;
+    process.env.CODECITY_VERDICTS_FILE = file;
+    try {
+      writeFileSync(
+        file,
+        JSON.stringify({
+          version: 1,
+          projects: {
+            [BUCKET_A]: { at: 1, reviews: { [FP_A]: "reviewed" } },
+            [BUCKET_B]: { at: 2, reviews: { [FP_B]: "reviewed" } },
+          },
+        }),
+        "utf-8",
+      );
+      const seeded = JSON.stringify(payload(file));
+
+      const store = new VerdictStore();
+      // Started, deliberately not awaited: the disk read is still in flight…
+      const racing = store.get(BUCKET_A);
+      // …while this write already asks for the whole file to be rewritten.
+      const saved = await store.set(BUCKET_B, { [FP_B]: "to-fix" });
+      await expect(racing).resolves.toEqual({ [FP_A]: "reviewed" });
+
+      expect(saved).toEqual({ [FP_B]: "to-fix" });
+      const written = await awaitWritten(file, seeded);
+      expect(Object.keys(written.projects).sort(), "bucket A is gone from the file").toEqual([
+        BUCKET_A,
+        BUCKET_B,
+      ]);
+      expect(written.projects[BUCKET_A]?.reviews).toEqual({ [FP_A]: "reviewed" });
+      expect(written.projects[BUCKET_B]?.reviews).toEqual({ [FP_B]: "to-fix" });
+    } finally {
+      if (previous === undefined) delete process.env.CODECITY_VERDICTS_FILE;
+      else process.env.CODECITY_VERDICTS_FILE = previous;
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
+
+/**
+ * The same promise, the other half: `verdicts.ts` said a missing AND a broken
+ * file read "empty", so one triage click on an unreadable file wrote that
+ * emptiness back and deleted every bucket the file still held. A read that
+ * failed is not a store that is empty.
+ *
+ * Three states, one decision each:
+ *   missing  ENOENT only — nothing exists yet, an empty store may be created.
+ *   loaded   the file parsed and the version is the one the store speaks.
+ *   failed   EACCES/EIO/EISDIR/ELOOP, unparsable bytes, another version — the
+ *            handlers answer 503 `verdicts_unreadable`, a `set` writes nothing,
+ *            and the memoized read is dropped so the NEXT request tries again.
+ * `POST /api/verdicts/reset` is a delete intent and still deletes.
+ *
+ * Every case drives the exported handlers against a temp `CODECITY_VERDICTS_FILE`
+ * in `os.tmpdir()`, never the real home file, and each gets a fresh module so the
+ * module-level store cannot carry a previous test's state into the next file.
+ */
+describe("an unreadable verdict file is answered 503, never written over", () => {
+  const BUCKET_A = "p-000000000000000a";
+  const BUCKET_B = "p-000000000000000b";
+  const FP_A = "fp:aaaaaaaaaaaaaaaa";
+  const FP_B = "fp:bbbbbbbbbbbbbbbb";
+
+  const twoBuckets = (): string =>
+    JSON.stringify({
+      version: 1,
+      projects: {
+        [BUCKET_A]: { at: 1, reviews: { [FP_A]: "reviewed" } },
+        [BUCKET_B]: { at: 2, reviews: { [FP_B]: "to-fix" } },
+      },
+    });
+
+  const sha = (file: string): string =>
+    createHash("sha256").update(readFileSync(file)).digest("hex");
+  const readBack = (file: string): Payload => JSON.parse(readFileSync(file, "utf-8")) as Payload;
+
+  type Payload = {
+    version: number;
+    projects: Record<string, { reviews: Record<string, string> }>;
+  };
+
+  function capture(): { status: number; body: Record<string, unknown>; res: Response } {
+    const box: { status: number; body: Record<string, unknown> } = { status: 200, body: {} };
+    const res = {
+      status(code: number) {
+        box.status = code;
+        return this;
+      },
+      json(value: unknown) {
+        box.body = value as Record<string, unknown>;
+        return this;
+      },
+    };
+    return {
+      get status() {
+        return box.status;
+      },
+      get body() {
+        return box.body;
+      },
+      res: res as unknown as Response,
+    };
+  }
+
+  /** The handlers answer through their own module-level store: import it fresh. */
+  async function routes() {
+    vi.resetModules();
+    return import("../src/server/routes/verdicts.js");
+  }
+
+  const resultStore = {
+    get: (id: string): AnalysisResult | undefined => (id === result.id ? result : undefined),
+  };
+
+  async function getVerdicts(project: string) {
+    const { handleGetVerdicts } = await routes();
+    const box = capture();
+    await handleGetVerdicts(
+      { params: { id: result.id }, query: { project } } as unknown as Request,
+      box.res,
+      resultStore,
+    );
+    return box;
+  }
+
+  async function putVerdicts(project: string, reviews: Record<string, string>) {
+    const { handlePutVerdicts } = await routes();
+    const box = capture();
+    await handlePutVerdicts(
+      { params: { id: result.id }, body: { project, reviews } } as unknown as Request,
+      box.res,
+      resultStore,
+    );
+    return box;
+  }
+
+  /** One temp home per case, restored and removed afterwards. */
+  async function inTemp(
+    name: string,
+    seed: (dir: string, file: string) => void,
+    run: (dir: string, file: string) => Promise<void>,
+  ): Promise<void> {
+    const dir = mkdtempSync(path.join(os.tmpdir(), `codecity-verdicts-${name}-`));
+    const file = path.join(dir, "verdicts.json");
+    seed(dir, file);
+    const previous = process.env.CODECITY_VERDICTS_FILE;
+    process.env.CODECITY_VERDICTS_FILE = file;
+    try {
+      await run(dir, file);
+    } finally {
+      if (previous === undefined) delete process.env.CODECITY_VERDICTS_FILE;
+      else process.env.CODECITY_VERDICTS_FILE = previous;
+      rmSync(dir, { recursive: true, force: true });
+    }
+  }
+
+  /** The write chain is fire-and-forget: a stray temp file would linger. */
+  const noTempLeft = (file: string): void => {
+    expect(existsSync(`${file}.tmp`), "a refused write leaves no half-written file").toBe(false);
+  };
+
+  /**
+   * `persist` runs on the store's own chain AFTER the handler answered, so a
+   * synchronous `readBack` races the rename. There is exactly one pending write
+   * per case and the write is atomic, so the first sha change IS the final
+   * state — the same reasoning as `awaitWritten` in the race case above.
+   */
+  async function awaitDisk(file: string, before: string | null): Promise<Payload> {
+    for (let tick = 0; tick < 200; tick++) {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      if (!existsSync(file)) continue;
+      if (sha(file) !== before) return readBack(file);
+    }
+    throw new Error(`the store never wrote ${file}`);
+  }
+
+  it("truncated bytes are `failed`: GET and PUT answer 503 and the file is untouched", async () => {
+    await inTemp(
+      "truncated",
+      (_dir, file) => {
+        const whole = twoBuckets();
+        writeFileSync(file, whole.slice(0, whole.length - 24), "utf-8");
+      },
+      async (_dir, file) => {
+        const before = sha(file);
+
+        const got = await getVerdicts(BUCKET_A);
+        expect(got.status, "an unreadable file is not an empty one").toBe(503);
+        expect(got.body.code).toBe("verdicts_unreadable");
+
+        const put = await putVerdicts(BUCKET_A, { [FP_A]: "to-fix" });
+        expect(put.status, "a write must not overwrite what it could not read").toBe(503);
+        expect(put.body.code).toBe("verdicts_unreadable");
+        expect(sha(file), "the bytes on disk are the bytes that arrived").toBe(before);
+        noTempLeft(file);
+
+        // And the failure is not memoized: once the file reads again, so does the route.
+        writeFileSync(file, twoBuckets(), "utf-8");
+        const repairedSeed = sha(file);
+        const repaired = await putVerdicts(BUCKET_A, { [FP_A]: "false-positive" });
+        expect(repaired.status, "the next request retries the read").toBe(200);
+        const written = await awaitDisk(file, repairedSeed);
+        expect(written.projects[BUCKET_A]!.reviews).toEqual({ [FP_A]: "false-positive" });
+        expect(
+          written.projects[BUCKET_B]!.reviews,
+          "bucket B survived the unreadable phase",
+        ).toEqual({ [FP_B]: "to-fix" });
+      },
+    );
+  });
+
+  it("a symlink loop is `failed`: readFile says ELOOP, PUT answers 503 and the loop survives", async () => {
+    await inTemp(
+      "eloop",
+      (dir, file) => {
+        const other = path.join(dir, "other.json");
+        symlinkSync(other, file);
+        symlinkSync(file, other);
+      },
+      async (_dir, file) => {
+        // The premise of the case: a read that fails for a reason other than absence.
+        let readCode = "";
+        try {
+          readFileSync(file, "utf-8");
+        } catch (e) {
+          readCode = (e as NodeJS.ErrnoException).code ?? "";
+        }
+        expect(readCode, "the temp file must really be an ELOOP read").toBe("ELOOP");
+
+        const linkTarget = readlinkSync(file);
+        const pointsBack = readlinkSync(linkTarget);
+
+        const put = await putVerdicts(BUCKET_A, { [FP_A]: "reviewed" });
+        expect(put.status).toBe(503);
+        expect(put.body.code).toBe("verdicts_unreadable");
+        expect(lstatSync(file).isSymbolicLink(), "the loop was not replaced by a file").toBe(true);
+        expect(readlinkSync(file)).toBe(linkTarget);
+        expect(readlinkSync(linkTarget)).toBe(pointsBack);
+        noTempLeft(file);
+      },
+    );
+  });
+
+  it("another version is `failed`: the store does not speak it and does not write over it", async () => {
+    await inTemp(
+      "version",
+      (_dir, file) => {
+        writeFileSync(file, JSON.stringify({ version: 2, projects: {} }), "utf-8");
+      },
+      async (_dir, file) => {
+        const before = sha(file);
+        const put = await putVerdicts(BUCKET_A, { [FP_A]: "reviewed" });
+        expect(put.status).toBe(503);
+        expect(put.body.code).toBe("verdicts_unreadable");
+        expect(sha(file)).toBe(before);
+        noTempLeft(file);
+      },
+    );
+  });
+
+  it("no file at all is `missing`: GET answers empty and PUT may create the file", async () => {
+    await inTemp(
+      "missing",
+      () => {
+        /* deliberately nothing written */
+      },
+      async (_dir, file) => {
+        expect(existsSync(file)).toBe(false);
+        const got = await getVerdicts(BUCKET_A);
+        expect(got.status).toBe(200);
+        expect(got.body).toEqual({ project: BUCKET_A, reviews: {} });
+
+        const put = await putVerdicts(BUCKET_A, { [FP_A]: "reviewed" });
+        expect(put.status).toBe(200);
+        const written = await awaitDisk(file, null);
+        expect(existsSync(file), "a first verdict is allowed to create its home").toBe(true);
+        expect(written.projects[BUCKET_A]!.reviews).toEqual({ [FP_A]: "reviewed" });
+      },
+    );
+  });
+
+  it("a readable file is `loaded`: a write keeps the other project's bucket", async () => {
+    await inTemp(
+      "loaded",
+      (_dir, file) => {
+        writeFileSync(file, twoBuckets(), "utf-8");
+      },
+      async (_dir, file) => {
+        const got = await getVerdicts(BUCKET_B);
+        expect(got.status).toBe(200);
+        expect(got.body).toEqual({ project: BUCKET_B, reviews: { [FP_B]: "to-fix" } });
+
+        const stale = sha(file);
+        const put = await putVerdicts(BUCKET_A, { [FP_A]: "false-positive" });
+        expect(put.status).toBe(200);
+        const written = await awaitDisk(file, stale);
+        expect(written.projects[BUCKET_A]!.reviews).toEqual({ [FP_A]: "false-positive" });
+        expect(written.projects[BUCKET_B]!.reviews).toEqual({ [FP_B]: "to-fix" });
+      },
+    );
+  });
+});
+
+/**
+ * The memoized promise is the race fix — and its own second-order risk, in
+ * both directions: a FAILED read cached forever would keep answering 503 long
+ * after the file reads again, and a SUCCESSFUL read re-run per request would
+ * race a fresh disk state against every write. The handler cases above get a
+ * fresh module per call and cannot see the cache, so this drives ONE store
+ * instance and asserts both halves.
+ */
+describe("the memoized read poisons nothing and re-reads nothing", () => {
+  const BUCKET_A = "p-000000000000000a";
+  const FP_A = "fp:aaaaaaaaaaaaaaaa";
+
+  it("a failed read is retried once the file reads again, and a loaded read is never re-read", async () => {
+    const dir = mkdtempSync(path.join(os.tmpdir(), "codecity-verdicts-memo-"));
+    const file = path.join(dir, "verdicts.json");
+    const whole = JSON.stringify({
+      version: 1,
+      projects: { [BUCKET_A]: { at: 1, reviews: { [FP_A]: "reviewed" } } },
+    });
+    writeFileSync(file, whole.slice(0, whole.length - 12), "utf-8"); // truncated: unparsable
+    const previous = process.env.CODECITY_VERDICTS_FILE;
+    process.env.CODECITY_VERDICTS_FILE = file;
+    try {
+      const store = new VerdictStore();
+      expect(await store.get(BUCKET_A), "a failed read answers `unreadable`, not empty").toBeNull();
+
+      writeFileSync(file, whole, "utf-8");
+      expect(
+        await store.get(BUCKET_A),
+        "the failed read was dropped from the cache: the next request reads again",
+      ).toEqual({ [FP_A]: "reviewed" });
+
+      writeFileSync(file, JSON.stringify({ version: 1, projects: {} }));
+      expect(
+        await store.get(BUCKET_A),
+        "the loaded map is memoized: the disk is not re-read on every request",
+      ).toEqual({ [FP_A]: "reviewed" });
+    } finally {
+      if (previous === undefined) delete process.env.CODECITY_VERDICTS_FILE;
+      else process.env.CODECITY_VERDICTS_FILE = previous;
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 });

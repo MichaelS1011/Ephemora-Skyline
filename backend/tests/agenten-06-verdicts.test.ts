@@ -3,7 +3,12 @@ import { readFileSync } from "fs";
 import path from "path";
 import type { Request, Response } from "express";
 import type { AnalysisResult } from "../src/models/index.js";
-import { compareScans, fingerprintIndex, handleVerify } from "../src/server/routes/agent.js";
+import {
+  compareScans,
+  fingerprintIndex,
+  handleVerify,
+  type VerifyReport,
+} from "../src/server/routes/agent.js";
 import { findingFingerprint } from "../src/services/security/finding-identity.js";
 
 /**
@@ -166,7 +171,9 @@ describe("what a verify request may ask for", () => {
       id === before.id ? before : id === after.id ? after : undefined,
   };
 
-  async function verify(body: Record<string, unknown>): Promise<{ status: number; report: any }> {
+  async function verify(
+    body: Record<string, unknown>,
+  ): Promise<{ status: number; report: VerifyReport }> {
     const capture: { status: number; report: unknown } = { status: 200, report: undefined };
     const res = {
       status(code: number) {
@@ -186,7 +193,7 @@ describe("what a verify request may ask for", () => {
       },
     };
     await handleVerify({ body } as unknown as Request, res as unknown as Response, store);
-    return capture as { status: number; report: any };
+    return capture as { status: number; report: VerifyReport };
   }
 
   it("checks only the fingerprints the caller names", async () => {

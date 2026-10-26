@@ -1,10 +1,9 @@
 import { afterAll, describe, expect, it } from "vitest";
 import { promises as fs } from "fs";
-import os from "os";
-import path from "path";
 import { handleLocalAnalyze, pruneStaleUploadDirs } from "../src/server/routes/local-analyze.js";
 import { makeSkeleton, failJob } from "../src/server/routes/job-progress.js";
-import { AnalysisOrchestrator } from "../src/services/analyzer/orchestrator.js";
+import type { AnalysisOrchestrator } from "../src/services/analyzer/orchestrator.js";
+import type { Request } from "express";
 import type { AnalysisResult } from "../src/models/index.js";
 import { usePrivateStaging } from "./helpers/privateStaging.js";
 // A staging root of this file's own — the TTL prune below fast-forwards the clock,
@@ -28,7 +27,7 @@ function makeRes() {
 }
 
 function makeReq(body: unknown) {
-  return { body } as unknown as import("express").Request;
+  return { body } as unknown as Request;
 }
 
 type Store = Map<string, AnalysisResult>;

@@ -5,7 +5,15 @@ import { DICT, t, plural, formatCount, type DictKey, type Lang } from "../src/i1
 
 const keys = Object.keys(DICT) as DictKey[];
 
-/** Every line of shipped source, for the "is this key ever called" check. */
+/**
+ * Every line of shipped source, for the "is this key ever called" check —
+ * MINUS the two files that only DECLARE key literals. `i18n/dict.ts` prints
+ * every key as its own definition and `components/startCopy.ts` mirrors some
+ * of them in its BRIDGE, so with either inside the set a branch proves its
+ * own call site. Measured 2026-10-26: with dict.ts in the set all 52 `*One`
+ * keys match their definition and the orphan count is structurally 0; with
+ * both declaration-only files out, the set sees call sites only.
+ */
 function sourceFiles(dir: string, into: string[] = []): string[] {
   for (const entry of readdirSync(dir, { withFileTypes: true })) {
     const full = path.join(dir, entry.name);
@@ -14,7 +22,8 @@ function sourceFiles(dir: string, into: string[] = []): string[] {
   }
   return into;
 }
-const ALL_SRC = sourceFiles(path.resolve(import.meta.dirname, "../src"))
+const CALL_SRC = sourceFiles(path.resolve(import.meta.dirname, "../src"))
+  .filter((f) => !/i18n[/\\]dict\.ts$/.test(f) && !/[/\\]startCopy\.ts$/.test(f))
   .map((f) => readFileSync(f, "utf-8"))
   .join("\n");
 
@@ -85,9 +94,36 @@ describe("i18n coverage after the text pass", () => {
    * the sentence the user read was "1 findings in this queue still need a
    * verdict". This is the check that would have caught it.
    */
+  /**
+   * Scoped exceptions, decided and measured in the hardening round of
+   * 2026-10-26. A NEW orphan still turns this test red, and an entry whose
+   * branch gained a caller goes red too — the list cannot rot silently.
+   * The two real n=1 defects (panel.moreSectionsOne, layout.drawnHereOne)
+   * were fixed at their call sites, not whitelisted here.
+   */
+  const SCOPED_ORPHANS: Record<string, string> = {
+    // refuseOverCap fires only when plan.found > MAX_FILES = 10_000
+    // (src/hooks/useLocalAnalysis.ts:141,337,701-703), so the One branch of
+    // capLine (line 358) can never be reached at n === 1.
+    "cap.filesFoundOne": "unreachable singular: only shown past the 10 000-file cap",
+    // Dead family: no component calls "drop.rejected" either — the live row
+    // is drop.rejectedNoMax* (ScanSummary.tsx:60). Dies with the dictionary trim.
+    "drop.rejectedOne": "dead family: neither side of the pair has a call site",
+    // Dead family: the plural is called by nothing in src/ either — only
+    // tests/i18n.test.ts:38 lists it. Dies with the dictionary trim.
+    "landing.progressCollectingOne": "dead family: neither side of the pair has a call site",
+  };
   it("calls every singular branch it ships", () => {
-    const orphans = keys.filter((k) => k.endsWith("One") && !ALL_SRC.includes(`"${k}"`));
-    expect(orphans, `singular branches nobody calls: ${orphans.join(", ")}`).toEqual([]);
+    const orphans = keys.filter((k) => k.endsWith("One") && !CALL_SRC.includes(`"${k}"`));
+    const unjustified = orphans.filter((k) => !(k in SCOPED_ORPHANS));
+    expect(unjustified, `singular branches nobody calls: ${unjustified.join(", ")}`).toEqual([]);
+    for (const [key, reason] of Object.entries(SCOPED_ORPHANS)) {
+      expect(reason.trim(), `scoped orphan "${key}" carries no reason`).not.toBe("");
+      expect(
+        orphans.includes(key as DictKey),
+        `"${key}" has a caller again — delete its SCOPED_ORPHANS entry`,
+      ).toBe(true);
+    }
   });
 });
 

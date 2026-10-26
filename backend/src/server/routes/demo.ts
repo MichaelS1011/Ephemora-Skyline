@@ -1,8 +1,10 @@
 import type { Request, Response } from "express";
 import type { AnalysisResult, FileAnalysis } from "../../models/index.js";
+import { scanFileStructure } from "../../services/analyzer/file-structure.js";
 import { categoryOf } from "../../services/security/categories.js";
 import { knowledgeFor } from "../../services/security/finding-knowledge.js";
 import { mapResultToCityData } from "../../utils/cityMapper.js";
+import { DEMO_FIXTURE_CODE_LINES, DEMO_IMPORT_FIXTURES } from "./demoFixtures.js";
 
 /**
  * Synthetic demo repository — a plausible multi-district codebase that flows
@@ -190,7 +192,15 @@ function buildFileSpecs(): FileSpec[] {
   const specs: FileSpec[] = [];
 
   const push = (path: string, language: string, loc: number): void => {
-    specs.push({ path, language, loc, findings: FINDINGS[path] });
+    // A grounded file takes its height from its own source, not from the index
+    // formula below: the fixture's line counts are what the demo publishes, and
+    // the formula is a function of position in a list that grows at the end.
+    specs.push({
+      path,
+      language,
+      loc: DEMO_FIXTURE_CODE_LINES.get(path) ?? loc,
+      findings: FINDINGS[path],
+    });
   };
 
   COMPONENTS.forEach((n, i) =>
@@ -238,6 +248,30 @@ function pickTargets(all: string[], self: string, rng: () => number, count: numb
     if (t) targets.push(t);
   }
   return [...new Set(targets)];
+}
+
+/**
+ * Give the fixture files the structure their own source says, and nothing else.
+ *
+ * `line: 0` is not a shortcut here — it is what the analyzer records for a real
+ * scan (`orchestrator.ts`), because a regex pass has no node position to report.
+ * Matching it keeps the grounded files indistinguishable from scanned ones.
+ *
+ * A path named by a fixture but absent from the demo would leave the fixture
+ * silently inert, so this fails loudly instead.
+ */
+function groundFixtureFiles(files: FileAnalysis[]): void {
+  for (const fixture of DEMO_IMPORT_FIXTURES) {
+    const entry = files.find((f) => f.path === fixture.path);
+    if (!entry) throw new Error(`demo fixture names an unknown file: ${fixture.path}`);
+    const { imports, exports } = scanFileStructure(fixture.path, fixture.content);
+    entry.imports = imports.map((imp) => ({ ...imp, line: 0 }));
+    entry.exports = exports.map((e) => ({
+      type: e.type as "named" | "default" | "reexport",
+      name: e.name,
+      line: 0,
+    }));
+  }
 }
 
 export function getDemoResult(): AnalysisResult {
@@ -304,6 +338,14 @@ export function getDemoResult(): AnalysisResult {
       }),
     };
   });
+
+  // Everything above is illustrative: the import edges a visitor sees in the
+  // demo city are drawn from the seeded generator, not from source. The files
+  // listed in demoFixtures.ts are the exception — their structure is parsed out
+  // of real TypeScript with the same extractor a user's scan runs through, so
+  // the relationships they carry are ones the code states rather than ones a
+  // random number decided.
+  groundFixtureFiles(files);
 
   const totalLines = files.reduce((s, f) => s + f.lines.total, 0);
   const totalVulns = files.reduce((s, f) => s + f.vulnerabilities.length, 0);

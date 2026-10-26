@@ -154,6 +154,21 @@ export interface SecurityIssue {
   secretValue?: string;
 }
 
+/**
+ * The threat scale a severity is worth: P0 = 10, P1 = 7, P2 = 3.
+ *
+ * One table, keyed by the severity union `SecurityIssue` itself declares,
+ * because two copies of the same scale are two scales waiting to drift:
+ * `utils/cityMapper.ts` sums and orders it into the city's `threatScore`,
+ * `services/security/sarif-mapper.ts` writes it into the `score` field of a
+ * semgrep finding. Both read this object; neither restates a number.
+ *
+ * Deliberately NOT in here: `adapters/regex-adapter.ts` weighs its own engine's
+ * findings 9 / 6 / 3 — a weaker claim from a weaker signal, and merging it would
+ * change what the city shows, not just where the number lives.
+ */
+export const THREAT_SCORE: Record<SecurityIssue["severity"], number> = { P0: 10, P1: 7, P2: 3 };
+
 export interface AnalysisResult {
   id: string;
   repo: GitHubRepo;

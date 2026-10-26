@@ -21,6 +21,20 @@ const here = dirname(fileURLToPath(import.meta.url));
 const designDir = resolve(here, "../src/design");
 const sheets = readdirSync(designDir).filter((f) => f.endsWith(".css"));
 
+// Three controls whose ring lives in the JSX, not in a sheet. The CSS guard
+// above never saw them: it matched `outline:<n>px solid` in design/*.css,
+// while ModeBar and HeatmapToggle drew a brand-red Tailwind ring and the
+// test-run button a fixed-green one — all three measured on the live screen
+// (2026-10-25 census: gold token outline plus a second 1px box-shadow ring,
+// rgb(232,80,60) / rgb(41,211,152), on 3 of 3 controls). They now carry no
+// local focus style at all and fall through to the global `:focus-visible`
+// rule in globals.css — which is what this guard pins.
+const jsxRinged = [
+  "../src/components/ModeBar.tsx",
+  "../src/components/HeatmapToggle.tsx",
+  "../src/components/FilePanels.tsx",
+];
+
 describe("one ring to point", () => {
   it("every focus outline in every sheet uses the token", () => {
     for (const file of sheets) {
@@ -83,4 +97,32 @@ describe("one ring to point", () => {
     expect(globals).toMatch(/\.city-canvas:focus-visible\s*\{[^}]*box-shadow:[^}]*--focus-halo/);
     expect(griff).toMatch(/canvas:focus-visible\s*\{[^}]*box-shadow:[^}]*--focus-halo/);
   });
+});
+
+/**
+ * The JSX half of the same promise, scoped to the three controls that once
+ * coloured their own ring: no hardcoded `focus:ring-[#…]`, no suppression of
+ * the shell outline — whatever ring colour these files do name must be the
+ * token itself, and the rule that carries them when they name nothing is
+ * asserted to exist and to draw from --focus-ring.
+ */
+describe("the ring in the JSX comes from the token", () => {
+  it("the global shell rule still draws these controls from --focus-ring", () => {
+    const globals = readFileSync(resolve(designDir, "globals.css"), "utf-8");
+    expect(globals).toMatch(/:focus-visible\s*\{[^}]*outline:\s*2px solid var\(--focus-ring\)/);
+  });
+
+  for (const rel of jsxRinged) {
+    it(`${rel.split("/").pop()} carries no local focus ring`, () => {
+      const src = readFileSync(resolve(here, rel), "utf-8");
+      // any focus-ring utility with a colour: only the token may stand there
+      for (const m of src.matchAll(/focus(?:-visible)?:ring-\[([^\]]+)\]/g)) {
+        expect(m[1], `${rel}: ${m[0]}`).toBe("var(--focus-ring)");
+      }
+      // and the shell ring must not be switched off again by hand
+      expect(src, `${rel}: focus outline suppressed`).not.toMatch(
+        /focus(?:-visible)?:outline-none/,
+      );
+    });
+  }
 });

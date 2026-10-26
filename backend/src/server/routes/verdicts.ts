@@ -62,38 +62,70 @@ export function sanitizeReviews(raw: unknown): VerdictMap {
 /**
  * One file, one writer. Reads happen on first use; writes are serialized and
  * atomic (temp file + rename), so a killed process leaves either the old or the
- * new state, never a torn one. A file that is missing or corrupt reads as
- * empty — a verdict store must not be able to take the server down.
+ * new state, never a torn one. A missing file reads as empty — a first verdict
+ * may create its home. A file that cannot be read or parsed is NOT empty: the
+ * handlers answer 503 and `set` refuses to write, because serving an empty map
+ * for an unreadable store would tell a human "nothing was ever found" and the
+ * next click would delete every bucket the file still holds. The failed read is
+ * dropped from the cache, so the next request tries the disk again.
  */
 export class VerdictStore {
   private projects = new Map<string, VerdictBucket>();
-  private loaded = false;
+  /**
+   * The load as ONE memoized promise, never a flag flipped before the await:
+   * an early flag lets the next caller in the same tick past an empty map, and
+   * a `set()` then serialises that half-initialised store as the whole file —
+   * every other project's bucket deleted on disk. A reader that arrives while
+   * the read is still in flight awaits the same read instead. The promise
+   * resolves `true` when the disk state is safe to serve and write over,
+   * `false` when the read failed — and a `false` is dropped from the cache,
+   * so the NEXT request reads again instead of inheriting the failure.
+   */
+  private load: Promise<boolean> | null = null;
   private chain: Promise<void> = Promise.resolve();
 
-  private async ensureLoaded(): Promise<void> {
-    if (this.loaded) return;
-    this.loaded = true;
+  private ensureLoaded(): Promise<boolean> {
+    this.load ??= this.readFromDisk().then((ok) => {
+      if (!ok) this.load = null;
+      return ok;
+    });
+    return this.load;
+  }
+
+  /** `false` = unreadable bytes or a version this store does not speak. */
+  private async readFromDisk(): Promise<boolean> {
     const file = verdictsFile();
     let raw = "";
     try {
       raw = await fs.readFile(file, "utf-8");
     } catch (e) {
-      if ((e as NodeJS.ErrnoException).code !== "ENOENT") {
-        console.error(`verdicts: ${file} is unreadable — starting empty`, e);
-      }
-      return;
+      if ((e as NodeJS.ErrnoException).code === "ENOENT") return true;
+      console.error(
+        `verdicts: ${file} is unreadable — refusing to serve or write until it reads again`,
+        e,
+      );
+      return false;
     }
     try {
       const parsed = JSON.parse(raw) as { version?: unknown; projects?: unknown };
-      if (parsed?.version !== 1 || !parsed.projects || typeof parsed.projects !== "object") return;
+      if (parsed?.version !== 1 || !parsed.projects || typeof parsed.projects !== "object") {
+        console.error(
+          `verdicts: ${file} is not a shape this store speaks — refusing to serve or write over it`,
+        );
+        return false;
+      }
       for (const [k, v] of Object.entries(parsed.projects as Record<string, unknown>)) {
         if (!PROJECT_KEY.test(k)) continue;
         const bucket = v as { at?: unknown; reviews?: unknown } | null;
         const at = typeof bucket?.at === "number" ? bucket.at : 0;
         this.projects.set(k, { at, reviews: sanitizeReviews(bucket?.reviews) });
       }
+      return true;
     } catch {
-      console.error(`verdicts: ${file} does not parse — starting empty`);
+      console.error(
+        `verdicts: ${file} does not parse — refusing to serve or write until it reads again`,
+      );
+      return false;
     }
   }
 
@@ -112,14 +144,15 @@ export class VerdictStore {
       });
   }
 
-  async get(project: string): Promise<VerdictMap | undefined> {
-    await this.ensureLoaded();
+  /** The bucket's verdicts; `null` when the file is unreadable — not `{}`, which would lie. */
+  async get(project: string): Promise<VerdictMap | null | undefined> {
+    if (!(await this.ensureLoaded())) return null;
     return this.projects.get(project)?.reviews;
   }
 
-  /** Replace one project's verdicts; returns what the disk will hold. */
-  async set(project: string, reviews: unknown): Promise<VerdictMap> {
-    await this.ensureLoaded();
+  /** Replace one project's verdicts; returns what the disk will hold, `null` when the read failed. */
+  async set(project: string, reviews: unknown): Promise<VerdictMap | null> {
+    if (!(await this.ensureLoaded())) return null;
     const clean = sanitizeReviews(reviews);
     const at = Date.now();
     this.projects.delete(project);
@@ -138,7 +171,11 @@ export class VerdictStore {
     return clean;
   }
 
-  /** The "delete my verdicts" button: everything, everywhere, at once. */
+  /**
+   * The "delete my verdicts" button: everything, everywhere, at once.
+   * A failed read does NOT block this one — reset is an explicit delete
+   * intent, and writing an empty file is exactly what the human asked for.
+   */
   async clear(): Promise<number> {
     await this.ensureLoaded();
     const cleared = this.projects.size;
@@ -187,7 +224,9 @@ function readProjectQuery(req: Request): string | undefined {
  * GET /api/result/:id/verdicts — read-only. Without a query it answers what the
  * browser synced for this scan in this process; with `?project=<bucket>` it
  * answers that bucket directly, which is how a re-scan finds verdicts the
- * previous process wrote before any new registration exists.
+ * previous process wrote before any new registration exists. A verdict file
+ * that cannot be read or parsed answers 503 `verdicts_unreadable` — an empty
+ * map would be a lie about what was ever found.
  */
 export async function handleGetVerdicts(
   req: Request,
@@ -205,8 +244,12 @@ export async function handleGetVerdicts(
     return;
   }
   const project = asked ?? scanProjects.get(id) ?? "";
-  const reviews = project ? ((await verdictStore.get(project)) ?? {}) : {};
-  res.json({ project, reviews });
+  const stored = project ? await verdictStore.get(project) : undefined;
+  if (stored === null) {
+    res.status(503).json({ error: "The verdict file is unreadable", code: "verdicts_unreadable" });
+    return;
+  }
+  res.json({ project, reviews: stored ?? {} });
 }
 
 /**
@@ -214,6 +257,8 @@ export async function handleGetVerdicts(
  * holds for the project of the scan on screen. Replaces the bucket (the
  * browser always carries the full map, and a cleared verdict must be able to
  * delete its entry) and registers the scan so an agent can read by scan id.
+ * On an unreadable verdict file it answers 503 `verdicts_unreadable` and
+ * writes nothing — a save must not overwrite what it could not read.
  */
 export async function handlePutVerdicts(
   req: Request,
@@ -232,6 +277,10 @@ export async function handlePutVerdicts(
     return;
   }
   const saved = await verdictStore.set(project, body?.reviews);
+  if (saved === null) {
+    res.status(503).json({ error: "The verdict file is unreadable", code: "verdicts_unreadable" });
+    return;
+  }
   registerScanProject(id, project);
   res.json({ project, saved: Object.keys(saved).length });
 }

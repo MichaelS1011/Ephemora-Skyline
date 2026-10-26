@@ -1,4 +1,4 @@
-import type { SecurityIssue } from "../../models/index.js";
+import { THREAT_SCORE, type SecurityIssue } from "../../models/index.js";
 import { maskSecretText } from "./redact.js";
 import { FINDING_KNOWLEDGE, knowledgeFor } from "./finding-knowledge.js";
 
@@ -35,8 +35,6 @@ const SEVERITY_MAP: Record<string, "P0" | "P1" | "P2"> = {
   warning: "P1",
   note: "P2",
 };
-
-const SCORE_MAP: Record<string, number> = { P0: 10, P1: 7, P2: 3 };
 
 /**
  * Vendor noise must not cross this boundary (R3-10, measured three identical
@@ -105,7 +103,7 @@ export function sarifToIssues(sarif: Sarif, contentByPath?: Map<string, string>)
       issues.push({
         type,
         severity,
-        score: SCORE_MAP[severity] ?? 7,
+        score: THREAT_SCORE[severity] ?? 7,
         line,
         code,
         message,

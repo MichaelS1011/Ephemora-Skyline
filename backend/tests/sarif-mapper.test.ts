@@ -63,4 +63,36 @@ describe("sarifToIssues", () => {
     } as never;
     expect(sarifToIssues(sarif)[0]!.severity).toBe("P0");
   });
+
+  it("ships the threat score of 10 / 7 / 3 for error / warning / note", () => {
+    // Characterization of the scale the mapping writes into every issue, not
+    // of the constant it reads: the numbers below are what a stored result
+    // carries today, and the city's tower height is built from them.
+    const sarif = {
+      runs: [
+        {
+          tool: { driver: { rules: [] } },
+          results: (["error", "warning", "note"] as const).map((level, i) => ({
+            ruleId: `javascript.lang.security.audit.${level}`,
+            level,
+            message: { text: `finding ${String(i)}` },
+            locations: [
+              {
+                physicalLocation: {
+                  artifactLocation: { uri: "src/db.ts" },
+                  region: { startLine: i + 1 },
+                },
+              },
+            ],
+          })),
+        },
+      ],
+    } as never;
+    const issues = sarifToIssues(sarif);
+    expect(issues.map((i) => [i.severity, i.score])).toEqual([
+      ["P0", 10],
+      ["P1", 7],
+      ["P2", 3],
+    ]);
+  });
 });

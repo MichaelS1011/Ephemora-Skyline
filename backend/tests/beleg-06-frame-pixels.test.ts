@@ -150,13 +150,13 @@ describe("the two frames the caption compares", () => {
   });
 
   it("leave the picture the mode does not touch byte-identical", () => {
-    // README.md:135 names what changes between the frames and what stays. A blanket
+    // README.md:137 names what changes between the frames and what stays. A blanket
     // "over 98 % identical" was the old proxy for that and it measured the wrong
     // thing: how much city is on screen decides how many pixels the dimming can
     // reach, so a closer framing failed a claim that had not changed. The regions
     // below are the ones the sentence says stay as they were — sky, grass, the
     // project panel, the header and the dock — and they are checked exactly.
-    const { before: a, after: b, diff, identical } = compare();
+    const { before: a, diff, identical } = compare();
     const stride = a.width * a.channels;
     const inside = (y0: number, y1: number, x0: number, x1: number): number => {
       let hits = 0;
@@ -182,7 +182,7 @@ describe("the two frames the caption compares", () => {
   });
 });
 
-describe("the measured numbers in the caption (README.md:135)", () => {
+describe("the measured numbers in the caption (README.md:137)", () => {
   const sums = (frame: "before" | "after"): number[] => {
     const { before: a, after: b, diff } = compare();
     const r = frame === "before" ? a : b;

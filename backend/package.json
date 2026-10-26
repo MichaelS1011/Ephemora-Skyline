@@ -8,7 +8,7 @@
     "dev": "tsx watch src/server/index.ts",
     "build": "tsc -b tsconfig.build.json",
     "start": "node dist/server/index.js",
-    "lint": "eslint src --ext ts --report-unused-disable-directives --max-warnings 0",
+    "lint": "eslint src tests --ext ts --report-unused-disable-directives --max-warnings 0",
     "type-check": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",

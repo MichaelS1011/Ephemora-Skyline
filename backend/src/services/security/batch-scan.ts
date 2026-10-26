@@ -15,7 +15,7 @@ import path from "path";
 import type { Logger } from "pino";
 import type { SecurityIssue, FileAnalysis } from "../../models/index.js";
 import type { ResolvedScanConfig } from "./scan-config.js";
-import { dedupIssues, SEVERITY_ORDER } from "./dedup.js";
+import { dedupIssues, compareBySeverityThenLine } from "./dedup.js";
 import { enrichIssues } from "./finding-knowledge.js";
 import { maskSecretText } from "./redact.js";
 import type { GitleaksEngine, OsvEngine, RuffEngine, SemgrepEngine } from "./scanner.js";
@@ -161,9 +161,7 @@ export async function runRepositoryBatch(
 
     const merged = dedupIssues([...fa.vulnerabilities, ...allowed]);
     mergedCount += merged.length - fa.vulnerabilities.length;
-    merged.sort(
-      (a, b) => SEVERITY_ORDER[a.severity] - SEVERITY_ORDER[b.severity] || a.line - b.line,
-    );
+    merged.sort(compareBySeverityThenLine);
     fa.vulnerabilities = merged;
   }
 

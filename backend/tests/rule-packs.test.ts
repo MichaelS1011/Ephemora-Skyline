@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
-import { mkdtemp, writeFile, mkdir } from "fs/promises";
+import { mkdtemp, writeFile } from "fs/promises";
 import { tmpdir } from "os";
 import path from "path";
 import { execFileSync } from "child_process";

@@ -210,6 +210,7 @@ describe("resolving an address against the payload that arrived", () => {
       district: ["frontend"],
       filePath: SRC.path,
       pose: null,
+      ansicht: null,
     });
     expect(hit.file?.id).toBe("f-auth");
     expect(hit.chain).toEqual(["frontend", "src"]);
@@ -221,6 +222,7 @@ describe("resolving an address against the payload that arrived", () => {
       district: ["backend"],
       filePath: "frontend/src/deleted/gone.ts",
       pose: null,
+      ansicht: null,
     });
     expect(hit.file).toBeNull();
     // the district the address names without the file is still a real place
@@ -235,6 +237,7 @@ describe("resolving an address against the payload that arrived", () => {
       district: ["frontend", "weg"],
       filePath: null,
       pose: null,
+      ansicht: null,
     });
     expect(hit.chain).toEqual([]);
   });

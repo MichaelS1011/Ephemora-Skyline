@@ -27,6 +27,7 @@ import {
 } from "./useLocalAnalysis/progress";
 import { applyPreview } from "./useLocalAnalysis/preview";
 import { fileToBase64, hasSubtleCrypto } from "../live/files";
+import { clearPendingRun } from "../pendingRun";
 import type { LiveFileMeta } from "../live/types";
 
 export type AnalysisState = "idle" | "picking" | "collecting" | "analyzing" | "success" | "error";
@@ -956,6 +957,9 @@ export function useLocalAnalysis() {
     const id = jobIdRef.current;
     jobIdRef.current = null;
     if (id) {
+      // §03.09 — a discarded run is not a city to offer later, whatever the
+      // server ends up doing with it: the reader said stop.
+      clearPendingRun(id);
       void fetch(`/api/analyze-local/${encodeURIComponent(id)}/cancel`, {
         method: "POST",
       }).catch(() => {

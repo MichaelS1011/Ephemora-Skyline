@@ -227,7 +227,32 @@ describe("file ids come from the path", () => {
     }
   });
 
-  it("is the same id the source endpoint resolves", async () => {
+  it("is the path's own id, so a resident's address survives the next scan", async () => {
+    // EPHE-AI EA-01/03 hang on this: a named resident is found again by
+    // `plot:<file id>#<seat>`, and the only reason that key means the same
+    // figure after a re-scan is that the id is minted from the path. Shape and
+    // order-invariance are pinned above; this pins the equation itself.
+    const { fileIdForPath, mapResultToCityData } = await import("../src/utils/cityMapper.js");
+    const files = [makeFile({ path: "src/a.ts" }), makeFile({ path: "src/deep/b.ts" })];
+    const city = mapResultToCityData(makeResult(files)) as unknown;
+    const seen = new WeakSet<object>();
+    let checked = 0;
+    const walk = (n: unknown): void => {
+      if (!n || typeof n !== "object" || seen.has(n)) return;
+      seen.add(n);
+      if (Array.isArray(n)) return n.forEach(walk);
+      const o = n as Record<string, unknown>;
+      if (typeof o.path === "string" && typeof o.id === "string" && o.name !== undefined) {
+        expect(o.id, `${o.path} is not addressed by its path`).toBe(fileIdForPath(o.path));
+        checked++;
+      }
+      for (const v of Object.values(o)) walk(v);
+    };
+    walk(city);
+    expect(checked, "the walker found the mapped files").toBeGreaterThanOrEqual(2);
+  });
+
+  it("normalises the path before hashing it", async () => {
     const { fileIdForPath } = await import("../src/utils/cityMapper.js");
     expect(fileIdForPath("src/a.ts")).toBe(fileIdForPath("./src/a.ts"));
     expect(fileIdForPath("src\\a.ts")).toBe(fileIdForPath("src/a.ts"));

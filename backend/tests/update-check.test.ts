@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
+import type { Response } from "express";
 import { isNewerVersion, currentVersion } from "../src/server/routes/update-check.js";
 
 /**
@@ -41,7 +42,7 @@ describe("GET /api/update/check", () => {
     );
     const { handleUpdateCheck } = await import("../src/server/routes/update-check.js");
     const json = vi.fn();
-    const res = { json } as unknown as import("express").Response;
+    const res = { json } as unknown as Response;
     await handleUpdateCheck({} as never, res);
     return (json as ReturnType<typeof vi.fn>).mock.calls[0]![0] as Record<string, unknown>;
   }

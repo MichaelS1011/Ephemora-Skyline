@@ -346,6 +346,18 @@ describe("what the budget hides", () => {
     expect(host!.querySelector(".search-control")).not.toBeNull();
   });
 
+  it("gives the figure's vitrine back on request, from inside the city", () => {
+    // §04.11 — restyling a resident the reader already named. The card keeps its
+    // one verb, so the way to the jacket is this menu, and the panel is the same
+    // component the start page opens — not a second, smaller one.
+    arrive();
+    expect(host!.querySelector(".ephe-preview-panel")).toBeNull();
+    openMore();
+    expect(clickByName(/Look|Aussehen/), "the control says what it brings back").toBe(true);
+    expect(host!.querySelector(".ephe-preview-panel")).not.toBeNull();
+    expect(host!.querySelectorAll(".ephe-variant")).toHaveLength(3);
+  });
+
   it("names every deferred control in both languages", () => {
     for (const lang of ["en", "de"] as const) {
       intoDistrict([], lang);
@@ -362,6 +374,7 @@ describe("what the budget hides", () => {
               "Heat channels",
               "First look",
               "Keyboard shortcuts",
+              "Look",
             ]
           : [
               "Farb- und Höhenschlüssel",
@@ -369,6 +382,7 @@ describe("what the budget hides", () => {
               "Heatmap-Kanäle",
               "Erster Blick",
               "Tastenkürzel",
+              "Aussehen",
             ];
       for (const label of wanted) {
         expect(
@@ -542,6 +556,142 @@ describe("a called resident", () => {
     });
     expect(useStore.getState().selectedResident).toBeNull();
     expect(host!.querySelector(".resident-card")).toBeNull();
+  });
+
+  it("names the door the resident belongs to, when the click carried one", () => {
+    arrive();
+    // EA-01: the card is the first surface that shows the address. A click in
+    // the city hands over `plot:<file id>#<seat>`; the card reads it back as
+    // the file the payload names, never as the raw id.
+    act(() => useStore.getState().selectResident(0, "plot:f-src/api/routes.ts#0"));
+    const card = host!.querySelector(".resident-card");
+    expect(card).not.toBeNull();
+    const text = (card!.textContent ?? "").replace(/\s+/g, " ");
+    expect(text).toContain("Lives at · routes.ts");
+    expect(text).not.toContain("f-src");
+  });
+
+  it("says nothing about a home it was not told", () => {
+    arrive();
+    act(() => useStore.getState().selectResident(0));
+    const card = host!.querySelector(".resident-card");
+    expect(card).not.toBeNull();
+    // A keyboard call picks the nearest body and has no identity to hand over
+    // yet; the line stays absent rather than guessing from the seat number.
+    expect(card!.textContent ?? "").not.toContain("Lives at");
+  });
+
+  /** Type into the claim field the way a reader does — React needs the native
+   *  setter, not a `value` assignment, or the change never reaches the store. */
+  function type(card: Element, value: string): void {
+    const input = card.querySelector<HTMLInputElement>("#ephe-name")!;
+    expect(input, "the card offers a name field").toBeTruthy();
+    const setter = Object.getOwnPropertyDescriptor(
+      window.HTMLInputElement.prototype,
+      "value",
+    )!.set!;
+    act(() => {
+      setter.call(input, value);
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+  }
+
+  it("lets the reader name the resident, and keeps the name with the resident", () => {
+    arrive();
+    const A = "plot:f-src/api/routes.ts#0";
+    const B = "plot:f-src/api/server.ts#0";
+    act(() => useStore.getState().selectResident(0, A, "explorer"));
+    const card = host!.querySelector(".resident-card")!;
+    expect(card.textContent ?? "").not.toContain("Atlas");
+    type(card, "Atlas");
+    expect(useStore.getState().residentNames[A]).toBe("Atlas");
+    expect(card.textContent ?? "").toContain("Atlas");
+
+    // A second figure is a second resident: the title falls back to the plain
+    // sentence rather than carrying the first one's name over.
+    act(() => useStore.getState().selectResident(1, B, null));
+    expect(host!.querySelector(".resident-card")!.textContent ?? "").not.toContain("Atlas");
+    act(() => useStore.getState().selectResident(0, A, "explorer"));
+    expect(host!.querySelector(".resident-card")!.textContent ?? "").toContain("Atlas");
+  });
+
+  it("says which role the figure carries, and says none when it carries none", () => {
+    arrive();
+    act(() => useStore.getState().selectResident(0, "plot:f-src/api/routes.ts#0", "explorer"));
+    let text = host!.querySelector(".resident-card")!.textContent ?? "";
+    expect(text).toContain("Role · Explorer");
+    act(() => useStore.getState().selectResident(1, "plot:f-src/api/server.ts#0", null));
+    text = host!.querySelector(".resident-card")!.textContent ?? "";
+    expect(text).toContain("Role · no role");
+  });
+
+  it("shows only this figure's errand as its task", () => {
+    arrive();
+    act(() => useStore.getState().selectResident(0, "plot:f-src/api/routes.ts#0", "explorer"));
+    act(() =>
+      useStore.getState().startGuide({
+        role: "maintenance",
+        targetFileId: "f-src/api/server.ts",
+        x: 1,
+        z: 1,
+        claim: {
+          path: "src/api/server.ts",
+          name: "server.ts",
+          cyclomatic: 8,
+          decisions: 7,
+          heightSharePercent: 9,
+          saturatesAt: 40,
+          saturated: false,
+        },
+      }),
+    );
+    // Somebody else is on the errand; this one is standing there with nothing
+    // to do, and the card must not lend the other's task to it.
+    expect(host!.querySelector(".resident-card")!.textContent ?? "").toContain(
+      "Task · nothing to do",
+    );
+    act(() => useStore.getState().selectResident(1, "plot:f-src/api/server.ts#0", "maintenance"));
+    expect(host!.querySelector(".resident-card")!.textContent ?? "").toContain(
+      "Task · walking to server.ts",
+    );
+  });
+
+  it("still offers exactly one verb", () => {
+    arrive();
+    act(() => useStore.getState().selectResident(0, "plot:f-src/api/routes.ts#0", "explorer"));
+    const card = host!.querySelector(".resident-card")!;
+    // Close and the guided verb — a name field must not arrive as a third
+    // button, because the card's one promise is one thing to do.
+    expect(card.querySelectorAll("button").length).toBe(2);
+    expect(card.querySelectorAll("input").length).toBe(1);
+  });
+
+  it("takes the durability promise back when storage refuses the name", () => {
+    arrive();
+    act(() => useStore.getState().selectResident(0, "plot:f-src/api/server.ts#0", null));
+    const card = host!.querySelector(".resident-card")!;
+    expect(card.textContent ?? "").not.toContain("would not store");
+    const spy = vi.spyOn(Storage.prototype, "setItem").mockImplementationOnce(() => {
+      throw new Error("QuotaExceededError");
+    });
+    type(card, "Atlas");
+    spy.mockRestore();
+    // The field keeps what was typed and the card says the rest out loud: the
+    // hint promises the project, and this browser said no.
+    const text = host!.querySelector(".resident-card")!.textContent ?? "";
+    expect(text).toContain("Atlas");
+    expect(text).toContain("would not store it");
+  });
+
+  it("does not call a second resident while the reader types a name", () => {
+    arrive();
+    act(() => useStore.getState().selectResident(0, "plot:f-src/api/routes.ts#0", "explorer"));
+    const input = host!.querySelector<HTMLInputElement>("#ephe-name")!;
+    const before = useStore.getState().residentCall;
+    act(() => {
+      input.dispatchEvent(new KeyboardEvent("keydown", { key: "c", bubbles: true }));
+    });
+    expect(useStore.getState().residentCall).toBe(before);
   });
 
   it("asks the canvas for a resident on C", () => {

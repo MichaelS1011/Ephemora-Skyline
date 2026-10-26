@@ -4,6 +4,7 @@
  */
 
 import { enabledCategoriesPayload } from "./findingCategories";
+import { readStoredJson, type StoredRead } from "../storageRead";
 import type { FindingCategory } from "../city/types";
 import type { DictKey } from "../i18n";
 
@@ -292,18 +293,31 @@ export function isExcludedPath(relativePath: string, needles: readonly string[])
 }
 
 export function loadExcludes(): string[] {
-  try {
-    const raw = localStorage.getItem(EXCLUDE_KEY);
-    if (!raw) return [];
-    const parsed: unknown = JSON.parse(raw);
-    return Array.isArray(parsed) ? normalizeExcludes(parsed.map(String)) : [];
-  } catch {
-    return [];
-  }
+  const read = loadExcludesRead();
+  return read.state === "read" ? read.value : [];
+}
+
+/**
+ * The exclude list answers three states, not two (`StoredRead` in
+ * storageRead.ts — the pattern prefs.ts shipped). Answering the old `catch →
+ * []` made a corrupt file identical to "no excludes", and every scan path
+ * that reads this (`useLocalAnalysis`, `upload.ts`, `live/session.ts`) then
+ * widened the scan radius — while the next `saveExcludes` from the field
+ * wrote that widening over the bytes the reader might still recover. That
+ * was the data-loss door; the bytes now stay under
+ * `codecity-scan-excludes:unreadable` no matter what the field saves next.
+ */
+export function loadExcludesRead(): StoredRead<string[]> {
+  return readStoredJson(EXCLUDE_KEY, (parsed) =>
+    Array.isArray(parsed) ? normalizeExcludes(parsed.map(String)) : undefined,
+  );
 }
 
 export function saveExcludes(list: readonly string[]): void {
   try {
+    // The live key may be rewritten — the reader chose so in the field. The
+    // quarantined bytes of a failed read are NOT that choice: saveExcludes
+    // never touches the `:unreadable` slot (see loadExcludesRead).
     localStorage.setItem(EXCLUDE_KEY, JSON.stringify(normalizeExcludes(list)));
   } catch {
     /* storage unavailable */

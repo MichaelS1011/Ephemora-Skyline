@@ -31,8 +31,23 @@ function resultWith(extra: Record<string, unknown>): AnalysisResult {
   } as unknown as AnalysisResult;
 }
 
+/**
+ * The rule fields this file asserts on. An open `any` would let a rename in the
+ * exporter pass every assertion here while the panel and the file disagree —
+ * this is the file whose whole point is that the export carries the reasoning.
+ * Optional because the last case asserts absence: a finding with neither CWE nor
+ * explanation must invent neither.
+ */
+interface SarifRule {
+  helpUri?: string;
+  shortDescription?: { text?: string };
+  fullDescription?: { text?: string };
+  help?: { markdown?: string };
+  properties?: { cwe?: string; tags?: string[] };
+}
+
 const ruleOf = (sarif: ReturnType<typeof resultToSarif>) =>
-  sarif.runs[0]!.tool.driver.rules[0] as Record<string, any>;
+  sarif.runs[0]!.tool.driver.rules[0] as SarifRule;
 
 describe("the SARIF export carries the reasoning the panel shows", () => {
   it("writes the CWE, the reference and the explanation onto the rule", () => {
@@ -46,11 +61,11 @@ describe("the SARIF export carries the reasoning the panel shows", () => {
       ),
     );
     expect(rule.helpUri).toBe("https://owasp.org/www-community/attacks/SQL_Injection");
-    expect(rule.properties.cwe).toBe("CWE-89");
-    expect(rule.properties.tags).toEqual(["CWE-89"]);
-    expect(rule.fullDescription.text).toContain("string concatenation");
+    expect(rule.properties?.cwe).toBe("CWE-89");
+    expect(rule.properties?.tags).toEqual(["CWE-89"]);
+    expect(rule.fullDescription?.text).toContain("string concatenation");
     // the fetched GitHub support page prefers help.markdown over help.text
-    expect(rule.help.markdown).toContain("string concatenation");
+    expect(rule.help?.markdown).toContain("string concatenation");
   });
 
   it("adds the suggested fix to the same guidance", () => {
@@ -59,7 +74,7 @@ describe("the SARIF export carries the reasoning the panel shows", () => {
         resultWith({ explanation: "Untrusted HTML rendered.", fix: "use textContent" }),
       ),
     );
-    expect(rule.fullDescription.text).toContain("Fix: use textContent");
+    expect(rule.fullDescription?.text).toContain("Fix: use textContent");
   });
 
   it("invents nothing when a finding has neither CWE nor explanation", () => {
@@ -67,12 +82,14 @@ describe("the SARIF export carries the reasoning the panel shows", () => {
     expect(rule.properties).toBeUndefined();
     expect(rule.helpUri).toBeUndefined();
     expect(rule.fullDescription).toBeUndefined();
-    expect(rule.shortDescription.text).toBe("query built by concatenation");
+    expect(rule.shortDescription?.text).toBe("query built by concatenation");
   });
 
   it("keeps the result identity untouched while the rule gets richer", () => {
     const sarif = resultToSarif(resultWith({ cwe: "CWE-89" }));
-    const result = sarif.runs[0]!.results[0] as Record<string, any>;
+    const result = sarif.runs[0]!.results[0] as {
+      partialFingerprints: Record<string, string>;
+    };
     expect(Object.keys(result.partialFingerprints)).toEqual(["primaryLocationLineHash"]);
     expect(result.partialFingerprints.primaryLocationLineHash).toMatch(/^[0-9a-f]{16,}$/);
     expect(sarif.runs[0]!.automationDetails.id).toBe("scan-1");

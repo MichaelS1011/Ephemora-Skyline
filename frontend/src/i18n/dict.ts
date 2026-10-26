@@ -89,6 +89,188 @@ export const DICT = {
     en: "Turn your project into a living 3D city. Explore its structure, spot complex code, and follow security findings straight to the source.",
     de: "Verwandle dein Projekt in eine lebendige 3D-Stadt. Erkunde ihre Struktur, entdecke komplexen Code und folge Sicherheitsfunden direkt zur Quelle.",
   },
+  // §03.03 — the calm welcome, the first reader of `firstRun`. Everyday words,
+  // no setup jargon, one action. It names what happens and what does not; it
+  // asks for nothing.
+  "landing.welcomeTitle": {
+    en: "Welcome.",
+    de: "Willkommen.",
+  },
+  "landing.welcomeBody": {
+    en: "Pick a project folder and Skyline builds it into a city you can walk through. Nothing leaves this machine, and there is nothing to set up first.",
+    de: "Wähl einen Projektordner, und Skyline baut ihn in eine Stadt, die du durchgehen kannst. Nichts verlässt diesen Rechner, und einrichten musst du vorher nichts.",
+  },
+  "landing.welcomeBegin": {
+    en: "Let's start",
+    de: "Los geht's",
+  },
+  "landing.welcomeAria": {
+    en: "Welcome",
+    de: "Willkommen",
+  },
+  // §03.05 — the short introduction that follows the greeting. Three plain steps,
+  // one decision, and a way to skip it; it explains the flow without a wizard.
+  "landing.guideAria": {
+    en: "How it works",
+    de: "So funktioniert's",
+  },
+  "landing.guideTitle": {
+    en: "How it works",
+    de: "So funktioniert's",
+  },
+  "landing.guideStep1": {
+    en: "Pick the folder that holds your code.",
+    de: "Wähl den Ordner mit deinem Code.",
+  },
+  "landing.guideStep2": {
+    en: "Skyline reads it and builds a city — every file becomes a building.",
+    de: "Skyline liest ihn und baut eine Stadt — aus jeder Datei wird ein Gebäude.",
+  },
+  "landing.guideStep3": {
+    en: "Walk the city to see how it is put together, and where to look next.",
+    de: "Geh durch die Stadt und sieh, wie sie zusammenhängt und wo du als Nächstes hinschaust.",
+  },
+  "landing.guideContinue": {
+    en: "Continue",
+    de: "Weiter",
+  },
+  "landing.guideBack": {
+    en: "Back",
+    de: "Zurück",
+  },
+  // §03.06 — the visible progress of the two guided beats. Calm words, no count.
+  "landing.arrivalAria": {
+    en: "Getting started",
+    de: "Erste Schritte",
+  },
+  "landing.arrivalStepWelcome": {
+    en: "Welcome",
+    de: "Willkommen",
+  },
+  "landing.arrivalStepGuide": {
+    en: "How it works",
+    de: "So funktioniert's",
+  },
+  "landing.arrivalDone": {
+    en: "done",
+    de: "erledigt",
+  },
+  "landing.arrivalCurrent": {
+    en: "now",
+    de: "gerade",
+  },
+  "landing.arrivalTodo": {
+    en: "next",
+    de: "als Nächstes",
+  },
+  "landing.arrivalNext": {
+    en: "then, choose a project",
+    de: "danach: ein Projekt wählen",
+  },
+  "landing.arrivalSkip": {
+    en: "Skip",
+    de: "Überspringen",
+  },
+  // §03.09 — a read this tab left behind, finished by the server in the meantime.
+  // It names what happened and offers the one thing that follows from it.
+  "landing.resumeBody": {
+    en: "A folder you started reading earlier finished while you were away.",
+    de: "Ein Ordner, den du vorhin lesen lässt, ist fertig geworden, während du weg warst.",
+  },
+  "landing.resumeOpen": {
+    en: "Open that city",
+    de: "Diese Stadt öffnen",
+  },
+  // §03.10 — the same offer line, one beat earlier: the city this machine had
+  // open last, named where the reader actually decides.
+  "landing.lastBody": {
+    en: "The last city you opened here was {folder}.",
+    de: "Die zuletzt hier geöffnete Stadt war {folder}.",
+  },
+  "landing.lastOpen": {
+    en: "Open it again",
+    de: "Nochmal öffnen",
+  },
+  // §03.11 — the way back into the introduction, for the reader who asks for it.
+  "landing.replayIntro": {
+    en: "See the introduction again",
+    de: "Einführung noch einmal ansehen",
+  },
+  // §04.02 — the isolated 3D preview of the figure the crowd actually draws.
+  "landing.previewOpen": {
+    en: "See the resident in 3D",
+    de: "Bewohner in 3D ansehen",
+  },
+  "landing.previewAria": {
+    en: "The Ephe in three dimensions",
+    de: "Der Ephe in drei Dimensionen",
+  },
+  "landing.previewTitle": {
+    en: "A resident of your project",
+    de: "Ein Bewohner deines Projekts",
+  },
+  "landing.previewCloseAria": {
+    en: "Close the 3D view",
+    de: "3D-Ansicht schließen",
+  },
+  "landing.previewStageAria": {
+    en: "Turn the resident: drag across it, or use the left and right arrow keys",
+    de: "Bewohner drehen: darüberziehen oder die Pfeiltasten links und rechts",
+  },
+  // §04.04 — the name, shown at the figure rather than only in a field.
+  "landing.previewNameHint": {
+    en: "What shall this one be called?",
+    de: "Wie soll dieser heißen?",
+  },
+  // §04.05/§04.06 — the jackets far enough from each other to be variants.
+  "landing.previewVariantAria": {
+    en: "Choose what this resident wears",
+    de: "Kleidung dieses Bewohners wählen",
+  },
+  "landing.previewVariantSlate": {
+    en: "Slate jacket",
+    de: "Schieferjacke",
+  },
+  "landing.previewVariantSerpentine": {
+    en: "Serpentine jacket",
+    de: "Serpentinjacke",
+  },
+  "landing.previewVariantSandstone": {
+    en: "Sandstone jacket",
+    de: "Sandsteinjacke",
+  },
+  // §04.07 — the optional mark, and "none" is one of its three states.
+  "landing.previewMarkAria": {
+    en: "Choose a mark for this resident",
+    de: "Zeichen für diesen Bewohner wählen",
+  },
+  "landing.previewMarkNone": {
+    en: "No mark",
+    de: "Kein Zeichen",
+  },
+  "landing.previewMarkDot": {
+    en: "Dot",
+    de: "Punkt",
+  },
+  "landing.previewMarkDiamond": {
+    en: "Diamond",
+    de: "Raute",
+  },
+  // §04.09 — the note had to change with the storage: the look is kept now, the
+  // name still is not, and the sentence says which is which.
+  "landing.previewNote": {
+    en: "The same figure the city walks — built from its measurements, not redrawn. The jacket and the mark stay on this machine; the name stays in this session until the resident has a place in a project.",
+    de: "Dieselbe Figur, die die Stadt bevölkert — aus ihren Maßen gebaut, nicht nachgezeichnet. Jacke und Zeichen bleiben auf diesem Rechner; der Name bleibt in dieser Sitzung, bis der Bewohner einen Platz in einem Projekt hat.",
+  },
+  // §03.04 — the resident, shown at the centre of the start screen.
+  "landing.epheAria": {
+    en: "An Ephe — a resident of your project",
+    de: "Ein Ephe — ein Bewohner deines Projekts",
+  },
+  "landing.epheCaption": {
+    en: "Every file becomes a building, and each building gets a resident like this one.",
+    de: "Aus jeder Datei wird ein Gebäude, und jedes Gebäude bekommt einen Bewohner wie diesen.",
+  },
   "landing.primary": {
     en: "Choose project folder",
     de: "Projektordner wählen",
@@ -173,6 +355,52 @@ export const DICT = {
     en: "Delete the verdicts saved in this browser",
     de: "Im Browser gespeicherte Urteile löschen",
   },
+  /**
+   * EPHE-AI EA-03 — the second thing this browser keeps. Named and removable
+   * beside the verdicts, because a disclosure that lists one storage and not
+   * the other is a promise with a hole in it.
+   */
+  "landing.footprintNames": {
+    en: "{n} resident names saved in this browser",
+    de: "{n} Bewohnernamen im Browser gespeichert",
+  },
+  "landing.footprintNamesOne": {
+    en: "{n} resident name saved in this browser",
+    de: "{n} Bewohnername im Browser gespeichert",
+  },
+  "landing.footprintNamesNone": {
+    en: "no resident names saved yet",
+    de: "keine Bewohnernamen gespeichert",
+  },
+  "landing.footprintResetNames": {
+    en: "Delete the resident names saved in this browser",
+    de: "Im Browser gespeicherte Bewohnernamen löschen",
+  },
+  "landing.footprintNamesDone": {
+    en: "{n} names deleted",
+    de: "{n} Namen gelöscht",
+  },
+  "landing.footprintNamesDoneOne": {
+    en: "{n} name deleted",
+    de: "{n} Name gelöscht",
+  },
+  // §04.09 — the third thing this browser keeps: one resident's look.
+  "landing.footprintLook": {
+    en: "the resident's jacket and mark saved in this browser",
+    de: "Jacke und Zeichen des Bewohners im Browser gespeichert",
+  },
+  "landing.footprintLookNone": {
+    en: "no resident look saved yet — the shipped figure is worn",
+    de: "kein Aussehen gespeichert — die ausgelieferte Figur wird getragen",
+  },
+  "landing.footprintResetLook": {
+    en: "Delete the resident look saved in this browser",
+    de: "Im Browser gespeichertes Aussehen löschen",
+  },
+  "landing.footprintLookDone": {
+    en: "The saved look is gone; the vitrine wears the first family again.",
+    de: "Das gespeicherte Aussehen ist weg; die Vitrine trägt wieder die erste Familie.",
+  },
   "landing.footprintPurged": {
     en: "{n} copies deleted, {bytes} freed",
     de: "{n} Kopien gelöscht, {bytes} frei geworden",
@@ -188,6 +416,20 @@ export const DICT = {
   "landing.footprintResetDoneOne": {
     en: "{n} verdict bucket removed from this browser",
     de: "{n} Urteils-Ablage aus diesem Browser entfernt",
+  },
+  /**
+   * The reset names both halves of what happened: the browser buckets really
+   * are gone, the machine copy was NOT touched — and the reason is the same
+   * plain fact `panel.verdictsUnreadable` tells ("could not be read"), never a
+   * status code, never a louder alarm than the truth requires.
+   */
+  "landing.footprintResetRefused": {
+    en: "{n} verdict buckets removed from this browser — the copy saved on this machine could not be read just now, so it was left untouched",
+    de: "{n} Urteils-Ablagen aus diesem Browser entfernt — die auf diesem Rechner gespeicherte Kopie konnte gerade nicht gelesen werden, deshalb bleibt sie unberührt",
+  },
+  "landing.footprintResetRefusedOne": {
+    en: "{n} verdict bucket removed from this browser — the copy saved on this machine could not be read just now, so it was left untouched",
+    de: "{n} Urteils-Ablage aus diesem Browser entfernt — die auf diesem Rechner gespeicherte Kopie konnte gerade nicht gelesen werden, deshalb bleibt sie unberührt",
   },
   "landing.footprintError": {
     en: "The local server did not answer — is it running?",
@@ -340,6 +582,14 @@ export const DICT = {
   "hud.filesUnit": {
     en: "files",
     de: "Dateien",
+  },
+  "hud.fpsUnit": {
+    en: "fps",
+    de: "fps",
+  },
+  "hud.fpsTitle": {
+    en: "Frames per second, measured from the renderer's own frame times — the same window the automatic graphics switch decides from.",
+    de: "Bilder pro Sekunde, gemessen an den Frame-Zeiten des Renderers — dasselbe Fenster, aus dem auch die automatische Grafikumschaltung entscheidet.",
   },
   "hud.filesSampled": {
     en: "{count} sampled files",
@@ -591,6 +841,17 @@ export const DICT = {
     en: "More",
     de: "Mehr",
   },
+  // §04.11 — the way back to the figure from inside a city. Named for the thing
+  // it brings back, not for the panel: a reader who renamed a resident asks
+  // "how do I change how they look", not "where is the vitrine".
+  "actions.look": {
+    en: "Look",
+    de: "Aussehen",
+  },
+  "actions.lookTitle": {
+    en: "See the figure at full size, and change the jacket and the mark it wears",
+    de: "Die Figur in ganzer Größe ansehen — Jacke und Zeichen hier ändern",
+  },
   // ── The arrival budget: surfaces that start folded ─────────────────────
   // Six of them used to paint themselves the moment a city stood. They are
   // asked for by the name of the thing they bring back — a glyph-only chip is
@@ -666,6 +927,60 @@ export const DICT = {
   "resident.title": {
     en: "This resident can show you the way.",
     de: "Dieser Bewohner kann dir den Weg zeigen.",
+  },
+  /**
+   * EPHE-AI EA-01 — the address the figure belongs to. Named after its door,
+   * not after an array index: the index means nothing once the reader changes
+   * level, and this line is what a later name or job hangs on.
+   */
+  "resident.home": {
+    en: "Lives at",
+    de: "Wohnt in",
+  },
+  /**
+   * EPHE-AI EA-02 — the card's own claim line, worded as the product goal
+   * words it ("Make this Ephe yours"). The hint says what is actually true:
+   * the name lives in this session, keyed by the resident's address.
+   */
+  "resident.claim": {
+    en: "Make this Ephe yours",
+    de: "Mach diesen Ephe zu deinem",
+  },
+  "resident.claimHint": {
+    en: "Give it a name — it keeps it in this project.",
+    de: "Gib ihm einen Namen — es behält ihn in diesem Projekt.",
+  },
+  "resident.claimLevel": {
+    en: "This level draws no plot for it, so the name holds only here.",
+    de: "Diese Ebene zeichnet kein Grundstück für es, der Name gilt nur hier.",
+  },
+  "resident.claimBlocked": {
+    en: "The browser would not store it, so this name lives until the tab closes.",
+    de: "Der Browser wollte ihn nicht speichern, der Name gilt bis zum Schließen des Tabs.",
+  },
+  "resident.roleLabel": {
+    en: "Role",
+    de: "Rolle",
+  },
+  "resident.roleNone": {
+    en: "no role",
+    de: "ohne Rolle",
+  },
+  "resident.taskLabel": {
+    en: "Task",
+    de: "Aufgabe",
+  },
+  "resident.taskNone": {
+    en: "nothing to do",
+    de: "nichts zu tun",
+  },
+  "resident.taskWalking": {
+    en: "walking to {file}",
+    de: "unterwegs nach {file}",
+  },
+  "resident.taskPointing": {
+    en: "pointing at {file}",
+    de: "zeigt auf {file}",
   },
   "resident.risk": {
     en: "Show me the risk",
@@ -970,9 +1285,15 @@ export const DICT = {
     en: "Security Tour",
     de: "Security-Tour",
   },
+  /**
+   * Tastenplan-Gruppe. Der Knopf und die Kurzhinweise bleiben beim Kurzwort
+   * "Triage"; hier, wo die Tastenlehre das Wort zum ersten Mal zeigt, trägt es
+   * die Bedeutung: Wort trägt die Bedeutung, nicht das englische Lehnwort allein.
+   * Einmal aufgelöst, statt 20 Labels umbenannt.
+   */
   "hints.catTriage": {
     en: "Triage",
-    de: "Triage",
+    de: "Triage – Funde beurteilen",
   },
   "hints.searchFocus": {
     en: "Focus the search bar (file name or language)",
@@ -1164,6 +1485,19 @@ export const DICT = {
   "panel.verdictsBlocked": {
     en: "Verdicts are not being saved — each one lives only as long as this tab stays open",
     de: "Urteile werden nicht gespeichert — jedes lebt nur, solange dieser Tab offen bleibt",
+  },
+  /**
+   * The other copy of the verdicts: the one file this machine keeps. The backend
+   * answers it with 503 when the bytes will not read (`verdicts_unreadable`) —
+   * it refuses to serve an empty map it cannot justify, and the client must not
+   * do that on its behalf. Three things the sentence has to keep apart: nothing
+   * was judged, the record could not be READ, and nothing was deleted (the
+   * delete door is shut while it will not read, so this is a fact and not
+   * comfort). `panel.statusNoFindings` must never wear these words.
+   */
+  "panel.verdictsUnreadable": {
+    en: "The verdicts saved on this machine could not be read — work you did earlier may look unjudged, and new verdicts stay in this browser. Nothing was deleted.",
+    de: "Die auf diesem Rechner gespeicherten Urteile konnten nicht gelesen werden — Arbeit von früher wirkt unbewertet, und neue Urteile bleiben im Browser. Nichts wurde gelöscht.",
   },
   /**
    * V1 — the first verdict of a visit is the commitment the panel confirms.
@@ -1494,6 +1828,35 @@ export const DICT = {
     en: "{word} · from {count} review-level notes ({notes}), no security rule matched",
     de: "{word} · aus {count} Prüfhinweisen auf Review-Stufe ({notes}) — keine Sicherheitsregel hat gegriffen",
   },
+  /**
+   * Chip labels name WHAT a tower is — a German reader has to be able to tell
+   * them apart. These four are English words or English-derived abbreviations
+   * and go through the dictionary; the English values stay byte-identical to
+   * the former inline literals (#49 rule b). Kept as-is on purpose: CHURN,
+   * API, AST, SECRETS (the German tooltips write those very words: "Git-Churn",
+   * "API-Fläche", "AST-Funde", "hartkodierte Secrets") and the units LOC, KB,
+   * cx — language-neutral measurements whose meaning lives in the tooltip.
+   * None of the four can take a plural: DEAD CODE? and CYCLE are presence
+   * flags, COV carries a percentage, and "CLONE ×n" is a multiplier notation
+   * (the noun is the category, not a count), so no `*One` branch would ever
+   * differ from its plural twin here.
+   */
+  "panel.chipDeadCode": {
+    en: "DEAD CODE?",
+    de: "TOTER CODE?",
+  },
+  "panel.chipCycle": {
+    en: "CYCLE",
+    de: "ZYKLUS",
+  },
+  "panel.chipCoverage": {
+    en: "COV {pct}%",
+    de: "ABDECKUNG {pct} %",
+  },
+  "panel.chipClone": {
+    en: "CLONE ×{count}",
+    de: "KLON ×{count}",
+  },
 
   // ── Info panel — structure block ──────────────────────────────────────────
   "panel.structureAria": {
@@ -1718,6 +2081,18 @@ export const DICT = {
   "findings.judgedTallyOrphaned": {
     en: "Reviewed {judged} / {total} · {orphans} orphaned",
     de: "Beurteilt {judged} / {total} · {orphans} verwaist",
+  },
+  /**
+   * The third thing the tally slot can mean. A missing number and a number of
+   * zero are not a state: with the machine copy unreadable and this browser
+   * empty, the line used to simply not render, which read as "you have judged
+   * nothing" — the same lie `panel.verdictsUnreadable` was written against, in
+   * the panel's other silent spot. Same words as that note ("could not be read"),
+   * no status code, no digit standing in for a tally nobody read.
+   */
+  "findings.judgedTallyUnreadable": {
+    en: "The verdicts saved on this machine could not be read, so no judged tally is stated — that is not the same as nothing judged",
+    de: "Die auf diesem Rechner gespeicherten Urteile konnten nicht gelesen werden, daher steht hier keine Beurteilt-Zahl — das heißt nicht, dass nichts beurteilt wurde",
   },
   "findings.moreRules": {
     en: "+{count} rules",
@@ -2446,6 +2821,16 @@ export const DICT = {
     en: "At least 80% test coverage",
     de: "Mindestens 80 % Testabdeckung",
   },
+  /** 005 Teil A — the square on the ground, named in words next to the ring it
+   *  must not be confused with. */
+  "legend.blastSquare": {
+    en: "Cyan square on the ground",
+    de: "Cyanes Quadrat auf dem Boden",
+  },
+  "legend.blastSquareMeaning": {
+    en: "Imports the selected file — may need re-reading",
+    de: "Importiert die gewählte Datei — könnte Nachlesen erfordern",
+  },
   "legend.ring": {
     en: "Red ring at the base",
     de: "Roter Ring am Sockel",
@@ -2469,6 +2854,184 @@ export const DICT = {
   "legend.streamsMeaning": {
     en: "Incoming / outgoing imports",
     de: "Eingehende / ausgehende Importe",
+  },
+  /** The two lines on the plate riding the labelled import arc. The arrow in
+   *  the name line already says who imports whom; this says how much. */
+  "arc.namedOne": {
+    en: "{count} named import",
+    de: "{count} benannter Import",
+  },
+  "arc.namedMany": {
+    en: "{count} named imports",
+    de: "{count} benannte Importe",
+  },
+  /** Z-02 — the two small lines on a neighbour's own plate: how big the file
+   *  is, and how much of the review is still open on it. */
+  "plate.lines": {
+    en: "{count} lines of code",
+    de: "{count} Zeilen Code",
+  },
+  "plate.findingsOne": {
+    en: "↑ 1 finding",
+    de: "↑ 1 Befund",
+  },
+  "plate.findingsMany": {
+    en: "↑ {count} findings",
+    de: "↑ {count} Befunde",
+  },
+  "plate.findingsNone": {
+    en: "no open findings",
+    de: "keine offenen Befunde",
+  },
+  /**
+   * 005 Teil A — the dossier's impact block. The wording is the claim's ceiling,
+   * not its floor: "imports this file" is what the edge says, "may need
+   * re-reading" is what it means, and nothing here promises a runtime effect.
+   */
+  "blast.show": {
+    en: "Show potential impact",
+    de: "Mögliche Auswirkung zeigen",
+  },
+  "blast.hide": {
+    en: "Hide potential impact",
+    de: "Mögliche Auswirkung verbergen",
+  },
+  "blast.showTitle": {
+    en: "Mark the files that import this one",
+    de: "Markiert die Dateien, die diese Datei importieren",
+  },
+  "blast.hideTitle": {
+    en: "Remove the impact marks",
+    de: "Entfernt die Auswirkungsmarken",
+  },
+  "blast.one": {
+    en: "{count} file imports this one",
+    de: "{count} Datei importiert diese Datei",
+  },
+  "blast.many": {
+    en: "{count} files import this one",
+    de: "{count} Dateien importieren diese Datei",
+  },
+  /**
+   * The empty answer carries its own limit. A resolver that could not match an
+   * import writes no edge, and an absent edge is not proof of an absent
+   * dependency — so the sentence that says "nobody imports this" has to say
+   * what it was measured over. 005 Regel 2.
+   */
+  "blast.none": {
+    en: "No file in this city imports this one. An import the resolver could not match leaves no edge, so it is absent here rather than absent in the code.",
+    de: "Keine Datei in dieser Stadt importiert diese Datei. Ein Import, den der Resolver nicht zuordnen konnte, hinterlässt keine Kante — er fehlt hier, nicht im Code.",
+  },
+  "blast.summarised": {
+    en: "not drawn here",
+    de: "hier nicht gezeichnet",
+  },
+  "blast.shown": {
+    en: "{drawn} of {total} stand as a building on this level.",
+    de: "{drawn} von {total} stehen auf dieser Ebene als Gebäude.",
+  },
+  "blast.static": {
+    en: "Static import analysis. Runtime impact not verified.",
+    de: "Statische Importanalyse. Laufzeitwirkung nicht geprüft.",
+  },
+  /**
+   * 005-B — the Explorer. `guide.claim` is the only sentence the resident ever
+   * says, and both names in it come from one edge in the payload: the figure
+   * has no voice of its own, so nothing here may be written around the data.
+   */
+  "guide.badge": {
+    en: "Explorer",
+    de: "Entdecker",
+  },
+  "guide.securityBadge": {
+    en: "Security",
+    de: "Sicherheit",
+  },
+  "guide.lead": {
+    en: "Ask the Explorer to walk you to a connected file.",
+    de: "Lass den Entdecker dich zu einer verbundenen Datei führen.",
+  },
+  "guide.ask": {
+    en: "Ask Ephe to guide me",
+    de: "Ephe führen lassen",
+  },
+  "guide.cancel": {
+    en: "Stop the guide",
+    de: "Führung abbrechen",
+  },
+  "guide.stop": {
+    en: "Stop",
+    de: "Abbrechen",
+  },
+  "guide.walking": {
+    en: "The Explorer is walking to {file}.",
+    de: "Der Entdecker geht zu {file}.",
+  },
+  "guide.claim": {
+    en: "{importer} imports {imported}. A change to {imported} may require reviewing {importer}.",
+    de: "{importer} importiert {imported}. Eine Änderung an {imported} kann Nachlesen von {importer} erfordern.",
+  },
+  "guide.more": {
+    en: "{count} more connected files are named in the impact list above.",
+    de: "{count} weitere verbundene Dateien stehen der Auswirkungsliste oben.",
+  },
+  "guide.busy": {
+    en: "The Explorer is on a ride or a build site right now — the guide was not started.",
+    de: "Der Entdecker ist gerade unterwegs oder auf einer Baustelle — die Führung wurde nicht gestartet.",
+  },
+  "guide.notDrawn": {
+    en: "The connected files are real, but this level does not draw them as buildings. Open their district to walk there.",
+    de: "Die verbundenen Dateien existieren, aber diese Ebene zeichnet sie nicht als Gebäude. Öffne ihren Bezirk, um dorthin zu gehen.",
+  },
+  /**
+   * 005-B12 — the Maintenance resident, and its one metric. `cx` is the label
+   * the card already prints, so the sentence names the same number the reader
+   * can see above it; the share and the saturation point come from
+   * `city/mapping.ts`, not from a text constant.
+   */
+  "guide.maintenanceBadge": {
+    en: "Maintenance",
+    de: "Wartung",
+  },
+  "guide.maint.lead": {
+    en: "What the cx figure counts, and what it does to this building.",
+    de: "Was der cx-Wert zählt und was er mit diesem Gebäude macht.",
+  },
+  "guide.maint.ask": {
+    en: "Ask Ephe about this complexity",
+    de: "Ephe nach dieser Komplexität fragen",
+  },
+  "guide.maint.walking": {
+    en: "The Maintenance Ephe is walking to {file}.",
+    de: "Der Wartungs-Ephe geht zu {file}.",
+  },
+  "guide.maint.claim": {
+    en: "cx {cx} in {name}: {points}, counted one per branch, loop, case, catch or short-circuit.",
+    de: "cx {cx} in {name}: {points}, gezählt einer pro Verzweigung, Schleife, Case, Catch oder Kurzschlussverknüpfung.",
+  },
+  "guide.maint.share": {
+    en: "It carries {share} % of the complexity value the height is built from, and its full share at cx {sat}.",
+    de: "Er trägt {share} % des Komplexitätswerts, aus dem die Höhe gebaut wird; seinen vollen Anteil bei cx {sat}.",
+  },
+  "guide.maint.saturated": {
+    en: "Its full share of that value is reached at cx {sat}, and this file is at or above it.",
+    de: "Seinen vollen Anteil erreicht der Wert bei cx {sat}; diese Datei liegt bei oder darüber.",
+  },
+  "guide.maint.caveat": {
+    en: "Height comes from three metrics. This one answers for complexity alone.",
+    de: "Die Höhe kommt aus drei Metriken. Diese Rolle antwortet nur für die Komplexität.",
+  },
+  "guide.maint.busy": {
+    en: "The errand was not started — no free Maintenance Ephe on this level.",
+    de: "Die Anfrage wurde nicht gestartet — auf dieser Ebene kein freier Wartungs-Ephe.",
+  },
+  "guide.maint.notDrawn": {
+    en: "The number is real, but this level does not draw the file as a building. Open its district to ask there.",
+    de: "Der Wert ist echt, aber diese Ebene zeichnet die Datei nicht als Gebäude. Öffne ihren Bezirk, um dort zu fragen.",
+  },
+  "guide.maint.reduced": {
+    en: "Reduced Motion is on, so the sentence stands here instead of a walk.",
+    de: "Reduzierte Bewegung ist an, deshalb steht der Satz hier statt eines Wegs.",
   },
   "legend.heat": {
     en: "Heat cells (zoomed out)",
@@ -2515,6 +3078,70 @@ export const DICT = {
   "ctx.collapseTip": {
     en: "Collapse overview",
     de: "Übersicht einklappen",
+  },
+  "roles.title": {
+    en: "Who works here",
+    de: "Wer hier arbeitet",
+  },
+  "roles.explainer": {
+    en: "Three of the figures have a job, and each job is a claim about a file — not a costume.",
+    de: "Drei der Figuren haben eine Aufgabe, und jede Aufgabe ist eine Aussage über eine Datei — kein Kostüm.",
+  },
+  "roles.explorer": {
+    en: "Leads you along an import that exists: only a named edge between the two files answers, and only in its own direction.",
+    de: "Führt dich entlang eines Imports, den es gibt: nur eine benannte Kante zwischen den beiden Dateien antwortet, und nur in ihrer eigenen Richtung.",
+  },
+  "roles.explorerWhere": {
+    en: "shown as the stripe on the pavement",
+    de: "sichtbar als Streifen auf dem Bürgersteig",
+  },
+  "roles.security": {
+    en: "Stops at a file that carries a finding and names the rule, the line, the severity and which scanner answered.",
+    de: "Bleibt bei einer Datei mit Befund stehen und nennt Regel, Zeile, Schwere und welchen Scanner sie betrifft.",
+  },
+  "roles.securityWhere": {
+    en: "shown at the tower it stops at",
+    de: "sichtbar am Turm, bei dem es stehen bleibt",
+  },
+  "roles.maintenance": {
+    en: "Counts decision points in one code file — and stays home on data files and on files without any.",
+    de: "Zählt Entscheidungspunkte in einer Code-Datei — und bleibt bei Datendateien und bei Dateien ohne welche.",
+  },
+  "roles.maintenanceWhere": {
+    en: "shown beside the height of the tower",
+    de: "sichtbar neben der Höhe des Turms",
+  },
+  "ctx.layerTitle": {
+    en: "Layer view",
+    de: "Ebenen",
+  },
+  "ctx.layerExplainer": {
+    en: "Share of the files this layer has an answer for — not a grade.",
+    de: "Anteil der Dateien, zu dem diese Ebene etwas sagt — keine Note.",
+  },
+  "ctx.layer.structure": {
+    en: "Code structure",
+    de: "Code-Struktur",
+  },
+  "ctx.layer.security": {
+    en: "Security findings",
+    de: "Sicherheits-Befunde",
+  },
+  "ctx.layer.dependencies": {
+    en: "Dependencies",
+    de: "Abhängigkeiten",
+  },
+  "ctx.layer.coverage": {
+    en: "Test coverage",
+    de: "Testabdeckung",
+  },
+  "ctx.layer.count": {
+    en: "{answered} of {total} files",
+    de: "{answered} von {total} Dateien",
+  },
+  "ctx.layer.none": {
+    en: "This scan carries no data for this layer — the dash is not a zero.",
+    de: "Dieser Durchlauf enthält keine Daten für diese Ebene — der Strich ist keine Null.",
   },
   "ctx.files": {
     en: "Files",
@@ -2817,6 +3444,17 @@ export const DICT = {
     en: "Loading Ephemora Skyline",
     de: "Ephemora Skyline lädt",
   },
+  /**
+   * What the wait is actually for, in the reader's language. The analysis id is
+   * a scan proof, not a sentence — while the city loads it belongs in the
+   * tooltip (see LoadingScreen), and the line on screen explains what a city
+   * here is. It repeats the structure the primer teaches, so the wait doubles as
+   * the first lesson.
+   */
+  "load.cityExplained": {
+    en: "Your code becomes a city here: each folder a district, each file a building.",
+    de: "Dein Code wird hier zur Stadt: jeder Ordner ein Bezirk, jede Datei ein Gebäude.",
+  },
   "load.line1": {
     en: "> Starting Ephemora Skyline...",
     de: "> Ephemora Skyline startet...",
@@ -3051,6 +3689,17 @@ export const DICT = {
     en: "Selected packs are read from this disk — the deep scan runs with the network switched off.",
     de: "Gewählte Packs liegen auf dieser Platte — der Tiefenscan läuft dann auch ohne Netz.",
   },
+  /**
+   * The pack row's third meaning, beside "here are the packs" and "the disk
+   * holds none": the read itself failed. Silence here used to read as an empty
+   * shelf — the same lie `findings.judgedTallyUnreadable` was written against,
+   * with the same words ("could not be read"), no code, no digit, no colour
+   * carrying it alone.
+   */
+  "profile.packsUnreadable": {
+    en: "The rule packs on this machine could not be read, so no pack row is stated here — that is not the same as no packs installed",
+    de: "Die Regel-Packs auf diesem Rechner konnten nicht gelesen werden, daher steht hier keine Pack-Zeile — das heißt nicht, dass keine Packs installiert sind",
+  },
   "profile.closeAria": {
     en: "Close without changing the profile",
     de: "Schließen, ohne das Profil zu ändern",
@@ -3112,6 +3761,23 @@ export const DICT = {
   "app.dismissAria": {
     en: "Dismiss message",
     de: "Meldung schließen",
+  },
+  /**
+   * The prefs reader's third meaning, beside "you never chose" and "here are
+   * your choices": the stored bytes could not be read. Defaults answering a
+   * failed read is the same lie `panel.verdictsUnreadable` and
+   * `profile.packsUnreadable` were written against — and here it silently
+   * switches off the colour-blind-safe alarms one reader deliberately turned
+   * on. The sentence keeps the three facts apart: the read failed, the app
+   * runs on defaults now (so palette and language may be wrong), and nothing
+   * was deleted — the unreadable file is preserved (prefs.ts parks the bytes
+   * under codecity-prefs:unreadable before any later save can overwrite them).
+   * Name the action, not just the failure: the re-choices live on this screen
+   * (language) and in the ••• More menu (palette, effects, update check).
+   */
+  "app.prefsUnreadable": {
+    en: "Your saved preferences on this machine could not be read — the app started with defaults, so the colour-blind-safe alarms and the language you chose may be off. Set them again on this screen or under ••• More; the unreadable file is kept, nothing was deleted.",
+    de: "Die gespeicherten Einstellungen auf diesem Rechner konnten nicht gelesen werden — die App ist mit Standardwerten gestartet, deine farbenblind-sicheren Alarme und die gewählte Sprache sind deshalb womöglich aus. Setze sie auf diesem Bildschirm oder unter ••• Mehr erneut; die unlesbare Datei bleibt erhalten, nichts wurde gelöscht.",
   },
   "minimap.overview": {
     en: "· OVERVIEW",
@@ -3554,6 +4220,82 @@ export const DICT = {
   "tooltip.noFindingsOrbitHintKeyboard": {
     en: "Enter — circle it, Esc frees the camera",
     de: "Enter — umkreisen, Esc gibt die Kamera frei",
+  },
+
+  // ── Screen-edge waypoint (HudOverlay) ─────────────────────────────────────
+  // The word carries the direction; the arrow glyph only repeats it. The
+  // distance is the straight line through the city, in city units.
+  "hud.wpLeft": { en: "left", de: "links" },
+  "hud.wpRight": { en: "right", de: "rechts" },
+  "hud.wpBehind": { en: "behind", de: "hinten" },
+  "hud.wpAria": {
+    en: "Next open finding {dir}, about {dist} city units away — fly there",
+    de: "Nächster offener Fund {dir}, etwa {dist} Stadteinheiten entfernt — dorthin fliegen",
+  },
+  "hud.wpTitle": {
+    en: "Direction and straight-line distance to the next finding without a verdict",
+    de: "Richtung und Luftlinie zum nächsten Fund ohne Urteil",
+  },
+
+  // ── The access section (ZUGRIFF: one place, state as a word) ──────────────
+  // The three ways to make the city easier to take — quieter effects, the
+  // color-safe palette, the language — got ONE named home, and every switch
+  // there says its state as a word, never by colour or glyph alone.
+  "actions.access": {
+    en: "Access",
+    de: "Zugang",
+  },
+  "actions.stateOn": {
+    en: "on",
+    de: "an",
+  },
+  "actions.stateOff": {
+    en: "off",
+    de: "aus",
+  },
+  // The language switch's state word: each language is named in itself, so
+  // both locales carry the same endonym — that is the point, not a miss.
+  "access.langEnglish": {
+    en: "English",
+    de: "English",
+  },
+  "access.langGerman": {
+    en: "Deutsch",
+    de: "Deutsch",
+  },
+  "access.systemNote": {
+    en: "Your system asked for it, so it started on: {what}. Change any of it here — your choice wins, and nothing was saved behind your back.",
+    de: "Dein System hat danach gefragt, deshalb ist das an: {what}. Ändere es hier — deine Entscheidung gilt, und nichts wurde heimlich gespeichert.",
+  },
+  "hints.accessField": {
+    en: "Open the access options — effects, color-safe palette, language",
+    de: "Zugangsoptionen öffnen — Effekte, farbsichere Palette, Sprache",
+  },
+
+  // ── Storage-read class (2026-10-26): the three loaders that still answered
+  // corrupt bytes as "empty". Same three facts as `app.prefsUnreadable`,
+  // `panel.verdictsUnreadable` and `profile.packsUnreadable` — the read
+  // failed, what the screen does meanwhile, and that the unreadable file is
+  // kept under its `:unreadable` slot (storageRead.ts), nothing was deleted.
+  /** The exclude field's status line: an empty field here is a failed read,
+   *  not "no excludes" — and until the reader re-enters them, every scan runs
+   *  with the wider radius. */
+  "cap.excludeUnreadable": {
+    en: "Your saved exclude rules on this machine could not be read — the field is empty, so until you enter them again scans run without excludes. The unreadable file is kept, nothing was deleted.",
+    de: "Die gespeicherten Exclude-Regeln auf diesem Rechner konnten nicht gelesen werden — das Feld ist leer, also laufen Scans ohne Ausschlüsse, bis du sie erneut einträgst. Die unlesbare Datei bleibt erhalten, nichts wurde gelöscht.",
+  },
+  /** The pack row's fourth meaning, beside the network three: the selection
+   *  SAVED on this browser could not be read. Not an empty shelf — an empty
+   *  choice that is not stated as one. */
+  "profile.packsStorageUnreadable": {
+    en: "The pack selection you saved on this machine could not be read, so no pack is chosen here — that is not the same as no packs installed. The unreadable file is kept, nothing was deleted.",
+    de: "Die auf diesem Rechner gespeicherte Pack-Auswahl konnte nicht gelesen werden, daher ist hier kein Pack gewählt — das heißt nicht, dass keine Packs installiert sind. Die unlesbare Datei bleibt erhalten, nichts wurde gelöscht.",
+  },
+  /** The entry screen's recent-cities block: an index that could not be read
+   *  must not read as "you never opened a city here". */
+  "landing.recentUnreadable": {
+    en: "The list of cities you opened in this browser could not be read — that is not the same as never having opened a city. The unreadable file is kept, nothing was deleted.",
+    de: "Die Liste der Städte, die du in diesem Browser geöffnet hast, konnte nicht gelesen werden — das heißt nicht, dass du nie eine Stadt geöffnet hast. Die unlesbare Datei bleibt erhalten, nichts wurde gelöscht.",
   },
 } satisfies Record<string, { en: string; de: string }>;
 

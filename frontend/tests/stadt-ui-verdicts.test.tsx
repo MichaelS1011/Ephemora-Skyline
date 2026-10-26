@@ -17,7 +17,7 @@ import { HudOverlay } from "../src/components/HudOverlay";
 import { FindingsPanel } from "../src/components/FindingsPanel";
 import { t, type Lang } from "../src/i18n";
 import { isUncheckedClean } from "../src/city/provenance";
-import { findingKey } from "../src/reviews";
+import { findingKey, resetBackendVerdicts } from "../src/reviews";
 import { useStore } from "../src/stores/useStore";
 import { city as cityOf, dir, file as fileOf, finding, provenance } from "./helpers/cityFixture";
 import type { CityData, CityFile, CityFinding } from "../src/city/types";
@@ -338,6 +338,131 @@ describe("ein Urteil, das der Speicher nicht annimmt, sagt es", () => {
     setItem.mockRestore();
     expect(text()).toContain(t("en", "panel.verdictsBlocked"));
     expect(text()).not.toContain("Urteile");
+  });
+});
+
+/**
+ * The machine copy of the verdicts — one JSON file the local backend owns,
+ * keyed by the same project bucket — answers 503 `verdicts_unreadable` when
+ * its bytes cannot be read or parsed (backend hardening, 2026-10-26). The
+ * client read EVERY non-2xx as "the backend did not answer"
+ * (`fetchBackendReviews` → `null` → `adoptMachineVerdicts` returns), so the
+ * person who triaged forty findings yesterday got a city that looked
+ * unreviewed with no word about why — the lie the route had just stopped
+ * telling, re-told one layer up. The write door and the entry screen's delete
+ * button sat behind the same swallow.
+ */
+describe("eine Maschinenkopie, die nicht zu lesen ist, sagt es", () => {
+  const unreadableBody = {
+    error: "The verdict file is unreadable",
+    code: "verdicts_unreadable",
+  };
+
+  /** Answers the verdict routes the way the hardened backend does. */
+  function stubVerdictRoutes(answer: { status: number; body: unknown }): void {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL) => {
+        const url = String(input);
+        const a = url.includes("/verdicts") ? answer : { status: 200, body: {} };
+        return {
+          ok: a.status >= 200 && a.status < 300,
+          status: a.status,
+          json: async () => a.body,
+          headers: { get: () => null },
+        } as unknown as Response;
+      }),
+    );
+  }
+
+  function verdictCalls(): string[] {
+    const mock = globalThis.fetch as unknown as { mock: { calls: unknown[][] } };
+    return mock.mock.calls.map(
+      (c) => `${(c[1] as { method?: string })?.method ?? "GET"} ${String(c[0])}`,
+    );
+  }
+
+  /** The real arrival path: a local city comes in and asks for its bucket. */
+  async function arrive(data: CityData, lang: Lang = "de"): Promise<void> {
+    // A second arrival in one case must retire the first root: an orphaned
+    // tree keeps subscribing to the store and updates outside every `act`.
+    if (root) {
+      await act(async () => root.unmount());
+      container?.remove();
+    }
+    useStore.setState(
+      { ...useStore.getInitialState(), prefs: { ...useStore.getInitialState().prefs, lang } },
+      true,
+    );
+    container = document.createElement("div");
+    document.body.append(container);
+    root = createRoot(container);
+    await act(async () => root.render(createElement(InfoPanel)));
+    // The machine copy is asked inside `setCityData`; the awaited tick is what
+    // lets that answer land while React is still inside `act`.
+    await act(async () => {
+      useStore.getState().setCityData(data);
+      await new Promise((r) => setTimeout(r, 0));
+    });
+    await act(async () =>
+      useStore.getState().setSelectedUnit({ kind: "file", id: "f-src/config.js" }),
+    );
+    await act(async () => new Promise((r) => setTimeout(r, 0)));
+  }
+
+  const note = () => container.querySelector("[data-verdicts-unreadable]");
+
+  it("says the words where the verdict is set, and does not offer a delete", async () => {
+    stubVerdictRoutes({ status: 503, body: unreadableBody });
+    await arrive(city([file("src/config.js", [secret()])]));
+    const line = note();
+    expect(line, "the machine copy could not be read and the panel says nothing").toBeTruthy();
+    expect(line!.getAttribute("role")).toBe("alert");
+    expect(text()).toContain(t("de", "panel.verdictsUnreadable"));
+    // the word carries it: "could not be read" is not "you have no verdicts"
+    expect(line!.textContent).toContain("gelesen");
+    expect(line!.querySelector("button"), "the note offers a destructive action").toBeNull();
+    // nothing is written over a file the store could not read
+    expect(verdictCalls().some((c) => c.startsWith("PUT "))).toBe(false);
+  });
+
+  it("says it in the language the panel speaks", async () => {
+    stubVerdictRoutes({ status: 503, body: unreadableBody });
+    await arrive(city([file("src/config.js", [secret()])]), "en");
+    expect(text()).toContain(t("en", "panel.verdictsUnreadable"));
+    expect(note()!.textContent).toContain("read");
+    expect(text()).not.toContain("Urteil");
+  });
+
+  it("keeps the alarm off for a backend that holds nothing — the old honest reading", async () => {
+    stubVerdictRoutes({ status: 404, body: { error: "Analysis not found" } });
+    await arrive(city([file("src/config.js", [secret()])]));
+    expect(note()).toBeNull();
+    expect(useStore.getState().verdictsUnreadable).toBe(false);
+    // and a server that does not answer at all is still not a broken file
+    vi.stubGlobal("fetch", async () => {
+      throw new TypeError("fetch failed");
+    });
+    await arrive(city([file("src/config.js", [secret()])]));
+    expect(note()).toBeNull();
+    expect(useStore.getState().verdictsUnreadable).toBe(false);
+  });
+
+  it("will not let the delete button wipe a file it cannot read", async () => {
+    stubVerdictRoutes({ status: 503, body: unreadableBody });
+    await arrive(city([file("src/config.js", [secret()])]));
+    const before = verdictCalls().length;
+    resetBackendVerdicts();
+    expect(verdictCalls().slice(before)).not.toContain("POST /api/verdicts/reset");
+  });
+
+  it("gives the delete door back once the copy reads again", async () => {
+    stubVerdictRoutes({ status: 200, body: { project: "p-0000000000000000", reviews: {} } });
+    await arrive(city([file("src/config.js", [secret()])]));
+    expect(note()).toBeNull();
+    const before = verdictCalls().length;
+    resetBackendVerdicts();
+    expect(verdictCalls().slice(before)).toContain("POST /api/verdicts/reset");
   });
 });
 

@@ -11,7 +11,7 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { promises as fs } from "fs";
 import path from "path";
-import type { Request, Response } from "express";
+import type { Request } from "express";
 import {
   MAX_FILES,
   MAX_PATH_LEN,
