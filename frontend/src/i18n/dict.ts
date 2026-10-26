@@ -4308,6 +4308,14 @@ export const DICT = {
     en: "The resident look you saved on this machine could not be read — the figure wears the shipped look again, which is not the same as never having chosen. The unreadable file is kept, nothing was deleted.",
     de: "Das Aussehen der Bewohnerin, das du auf diesem Rechner gespeichert hast, konnte nicht gelesen werden — die Figur trägt wieder das ausgelieferte Aussehen, das heißt nicht, dass du nie gewählt hast. Die unlesbare Datei bleibt erhalten, nichts wurde gelöscht.",
   },
+  /** The footprint block's names line: the same bytes the resident card
+   *  answers with `resident.namesUnreadable` must not answer "no resident
+   *  names saved yet" here. One bucket, one sentence — the number counts
+   *  only the readable part and the word names the rest. */
+  "landing.footprintNamesUnreadable": {
+    en: "Some resident names saved in this browser could not be read — that is not the same as never having named anyone, and a number beside this note counts only the readable names. The unreadable file is kept, nothing was deleted.",
+    de: "Einige in diesem Browser gespeicherte Bewohnernamen konnten nicht gelesen werden — das heißt nicht, dass du nie jemanden benannt hast; eine Zahl neben diesem Hinweis zählt nur die lesbaren Namen. Die unlesbare Datei bleibt erhalten, nichts wurde gelöscht.",
+  },
   /** The resident card's name field: an unnamed crowd here is a failed read
    *  of THIS project's names, not a project nobody has named yet. */
   "resident.namesUnreadable": {

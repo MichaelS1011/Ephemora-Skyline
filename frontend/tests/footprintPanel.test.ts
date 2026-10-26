@@ -26,6 +26,7 @@ const KEYS: DictKey[] = [
   "landing.footprintNames",
   "landing.footprintNamesOne",
   "landing.footprintNamesNone",
+  "landing.footprintNamesUnreadable",
   "landing.footprintResetNames",
   "landing.footprintLook",
   "landing.footprintLookNone",
@@ -64,7 +65,15 @@ describe("the footprint block", () => {
   });
 
   it("counts the names it keeps, and only offers the removal when there are some", () => {
-    expect(landing).toContain("setNameCount(countStoredNames())");
+    // Three states ride this line (Auftrag #13): the count answers with the
+    // readable part AND with whether a bucket refused to read — through the
+    // class reader, not a hand-parsed loop whose `catch` called unreadable
+    // bytes "never named". The door's disable stays on the countable number
+    // (open finding, named in the round report); the word is what moved.
+    expect(landing).toContain("countStoredNames().names");
+    expect(landing).toContain("setNameCount(names.names)");
+    expect(landing).toContain("setNamesUnreadable(names.unreadable)");
+    expect(landing).toContain("readStoredJson<Record<string, string>>(k, honouredNames)");
     expect(landing).toMatch(/disabled=\{nameCount === 0\}/);
     // The screen's copy is cleared with the storage, or the card would go on
     // showing a name the reader just deleted.

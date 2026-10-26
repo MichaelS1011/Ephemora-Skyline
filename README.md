@@ -72,7 +72,7 @@ Read this before the list above means anything.
 
 ## It says so when it cannot read
 
-Every stored setting answers one of three things: read, absent, **unreadable**. Bytes that refuse to parse are parked under their own key and survive the next save, and the screen says the difference in words instead of showing an empty state. This covers the verdict file on disk (while it reads badly no write and no reset touches it), the rule packs, the excluded folders, the list of cities you opened, your preferences, the names you gave residents, the saved look of the figure, this browser's verdicts, the record of earlier scans and the chosen scan profile — twelve sentences, English and German.
+Every stored setting answers one of three things: read, absent, **unreadable**. Bytes that refuse to parse are parked under their own key and survive the next save, and the screen says the difference in words instead of showing an empty state. This covers the verdict file on disk (while it reads badly no write and no reset touches it), the rule packs, the excluded folders, the list of cities you opened, your preferences, the names you gave residents, the saved look of the figure, this browser's verdicts, the record of earlier scans, the chosen scan profile and the entry screen's count of saved names — thirteen sentences, English and German.
 
 Colour never carries a meaning alone: severity chips have a shape and a word, an alarm plot gets a wedge _and_ a count, and the colour-blind palette reaches every surface that paints a severity. Gold means one thing only: where your keyboard is. Guarded in `frontend/tests/arrival-budget.test.tsx` (four standing surfaces) and `frontend/tests/waypoint.test.tsx`.
 
@@ -147,11 +147,11 @@ Every screen, switch and shortcut: [`docs/GETTING_STARTED.md`](./docs/GETTING_ST
 ```bash
 npm run lint                  # ESLint, zero warnings
 npm run type-check            # tsc --noEmit, both packages
-npm run test                  # Vitest — 284 test files: 199 frontend, 85 backend (2026-10-26)
+npm run test                  # Vitest — 284 test files: 199 frontend, 85 backend (2026-10-27)
 npm run build                 # production build, both packages
 node scripts/audit-gate.mjs   # dependency audit
 ```
 
-3,257 cases measured 2026-10-26 — 2,361 frontend, 894 backend. The audit gate fails on every high or critical finding **except** those accepted in `scripts/audit-gate.mjs` by name with a dated re-check; on this lockfile `npm audit` reported `0 vulnerabilities` on 2026-10-26, so it passes on the fix and prints that the one remaining exception matches no finding. Gates, conventions and the PR checklist: **[CONTRIBUTING.md](./CONTRIBUTING.md)**. Small, reviewable changes land fastest. Interface strings need an English and a German entry, and anything that changes the 3D render needs a real-GPU screenshot — headless CI cannot judge a WebGL scene.
+3,273 cases measured 2026-10-27 — 2,377 frontend, 896 backend. The audit gate fails on every high or critical finding **except** those accepted in `scripts/audit-gate.mjs` by name with a dated re-check; on this lockfile `npm audit` reported `0 vulnerabilities` on 2026-10-26, so it passes on the fix and prints that the one remaining exception matches no finding. Gates, conventions and the PR checklist: **[CONTRIBUTING.md](./CONTRIBUTING.md)**. Small, reviewable changes land fastest. Interface strings need an English and a German entry, and anything that changes the 3D render needs a real-GPU screenshot — headless CI cannot judge a WebGL scene.
 
 Skyline is the piece of this work meant to be read and argued with, not the piece meant to earn.

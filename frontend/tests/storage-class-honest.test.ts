@@ -490,6 +490,53 @@ describe("the word where the look lives (Landing footprint block)", () => {
   });
 });
 
+/* ── the third state on the names COUNT line (Auftrag #13): the same bytes the
+ * resident card answers with `resident.namesUnreadable` used to answer "no
+ * resident names saved yet" here — two surfaces, one bucket, two sentences.
+ * The line keeps its states: none (absent), a number (read), and now the word
+ * (unreadable), counting only what is countable and naming the rest. ──────── */
+
+describe("the word where the names count lives (Landing footprint block)", () => {
+  const SECOND_BUCKET = "codecity-ephe-names:p-second-bucket";
+
+  it("a corrupt names bucket is not 'no resident names saved yet' — in EN", async () => {
+    localStorage.setItem(NAMES_BUCKET, '{"plot:f-a#0":"At');
+    const text = await mountLanding("en");
+    expect(text).toContain(tEn("landing.footprintNamesUnreadable"));
+    expect(text).not.toContain(tEn("landing.footprintNamesNone"));
+    expect(text).toContain("⚠");
+    expect(host.querySelector("[data-names-unreadable]")).toBeTruthy();
+    expect(preservedUnreadableBytes(NAMES_BUCKET)).toBe('{"plot:f-a#0":"At');
+  });
+
+  it("a corrupt names bucket, deutsch", async () => {
+    localStorage.setItem(NAMES_BUCKET, '[["plot:a","X"]]');
+    const text = await mountLanding("de");
+    expect(text).toContain(tDe("landing.footprintNamesUnreadable"));
+    expect(text).not.toContain(tDe("landing.footprintNamesNone"));
+  });
+
+  it("readable and unreadable buckets together: the number counts the read part, the word names the rest", async () => {
+    localStorage.setItem(SECOND_BUCKET, '{"plot:f-b#0":"Ada"}');
+    localStorage.setItem(NAMES_BUCKET, '{"plot:f-a#0":"At');
+    const text = await mountLanding("en");
+    expect(text).toContain(tEn("landing.footprintNamesOne").replace("{n}", "1"));
+    expect(text).toContain(tEn("landing.footprintNamesUnreadable"));
+    // Not the sum of both: the unreadable bucket contributes nothing countable.
+    expect(text).not.toContain(tEn("landing.footprintNames").replace("{n}", "2"));
+  });
+
+  it("never-named still says none, and honest bytes raise no storage word", async () => {
+    const bare = await mountLanding("en");
+    expect(bare).toContain(tEn("landing.footprintNamesNone"));
+    expect(bare).not.toContain(tEn("landing.footprintNamesUnreadable"));
+    localStorage.setItem(SECOND_BUCKET, '{"plot:f-b#0":"Ada"}');
+    const healthy = await mountLanding("en");
+    expect(healthy).toContain(tEn("landing.footprintNamesOne").replace("{n}", "1"));
+    expect(healthy).not.toContain(tEn("landing.footprintNamesUnreadable"));
+  });
+});
+
 describe("the word where the names live (ResidentCard)", () => {
   async function mountCard(lang: Lang): Promise<string> {
     const initial = useStore.getInitialState();
@@ -676,6 +723,7 @@ const NUMERAL = [
   "ten",
   "eleven",
   "twelve",
+  "thirteen",
 ];
 const UNREADABLE_KEYS = Object.keys(DICT).filter((k) => k.includes("Unreadable"));
 const README_SRC = readFileSync(resolve(import.meta.dirname, "../../README.md"), "utf8");

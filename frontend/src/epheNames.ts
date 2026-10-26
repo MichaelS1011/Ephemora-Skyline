@@ -92,6 +92,28 @@ export function isDurableAddress(key: string): boolean {
 }
 
 /**
+ * The shape rule every reader of a names bucket applies — the writer's own
+ * rules, applied on the way in (durable address, string value, normalised
+ * non-empty name). Honouring is not refusing: entries the current rules drop
+ * keep the read a `read`; bytes that parse into a shape no bucket has are
+ * `undefined`, which `readStoredJson` answers `unreadable` and parks verbatim.
+ */
+export function honouredNames(parsed: unknown): Record<string, string> | undefined {
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return undefined;
+  const clean: Record<string, string> = {};
+  for (const [key, value] of Object.entries(parsed as Record<string, unknown>)) {
+    if (!isDurableAddress(key)) continue;
+    if (typeof value !== "string") continue;
+    // The writer's own rule, applied on the way in. The old filter measured
+    // `value.length <= NAME_MAX` in code units, so a name the writer was happy
+    // to keep — 24 characters of emoji — was silently dropped by the reader.
+    const name = normaliseName(value);
+    if (name) clean[key] = name;
+  }
+  return clean;
+}
+
+/**
  * Read a project's names as three states — the one mechanism of
  * `storageRead.ts`, per project bucket (each bucket keeps its own
  * `<key>:unreadable` slot, because the names of one project are not another
@@ -110,20 +132,7 @@ export function loadEpheNamesRead(
   if (!city) return { state: "absent" };
   const bucket = bucketKeyFor(city);
   if (!bucket) return { state: "absent" };
-  return readStoredJson<Record<string, string>>(PREFIX + bucket, (parsed) => {
-    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return undefined;
-    const clean: Record<string, string> = {};
-    for (const [key, value] of Object.entries(parsed as Record<string, unknown>)) {
-      if (!isDurableAddress(key)) continue;
-      if (typeof value !== "string") continue;
-      // The writer's own rule, applied on the way in. The old filter measured
-      // `value.length <= NAME_MAX` in code units, so a name the writer was happy
-      // to keep — 24 characters of emoji — was silently dropped by the reader.
-      const name = normaliseName(value);
-      if (name) clean[key] = name;
-    }
-    return clean;
-  });
+  return readStoredJson<Record<string, string>>(PREFIX + bucket, honouredNames);
 }
 
 /** Read a project's names, dropping anything the current rules would not write. */

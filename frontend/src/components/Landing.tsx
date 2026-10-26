@@ -11,6 +11,8 @@ import { recentCities, recentCitiesRead, cityGoneForSure, type RecentCity } from
 import { readArrivalStage, rememberArrivalStage, type ArrivalStage } from "../firstArrival";
 import { clearPendingRun, readPendingRun } from "../pendingRun";
 import { clearEpheLook, hasStoredLook, readEpheLookRead } from "../epheLook";
+import { honouredNames } from "../epheNames";
+import { readStoredJson } from "../storageRead";
 import { resetBackendVerdicts } from "../reviews";
 import { ScanExcludes } from "./ScanExcludes";
 import { EphePortrait } from "./EphePortrait";
@@ -692,29 +694,33 @@ export function Landing() {
   const [footError, setFootError] = useState(false);
   const [footNote, setFootNote] = useState("");
   const [nameCount, setNameCount] = useState(0);
+  /** ...and whether at least one names bucket refused to read (`storageRead.ts` states). */
+  const [namesUnreadable, setNamesUnreadable] = useState(false);
   /**
-   * How many resident names this browser holds (EPHE-AI EA-03). They are the
-   * second exception to "nothing is written" — the first is the verdicts — so
-   * the disclosure has to count them and a button has to be able to take them
-   * back. Read from the buckets themselves, not from a counter that could
-   * disagree with what is on disk.
+   * How many resident names this browser holds (EPHE-AI EA-03), and whether
+   * one of them could not be read. They are the second exception to "nothing
+   * is written" — the first is the verdicts — so the disclosure has to count
+   * them and a button has to be able to take them back. Read from the buckets
+   * themselves through the class reader, not from a counter that could
+   * disagree with what is on disk — and not through a `catch` that answered
+   * unreadable bytes with "never named": the resident card speaks
+   * `resident.namesUnreadable` over the same bucket, and one bucket is not
+   * allowed to say two contradictory sentences.
    */
-  const countStoredNames = (): number => {
-    let n = 0;
+  const countStoredNames = (): { names: number; unreadable: boolean } => {
+    let names = 0;
+    let unreadable = false;
     for (const k of Object.keys(localStorage)) {
       if (!k.startsWith("codecity-ephe-names:")) continue;
       // The quarantine slot is not a bucket: its bytes are one corrupt
-      // bucket's verbatim copy, and counting them as names would round the
-      // disclosure up with entries the reader never gave.
+      // bucket's verbatim copy, and counting them again would double what
+      // the live key beside it already answered `unreadable` for.
       if (k.endsWith(":unreadable")) continue;
-      try {
-        const parsed: unknown = JSON.parse(localStorage.getItem(k) ?? "{}");
-        if (parsed && typeof parsed === "object") n += Object.keys(parsed).length;
-      } catch {
-        // An unreadable bucket holds nothing a reader can lose
-      }
+      const read = readStoredJson<Record<string, string>>(k, honouredNames);
+      if (read.state === "read") names += Object.keys(read.value).length;
+      else if (read.state === "unreadable") unreadable = true;
     }
-    return n;
+    return { names, unreadable };
   };
   /** §04.09 — the third bucket the browser holds: one resident's look. */
   const [lookSaved, setLookSaved] = useState(false);
@@ -725,7 +731,9 @@ export function Landing() {
       const res = await fetch("/api/footprint");
       if (!res.ok) throw new Error(String(res.status));
       setFoot((await res.json()) as Footprint);
-      setNameCount(countStoredNames());
+      const names = countStoredNames();
+      setNameCount(names.names);
+      setNamesUnreadable(names.unreadable);
       setLookSaved(hasStoredLook());
       // "a key exists" and "the look can be read" are different questions;
       // the reset door needs the first, the reader deserves the second.
@@ -789,7 +797,12 @@ export function Landing() {
   };
 
   const resetNames = (): void => {
-    const n = countStoredNames();
+    // The number counts the readable part; names inside bytes that refused to
+    // read cannot be counted and are not promised as a number (open finding,
+    // mixed buckets). The loop below deletes every key of the prefix, the
+    // quarantine slots included, so the unreadable state genuinely ends here —
+    // the line would lie if it went on sounding the alarm over deleted bytes.
+    const n = countStoredNames().names;
     for (const k of Object.keys(localStorage)) {
       if (k.startsWith("codecity-ephe-names:")) localStorage.removeItem(k);
     }
@@ -797,6 +810,7 @@ export function Landing() {
     // card reads agree the moment the button was pressed.
     useStore.setState({ residentNames: {}, residentNamesBlocked: false });
     setNameCount(0);
+    setNamesUnreadable(false);
     setFootNote(
       ts(lang, n === 1 ? "landing.footprintNamesDoneOne" : "landing.footprintNamesDone", { n }),
     );
@@ -1132,15 +1146,29 @@ export function Landing() {
                     </p>
                   </>
                 )}
-                <p role="status" className="landing-footprint-count">
-                  {nameCount === 0
-                    ? t(lang, "landing.footprintNamesNone")
-                    : t(
-                        lang,
-                        nameCount === 1 ? "landing.footprintNamesOne" : "landing.footprintNames",
-                        { n: formatCount(lang, nameCount) },
-                      )}
-                </p>
+                {(nameCount > 0 || !namesUnreadable) && (
+                  <p role="status" className="landing-footprint-count">
+                    {nameCount === 0
+                      ? t(lang, "landing.footprintNamesNone")
+                      : t(
+                          lang,
+                          nameCount === 1 ? "landing.footprintNamesOne" : "landing.footprintNames",
+                          { n: formatCount(lang, nameCount) },
+                        )}
+                  </p>
+                )}
+                {/* The third state of the line above, drawn as the look line's
+                    sibling below draws its own: a bucket that refuses to
+                    parse is NOT "no resident names saved yet" — the resident
+                    card already speaks over these bytes, and one bucket must
+                    not say two contradictory sentences. The number counts
+                    only the readable part; the word names the rest. Words
+                    and glyph, never colour alone. */}
+                {namesUnreadable && (
+                  <p className="landing-network-meta" role="alert" data-names-unreadable="true">
+                    ⚠ {t(lang, "landing.footprintNamesUnreadable")}
+                  </p>
+                )}
                 {/* §04.09 — the third thing this browser keeps. One small object,
                     but a disclosure that lists two of three is a promise with a
                     hole in it, which is the reason this line exists. */}
