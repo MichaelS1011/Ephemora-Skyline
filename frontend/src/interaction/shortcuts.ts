@@ -183,6 +183,23 @@ export const ROWS: Row[] = [
     ),
     owner: "App.tsx",
   },
+  // X: the X-ray state. Held down, the raw numbers that shaped the aimed
+  // tower stand on one plate — released, the plate is gone. It stays in the
+  // reading group because it is how you read a building, not a camera trick;
+  // the handler lives in the HUD that paints the plate.
+  {
+    id: "xrayRaw",
+    keys: ["X"],
+    codes: ["X"],
+    group: "nav",
+    rank: 9,
+    text: T(
+      "hints.xrayRaw",
+      "Hold — the raw numbers of the tower you aim at",
+      "Halten — die Rohzahlen des Turms, den du ansiehst",
+    ),
+    owner: "components/HudOverlay.tsx",
+  },
 
   // ── Camera ────────────────────────────────────────────────────────────────
   {
@@ -751,7 +768,21 @@ export function explain(press: Press, world: World): Text | null {
     );
   }
 
-  if (press.modalOpen && (key === "[" || key === "]" || key === "n" || key === "p")) {
+  if (!world.hasCity && key === "x") {
+    // X belongs to a building, and the landing has none; the HUD that would
+    // answer is not even mounted here. Say what the key is for before it can
+    // read as broken.
+    return T(
+      "keys.xrayNoCity",
+      "No city yet — X lays the raw numbers over a tower you aim at; pick a folder first",
+      "Noch keine Stadt — X legt die Rohzahlen über einen anvisierten Turm; erst einen Ordner öffnen",
+    );
+  }
+
+  if (
+    press.modalOpen &&
+    (key === "[" || key === "]" || key === "n" || key === "p" || key === "x")
+  ) {
     return T(
       "keys.modalHolds",
       "The shortcut list holds the keys now — Esc closes it",

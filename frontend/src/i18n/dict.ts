@@ -4297,6 +4297,34 @@ export const DICT = {
     en: "The list of cities you opened in this browser could not be read — that is not the same as never having opened a city. The unreadable file is kept, nothing was deleted.",
     de: "Die Liste der Städte, die du in diesem Browser geöffnet hast, konnte nicht gelesen werden — das heißt nicht, dass du nie eine Stadt geöffnet hast. Die unlesbare Datei bleibt erhalten, nichts wurde gelöscht.",
   },
+  // ── X-ray raw numbers (X, hold) — Task 6 ──────────────────────────────────
+  // The plate answers one sentence: "I look at a tower and want the raw
+  // numbers that shaped it, without a detour". Every label is a word, never
+  // colour alone; rows whose field the payload did not deliver are not shown
+  // at all — "not delivered" must not wear a zero.
+  "hints.xrayRaw": {
+    en: "X — hold to read the raw numbers of the tower you aim at",
+    de: "X — halten und die Rohzahlen des Turms lesen, den du ansiehst",
+  },
+  "xray.lines": { en: "lines", de: "Zeilen" },
+  "xray.branches": { en: "branches", de: "Zweige" },
+  "xray.imports": { en: "imports", de: "Importe" },
+  "xray.findings": { en: "findings", de: "Funde" },
+  "xray.churn": { en: "churn", de: "Churn" },
+  "xray.coverage": { en: "coverage", de: "Abdeckung" },
+  "xray.coverageValue": { en: "{pct}%", de: "{pct} %" },
+  /** The screen-reader name says what stands on the plate and why it is
+   *  there: {name} the body, {values} the rows in reading order. */
+  "xray.aria": {
+    en: "Raw numbers for {name} — {values}. They stand only while X is held.",
+    de: "Rohzahlen für {name} — {values}. Sie stehen nur, solange X gehalten wird.",
+  },
+  /** The press is never mute: without an aimed tower the plate names what
+   *  it waits for instead of showing nothing. */
+  "xray.holdHint": {
+    en: "X shows raw numbers — aim at a tower: hover it, or step to one with [ ]",
+    de: "X zeigt Rohzahlen — visiere einen Turm an: darüberfahren oder mit [ ] zu einem schalten",
+  },
 } satisfies Record<string, { en: string; de: string }>;
 
 export type DictKey = keyof typeof DICT;

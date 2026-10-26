@@ -43,6 +43,9 @@ const HANDLER_FILES = [
   "components/ShareStudio.tsx",
   "components/CameraRig.tsx",
   "interaction/KeyEcho.tsx",
+  // Task 6: the X-ray key is held down in the HUD itself, so the HUD's
+  // bindings must pass the same both-ways check as every other handler file.
+  "components/HudOverlay.tsx",
 ];
 
 /**

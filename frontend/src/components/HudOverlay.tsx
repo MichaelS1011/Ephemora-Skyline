@@ -6,6 +6,7 @@ import { topLanguages, languageColor, severityColor } from "../city/palette";
 import { scanVerdict } from "../city/provenance";
 import { BrandWordmark } from "./Landing";
 import { AnalyzePanel } from "./AnalyzePanel";
+import { XrayRaw } from "./XrayRaw";
 import { openSearch } from "./SearchBar";
 import { PHASE_0_MS } from "./CityTree";
 import { t, formatCount, type DictKey, type Lang } from "../i18n";
@@ -95,6 +96,43 @@ export function HudOverlay({ apiStatus }: HudOverlayProps) {
     const onResize = () => setViewportAspect(window.innerWidth / Math.max(1, window.innerHeight));
     window.addEventListener("resize", onResize);
     return () => window.removeEventListener("resize", onResize);
+  }, []);
+  /**
+   * The X-ray state (Task 6): raw numbers over the tower being aimed at, and
+   * ONLY while X is held. It is a key binding, not a surface — at rest nothing
+   * of it stands on the screen, so the arrival budget's four surfaces are
+   * untouched (pinned in tests/xray-raw.test.tsx and by arrival-budget itself).
+   * A modal dialog owns the keyboard while it is open; a field the reader is
+   * writing into owns the letter. Key up and window blur both end the state —
+   * a mode that outlives its own key is a second mode bar in disguise.
+   */
+  const [xrayHeld, setXrayHeld] = useState(false);
+  useEffect(() => {
+    const isTyping = (target: EventTarget | null): boolean => {
+      const el = target as HTMLElement | null;
+      return (
+        !!el &&
+        (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.isContentEditable === true)
+      );
+    };
+    const onKeyDown = (e: KeyboardEvent): void => {
+      if (e.code !== "KeyX" || e.metaKey || e.ctrlKey || e.repeat) return;
+      if (isTyping(e.target) || !!document.querySelector('[aria-modal="true"]')) return;
+      setXrayHeld(true);
+    };
+    const onKeyUp = (e: KeyboardEvent): void => {
+      if (e.code !== "KeyX") return;
+      setXrayHeld(false);
+    };
+    const onBlur = (): void => setXrayHeld(false);
+    window.addEventListener("keydown", onKeyDown);
+    window.addEventListener("keyup", onKeyUp);
+    window.addEventListener("blur", onBlur);
+    return () => {
+      window.removeEventListener("keydown", onKeyDown);
+      window.removeEventListener("keyup", onKeyUp);
+      window.removeEventListener("blur", onBlur);
+    };
   }, []);
   // The queue the dock walks — same list, same filters, same order. Memoised
   // on the city and the filters: a camera move must never re-sort the city.
@@ -400,6 +438,9 @@ export function HudOverlay({ apiStatus }: HudOverlayProps) {
           <span aria-hidden="true">≈{Math.round(waypoint.distance)}</span>
         </button>
       )}
+      {/* The X-ray is mounted for exactly as long as the key is held, and
+          never while the crane still works: nothing is aimable under it. */}
+      {xrayHeld && !constructing && <XrayRaw />}
     </>
   );
 }
