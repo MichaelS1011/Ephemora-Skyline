@@ -759,17 +759,19 @@ export function Landing() {
       setFootError(true);
     }
   };
-  const resetVerdicts = (): void => {
+  const resetVerdicts = async (): Promise<void> => {
     const keys = Object.keys(localStorage).filter((k) => k.startsWith("codecity-reviews:"));
     for (const k of keys) localStorage.removeItem(k);
     // The machine copy is the second home of the same verdicts: deleting only
     // the browser buckets would let the next scan resurrect what the person
     // just deleted. The button's label names the browser buckets it removed —
     // it does more than it says, never less.
-    // The more was refused while the machine copy reads unreadable — then the
-    // sentence says so, because "removed" alone would report a deletion the
-    // machine copy never got (the return value is the only honest narrator).
-    const machineDoorUsed = resetBackendVerdicts();
+    // The more can refuse twice: the session knows the copy reads unreadable
+    // (no POST is asked), or the store itself says so over bytes it cannot
+    // list (503) — a fresh page that never read anything is not wiser than a
+    // seasoned one. Either way the sentence follows the answer, because
+    // "removed" alone would report a deletion the machine copy never got.
+    const machineDoorUsed = await resetBackendVerdicts();
     const oneBucket = keys.length === 1;
     setFootNote(
       ts(
@@ -1166,7 +1168,7 @@ export function Landing() {
                   >
                     {t(lang, "landing.footprintPurge")}
                   </button>
-                  <button type="button" className="btn-ghost" onClick={resetVerdicts}>
+                  <button type="button" className="btn-ghost" onClick={() => void resetVerdicts()}>
                     {t(lang, "landing.footprintReset")}
                   </button>
                   <button

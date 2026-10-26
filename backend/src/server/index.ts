@@ -363,7 +363,8 @@ app.get("/api/rule-packs", localOnlyRoute, (_req: Request, res: Response): void 
 // the staged folder copies (footprintSnapshot); the machine's second home of
 // the human's triage is the verdict store at ~/.ephemora-skyline/verdicts.json
 // (CODECITY_VERDICTS_FILE overrides), cleared by POST /api/verdicts/reset — the
-// entry screen's reset button deletes the browser buckets and that file. Both
+// entry screen's reset button deletes the browser buckets and, while the file
+// reads, that file too; an unreadable one is refused like any write. Both
 // halves carry the origin guard — the GET names what is kept on disk, the
 // purge is a write and deletes it, and neither is drivable from another website.
 app.get(

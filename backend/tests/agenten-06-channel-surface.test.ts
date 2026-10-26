@@ -643,7 +643,9 @@ describe("a verdict store that is still loading answers as one writer", () => {
  *   failed   EACCES/EIO/EISDIR/ELOOP, unparsable bytes, another version — the
  *            handlers answer 503 `verdicts_unreadable`, a `set` writes nothing,
  *            and the memoized read is dropped so the NEXT request tries again.
- * `POST /api/verdicts/reset` is a delete intent and still deletes.
+ * `POST /api/verdicts/reset` is a delete intent, and over bytes it cannot
+ * list it is refused like every other write — the store will not report a
+ * deletion it could not witness.
  *
  * Every case drives the exported handlers against a temp `CODECITY_VERDICTS_FILE`
  * in `os.tmpdir()`, never the real home file, and each gets a fresh module so the
@@ -799,6 +801,61 @@ describe("an unreadable verdict file is answered 503, never written over", () =>
           written.projects[BUCKET_B]!.reviews,
           "bucket B survived the unreadable phase",
         ).toEqual({ [FP_B]: "to-fix" });
+      },
+    );
+  });
+
+  async function resetVerdicts() {
+    const { handleResetVerdicts } = await routes();
+    const box = capture();
+    await handleResetVerdicts({} as Request, box.res);
+    return box;
+  }
+
+  /**
+   * The README states the rule without a condition: while the verdict file
+   * "reads badly no write and no reset touches it". The write door was tested
+   * above; the delete door is the loudest of them — a reset over bytes that
+   * cannot be listed is the one action from which nothing can be recovered,
+   * and the entry screen's refusal (frontend reviews.ts
+   * `resetBackendVerdicts`) only speaks inside a session that has already
+   * read once. A fresh process must not be allowed to erase what a seasoned
+   * one refuses: the machine itself is the last instance that can say no.
+   */
+  it("the reset door is the write door's equal: an unreadable file answers 503 and survives the press", async () => {
+    await inTemp(
+      "reset-unreadable",
+      (_dir, file) => {
+        const whole = twoBuckets();
+        writeFileSync(file, whole.slice(0, whole.length - 24), "utf-8");
+      },
+      async (_dir, file) => {
+        const before = sha(file);
+        const reset = await resetVerdicts();
+        expect(
+          reset.status,
+          "a delete that cannot enumerate what it deletes may not claim one",
+        ).toBe(503);
+        expect(reset.body.code).toBe("verdicts_unreadable");
+        expect(sha(file), "the press left the unreadable bytes exactly as they were").toBe(before);
+        noTempLeft(file);
+      },
+    );
+  });
+
+  it("a readable file is cleared by the reset — the refusal is about the read, not about the button", async () => {
+    await inTemp(
+      "reset-loaded",
+      (_dir, file) => {
+        writeFileSync(file, twoBuckets(), "utf-8");
+      },
+      async (_dir, file) => {
+        const before = sha(file);
+        const reset = await resetVerdicts();
+        expect(reset.status).toBe(200);
+        expect(reset.body.cleared).toBe(2);
+        const written = await awaitDisk(file, before);
+        expect(written.projects).toEqual({});
       },
     );
   });

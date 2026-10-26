@@ -350,15 +350,22 @@ export function pushBackendReviews(
 /**
  * The entry screen's "delete my verdicts" clears the machine copy too.
  *
- * Returns whether the door was used. While the last read answered
- * `verdicts_unreadable` it is not: a reset writes an empty file, so pressing
- * delete over bytes that cannot currently be listed is how a person's whole
- * triage history becomes unrecoverable — with the screen having just told them
- * there was nothing to find. The browser buckets the button names are still
- * cleared by the caller; only the machine copy is left alone.
+ * Returns whether the machine copy was actually cleared. Two doors refuse:
+ * the session's memory — while the last read answered `verdicts_unreadable`
+ * the POST is not even asked — and the store itself, which answers 503 over
+ * bytes it cannot list, so a fresh page that never read anything cannot
+ * erase through ignorance what an informed session refuses. A machine that
+ * does not answer is also "not cleared": the file survived the press either
+ * way, and the refusal sentence says the copy was left untouched. The
+ * browser buckets the button names are still cleared by the caller; only the
+ * machine copy is left alone.
  */
-export function resetBackendVerdicts(): boolean {
+export async function resetBackendVerdicts(): Promise<boolean> {
   if (machineCopyUnreadable) return false;
-  fetch("/api/verdicts/reset", { method: "POST" }).catch(() => undefined);
-  return true;
+  try {
+    const res = await fetch("/api/verdicts/reset", { method: "POST" });
+    return res.ok;
+  } catch {
+    return false;
+  }
 }

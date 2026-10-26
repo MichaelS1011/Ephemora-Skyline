@@ -172,12 +172,18 @@ export class VerdictStore {
   }
 
   /**
-   * The "delete my verdicts" button: everything, everywhere, at once.
-   * A failed read does NOT block this one — reset is an explicit delete
-   * intent, and writing an empty file is exactly what the human asked for.
+   * The "delete my verdicts" button: everything, everywhere, at once —
+   * while it can be read. A failed read does NOT authorize this one either:
+   * an explicit delete intent names the verdicts the human holds, and over
+   * bytes that cannot be listed the store cannot tell a cleared history
+   * from a corrupt one. Writing an empty file there destroys what no other
+   * door can still reach (this copy has no quarantine slot), and the screen
+   * would report a deletion it did not witness. So the refusal is the
+   * machine's, not a session's memory: `null` when the read failed — the
+   * same answer `set` gives — and nothing is written.
    */
-  async clear(): Promise<number> {
-    await this.ensureLoaded();
+  async clear(): Promise<number | null> {
+    if (!(await this.ensureLoaded())) return null;
     const cleared = this.projects.size;
     this.projects.clear();
     this.persist(JSON.stringify({ version: 1, projects: {} }));
@@ -285,9 +291,18 @@ export async function handlePutVerdicts(
   res.json({ project, saved: Object.keys(saved).length });
 }
 
-/** POST /api/verdicts/reset — the entry screen's "delete my verdicts" button. */
+/**
+ * POST /api/verdicts/reset — the entry screen's "delete my verdicts" button.
+ * On an unreadable verdict file it answers 503 `verdicts_unreadable` and
+ * deletes nothing, exactly like the PUT: the browser's session latch is a
+ * courtesy, this store is the door.
+ */
 export async function handleResetVerdicts(_req: Request, res: Response): Promise<void> {
   const cleared = await verdictStore.clear();
+  if (cleared === null) {
+    res.status(503).json({ error: "The verdict file is unreadable", code: "verdicts_unreadable" });
+    return;
+  }
   scanProjects.clear();
   res.json({ cleared });
 }

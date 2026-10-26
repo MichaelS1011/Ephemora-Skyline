@@ -144,6 +144,33 @@ describe("the delete on the entry screen tells what actually happened", () => {
     expect(footNote()).toContain(t("en", "landing.footprintResetDoneOne", { n: 1 }));
     expect(stubCallsContain("POST /api/verdicts/reset")).toBe(true);
   });
+
+  /**
+   * The latch is only half the door: it speaks inside a session that already
+   * read the machine copy. Pressing delete as the FIRST act of a fresh page —
+   * before any city was opened — knew nothing and asked anyway, and the
+   * screen printed the success word while the machine, which can read its own
+   * file right now, refused and said `verdicts_unreadable`. The note has to
+   * follow the answer, not the hope.
+   */
+  it("a fresh session that never read believes the machine's answer, not its own optimism", async () => {
+    stubVerdictRoutes({ status: 503, body: unreadableBody });
+    // No fetchBackendReviews here: the session-level latch has never been armed.
+    localStorage.setItem("codecity-reviews:p-one", JSON.stringify({ "f-1": "to-fix" }));
+    await mountLanding("en");
+    await act(async () => {
+      resetButton("en").click();
+    });
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+    expect(stubCallsContain("POST /api/verdicts/reset")).toBe(true);
+    const note = footNote();
+    expect(
+      note,
+      `the screen claimed the browser-only success over a machine that refused: "${note}"`,
+    ).toContain(t("en", "landing.footprintResetRefusedOne", { n: 1 }));
+  });
 });
 
 function stubCallsContain(needle: string): boolean {
