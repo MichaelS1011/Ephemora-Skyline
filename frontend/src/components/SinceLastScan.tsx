@@ -26,7 +26,17 @@ function samplePath(city: NonNullable<ReturnType<typeof useStore.getState>["city
  * Colour never carries the meaning either: no green on this row, because green
  * would say "fixed" louder than any tooltip can take back.
  */
-export function SinceLastScan({ lang, previousScan }: { lang: Lang; previousScan: boolean }) {
+export function SinceLastScan({
+  lang,
+  previousScan,
+  anchorsUnreadable = false,
+}: {
+  lang: Lang;
+  previousScan: boolean;
+  /** The browser's anchor table exists and would not parse. Over that, the
+   *  row may not claim "no earlier scan" — it says what it cannot see. */
+  anchorsUnreadable?: boolean;
+}) {
   const verify = useStore((s) => s.verify);
   const runVerify = useStore((s) => s.runVerify);
   const cityData = useStore((s) => s.cityData);
@@ -78,6 +88,15 @@ export function SinceLastScan({ lang, previousScan }: { lang: Lang; previousScan
                 · {samplePath(cityData)}
               </span>
             )}
+          </p>
+        ) : anchorsUnreadable ? (
+          <p
+            className="text-[12px] leading-relaxed"
+            style={{ color: "var(--meta-strong)" }}
+            role="status"
+            data-anchors-unreadable="true"
+          >
+            ⚠ {t(lang, "ctx.sinceAnchorsUnreadable")}
           </p>
         ) : (
           <p className="text-[12px]" style={{ color: "var(--meta-strong)" }}>

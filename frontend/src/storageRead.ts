@@ -18,8 +18,10 @@
  *
  * Local instances of this class closed so far: reviews.ts (machine copy, via
  * the route), rulePacks.ts (network path), prefs.ts, and — through this file —
- * config/scanProfiles.ts, config/rulePacks.ts (storage path) and
- * recentCities.ts. Watch: tests/storage-class-honest.test.ts.
+ * config/scanProfiles.ts, config/rulePacks.ts (storage path),
+ * recentCities.ts and, on the queue of the prefs round, epheLook.ts,
+ * epheNames.ts, reviews.ts (browser bucket) and verify.ts (anchors and
+ * times). Watch: tests/storage-class-honest.test.ts.
  */
 
 export type StoredRead<T> =

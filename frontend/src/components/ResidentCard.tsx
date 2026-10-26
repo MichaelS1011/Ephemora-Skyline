@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef } from "react";
 import { useStore, triageList, nextOpenTriageIndex } from "../stores/useStore";
 import { findFileById, getDirLayout } from "../city/layout";
 import { parseEpheKey } from "../city/epheIdentity";
-import { isDurableAddress, NAME_MAX } from "../epheNames";
+import { isDurableAddress, loadEpheNamesRead, NAME_MAX } from "../epheNames";
 import { t } from "../i18n";
 import type { EpheRole } from "../city/epheRoles";
 import "../design/stadt-ui.css";
@@ -56,6 +56,14 @@ export function ResidentCard() {
   const namesBlocked = useStore((s) => s.residentNamesBlocked);
   const guideErrand = useStore((s) => s.guide);
   const guidePhase = useStore((s) => s.guidePhase);
+  // A names bucket that could not be read is not "this project has no names"
+  // — the card that shows an unnamed resident owes the reader that fact, and
+  // the bytes are kept in the `:unreadable` slot until a re-naming replaces
+  // the live copy (`storageRead.ts`).
+  const namesUnreadable = useMemo(
+    () => loadEpheNamesRead(cityData).state === "unreadable",
+    [cityData],
+  );
   const name = identityKey ? (names[identityKey] ?? "") : "";
   const home = useMemo(() => {
     if (!cityData || !identityKey) return null;
@@ -169,6 +177,13 @@ export function ResidentCard() {
             // The field's own hint promises the project, and the write was
             // refused. Saying nothing here would let the promise stand.
             <p className="resident-role">{t(lang, "resident.claimBlocked")}</p>
+          )}
+          {namesUnreadable && (
+            // The other half of the same promise: the names this project has
+            // on the machine could not be read. Word and glyph, never colour.
+            <p className="resident-role" role="status" data-resident-names-unreadable="true">
+              ⚠ {t(lang, "resident.namesUnreadable")}
+            </p>
           )}
         </div>
       )}

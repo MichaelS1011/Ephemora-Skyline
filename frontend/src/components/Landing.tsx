@@ -10,7 +10,7 @@ import type { CityData } from "../city/types";
 import { recentCities, recentCitiesRead, cityGoneForSure, type RecentCity } from "../recentCities";
 import { readArrivalStage, rememberArrivalStage, type ArrivalStage } from "../firstArrival";
 import { clearPendingRun, readPendingRun } from "../pendingRun";
-import { clearEpheLook, hasStoredLook } from "../epheLook";
+import { clearEpheLook, hasStoredLook, readEpheLookRead } from "../epheLook";
 import { resetBackendVerdicts } from "../reviews";
 import { ScanExcludes } from "./ScanExcludes";
 import { EphePortrait } from "./EphePortrait";
@@ -703,6 +703,10 @@ export function Landing() {
     let n = 0;
     for (const k of Object.keys(localStorage)) {
       if (!k.startsWith("codecity-ephe-names:")) continue;
+      // The quarantine slot is not a bucket: its bytes are one corrupt
+      // bucket's verbatim copy, and counting them as names would round the
+      // disclosure up with entries the reader never gave.
+      if (k.endsWith(":unreadable")) continue;
       try {
         const parsed: unknown = JSON.parse(localStorage.getItem(k) ?? "{}");
         if (parsed && typeof parsed === "object") n += Object.keys(parsed).length;
@@ -714,6 +718,8 @@ export function Landing() {
   };
   /** §04.09 — the third bucket the browser holds: one resident's look. */
   const [lookSaved, setLookSaved] = useState(false);
+  /** ...and whether that look could be read (`storageRead.ts` states). */
+  const [lookUnreadable, setLookUnreadable] = useState(false);
   const readFootprint = async (): Promise<void> => {
     try {
       const res = await fetch("/api/footprint");
@@ -721,6 +727,9 @@ export function Landing() {
       setFoot((await res.json()) as Footprint);
       setNameCount(countStoredNames());
       setLookSaved(hasStoredLook());
+      // "a key exists" and "the look can be read" are different questions;
+      // the reset door needs the first, the reader deserves the second.
+      setLookUnreadable(readEpheLookRead().state === "unreadable");
       setFootError(false);
     } catch {
       setFootError(true);
@@ -795,6 +804,9 @@ export function Landing() {
   const resetLook = (): void => {
     clearEpheLook();
     setLookSaved(false);
+    // The live key is gone; what remains is only the quarantined copy of
+    // bytes that once refused to read — the line above says "none" again.
+    setLookUnreadable(false);
     setFootNote(ts(lang, "landing.footprintLookDone"));
   };
 
@@ -1133,6 +1145,15 @@ export function Landing() {
                 <p role="status" className="landing-footprint-count">
                   {t(lang, lookSaved ? "landing.footprintLook" : "landing.footprintLookNone")}
                 </p>
+                {/* A key that exists and cannot be read is the one state the
+                    line above cannot tell apart — the figure wears the
+                    shipped look, which is NOT the same as never having
+                    chosen. Words and glyph, never colour alone. */}
+                {lookUnreadable && (
+                  <p className="landing-network-meta" role="alert" data-look-unreadable="true">
+                    ⚠ {t(lang, "landing.lookUnreadable")}
+                  </p>
+                )}
                 <div className="landing-footprint-actions">
                   <button type="button" className="btn-ghost" onClick={() => void readFootprint()}>
                     {t(lang, "landing.footprintRefresh")}

@@ -17,12 +17,31 @@
  * is a 404, instead of pretending nothing changed.
  */
 import type { CityData } from "./city/types";
+import { readStoredJson, type StoredRead } from "./storageRead";
 
 const KEY = "codecity-verify-anchor:v1";
 /** Enough visits to cover a working day; the server forgets sooner than this. */
 const MAX_ENTRIES = 60;
 /** Past this many paths the fingerprint is of the first slice — still stable. */
 const MAX_PATHS = 4000;
+
+/**
+ * Scans whose anchor table was found unreadable when this browser showed
+ * them. Session-only, and it says exactly that: the bytes were there and
+ * could not be read when THIS visit started. `anchorFor` goes on writing a
+ * fresh, honest table over the live key — the unreadable bytes themselves
+ * survive in the `<key>:unreadable` slot (`storageRead.ts`) — so after the
+ * first write the read answers `read` again and the card would fall silent.
+ * The fact the sentence carries ("your record of earlier visits could not be
+ * read") is about the arrival, not about the last render; it stays pinned to
+ * the scan that arrived into it.
+ */
+const unreadableArrivalFor = new Set<string>();
+
+/** Whether this scan arrived while the anchor table was unreadable. */
+export function verifyAnchorsUnreadable(scanId: string): boolean {
+  return unreadableArrivalFor.has(scanId);
+}
 
 export interface VerifyAnchor {
   /** The scan this anchor belongs to. */
@@ -123,26 +142,53 @@ function rememberTime(scanId: string, scannedAt: string | undefined): void {
   }
 }
 
+/**
+ * The recorded finish times, as the shared reader answers them. A table that
+ * will not parse is `unreadable` and its bytes are kept; the sentence the
+ * date would have carried stays true without it, so no alarm is owed — only
+ * the bytes must not be traded away.
+ */
+function readTimes(): StoredRead<Record<string, string>> {
+  return readStoredJson<Record<string, string>>(TIMES_KEY, (parsed) => {
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return undefined;
+    const table: Record<string, string> = {};
+    for (const [scanId, value] of Object.entries(parsed as Record<string, unknown>)) {
+      if (typeof value === "string") table[scanId] = value;
+    }
+    return table;
+  });
+}
+
 /** The recorded finish time of one scan, or undefined when it was never noted. */
 export function verifyAnchorScannedAt(scanId: string): string | undefined {
   const fromAnchor = read().find((entry) => entry.scanId === scanId)?.scannedAt;
   if (fromAnchor) return fromAnchor;
-  try {
-    const table = JSON.parse(window.localStorage.getItem(TIMES_KEY) ?? "{}") as Record<
-      string,
-      string
-    >;
-    return table[scanId];
-  } catch {
-    return undefined;
-  }
+  const times = readTimes();
+  return times.state === "read" ? times.value[scanId] : undefined;
 }
 
 function read(): VerifyAnchor[] {
-  if (typeof window === "undefined") return [];
-  try {
-    const parsed = JSON.parse(window.localStorage.getItem(KEY) ?? "[]") as unknown;
-    if (!Array.isArray(parsed)) return [];
+  // The screen-facing copy: an unreadable table behaves like an empty one
+  // here — the whole answer, including that it failed, is `verifyAnchorsRead`.
+  const stored = verifyAnchorsRead();
+  return stored.state === "read" ? stored.value : [];
+}
+
+/**
+ * The anchor table as three states, never a silent `[]`.
+ *
+ * `absent` is a fresh browser — no comparison to make, and the card says
+ * "none" truthfully. `unreadable` is bytes that exist and will not parse or
+ * will not hold the shape (the old code's `if (!Array.isArray) return []`
+ * answered a corrupt table with "no earlier scan", and the very next
+ * `write()` overwrote it): the record of this browser's earlier visits is
+ * gone to it, and the card must say that rather than claim absence. The
+ * bytes are preserved verbatim under the `<key>:unreadable` slot by
+ * `readStoredJson`, so the next honest write does not trade them away.
+ */
+export function verifyAnchorsRead(): StoredRead<VerifyAnchor[]> {
+  return readStoredJson<VerifyAnchor[]>(KEY, (parsed) => {
+    if (!Array.isArray(parsed)) return undefined;
     return parsed.filter(
       (e): e is VerifyAnchor =>
         !!e &&
@@ -152,9 +198,7 @@ function read(): VerifyAnchor[] {
           typeof (e as VerifyAnchor).previousId === "string") &&
         typeof (e as VerifyAnchor).at === "number",
     );
-  } catch {
-    return [];
-  }
+  });
 }
 
 function write(entries: VerifyAnchor[]): void {
@@ -175,7 +219,14 @@ function write(entries: VerifyAnchor[]): void {
  */
 export function anchorFor(city: CityData | null): VerifyAnchor | null {
   if (!city?.analysisId) return null;
-  const entries = read();
+  const stored = verifyAnchorsRead();
+  if (stored.state === "unreadable") {
+    // The scan arrived into bytes it could not read; the card owes that fact
+    // to THIS scan for the rest of the visit, whatever the fresh honest table
+    // `write()` will answer from now on.
+    unreadableArrivalFor.add(city.analysisId);
+  }
+  const entries = stored.state === "read" ? stored.value : [];
   const existing = entries.find((e) => e.scanId === city.analysisId);
   if (existing) {
     // An entry written before the payload carried a time is filled in on the

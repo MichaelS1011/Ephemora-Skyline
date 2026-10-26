@@ -1,4 +1,5 @@
 import { bucketKeyFor } from "./reviews";
+import { readStoredJson, type StoredRead } from "./storageRead";
 
 /**
  * Names the reader gave to residents, persisted local-first — the same shape
@@ -90,16 +91,27 @@ export function isDurableAddress(key: string): boolean {
   return key.startsWith("plot:");
 }
 
-/** Read a project's names, dropping anything the current rules would not write. */
-export function loadEpheNames(city: CityBucket | null | undefined): Record<string, string> {
-  if (!city) return {};
+/**
+ * Read a project's names as three states — the one mechanism of
+ * `storageRead.ts`, per project bucket (each bucket keeps its own
+ * `<key>:unreadable` slot, because the names of one project are not another
+ * project's to preserve).
+ *
+ * The old answer to unreadable bytes was `{}` — "you never named anyone" —
+ * and the next `saveEpheName` wrote that emptiness over the reader's own
+ * names with no word. That is the class failure: the difference between
+ * never-named and unreadable must be answerable, and the bytes survive the
+ * next save verbatim. Dropping entries the current rules would not write
+ * stays a `read` — honouring is not refusing.
+ */
+export function loadEpheNamesRead(
+  city: CityBucket | null | undefined,
+): StoredRead<Record<string, string>> {
+  if (!city) return { state: "absent" };
   const bucket = bucketKeyFor(city);
-  if (!bucket || typeof window === "undefined") return {};
-  try {
-    const raw = window.localStorage.getItem(PREFIX + bucket);
-    if (!raw) return {};
-    const parsed: unknown = JSON.parse(raw);
-    if (!parsed || typeof parsed !== "object") return {};
+  if (!bucket) return { state: "absent" };
+  return readStoredJson<Record<string, string>>(PREFIX + bucket, (parsed) => {
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return undefined;
     const clean: Record<string, string> = {};
     for (const [key, value] of Object.entries(parsed as Record<string, unknown>)) {
       if (!isDurableAddress(key)) continue;
@@ -111,9 +123,13 @@ export function loadEpheNames(city: CityBucket | null | undefined): Record<strin
       if (name) clean[key] = name;
     }
     return clean;
-  } catch {
-    return {};
-  }
+  });
+}
+
+/** Read a project's names, dropping anything the current rules would not write. */
+export function loadEpheNames(city: CityBucket | null | undefined): Record<string, string> {
+  const stored = loadEpheNamesRead(city);
+  return stored.state === "read" ? stored.value : {};
 }
 
 /**

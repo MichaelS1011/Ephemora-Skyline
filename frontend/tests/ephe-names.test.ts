@@ -5,6 +5,7 @@ import path from "path";
 import {
   isDurableAddress,
   loadEpheNames,
+  loadEpheNamesRead,
   NAME_MAX,
   normaliseName,
   NAMES_CAP,
@@ -298,5 +299,48 @@ describe("die Bewohnerkarte behält ihr ein Verb", () => {
     expect(card).not.toContain("EpheLookControls");
     expect(card.match(/EPHE_VARIANTS/g) ?? []).toHaveLength(0);
     expect((card.match(/className="resident-action"/g) ?? []).length).toBe(1);
+  });
+});
+
+/**
+ * Task #8, storage-read class: the names bucket is the reader's copy — when
+ * its bytes cannot be read that is NOT "you never named anyone", and the
+ * bytes themselves outlive the next save in the `:unreadable` slot
+ * (`storageRead.ts`), so the class answer rides the ONE mechanism, per
+ * project bucket.
+ */
+describe("corrupt bytes are not 'no names yet'", () => {
+  const QUARANTINE = `${KEY(BUCKET_CITY)}:unreadable`;
+
+  it("never-named answers absent, and nothing is quarantined", () => {
+    expect(loadEpheNamesRead(BUCKET_CITY)).toEqual({ state: "absent" });
+    expect(localStorage.getItem(QUARANTINE)).toBeNull();
+  });
+
+  it("honest bytes answer read", () => {
+    saveEpheName(BUCKET_CITY, ATLAS, "Atlas");
+    expect(loadEpheNamesRead(BUCKET_CITY)).toEqual({ state: "read", value: { [ATLAS]: "Atlas" } });
+  });
+
+  it("bytes that do not parse answer unreadable and are kept verbatim", () => {
+    localStorage.setItem(KEY(BUCKET_CITY), `{"${ATLAS}":"At`);
+    expect(loadEpheNamesRead(BUCKET_CITY)).toEqual({ state: "unreadable" });
+    expect(localStorage.getItem(QUARANTINE)).toBe(`{"${ATLAS}":"At`);
+    // The screen copy is still the empty map — it is no longer the whole answer.
+    expect(loadEpheNames(BUCKET_CITY)).toEqual({});
+  });
+
+  it("bytes that parse into the wrong shape are unreadable too, not empty", () => {
+    localStorage.setItem(KEY(BUCKET_CITY), '[["plot:a","X"]]');
+    expect(loadEpheNamesRead(BUCKET_CITY)).toEqual({ state: "unreadable" });
+    expect(localStorage.getItem(QUARANTINE)).toBe('[["plot:a","X"]]');
+  });
+
+  it("naming a resident next writes over the live bucket but not the quarantine", () => {
+    localStorage.setItem(KEY(BUCKET_CITY), "{not json");
+    loadEpheNamesRead(BUCKET_CITY);
+    saveEpheName(BUCKET_CITY, ATLAS, "Atlas");
+    expect(localStorage.getItem(QUARANTINE)).toBe("{not json");
+    expect(loadEpheNames(BUCKET_CITY)).toEqual({ [ATLAS]: "Atlas" });
   });
 });

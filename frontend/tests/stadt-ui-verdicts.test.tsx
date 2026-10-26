@@ -17,7 +17,7 @@ import { HudOverlay } from "../src/components/HudOverlay";
 import { FindingsPanel } from "../src/components/FindingsPanel";
 import { t, type Lang } from "../src/i18n";
 import { isUncheckedClean } from "../src/city/provenance";
-import { findingKey, resetBackendVerdicts } from "../src/reviews";
+import { bucketKeyFor, findingKey, resetBackendVerdicts } from "../src/reviews";
 import { useStore } from "../src/stores/useStore";
 import { city as cityOf, dir, file as fileOf, finding, provenance } from "./helpers/cityFixture";
 import type { CityData, CityFile, CityFinding } from "../src/city/types";
@@ -734,5 +734,50 @@ describe("die Karte des ersten Funds nennt den ganzen Umfang (UX 6)", () => {
     const line = container.querySelector("[data-first-finding]");
     expect(line!.textContent).toContain("2 findings in 2 files");
     expect(line!.textContent).toContain("here is the first one");
+  });
+});
+
+/**
+ * Task #8, storage-read class: the BROWSER bucket of the verdicts is the copy
+ * this panel reads synchronously. Corrupt bytes under `codecity-reviews:<p>`
+ * must not wear the silence of "nothing judged yet" — the note takes the
+ * verdicts-note family that `verdictsBlocked` and `verdictsUnreadable` (the
+ * machine copy) already own, glyph and word, never colour alone.
+ */
+describe("ein unlesbarer Browser-Eimer sagt es, statt 'nichts bewertet' zu schweigen", () => {
+  it("names the failed read where the verdicts live — deutsch", async () => {
+    localStorage.clear();
+    const hit = file("src/config.js", [secret()]);
+    const data = city([hit]);
+    localStorage.setItem(`codecity-reviews:${bucketKeyFor(data)}`, '{"fp:1":"rev');
+    await show(createElement(InfoPanel), data);
+    await act(async () => useStore.getState().setSelectedUnit({ kind: "file", id: hit.id }));
+    const note = container.querySelector("[data-verdicts-storage-unreadable]");
+    expect(note, "the browser bucket is unreadable and the panel says nothing").toBeTruthy();
+    expect(note!.getAttribute("role")).toBe("alert");
+    expect(note!.textContent).toContain("⚠");
+    expect(text()).toContain(t("de", "panel.verdictsStorageUnreadable"));
+    expect(localStorage.getItem(`codecity-reviews:${bucketKeyFor(data)}:unreadable`)).toBe(
+      '{"fp:1":"rev',
+    );
+  });
+
+  it("says it in the language the panel speaks", async () => {
+    localStorage.clear();
+    const hit = file("src/config.js", [secret()]);
+    const data = city([hit]);
+    localStorage.setItem(`codecity-reviews:${bucketKeyFor(data)}`, '"plain text"');
+    await show(createElement(InfoPanel), data, "en");
+    await act(async () => useStore.getState().setSelectedUnit({ kind: "file", id: hit.id }));
+    expect(text()).toContain(t("en", "panel.verdictsStorageUnreadable"));
+    expect(text()).not.toContain("Urteile");
+  });
+
+  it("a never-judged project keeps its honest silence", async () => {
+    localStorage.clear();
+    const hit = file("src/config.js", [secret()]);
+    await show(createElement(InfoPanel), city([hit]), "en");
+    await act(async () => useStore.getState().setSelectedUnit({ kind: "file", id: hit.id }));
+    expect(container.querySelector("[data-verdicts-storage-unreadable]")).toBeNull();
   });
 });

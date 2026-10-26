@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useStore } from "../stores/useStore";
 import { formatCount, formatDecimal, t } from "../i18n";
 import { severityTotal } from "../city/facts";
-import { anchorFor } from "../verify";
+import { anchorFor, verifyAnchorsUnreadable } from "../verify";
 import { explainDistrictDraw, resolveDir, tourStops } from "../city/layout";
 import { describeGitignoreSkips, scanVerdict } from "../city/provenance";
 import { blindCategories, categoryMeta, summarizeCategories } from "../config/findingCategories";
@@ -125,8 +125,13 @@ export function ContextCard() {
   const totalLangLines = Object.values(dir.languages).reduce((sum, lines) => sum + lines, 0) || 1;
   const stops = tourStops(cityData);
   // Whether an earlier scan of this folder shape exists is a localStorage
-  // read; the card asks once per render rather than after a button.
+  // read; the card asks once per render rather than after a button. When
+  // that read FAILED (bytes there, would not parse) the row must say so —
+  // "no earlier scan" is a claim about absence the failed read cannot make.
   const previousScan = Boolean(anchorFor(cityData)?.previousId);
+  const anchorsUnreadable = cityData.analysisId
+    ? verifyAnchorsUnreadable(cityData.analysisId)
+    : false;
   const chainPrefix = focusPath.join("/");
   const inScope = isRoot
     ? stops[0]
@@ -327,7 +332,13 @@ export function ContextCard() {
         </div>
       )}
 
-      {isRoot && <SinceLastScan lang={lang} previousScan={previousScan} />}
+      {isRoot && (
+        <SinceLastScan
+          lang={lang}
+          previousScan={previousScan}
+          anchorsUnreadable={anchorsUnreadable}
+        />
+      )}
 
       <div className="py-4" style={{ borderBottom: "1px solid rgba(150,142,128,0.18)" }}>
         {totalFindings > 0 ? (

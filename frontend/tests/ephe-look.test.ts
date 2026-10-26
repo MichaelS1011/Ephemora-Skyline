@@ -9,6 +9,7 @@ import {
   hasStoredLook,
   lookFor,
   readEpheLook,
+  readEpheLookRead,
   saveEpheLook,
 } from "../src/epheLook";
 import { EPHE_MARKS, EPHE_PALETTE, EPHE_VARIANTS, epheOutfit } from "../src/city/palette";
@@ -197,5 +198,62 @@ describe("the crowd wears the look (§04.10)", () => {
     expect(quelle).toMatch(
       /for \(const ref of \[bodyRef, headRef, faceRef, limbRef\]\)[\s\S]{0,120}instanceColor\.needsUpdate/,
     );
+  });
+});
+
+/**
+ * Task #8, storage-read class: a look whose bytes cannot be read is NOT the
+ * look of a fresh browser — the figure wears the shipped default AND the
+ * reader is told (the word itself is pinned in `storage-class-honest`), while
+ * the unreadable bytes survive in the `<key>:unreadable` slot. A value the
+ * loader re-offers (rejected jacket, unknown mark) stays a `read`: honouring
+ * is not refusing, and that line is what `ephe-look` already pinned.
+ */
+describe("corrupt bytes are not a fresh browser", () => {
+  const QUARANTINE = `${KEY}:unreadable`;
+
+  it("never-chosen answers absent, honest bytes answer read", () => {
+    expect(readEpheLookRead()).toEqual({ state: "absent" });
+    saveEpheLook({ jacket: 7, mark: "dot" });
+    expect(readEpheLookRead()).toEqual({ state: "read", value: { jacket: 7, mark: "dot" } });
+    expect(localStorage.getItem(QUARANTINE)).toBeNull();
+  });
+
+  it("a re-offered partial value is still a read, not a failed read", () => {
+    writeRaw('{"jacket":3,"mark":"dot"}');
+    expect(readEpheLookRead()).toEqual({
+      state: "read",
+      value: { ...EPHE_DEFAULT_LOOK, mark: "dot" },
+    });
+    expect(localStorage.getItem(QUARANTINE)).toBeNull();
+  });
+
+  it("bytes that do not parse answer unreadable and are kept verbatim", () => {
+    writeRaw('{"jacket":1,');
+    expect(readEpheLookRead()).toEqual({ state: "unreadable" });
+    expect(localStorage.getItem(QUARANTINE)).toBe('{"jacket":1,');
+    expect(readEpheLook()).toEqual({ jacket: 0, mark: "none" });
+  });
+
+  it("bytes that parse into the wrong shape are unreadable too", () => {
+    writeRaw('"none"');
+    expect(readEpheLookRead()).toEqual({ state: "unreadable" });
+    expect(localStorage.getItem(QUARANTINE)).toBe('"none"');
+  });
+
+  it("the next choice writes the live key but never the quarantine", () => {
+    writeRaw("{oops");
+    readEpheLookRead();
+    saveEpheLook({ jacket: 1, mark: "none" });
+    expect(localStorage.getItem(QUARANTINE)).toBe("{oops");
+    expect(readEpheLookRead()).toEqual({ state: "read", value: { jacket: 1, mark: "none" } });
+  });
+
+  it("the key door still opens: corrupt bytes count as a stored key to clear", () => {
+    // hasStoredLook answers "does a key exist" — the clear button must stay
+    // reachable over unreadable bytes; the STATE distinction lives in
+    // readEpheLookRead, not in this boolean.
+    writeRaw("{oops");
+    expect(hasStoredLook()).toBe(true);
   });
 });

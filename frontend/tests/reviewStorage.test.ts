@@ -5,10 +5,14 @@ import {
   findingKey,
   reviewKeyFor,
   projectKey,
+  bucketKeyFor,
   loadReviews,
+  loadReviewsForCityRead,
+  loadReviewsRead,
   saveReviews,
   countStrandedVerdicts,
 } from "../src/reviews";
+import { quarantineKeyFor } from "../src/storageRead";
 
 /**
  * A verdict has to outlive the scan that produced it. Two things made that
@@ -146,5 +150,63 @@ describe("the store reports stranded verdicts when a city loads", () => {
     useStore.getState().resetToLanding();
     useStore.getState().setCityData(stadt("frisch-projekt"));
     expect(useStore.getState().orphanedReviews).toBe(0);
+  });
+});
+
+/**
+ * Task #8, storage-read class: the browser bucket is the copy this screen
+ * reads synchronously — the same case the saved pack selection had. Corrupt
+ * bytes answer `unreadable` (kept verbatim under `<key>:unreadable`), never-
+ * judged answers `absent`, and only `read` may look like an empty map without
+ * a word. The legacy-adoption door must not trade the corrupt bytes: the
+ * quarantine slot survives the adoption write.
+ */
+describe("the browser bucket answers three states", () => {
+  const city = { repo: { owner: "local", name: "ehrlich-projekt" }, tree: undefined };
+  const bucket = bucketKeyFor(city);
+  const key = `codecity-reviews:${bucket}`;
+
+  beforeEach(() => localStorage.clear());
+
+  it("never-judged answers absent, honest bytes answer read", () => {
+    expect(loadReviewsRead(bucket)).toEqual({ state: "absent" });
+    saveReviews(bucket, { "fp:a": "reviewed" });
+    expect(loadReviewsRead(bucket)).toEqual({ state: "read", value: { "fp:a": "reviewed" } });
+    expect(localStorage.getItem(quarantineKeyFor(key))).toBeNull();
+  });
+
+  it("bytes that do not parse answer unreadable and are kept verbatim", () => {
+    localStorage.setItem(key, '{"fp:a":"rev');
+    expect(loadReviewsRead(bucket)).toEqual({ state: "unreadable" });
+    expect(localStorage.getItem(quarantineKeyFor(key))).toBe('{"fp:a":"rev');
+    expect(loadReviews(bucket)).toEqual({});
+  });
+
+  it("bytes that parse into the wrong shape are unreadable, not an empty verdict map", () => {
+    localStorage.setItem(key, '"plain text"');
+    expect(loadReviewsRead(bucket)).toEqual({ state: "unreadable" });
+    expect(localStorage.getItem(quarantineKeyFor(key))).toBe('"plain text"');
+  });
+
+  it("entries that predate a schema are still a read, with the honoured subset", () => {
+    localStorage.setItem(key, '{"fp:a":"reviewed","fp:b":"bogus-status"}');
+    expect(loadReviewsRead(bucket)).toEqual({ state: "read", value: { "fp:a": "reviewed" } });
+    expect(localStorage.getItem(quarantineKeyFor(key))).toBeNull();
+  });
+
+  it("the city door: corrupt bytes with no rescue answer unreadable", () => {
+    localStorage.setItem(key, "{not json");
+    expect(loadReviewsForCityRead(city)).toEqual({ state: "unreadable" });
+  });
+
+  it("the city door: a legacy rescue adopts, and the corrupt bytes survive the write", () => {
+    // Same key for bucket and legacy here (no root, no shape) — so write the
+    // corrupt copy under the bucket, then verify an adoption write keeps the
+    // quarantine slot for the machine's own answer.
+    localStorage.setItem(key, "{not json");
+    expect(loadReviewsForCityRead(city).state).toBe("unreadable");
+    saveReviews(bucket, { "fp:a": "to-fix" });
+    expect(localStorage.getItem(quarantineKeyFor(key))).toBe("{not json");
+    expect(loadReviewsForCityRead(city)).toEqual({ state: "read", value: { "fp:a": "to-fix" } });
   });
 });

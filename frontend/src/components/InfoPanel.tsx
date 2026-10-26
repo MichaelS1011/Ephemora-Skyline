@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { cityOnDisk, useStore } from "../stores/useStore";
 import { allFiles, findFileById } from "../city/layout";
 import { severityTotal } from "../city/facts";
@@ -11,7 +11,7 @@ import {
 } from "../city/palette";
 import { coverageLine, isUncheckedClean, verdictBasis } from "../city/provenance";
 import { OpenInIde } from "./OpenInIde";
-import { findingKey, reviewKeyFor } from "../reviews";
+import { findingKey, loadReviewsForCityRead, reviewKeyFor } from "../reviews";
 import { formatCount, formatDecimal, t } from "../i18n";
 import { PanelAdvice } from "./PanelAdvice";
 import { focusBelongsToFile, lineSegmentFor } from "../findings/panelLogic";
@@ -38,6 +38,13 @@ export function InfoPanel() {
   const reviews = useStore((s) => s.reviews);
   const verdictsBlocked = useStore((s) => s.verdictsBlocked);
   const verdictsUnreadable = useStore((s) => s.verdictsUnreadable);
+  // The third verdict store: this browser's own bucket. When its bytes will
+  // not read, an empty triage list is a failed read — not "nothing judged
+  // yet" — and the notes family this panel already owns has to say it.
+  const verdictsStorageUnreadable = useMemo(
+    () => cityData && loadReviewsForCityRead(cityData).state === "unreadable",
+    [cityData],
+  );
   const focusedFindingKey = useStore((s) => s.focusedFindingKey);
   const triageActive = useStore((s) => s.triageActive);
   const triageCursor = useStore((s) => s.triageCursor);
@@ -324,6 +331,14 @@ export function InfoPanel() {
           {verdictsUnreadable && (
             <p className="panel-note" role="alert" data-verdicts-unreadable="true">
               ⚠ {t(lang, "panel.verdictsUnreadable")}
+            </p>
+          )}
+          {/* The same fact for the copy this screen reads synchronously: the
+              browser bucket exists and refused to parse. The note's neutral
+              ink carries words and a glyph, never colour alone. */}
+          {verdictsStorageUnreadable && (
+            <p className="panel-note" role="alert" data-verdicts-storage-unreadable="true">
+              ⚠ {t(lang, "panel.verdictsStorageUnreadable")}
             </p>
           )}
         </>

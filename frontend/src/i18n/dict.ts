@@ -4297,6 +4297,38 @@ export const DICT = {
     en: "The list of cities you opened in this browser could not be read — that is not the same as never having opened a city. The unreadable file is kept, nothing was deleted.",
     de: "Die Liste der Städte, die du in diesem Browser geöffnet hast, konnte nicht gelesen werden — das heißt nicht, dass du nie eine Stadt geöffnet hast. Die unlesbare Datei bleibt erhalten, nichts wurde gelöscht.",
   },
+  // ── Storage-read class, task #8: the four sites the prefs round handed
+  // over. Same three facts as above — the read failed, what the screen does
+  // meanwhile, that the unreadable bytes are kept under their `:unreadable`
+  // slot and nothing was deleted. Each rides a surface that already exists.
+
+  /** The footprint block's look line: the shipped figure on screen is a
+   *  failed read here, not a fresh browser — and the choice still on disk. */
+  "landing.lookUnreadable": {
+    en: "The resident look you saved on this machine could not be read — the figure wears the shipped look again, which is not the same as never having chosen. The unreadable file is kept, nothing was deleted.",
+    de: "Das Aussehen der Bewohnerin, das du auf diesem Rechner gespeichert hast, konnte nicht gelesen werden — die Figur trägt wieder das ausgelieferte Aussehen, das heißt nicht, dass du nie gewählt hast. Die unlesbare Datei bleibt erhalten, nichts wurde gelöscht.",
+  },
+  /** The resident card's name field: an unnamed crowd here is a failed read
+   *  of THIS project's names, not a project nobody has named yet. */
+  "resident.namesUnreadable": {
+    en: "The names you gave residents in this project could not be read from this machine — they show as unnamed until you name them again. The unreadable file is kept, nothing was deleted.",
+    de: "Die Namen, die du Bewohnerinnen in diesem Projekt gegeben hast, konnten auf diesem Rechner nicht gelesen werden — sie erscheinen ohne Namen, bis du sie erneut vergibst. Die unlesbare Datei bleibt erhalten, nichts wurde gelöscht.",
+  },
+  /** The panel's verdict notes, the browser's own bucket: beside what the
+   *  machine copy says (`panel.verdictsUnreadable`), this is the copy the
+   *  screen reads synchronously — empty here is a failed read, not "nothing
+   *  judged yet". */
+  "panel.verdictsStorageUnreadable": {
+    en: "The verdicts saved in this browser could not be read — work you judged earlier may look unjudged here. The unreadable file is kept, nothing was deleted.",
+    de: "Die in diesem Browser gespeicherten Urteile konnten nicht gelesen werden — Arbeit, die du früher bewertet hast, wirkt unbewertet. Die unlesbare Datei bleibt erhalten, nichts wurde gelöscht.",
+  },
+  /** The since-last-scan row: the anchor table was there and refused to
+   *  parse — "no earlier scan" cannot be claimed over that, only the
+   *  inability to say. */
+  "ctx.sinceAnchorsUnreadable": {
+    en: "This browser's record of your earlier scans could not be read — the comparison cannot claim there was no earlier visit, only that it cannot see one. The unreadable file is kept, nothing was deleted.",
+    de: "Die Aufzeichnung deiner früheren Scans in diesem Browser konnte nicht gelesen werden — der Vergleich kann nicht behaupten, dass es keinen früheren Besuch gab, nur dass er keinen sehen kann. Die unlesbare Datei bleibt erhalten, nichts wurde gelöscht.",
+  },
   // ── X-ray raw numbers (X, hold) — Task 6 ──────────────────────────────────
   // The plate answers one sentence: "I look at a tower and want the raw
   // numbers that shaped it, without a detour". Every label is a word, never

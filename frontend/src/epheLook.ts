@@ -5,6 +5,7 @@ import {
   type EpheMark,
   type EpheOutfit,
 } from "./city/palette";
+import { readStoredJson, type StoredRead } from "./storageRead";
 
 /**
  * MASTER-2027 §04.09 — the resident's look, kept on this machine.
@@ -39,30 +40,45 @@ export interface EpheLook {
 /** What a fresh browser wears: the crowd's first family, and no mark. */
 export const EPHE_DEFAULT_LOOK: EpheLook = { jacket: EPHE_VARIANTS[0], mark: "none" };
 
-export function readEpheLook(): EpheLook {
-  if (typeof window === "undefined") return { ...EPHE_DEFAULT_LOOK };
-  let raw: string | null;
-  try {
-    raw = window.localStorage.getItem(KEY);
-  } catch {
-    return { ...EPHE_DEFAULT_LOOK };
-  }
-  if (!raw) return { ...EPHE_DEFAULT_LOOK };
-  try {
-    const parsed: unknown = JSON.parse(raw);
-    if (!parsed || typeof parsed !== "object") return { ...EPHE_DEFAULT_LOOK };
+/**
+ * The stored look as three states — the one mechanism of `storageRead.ts`.
+ *
+ * The old answer to unreadable bytes was the shipped default with no word,
+ * which is the class failure twice over: a reader who dressed their resident
+ * sees the crowd's first family again, and the next jacket click writes that
+ * choice over the bytes that might still be honoured. Now the bytes go to the
+ * `<key>:unreadable` slot first, and the difference between "never chosen"
+ * and "cannot be read" is answerable — the footprint block says it (pinned in
+ * `storage-class-honest.test.ts`).
+ *
+ * Honouring is not refusing: a stored jacket this build re-offers differently
+ * (§04.06 rejected the column, an unknown mark cannot be drawn) is still a
+ * `read` of a value the loader deliberately produces — the same line the
+ * existing `refuses a jacket... keeps the mark` cases pin. Only bytes the
+ * loader cannot run its rule over at all (no object to look at) refuse.
+ */
+export function readEpheLookRead(): StoredRead<EpheLook> {
+  return readStoredJson<EpheLook>(KEY, (parsed) => {
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return undefined;
     const { jacket, mark } = parsed as { jacket?: unknown; mark?: unknown };
     // Re-offered, not merely compared: a stored value that is not on the list
     // would otherwise put a chip on the panel that no chip is.
     if (typeof jacket !== "number" || !EPHE_VARIANTS.some((v) => v === jacket))
       return { ...EPHE_DEFAULT_LOOK, mark: isMark(mark) ? mark : "none" };
     return { jacket, mark: isMark(mark) ? mark : "none" };
-  } catch {
-    return { ...EPHE_DEFAULT_LOOK };
-  }
+  });
 }
 
-/** Did the reader ever choose? The footprint card asks, to say it honestly. */
+export function readEpheLook(): EpheLook {
+  const stored = readEpheLookRead();
+  return stored.state === "read" ? stored.value : { ...EPHE_DEFAULT_LOOK };
+}
+
+/**
+ * Did the reader ever choose? The footprint card asks, to say it honestly.
+ * This answers "does a key exist" — the clear door has to stay reachable over
+ * unreadable bytes too; whether the key can be READ is `readEpheLookRead`.
+ */
 export function hasStoredLook(): boolean {
   if (typeof window === "undefined") return false;
   try {

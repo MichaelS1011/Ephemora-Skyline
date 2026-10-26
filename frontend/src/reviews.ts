@@ -1,5 +1,6 @@
 import type { ReviewStatus } from "./city/types";
 import { getWorkspaceRoot } from "./editor/deepLink";
+import { readStoredJson, type StoredRead } from "./storageRead";
 
 /**
  * Per-finding review states, persisted local-first in localStorage keyed by
@@ -12,21 +13,28 @@ const PREFIX = "codecity-reviews:";
 
 export type { ReviewStatus };
 
+/**
+ * The browser bucket as three states — the one mechanism of `storageRead.ts`,
+ * per project bucket. Corrupt bytes answer `unreadable` and are kept verbatim
+ * under `<key>:unreadable`; the next `saveReviews` may rewrite the live key,
+ * it never touches that slot. That closes the door this loader had: the same
+ * case the saved pack selection had, one bucket further down the machine.
+ *
+ * Dropping statuses a newer schema rejected stays a `read` — honouring is
+ * not refusing; only bytes the shape rule cannot run over at all refuse.
+ */
+export function loadReviewsRead(analysisId: string): StoredRead<Record<string, ReviewStatus>> {
+  if (typeof window === "undefined" || !analysisId) return { state: "absent" };
+  return readStoredJson<Record<string, ReviewStatus>>(PREFIX + analysisId, (parsed) =>
+    parsed && typeof parsed === "object" && !Array.isArray(parsed)
+      ? cleanReviews(parsed)
+      : undefined,
+  );
+}
+
 export function loadReviews(analysisId: string): Record<string, ReviewStatus> {
-  if (typeof window === "undefined" || !analysisId) return {};
-  try {
-    const raw = window.localStorage.getItem(PREFIX + analysisId);
-    if (!raw) return {};
-    const parsed = JSON.parse(raw) as Record<string, ReviewStatus>;
-    // Drop anything that is not a valid status — storage may predate a schema
-    const clean: Record<string, ReviewStatus> = {};
-    for (const [k, v] of Object.entries(parsed)) {
-      if (v === "reviewed" || v === "false-positive" || v === "to-fix") clean[k] = v;
-    }
-    return clean;
-  } catch {
-    return {};
-  }
+  const stored = loadReviewsRead(analysisId);
+  return stored.state === "read" ? stored.value : {};
 }
 
 /**
@@ -135,21 +143,37 @@ export function bucketKeyFor(city?: {
  * Read a city's verdicts, carrying forward the ones recorded while the bucket
  * was named after the folder alone. Without this the fix would strand every
  * verdict already on the machine; with it, the first re-scan adopts them.
+ *
+ * The three-state door. A corrupt bucket whose legacy copy still answers is
+ * `read` of the rescued map — nothing was lost, no word is owed, and the
+ * corrupt bytes are quarantined before the adoption write touches the live
+ * key. Only a failed read with nothing to rescue from is `unreadable`, and
+ * that is the fact the panel's verdict note carries.
  */
+export function loadReviewsForCityRead(city?: {
+  repo: { owner: string; name: string };
+  tree?: { children?: Array<{ name?: string }> };
+}): StoredRead<Record<string, ReviewStatus>> {
+  const key = bucketKeyFor(city);
+  if (!key || !city) return { state: "absent" };
+  const primary = loadReviewsRead(key);
+  if (primary.state === "read" && Object.keys(primary.value).length > 0) return primary;
+  const legacyKey = projectKey(city.repo);
+  if (legacyKey === key) return primary;
+  const legacy = loadReviewsRead(legacyKey);
+  if (legacy.state === "read" && Object.keys(legacy.value).length > 0) {
+    saveReviews(key, legacy.value);
+    return legacy;
+  }
+  return primary;
+}
+
 export function loadReviewsForCity(city?: {
   repo: { owner: string; name: string };
   tree?: { children?: Array<{ name?: string }> };
 }): Record<string, ReviewStatus> {
-  const key = bucketKeyFor(city);
-  if (!key || !city) return {};
-  const reviews = loadReviews(key);
-  if (Object.keys(reviews).length > 0) return reviews;
-  const legacyKey = projectKey(city.repo);
-  if (legacyKey === key) return reviews;
-  const legacy = loadReviews(legacyKey);
-  if (Object.keys(legacy).length === 0) return reviews;
-  saveReviews(key, legacy);
-  return legacy;
+  const stored = loadReviewsForCityRead(city);
+  return stored.state === "read" ? stored.value : {};
 }
 
 /**

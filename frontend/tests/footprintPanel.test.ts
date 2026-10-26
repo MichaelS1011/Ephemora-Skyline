@@ -47,10 +47,16 @@ describe("the footprint block", () => {
   });
 
   it("names the stored look and gives the reader a way back", () => {
-    // §04.09 — the third key. Reading it is `hasStoredLook`, deleting it is
+    // §04.09 — the third key. Reading whether a key EXISTS is `hasStoredLook`
+    // (the clear door needs it even over corrupt bytes); reading WHAT the key
+    // holds is `readEpheLookRead`, whose `unreadable` state the block now
+    // names in words (task #8, storage-read class). Deleting is
     // `clearEpheLook`, and the button is disabled when there is nothing to lose.
-    expect(landing).toContain('import { clearEpheLook, hasStoredLook } from "../epheLook"');
+    expect(landing).toContain(
+      'import { clearEpheLook, hasStoredLook, readEpheLookRead } from "../epheLook"',
+    );
     expect(landing).toContain("setLookSaved(hasStoredLook())");
+    expect(landing).toContain('readEpheLookRead().state === "unreadable"');
     expect(landing).toContain("disabled={!lookSaved}");
     expect(landing).toContain(
       't(lang, lookSaved ? "landing.footprintLook" : "landing.footprintLookNone")',
