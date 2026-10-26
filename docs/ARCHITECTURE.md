@@ -51,6 +51,7 @@ backend/src/
 │       ├── update-check.ts  # GET /api/update/check (the one self-request)
 │       ├── rule-packs.ts    # GET /api/rule-packs — the rule bundles the UI can offer
 │       ├── demo.ts          # GET /api/demo, /api/cities/default
+│       ├── demoFixtures.ts  # three source files behind the demo's two grounded import edges
 │       ├── health.ts        # GET /api/health
 │       ├── footprint.ts     # GET /api/footprint, POST /api/footprint/purge — what the program keeps on disk
 │       ├── agent.ts         # GET /api/result/:id/handoff, POST /api/verify (docs/AGENTS.md)
@@ -118,6 +119,9 @@ frontend/src/
 │   ├── CityScene.tsx       # Three.js scene (scene, camera, lights)
 │   ├── Building.tsx        # Individual building visualization
 │   ├── InfoPanel.tsx       # Side panel: file/directory/vuln details
+│   ├── BlastRadiusBlock.tsx # 005 Teil A: which files import this one, on request
+│   ├── GuideAction.tsx      # 005 Teil B: ask the Explorer to walk you to a connected file
+│   ├── MaintenanceAction.tsx # 005 B12: ask the ⚒ resident what the cx figure counts
 │   ├── Minimap.tsx         # Overview map of the city
 │   ├── RoadSystem.tsx      # Connecting roads between buildings
 │   ├── ParticleField.tsx   # Drifting particles over the plaza (atmosphere layer)
@@ -223,6 +227,38 @@ Folder picked in the browser ──File[] over loopback──▶ Orchestrator �
 - **`frontend/src/city/layout.ts`** lays out deterministically (path-hashed
   jitter): one block per child directory + a central plaza holding the detail
   files, center-out (heavy units inside), a road grid as StreetLines.
+- **`frontend/src/city/blastRadius.ts`** answers "who would have to be re-read"
+  from the city's own directed edges — importers of the selection, one level,
+  deduplicated by file, sorted by path, and split into the files this level
+  draws and the ones it only summarises. `frontend/src/city/focus.ts` may treat a
+  dependency symmetrically because it only dims; an impact claim may not, so the
+  two relations are deliberately separate functions.
+- **`frontend/src/city/epheRoles.ts`** holds the two decisions a guide may make
+  without a renderer: which resident carries which role (index arithmetic, like
+  the crowd's colours — Explorer, Security and Maintenance are always three
+  different bodies, chosen so no seat collides for any crowd from six up, and all
+  three stay out of the build crew, the transit picks and the doorways), and what
+  each may say: the import claim is read off the directed edge between two files,
+  the security claim counted from the findings the file carries, and the
+  maintenance claim derived from one metric — `cyclomaticComplexity` — through
+  the same `cyclomaticFactor` and weight table that build the building's height,
+  so no sentence exists that the payload does not support. The Security figure is
+  driven by the existing tour (`syncTourGuide` inside
+  `startTour`/`nextTour`/`prevTour`) and adds a body to the scene without taking
+  over the tour's panel, order or Escape.
+- **`frontend/src/city/epheIdentity.ts`** (EPHE-AI EA-01) gives a resident an
+  address: the plot it is a citizen of — the payload's own file id, which
+  `fileIdForPath` mints from the path — and its seat at that door. The crowd is
+  rebuilt whenever the reader changes level, so the array index a click returns
+  is not an identity; everything that has to remember a figure (the card's home
+  line today, a name or a bound model later) keys on this string instead. A
+  figure whose plot the current level does not draw has no address to show, and
+  the card says nothing rather than naming a block. **EA-02** built on that key:
+  the card now states the address, the role the crowd actually gave the figure
+  (`residentRole`, handed over by the renderer because the roles are index
+  arithmetic over the live population), the errand only if it is this figure's
+  own, and a name field — kept per address, so a name follows the resident and
+  not the selection. The card still holds exactly one button.
 - **Semantic zoom:** `focusPath` in the store selects the visible level.
   Overview = 1 block per top-level directory — independent of repository size.
   Clicking a block (`drillIn`) flies the camera in and opens the block as its
@@ -240,6 +276,14 @@ Folder picked in the browser ──File[] over loopback──▶ Orchestrator �
   findings format is kept scanner-agnostic).
 - **Share:** every analyzed city has a permalink `?city=<id>` (in-memory
   store, lives until the backend restarts) and PNG export.
+- **The visit is in the address:** `?district=<a>/<b>` names the drilled level,
+  `?file=<path>` the selected building, `?cam=x,y,z,yaw,pitch` where the camera
+  was left, and `?ansicht=übersicht|hero|straße` asks for one of three named
+  framings of the level (`frontend/src/city/cameraPresets.ts`, which only chooses
+  a framing — `frontend/src/city/worldFraming.ts` is the one place that fits a
+  city into a frame). A link
+  copied after the camera stops therefore reopens the same picture; measured on
+  the demo, two loads of one address differ by 0 pixels.
 
 ## Live after the first scan
 

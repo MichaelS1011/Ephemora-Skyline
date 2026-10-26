@@ -17,6 +17,8 @@ A folder is read up to **10,000 files, 150 MB in total, 2 MB per file**. A large
 
 **Keep it live.** After a folder picked with the native picker builds its city, the app watches the folder by metadata (name, size, mtime) and folds saves into the same city in place. Only changed and new files are re-read, and only by the **built-in rules**; semgrep, gitleaks, the dependency audit, churn, duplicates and coverage keep their answers from the full scan. The band under the header says `Live — built-in rules only; external engines from the last full scan` and names the delta (`1 changed · 0 added · 1 removed`). **Full scan** in that band re-reads the whole folder through every engine and starts watching the new result. A file that changes without its size or mtime moving is the blind spot of a metadata watch; run the full scan after such a change.
 
+**Work the open decisions, do not hunt for them.** Once the city stands, the findings are a queue: the dock steps through them, and while you are looking somewhere else a small pill appears at that screen edge with a word and a distance - the next finding that still has no verdict. Press it and the camera flies to the exact line. Nothing is asked of you to enable this, and nothing is announced when there is nothing left open. Triage decisions live in your browser and are mirrored to `~/.ephemora-skyline/verdicts.json` so they survive a reload, a restart and a re-scan. When one of those files cannot be read, the app says so in words instead of showing an empty list - and it will not delete or overwrite bytes it could not read.
+
 No folder handy? Click **Explore demo** to see the full experience with sample data.
 
 That's the entire primary path. Everything below is configuration, tooling, and deployment.
@@ -92,13 +94,13 @@ time.
 The publishable package is assembled from `package.publish.json`; it carries
 the launcher, both built workspaces, the licences and the README, and nothing
 else. `npm run pack:check` builds, packs, installs the tarball into an empty
-folder, starts the installed `ephemora-skyline` bin and asks `/api/health` and
-`/` — measured on 2026-10-20: **0.93 MB packed, 250 files, health ok, app
-served, version 0.1.0 matches the package**.
+folder, starts the installed `ephemora-skyline` bin, asks `/api/health` and
+`/` and prints the exact counts and sizes on every run; on 2026-10-20 the run
+ended **health ok, app served, version 0.1.0 matches the package**.
 
 ```bash
-npm run package:build   # writes dist-package/ (250 files, 2.98 MB unpacked)
-npm run pack:check      # proves that same stage installs and boots
+npm run package:build   # writes dist-package/
+npm run pack:check      # installs and boots it, prints exact counts and sizes
 ```
 
 The registry listing is the release step:

@@ -14,6 +14,8 @@ were run on it as a whole.
 
 ### Added
 
+- **The screen edge points at the next decision.** A finding that still needs a verdict and sits outside what the camera shows is announced by one pill at that edge: a word (`left` / `right` / `behind`), the straight-line distance in city units, and a flight to the same address on press. The sign and the flight read one function (`frontend/src/city/waypoint.ts`) — `flyToVoxel` no longer owns its own copy of the arithmetic — so the two cannot drift apart. It stays silent while the city is under its crane, while the tour walks the reader, when the target is inside the view cone, and when nothing is open anymore. Measured: 15 cases in `frontend/tests/waypoint.test.tsx`, including the field-of-view pin against `App.tsx` (52° in both) and a counter-proof where the side convention is flipped in the shipped module — 5 cases go red, restored byte-identical (sha256 `c7517616…`).
+
 - **A finished folder scan stays live.** With the native folder picker, the scan
   keeps the handle and watches metadata (name, size, mtime) every 3 s — 8 s
   above 5,000 files — debounced by 700 ms. A change sends a complete path+SHA
@@ -47,9 +49,9 @@ read` and names the way to a full read; the header says `2,000 sampled files`
   backend and serves the built app and the API from one address on
   **http://127.0.0.1:4173**, then opens the browser; a checkout no longer needs
   a dev server to be read. The package path shares one stage with the check:
-  `npm run package:build` writes `dist-package/` (250 files, 2.98 MB unpacked),
-  `npm run pack:check` installs its 0.93 MB tarball into an empty folder and
-  starts the installed `ephemora-skyline` bin, and `npx ephemora-skyline`
+  `npm run package:build` writes `dist-package/`; `npm run pack:check` installs
+  its tarball into an empty folder, starts the installed `ephemora-skyline` bin
+  and prints the exact counts and sizes on every run. `npx ephemora-skyline`
   becomes the one-liner when the package is published. README and
   GETTING_STARTED lead with `npm start`; `npm run dev` remains the hot-reload
   path for contributors.
@@ -216,6 +218,8 @@ read` and names the way to a full read; the header says `2,000 sampled files`
   `scripts/local-llm-probe.mjs`
 
 ### Fixed
+
+- **Silence no longer wears the face of an empty answer.** Three read paths fell back to an empty value on failure, which for a security tool reads as "nothing was found": the mirrored verdict file (`backend/src/server/routes/verdicts.ts`) now answers `503 verdicts_unreadable` and refuses writes and resets while its bytes cannot be read, and a failed read is dropped from the memoized load so the next request tries the disk again instead of caching the failure forever; the rule-pack read (`frontend/src/config/rulePacks.ts`) distinguishes read / absent / unreadable, states the failure in words and no longer hands an empty list to the store — that path had been silently un-listing saved scan packs and rewriting them in `localStorage`; stored preferences park unreadable bytes untouched under their own key instead of replacing them with defaults, because a silently reset colour-blind palette is an accessibility failure that announces itself as nothing. Measured: verdicts `32/32`, packs `16/16` (13 of them red before the fix), prefs `12/12`, and the public-number guards re-walked after each change.
 
 - **A folder of only docs and fixtures says so before it uploads.** `README.md`
   and `notes.txt` are staged for the project's own test runner, so the picker
@@ -863,6 +867,302 @@ farbsichere-alarme.test.ts` now judges both: the rule must carry the switch's
   saturated bar pixels. The podium stone took the corner the row left, because
   its last bar would have stood inside the stone on any plot under 46 units
   wide. `frontend/tests/strip-kerb-side.test.ts`
+
+### Changed
+
+- **The import arc is now legible in the daylight it is drawn in.** The static
+  file→file arc carried the accent gold at 0.22 opacity with additive blending,
+  and a real frame of the demo city measured the pixel it produced against the
+  horizon haze at **1.10:1** — the relationship was in the scene and not on the
+  screen. It also stood 8.7° of hue from the clone laser and 4.7° from the
+  Medium finding, so the one line the reader most needs was the one line the
+  palette already said twice. The arc is now a stroked line: a near-black
+  casing (`#141a24`) under a core that takes the direction colour the legend
+  already teaches — violet leaves, cyan arrives. Paired at the same 134 screen
+  locations, the stroke's own boundary went from p50 1.28:1 with 96% of samples
+  under the project's 2.5:1 floor to p50 9.35:1 with none under it; arc ink in
+  the corridor went 2,043 → 4,700 px. The two tubes per arc cost 0.0 fps: 60.0
+  with the arcs up, 60.0 with them down, no frame over 33 ms either way.
+  `frontend/tests/import-arcs.test.ts`, `frontend/tests/worldPicture.test.ts`
+- **The underground tally on the podium is readable.** Measured on a self-scan of
+  this repository, in the district where 19 of 54 files sit under the draw limit:
+  the plate carrying that number scaled with camera distance and arrived at
+  **3.21 px** of glyph — a disclosure nobody could read. It now renders at its
+  declared size, **11.00 px**, exactly `--fs-meta`. `typeFloor.test.ts` had
+  carved the 3D-scaled plates out of the type floor and noted their px "are not
+  screen pixels"; that exemption is now bounded rather than open — exactly one
+  scaled site may remain in the city, it must be the far-zoom district chips, and
+  it may not carry a measurement. `frontend/tests/typeFloor.test.ts`
+- **The heaviest relationship carries its name.** One arc per selection now
+  wears a plate — `importer → imported` and the number of named imports behind
+  the edge — chosen by weight and, on equal weight, by file path, so the same
+  city labels the same arc on every reload. No edge is dropped to make room:
+  all of the selection's real relationships stay drawn, in DEPENDENCIES mode
+  too, and the hue there is now the direction's own rather than a second amber.
+  `frontend/src/city/importArcs.ts`
+
+- **One demo import relationship is now something the source says.** Every
+  other edge in the demo city comes out of `pickTargets` — a seeded generator
+  drawing each target uniformly from a pool, with invented symbol names — which
+  is a fine picture of a codebase and no claim about one. Two demo files now
+  carry real TypeScript (`backend/src/server/routes/demoFixtures.ts`), and their
+  structure is derived by `scanFileStructure`, the same pass a user's scan goes
+  through: `useScrollPosition.ts` contains
+  `import { useDebounced } from "./useDebounce"`, and that is the whole basis of
+  the edge. Verified in the running demo as a single violet outgoing arc labelled
+  `useScrollPosition.ts → useDebounce.ts · 1 named import` at 12 px, and as
+  `line: 0` on the import — the value the analyzer itself records, so the
+  fixture is indistinguishable from a scanned file. The pair was chosen on
+  engineering grounds before looking at the generator; existing random edges
+  like `useMediaQuery → useAuth` were rejected precisely because they would have
+  needed a story invented for them. Grounding the two files retired the three
+  random edges they had been carrying — `useScrollPosition → useLocalStorage`,
+  `useScrollPosition → useFetch` and `useDebounce → SettingsDialog` — none of
+  which their source contains, so the demo shipped 139 edges where it shipped 142
+  and adds none. Its 74 files, 8 findings and "sample findings · no scan" lead
+  are unchanged, and every remaining edge is still illustrative.
+  `backend/tests/demo-import-grounding.test.ts`
+- **The second grounded edge takes a false "DEAD CODE?" off the file the demo
+  teaches with.** `useScrollPosition.ts` wore the dead-code chip for the whole
+  round above: it exports, and nothing in the demo imported it — so the one
+  building used to show a real relationship also advertised itself as unused.
+  `DebugPanel.tsx` now imports it in source: a diagnostics overlay that reports
+  where the reader stands is the plain reason for the edge, chosen the same way
+  the first pair was — on engineering grounds, before looking at what the
+  generator happened to draw. Measured against the same build with this fixture
+  withdrawn: edges 139 → 137, dead-code-marked files 12 → 11, and the difference
+  is exactly that one file, so no building gained a mark. What withdrawing shows
+  is what grounding removed: the generator had drawn `DebugPanel → health.ts`,
+  `→ ChatInput.tsx` and `→ metrics-aggregator.ts`, three relations that file's
+  text never states, and the test fails if any of them returns. The panel keeps
+  its three incoming edges — grounding replaces only a file's own imports — so
+  the chip moves nowhere. And because a grounded file must not be free to keep a
+  finding that points at a comment, the demo's `CONSOLE_USAGE` line is checked
+  against the fixture: `console.log("frame", frameMs);` sits on line 12 in both.
+  `backend/tests/demo-import-grounding.test.ts`
+- **A grounded file's height comes from its own source.** Each demo file's line
+  split was arithmetic over its index in a list — `30 + ((i * 89) % 160)` — so
+  appending to `HOOKS` would have moved two fixture files' towers out from under
+  the code they carry. A path owned by a fixture now publishes the code lines its
+  own text holds (84, 48, 22), and the guard test imports the same
+  `fixtureLineCounts()` the product uses instead of keeping its own copy of the
+  formula, which is the kind of agreement that only holds until someone edits one
+  side. `backend/src/server/routes/demoFixtures.ts`
+- **The backend's own tests are now linted.** `backend/package.json` ran
+  `eslint src`, so 85 test files passed through no lint at all while the frontend
+  ran `eslint .` over everything — and the root config already listed
+  `backend/tests/**/*.ts`, so the rules existed and were simply never handed
+  their input. The first run found 18 problems: 9 dead imports and bindings, 4
+  `any` (one of them the `verify` report, whose real shape is already exported
+  as `VerifyReport` and is now used instead of a guess), 2 inline `import()`
+  type annotations, and `structuredClone` — a Node global since 17 that the
+  config never declared, which is a config gap, not a code one. All 18 fixed.
+
+- **The import label stays where a reader can read it.** The plate was anchored
+  to the arc's apex and scaled with camera distance, so in a real project — not
+  the demo, whose towers are short — the apex sat above the frame and the one
+  sentence naming the two files never arrived: measured at y = −258 at the
+  default district camera, and 1.12–10.53 px of glyph across the zoom range.
+  The plate is now placed by a rule instead of by the camera: it keeps the
+  projected apex as its anchor, is pushed out of any HUD surface it lands on
+  along the shortest feasible way out, and holds its type at `--fs-small`
+  (12 px) at every distance. When it had to leave its apex it says so with a
+  glyph pointing back at it, so a plate beside a neighbour is never read as a
+  plate about that neighbour. Measured over 4 camera levels × 5 window sizes on
+  a self-scan of this repository: on screen in 15 of 15 testable cells, 12 px in
+  all of them, zero overlap with the eight surfaces it keeps clear of. The
+  eighth surface — the breadcrumb row — was found in a rendered frame, not in
+  the list. `frontend/src/city/labelPlacement.ts`,
+  `frontend/tests/label-placement.test.ts`, `frontend/tests/label-hud.test.ts`
+
+- **A file now answers "who imports me".** In the file dossier, **Show potential
+  impact** marks every building whose source imports the selected file, and the
+  panel names them: `8 files import this one`, each with its path, and the line
+  `Static import analysis. Runtime impact not verified.` The relation is the
+  city's own directed edge — `from` imports `to` — read in ONE direction only:
+  selecting `util.ts` names `auth.ts`, selecting `auth.ts` never names `util.ts`.
+  That asymmetry is the whole feature, so it is pinned twice: 12 assertions on a
+  hand-built graph (`frontend/tests/blast-radius.test.ts`) and 8 on the dossier
+  (`frontend/tests/blast-radius-ui.test.tsx`), including the wrong-way case a
+  symmetric graph would pass. Marked with a **cyan square** on the ground —
+  square, not round, so it cannot be mistaken for the cycle ring or the gold
+  selection ring, and the list says the same thing in words for anyone who reads
+  the frame without hue. Files the level does not draw stay in the list and say
+  `not drawn here`, with the count spelled out (`4 of 8 stand as a building on
+this level`): a display cap is not a missing dependency. Off until asked for,
+  switched off again by a new city, and the empty answer carries its own limit —
+  an import the resolver could not match leaves no edge, so it is absent here
+  rather than absent in the code. Measured on a self-scan of this repository
+  (555 files, 400 edges): `backend/src/server/routes/local-analyze.ts` with 8
+  importers, 4 drawn; **60.01 fps with the marks off, 60.01 with them on**
+  (481 frames in 8.015 s each), 8 extra flat quads on the plaza. The most
+  imported file here, `backend/src/models/index.ts` (39 importers), draws 0 of
+  them — the same district boundary that hides 345 of this repository's 400
+  import arcs, now measured on the impact layer too.
+  `frontend/src/city/blastRadius.ts`, `frontend/src/components/BlastRadiusBlock.tsx`
+- **One resident is now the Explorer, and it walks you somewhere real.** In the
+  file dossier, next to the impact list, a connected file can be answered by
+  **Ask Ephe to guide me**: the Explorer turns, walks the sidewalk graph to that
+  building's frontage, stops, faces it and points — the gesture the crowd has
+  always had — and only then does the panel speak, with the one sentence the edge
+  supports: `useScrollPosition.ts imports useDebounce.ts. A change to useDebounce
+ts may require reviewing useScrollPosition.ts.` No edge, no offer; a neighbour
+  this zoom does not draw stays named with `this level does not draw them as
+buildings` instead of getting a walk. The role is a job, not a costume: the
+  Explorer is one figure, chosen by the same index arithmetic as the crowd's
+  colours, excluded from the build crew and from taxi and bus duty so it cannot
+  be called away mid-errand, and marked by a small shape-only badge (a word
+  beside a 20 px resident is bigger than the resident). It ends on a second
+  click, on Escape, on a new selection and with the city. Reduced motion does not
+  get a walk it cannot watch — the camera goes through the existing door instead,
+  and the sentence still comes from the edge. Measured on the running demo:
+  **60.0 fps with the guide active**, 19 new assertions (10 on the role rules and
+  the claim, 9 on the dossier), and one defect found by looking rather than by
+  testing — the first frames aimed at the building's centre, so the guide arrived
+  inside the tower it was explaining; it now aims at the frontage.
+  `frontend/src/city/epheRoles.ts`, `frontend/src/components/GuideAction.tsx`
+- **The security tour now has somebody walking it.** A second resident carries a
+  ⛨ badge: when the reader starts the tour, that figure is sent to the current
+  stop's building frontage and points at it — and when the tour moves, it follows.
+  Nothing else changed hands. The tour keeps its own panel, its order, its
+  keyboard (`← → navigate · Enter next · Esc`), and its Escape abort; the resident
+  adds a body in the scene, not a second voice, so no sentence is spoken twice.
+  The errand is created only where the payload carries a finding on a file this
+  level draws — a stop with nothing to report sends nobody, and a stop summarised
+  into the podium is not pointed at from across the plaza. Ending the tour clears
+  the resident's task but never the reader's own Explorer errand, and the tour's
+  per-step selection change does not cancel a guide the reader started by hand.
+  Measured on the running demo: badge appears with step 1 of 7 and is gone after
+  Escape, the tour panel reads the same at both moments, **60.02 fps** with the
+  tour active, 9 new assertions (two figures never carry two jobs on one body;
+  the claim names the worst finding's rule, line and scanner, and says
+  `built-in` when no scanner reported it). `frontend/tests/ephe-guide-ui.test.tsx`
+
+- **A resident now has an address, not just a seat number.** Clicking a figure
+  (or pressing `C`) used to hand the app an array index into a crowd that is
+  rebuilt every time the reader changes level — so nothing could remember which
+  resident it was. `frontend/src/city/epheIdentity.ts` states the rule instead: a figure is a
+  citizen of the plot it belongs to, named by the payload's own file id
+  (`fileIdForPath` mints it from the path, so re-scanning the same folder gives
+  the same address), plus which of that door's residents it is. The card shows
+  it as one readable line — `Lives at · security-scanner.ts` — and stays silent
+  where the level draws no plot: on the overview a district is a block, and a
+  block is nobody's home. No new mesh, no new draw call, no stored bytes: this
+  is the Grundbuch the name, the role and a later model binding hang on
+  (EPHE-AI EA-01). Measured: 9 assertions on the rule and the plan chain
+  (two independently built instances of one city give the same addresses; a
+  different tree gives different ones; an off-level figure is reported as
+  off-level), 2 on the card, `854 + 1585` tests green, fps gate unchanged.
+  `frontend/src/city/epheIdentity.ts`, `frontend/tests/ephe-identity.test.ts`
+- **The resident card stopped being only a pointer.** Clicking a figure (or
+  pressing `C`) already gave the reader one verb — `Show me the risk`. It now
+  also says who was called and lets the reader claim it: **`Lives at ·
+security-scanner.ts`** (the address from EA-01, named after the file rather
+  than the raw id), **`Role · no role · Task · nothing to do`** — the role the
+  crowd actually assigned and the errand this figure is on, not a second
+  figure's — and **`Make this Ephe yours`**, a name field that commits as it is
+  typed. A name belongs to the resident, not to the selection: naming one and
+  calling another shows the second one unnamed, measured in the running app when
+  `C` happened to reach a different body. The card still holds exactly one
+  button — a name is not a competing action — and typing in the field cannot
+  call a third resident, because the field is inside the app's existing
+  not-while-typing guard. Nothing is stored yet: the name lives in this session,
+  keyed by the address, which is the key EA-03 persists.
+  `frontend/src/components/ResidentCard.tsx`, `frontend/src/stores/useStore.ts`
+- **A named resident stays yours, and answers when you call.** The name a reader
+  types is written to one localStorage bucket per project — the same
+  `bucketKeyFor` the verdicts use, no account, nothing sent anywhere. Only an
+  address that names a plot is durable: `plot:<file id>#<seat>` comes from the
+  path, so the same folder re-scanned gives the same address, while
+  `street:<n>` is a crowd number of one level and is deliberately not stored
+  (waking a stranger under the right name is worse than losing the name).
+  Emptying the field deletes the record; the map is capped at 200 names; a write
+  the browser refuses is said out loud on the card instead of leaving the
+  promise standing. Two rules came out of measuring this in the running app:
+  a claimed resident is **not available to the city's own job picks** — the
+  build crew, a taxi, a bus stop and a doorway now all decline it, through one
+  `onDuty` helper the four picks share — and **it answers `C` before the nearest
+  stranger does**. The second was earned: after a reload, fourteen presses had
+  never reached the resident called Atlas, because the caller picks the closest
+  visible body and that choice is deterministic per camera pose. Measured after
+  the fix, in one browser across a reload: the record survives
+  (`{"plot:f-4c089df7a5ce#0":"Atlas"}`), `C` reaches it, and the card reads
+  `Atlas · Lives at · security-scanner.ts`. **60,1 fps** with the crowd rule
+  changed, 11 storage assertions, 2 availability assertions, 1 card assertion,
+  854 + 1604 tests green.
+  `frontend/src/epheNames.ts`, `frontend/tests/ephe-names.test.ts`
+- **The names bucket is disclosed and deletable, and the call rule is a tested
+  function.** An audit of the three steps above found the storage promise had a
+  hole: `docs/PRIVACY.md` said triage verdicts were **the** exception to
+  "nothing is written", the entry screen's footprint block counted only the
+  verdict buckets, and its reset button removed only `codecity-reviews:` —
+  resident names were kept on the machine without being named anywhere and
+  without a way back. The block now counts them out of the buckets themselves,
+  says the number, and offers **Delete the resident names saved in this
+  browser** (disabled when there is nothing to delete, clearing the screen's
+  copy in the same act). Two more from the same pass: the choice of _which_
+  resident answers `C` moved out of the frame loop into `pickCallable`, so the
+  claim-before-distance rule is testable rather than only measured, and a name
+  is normalised in one place, so what the card shows is what the next reload
+  will read. `docs/PRIVACY.md` names both exceptions. The audit also refuted one
+  of its own hypotheses — file ids were already pinned as path-shaped and
+  order-invariant by `backend/tests/finding-identity.test.ts`; the equation
+  `id === fileIdForPath(path)` is now pinned too. **855 + 1610 tests green,
+  60,0 fps.**
+  `frontend/src/components/Landing.tsx`, `frontend/src/city/epheRoles.ts`
+- **A third resident answers for one number.** The dossier already prints
+  `cx 22`; a ⚒ resident now explains what that figure counts and what it does to
+  the building in front of the reader — **Ask Ephe about this complexity** walks
+  it to the selected file's own frontage, and on arrival the panel says
+  `cx 22 in auth-service.ts: 21 decision points, counted one per branch, loop,
+case, catch or short-circuit. It carries 25 % of the complexity value the
+height is built from, and its full share at cx 40.` One metric, deliberately:
+  the decision count is that metric's own definition (1 + one per decision
+  point) and the share is the weight table times the same `cyclomaticFactor` the
+  renderer uses, so both numbers are the mapping's, not a copy of it — and the
+  line closes with `Height comes from three metrics. This one answers for
+complexity alone.` No refactoring verdict is offered, because the payload
+  carries none. The offer is absent where the number is not a measurement: a
+  data file carries `cx` 1 by construction, and a branch-free file has nothing
+  worth crossing a level for. Two defects found by looking at the running app
+  rather than by testing: the sentence landed below the dossier's fold, so it now
+  scrolls itself into view (`auto` under Reduced Motion, where the reader also
+  gets the sentence without a walk at all), and a resident that had just stepped
+  into a doorway refused the errand, so the three role figures now stay on the
+  street the way they already stay out of a taxi and off a build site. Measured
+  on the built demo: **60.03 fps** during the walk, the standing gate at
+  **60.0 fps** with all three roles in the crowd, 24 role assertions and 10
+  dossier assertions, badge present while the errand lives and gone after
+  Escape, 0 page errors.
+  `frontend/src/city/epheRoles.ts`, `frontend/src/components/MaintenanceAction.tsx`
+
+- **The demo says its folders are invented, not only its findings.** The city
+  carries a `mobile/` district — `AppShell.native`, `CameraScanner`,
+  `PushHandler`, `OfflineCache` — while the entry document has said since 10.10
+  that phones are not supported and not planned. The permanent disclaimer read
+  `Sample findings · no scan`, which covers the numbers and nothing else, so a
+  visitor could read a platform claim out of a synthetic tree. The demo's own
+  line in the city guide now names the project as written for the demo: its
+  folders, files and findings. `frontend/src/components/learningCopy.ts`
+- **The node badge is now checked against the CI matrix.** The badge and
+  `engines` stated two floors — 20.19 and 22.12 — while the test job ran a
+  single `node-version: 20`, so nothing in the tree could notice the promise and
+  the proof drifting apart. The test job now runs a matrix of **20.19.0,
+  22.12.0 and 24**, and `claims-surface.test.ts` reads that list: every version
+  named in `engines` has to appear in a CI job, and so does the floor the badge
+  prints. Verified by shrinking the matrix to one entry — the guard fails with
+  `engines promises node 22.12.0, which no CI job runs`.
+- **The resident's head holds the project's own contrast floor on asphalt.**
+  The hair family sat at 2.36:1 against the road while `worldPicture` and
+  `hudLegibility` demand 2.5:1 of every other edge in the world — and the guard
+  read `toBeGreaterThanOrEqual(2.3)`, written to the measurement rather than to
+  the rule. The four tones moved to L 0.0149…0.0191, which is **≥2.73:1 on
+  asphalt** with every other edge improving with it (plaza ≥10.9:1, kerb 5.78:1,
+  zebra 7.32:1, skin 11.54:1), because the plaza and the road are a fixed 4.007
+  ratio points apart: darkening the head raises both edges at once. The family
+  is no less varied than before — pairwise ΔE00 2.2…7.6 against 1.6…7.1. The
+  floor in the test is now 2.5. `frontend/src/city/palette.ts`,
+  `frontend/tests/ephe-readability.test.ts`
 
 ### Fixed
 

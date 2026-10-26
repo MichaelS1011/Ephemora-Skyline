@@ -85,6 +85,14 @@ docker/*.local.yml
 # Durable statements are folded into docs/UI_REVIEW.md; the dumps stay local.
 docs/reviews/
 
+# The roadmap ledger lives here: internal status lines and the operator's own
+# open decisions, in a dossier that says about itself "Kein Commit, kein Push".
+# Measured before this rule: untracked but not ignored, so a plain `git add -A`
+# would have staged it beside the public docs. Root-anchored, folder only:
+# nothing else under `docs/` is touched — `git check-ignore docs/API.md` still
+# matches no rule.
+docs/development/
+
 # The three working documents of the pre-publication pass, named one by one
 # rather than as a folder so the next person can still add a real doc under docs/.
 # They speak in the voice of the session that wrote them — a review that states

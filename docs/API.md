@@ -34,7 +34,7 @@ The local backend serves the app and its API from one address: `:4173` when star
 
 ## What the guards are
 
-- **The nine that can do something** beyond answering a question: start a scan, cancel one, run a folder's own tests, purge staged copies, verify a scan against a later one, write a project's verdicts, delete every stored verdict, write an exported copy of a city, ask a model on this machine about one flagged line.
+- **The ten that can do something** beyond answering a question: start a scan, fold a live delta into one, cancel one, run a folder's own tests, purge staged copies, verify a scan against a later one, write a project's verdicts, delete every stored verdict, write an exported copy of a city, ask a model on this machine about one flagged line.
 - **The five reads** of the local program: the demo, the city-mapped demo, the rule-pack list, the rule-class names, the disk footprint.
 - **No websocket, no long-poll channel, no hosted backend.** `backend/tests/no-websocket-surface.test.ts` fails if one ever appears in the code or in the public text.
 - **Retention is answered, not recited.** `GET /api/health` returns the values the process is using, so the city-link message cannot go stale when an operator changes `ANALYSIS_MAX_ENTRIES` or `ANALYSIS_TTL_MS`.
