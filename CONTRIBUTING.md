@@ -40,7 +40,7 @@ npm run test          # Vitest — 284 test files: 199 frontend, 85 backend (202
 npm run build         # production build, both packages
 ```
 
-A fifth check runs in CI: `node scripts/audit-gate.mjs`. It fails on every high or critical advisory except those explicitly accepted in the script with a reason and a re-check date — an accepted finding stays visible instead of being hidden behind a lowered threshold.
+A fifth check runs in CI: `node scripts/audit-gate.mjs`. It fails on every high or critical advisory except those explicitly accepted in the script with a reason and a re-check date — an accepted finding stays visible instead of being hidden behind a lowered threshold. An exception has to keep earning its place: past its re-check date, or behind a date that is not a real UTC calendar day, it stops counting and the finding fails; an entry that no finding carries any more is printed as one. An `npm audit` call that comes back broken — the registry answer can fail once while a build is running next to it — is measured again, up to three attempts 2 s and 5 s apart, and still exits 1 when no complete report arrives; `AUDIT_GATE_RETRY_MS` sets the backoff.
 
 ## Commit & PR conventions
 
