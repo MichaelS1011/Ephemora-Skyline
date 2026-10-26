@@ -56,8 +56,32 @@ import {
 } from "../city/epheGait";
 import type { BuildSite } from "../city/layout";
 import { ENV, EPHE_PALETTE } from "../city/palette";
+import {
+  BADGE_EXTRA_HUD,
+  BADGE_FALLBACK,
+  BADGE_MAX_SHIFT,
+  HUD_SURFACES,
+  hudBoxes,
+  placeBadge,
+  type Box,
+} from "../city/labelPlacement";
 import { surfaceMatrix, surfacePoint } from "../city/worldSurface";
 import { useWorldSurface } from "../render/WorldSurface";
+
+/**
+ * The role mark's own placement pass — measured, not guessed.
+ *
+ * x8_badge_geometry.mjs (2026-10-26, real scan at 1600 × 1000): the security
+ * badge on a tour step lands at (1240.2, 521.9) while the dossier covers
+ * (1178, 130, 400 × 775) — the mark is in the DOM, worn, and invisible;
+ * `elementFromPoint` at its centre returns the panel's own text. The rule lives
+ * in `placeBadge` (pure, tested); this is only the reading of the live window.
+ * Same cadence as the arc plate: HUD rects are re-read at 4 Hz, not per frame,
+ * because seven `getBoundingClientRect` calls per frame is a layout read on a
+ * scene that is trying to hold 60.
+ */
+const BADGE_HUD_REFRESH_MS = 250;
+const _badgePunkt = new THREE.Vector3();
 
 /**
  * The Ephe's — the citizens of Ephemora Skyline.
@@ -1801,6 +1825,65 @@ export function Pedestrians({
   const guide = useStore((s) => s.guide);
   const cancelGuide = useStore((s) => s.cancelGuide);
 
+  /** The badge node currently worn — the three roles are mutually exclusive,
+   *  so exactly one `cf-guide-badge` is in the DOM at a time. */
+  const badgeElRef = useRef<HTMLDivElement | null>(null);
+  const badgeHud = useRef<{ at: number; canvas: DOMRect | null; boxes: Box[] }>({
+    at: -Infinity,
+    canvas: null,
+    boxes: [],
+  });
+
+  /**
+   * Put the role mark where the reader can see it: the figure's projected head
+   * when nothing is in the way, and the nearest point outside the panel it
+   * would sit on when something is (`placeBadge` — push out the short way,
+   * bounded by BADGE_MAX_SHIFT; the figure itself never moves).
+   */
+  const badgePosition = useCallback(
+    (
+      object: THREE.Object3D,
+      camera: THREE.Camera,
+      size: { width: number; height: number },
+    ): number[] => {
+      _badgePunkt.setFromMatrixPosition(object.matrixWorld).project(camera);
+      const anchor = {
+        x: (_badgePunkt.x * size.width) / 2 + size.width / 2,
+        y: -((_badgePunkt.y * size.height) / 2) + size.height / 2,
+      };
+      const now = Date.now();
+      if (now - badgeHud.current.at > BADGE_HUD_REFRESH_MS) {
+        const canvas = document.querySelector("canvas")?.getBoundingClientRect() ?? null;
+        badgeHud.current = {
+          at: now,
+          canvas,
+          boxes: hudBoxes(canvas, [...HUD_SURFACES, ...BADGE_EXTRA_HUD]),
+        };
+      }
+      const el = badgeElRef.current;
+      const plate = {
+        w: el?.offsetWidth || BADGE_FALLBACK.w,
+        h: el?.offsetHeight || BADGE_FALLBACK.h,
+      };
+      const placed = placeBadge(
+        anchor,
+        plate,
+        { w: size.width, h: size.height },
+        badgeHud.current.boxes,
+        BADGE_MAX_SHIFT,
+      );
+      if (el) {
+        const d = Math.hypot(placed.x - anchor.x, placed.y - anchor.y);
+        const mark = placed.shifted ? d.toFixed(0) : null;
+        if (mark === null) {
+          if ("badgeShift" in el.dataset) delete el.dataset.badgeShift;
+        } else if (el.dataset.badgeShift !== mark) el.dataset.badgeShift = mark;
+      }
+      return [placed.x, placed.y];
+    },
+    [],
+  );
+
   /**
    * 005-B — hand an errand to one resident, and take it back when it ends. The
    * walk itself happens in the frame loop; this only sets the target, because an
@@ -3275,8 +3358,9 @@ export function Pedestrians({
           appears with the task and goes when the task does. */}
       {guide?.role === "maintenance" && maintenance !== null && (
         <group ref={maintenanceRef}>
-          <Html center zIndexRange={[9, 0]}>
+          <Html center zIndexRange={[9, 0]} calculatePosition={badgePosition}>
             <div
+              ref={badgeElRef}
               className="cf-guide-badge cf-guide-badge-maintenance"
               role="img"
               aria-label={t(lang, "guide.maintenanceBadge")}
@@ -3289,8 +3373,9 @@ export function Pedestrians({
       )}
       {guide?.role === "security" && security !== null && (
         <group ref={securityRef}>
-          <Html center zIndexRange={[9, 0]}>
+          <Html center zIndexRange={[9, 0]} calculatePosition={badgePosition}>
             <div
+              ref={badgeElRef}
               className="cf-guide-badge cf-guide-badge-security"
               role="img"
               aria-label={t(lang, "guide.securityBadge")}
@@ -3303,12 +3388,13 @@ export function Pedestrians({
       )}
       {guide?.role === "explorer" && explorer !== null && (
         <group ref={guideRef}>
-          <Html center zIndexRange={[9, 0]}>
+          <Html center zIndexRange={[9, 0]} calculatePosition={badgePosition}>
             {/* Glyph only, and the word in its accessible name: a resident is
                 20-30 px on the district camera, and a badge that spells
                 "Explorer" beside it is bigger than the figure it marks. The
                 dossier says the role in words; the plaza says it in shape. */}
             <div
+              ref={badgeElRef}
               className="cf-guide-badge"
               role="img"
               aria-label={t(lang, "guide.badge")}

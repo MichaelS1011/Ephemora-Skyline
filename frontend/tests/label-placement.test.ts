@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { describe, it, expect } from "vitest";
 import { placeLabel, overlaps, TOWARD_GLYPH, type Box } from "../src/city/labelPlacement";
 
@@ -122,5 +123,141 @@ describe("Regel 4 — a moved plate says where its arc went", () => {
         expect(p.toward === null).toBe(!p.clamped);
       }
     }
+  });
+});
+
+/**
+ * Auftrag #14 — the role mark keeps out of every open panel too.
+ *
+ * Measured in the running window (x8_badge_geometry.mjs, real scan, 1600 ×
+ * 1000 CSS px): the security badge on a tour step sat at (1240.2, 521.9) while
+ * the dossier covered (1178, 130, 400 × 775) — worn in the DOM, invisible on
+ * the screen, `elementFromPoint` answering `SPAN.finding-message-orig`. The
+ * surfaces below are those exact measured rects (the dock at 576.1 × 54, the
+ * open dock menu at (830.4, 361, 256 × 560), the tour card at (575, 716,
+ * 450 × 194)); the badge is the measured 18.4 × 17.2, rounded up.
+ */
+import { BADGE_FALLBACK, BADGE_MAX_SHIFT, placeBadge } from "../src/city/labelPlacement";
+
+const BADGE = { w: 19, h: 18 };
+const panel: Box = { x: 1178, y: 130, w: 400, h: 775 };
+const dockLive: Box = { x: 512, y: 926, w: 576.1, h: 54 };
+const dockMenu: Box = { x: 830.4, y: 361, w: 256, h: 560 };
+const tourCard: Box = { x: 575, y: 716, w: 450, h: 194 };
+const stripLive: Box = { x: 0, y: 128, w: 1600, h: 42 };
+const MARK_HUD = [header, stripLive, dockLive, panel, dockMenu, tourCard];
+
+const badgeBox = (p: { x: number; y: number }): Box => ({
+  x: p.x - BADGE.w / 2,
+  y: p.y - BADGE.h / 2,
+  w: BADGE.w,
+  h: BADGE.h,
+});
+const markClear = (p: { x: number; y: number }): boolean =>
+  MARK_HUD.every((s) => !overlaps(badgeBox(p), s));
+const distance = (a: { x: number; y: number }, b: { x: number; y: number }): number =>
+  Math.hypot(a.x - b.x, a.y - b.y);
+
+describe("the role mark dodges open panels", () => {
+  it("leaves the mark exactly on its figure when nothing is reserved", () => {
+    const p = placeBadge({ x: 700, y: 500 }, BADGE, CANVAS, []);
+    expect(p).toEqual({ x: 700, y: 500, shifted: false });
+  });
+
+  it("leaves the mark exactly on its figure in free air, panels and all", () => {
+    const p = placeBadge({ x: 700, y: 500 }, BADGE, CANVAS, MARK_HUD);
+    expect(p.shifted).toBe(false);
+    expect(p).toMatchObject({ x: 700, y: 500 });
+  });
+
+  it("pushes the measured tour-step collision out of the dossier", () => {
+    // the worn security badge at (1240.2, 521.9), 18.4 × 17.2 — centre here.
+    const p = placeBadge({ x: 1249.4, y: 530.5 }, BADGE, CANVAS, MARK_HUD);
+    expect(p.shifted).toBe(true);
+    expect(markClear(p)).toBe(true);
+    expect(overlaps(badgeBox(p), panel)).toBe(false);
+  });
+
+  it("takes the short way out, not the long way", () => {
+    // 60 px inside the panel's left edge: leaving left costs ~69 px, leaving
+    // right would cost 350. The mark must move the fewest pixels that free it.
+    const p = placeBadge({ x: 1238, y: 500 }, BADGE, CANVAS, [panel]);
+    expect(p.x).toBeLessThan(1238);
+    expect(distance(p, { x: 1238, y: 500 })).toBeLessThan(90);
+    expect(overlaps(badgeBox(p), panel)).toBe(false);
+  });
+
+  it("escapes the middle of the panel within the bounded push", () => {
+    const p = placeBadge({ x: 1378, y: 517 }, BADGE, CANVAS, MARK_HUD);
+    expect(markClear(p)).toBe(true);
+    expect(distance(p, { x: 1378, y: 517 })).toBeLessThanOrEqual(BADGE_MAX_SHIFT);
+  });
+
+  it("gets off the tour card and the open dock menu too", () => {
+    for (const anchor of [
+      { x: 800, y: 813 }, // middle of the tour card
+      { x: 958, y: 641 }, // middle of the open dock menu
+    ]) {
+      const p = placeBadge(anchor, BADGE, CANVAS, MARK_HUD);
+      expect(markClear(p)).toBe(true);
+      expect(distance(p, anchor)).toBeLessThanOrEqual(BADGE_MAX_SHIFT);
+    }
+  });
+
+  it("never hides the mark: when no free spot exists it takes the least-covered one", () => {
+    const everywhere: Box = { x: 0, y: 0, w: 1600, h: 1000 };
+    const p = placeBadge({ x: 800, y: 500 }, BADGE, CANVAS, [everywhere]);
+    expect(Number.isFinite(p.x) && Number.isFinite(p.y)).toBe(true);
+    expect(p.x).toBeGreaterThan(0);
+    expect(p.x).toBeLessThan(1600);
+    expect(p.y).toBeGreaterThan(0);
+    expect(p.y).toBeLessThan(1000);
+    // the anchor still has exactly one covering surface; the rule may not
+    // hand back a worse answer than leaving the mark where the figure is.
+    expect(overlaps(badgeBox(p), everywhere)).toBe(true);
+  });
+
+  it("stays bounded at the far edge: a deep mark moves, it does not teleport", () => {
+    const p = placeBadge({ x: 1450, y: 300 }, BADGE, CANVAS, MARK_HUD);
+    expect(markClear(p)).toBe(true);
+    expect(distance(p, { x: 1450, y: 300 })).toBeLessThanOrEqual(BADGE_MAX_SHIFT);
+  });
+
+  it("keeps the whole mark inside the window once it had to move", () => {
+    const rightPanelOnly: Box[] = [{ x: 1178, y: 130, w: 422, h: 775 }];
+    const p = placeBadge({ x: 1595, y: 500 }, BADGE, CANVAS, rightPanelOnly);
+    expect(badgeBox(p).x + badgeBox(p).w).toBeLessThanOrEqual(1600 + 1);
+    expect(badgeBox(p).x).toBeGreaterThanOrEqual(-1);
+  });
+
+  it("pins the mark to the canvas rail when the figure sits wholly behind the panel", () => {
+    // x8e live: opening the dossier narrows the canvas to 1164 px, and a tour
+    // arrival projects the head at x 1560 — outside the window, behind the
+    // panel. The honest answer is the rail (visible, 405 px away), not the
+    // head (invisible, 0 px away). The budget bounds pushes, not this clamp.
+    const narrow = { w: 1164, h: 1000 };
+    const p = placeBadge({ x: 1560, y: 762 }, BADGE, narrow, [panel]);
+    expect(overlaps(badgeBox(p), panel)).toBe(false);
+    expect(badgeBox(p).x + badgeBox(p).w).toBeLessThanOrEqual(1164 + 1);
+    expect(p.shifted).toBe(true);
+  });
+
+  it("falls back to the measured badge box, not a hopeful guess", () => {
+    // 18.4 × 17.2 CSS px was the live measurement; the fallback must be at
+    // least as large, or the rule would reserve too little and clip.
+    expect(BADGE_FALLBACK.w).toBeGreaterThanOrEqual(18.4);
+    expect(BADGE_FALLBACK.h).toBeGreaterThanOrEqual(17.2);
+  });
+
+  it("is wired to every role badge in the scene", () => {
+    // The rule only holds if all three marks actually run through it: source
+    // guard, because jsdom never mounts the R3F tree.
+    const src = readFileSync(new URL("../src/components/Pedestrians.tsx", import.meta.url), "utf8");
+    const badgeHtml = src.match(/<Html center zIndexRange=\{\[9, 0\]\}[^>]*>/g) ?? [];
+    expect(badgeHtml.length).toBe(3);
+    for (const tag of badgeHtml) expect(tag).toContain("calculatePosition={badgePosition}");
+    const wornDivs = src.match(/className="cf-guide-badge[^"]*"/g) ?? [];
+    expect(wornDivs.length).toBe(3);
+    expect(src.match(/ref=\{badgeElRef\}/g)?.length).toBe(3);
   });
 });

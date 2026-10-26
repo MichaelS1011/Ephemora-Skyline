@@ -8,7 +8,7 @@ import type { DirLayout } from "../city/layout";
 import { ENV } from "../city/palette";
 import { reducedSettle } from "../city/motion";
 import { planImportArcs, type ArcAnchor, type ImportArc } from "../city/importArcs";
-import { placeLabel, HUD_SURFACES, TOWARD_GLYPH, type Box } from "../city/labelPlacement";
+import { placeLabel, hudBoxes, HUD_SURFACES, TOWARD_GLYPH, type Box } from "../city/labelPlacement";
 import { useStore } from "../stores/useStore";
 import { formatCount, t } from "../i18n";
 
@@ -77,21 +77,6 @@ const PLATE_ABSTAND = 4;
 /** Scratch — one per module, not one per frame. */
 const _projected = new THREE.Vector3();
 const _plattenPunkt = new THREE.Vector3();
-
-function hudBoxes(canvasBox: DOMRect | null): Box[] {
-  const out: Box[] = [];
-  const ox = canvasBox?.left ?? 0;
-  const oy = canvasBox?.top ?? 0;
-  for (const selector of HUD_SURFACES) {
-    for (const node of document.querySelectorAll(selector)) {
-      const el = node as HTMLElement;
-      const r = el.getBoundingClientRect();
-      if (r.width <= 0 || r.height <= 0) continue;
-      out.push({ x: r.x - ox, y: r.y - oy, w: r.width, h: r.height });
-    }
-  }
-  return out;
-}
 
 function tube(
   start: ArcAnchor,
@@ -192,7 +177,7 @@ export function CityConnections({
       const now = Date.now();
       if (now - hudCache.current.at > HUD_REFRESH_MS) {
         const canvas = document.querySelector("canvas")?.getBoundingClientRect() ?? null;
-        hudCache.current = { at: now, canvas, boxes: hudBoxes(canvas) };
+        hudCache.current = { at: now, canvas, boxes: hudBoxes(canvas, HUD_SURFACES) };
       }
       const plate = plateRef.current;
       const box = {
@@ -284,7 +269,7 @@ export function CityConnections({
         const now = Date.now();
         if (now - hudCache.current.at > HUD_REFRESH_MS) {
           const canvas = document.querySelector("canvas")?.getBoundingClientRect() ?? null;
-          hudCache.current = { at: now, canvas, boxes: hudBoxes(canvas) };
+          hudCache.current = { at: now, canvas, boxes: hudBoxes(canvas, HUD_SURFACES) };
         }
         const el = plattenRef.current.get(id);
         const box = {
