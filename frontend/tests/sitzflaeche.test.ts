@@ -302,8 +302,10 @@ describe("§07.13a-Fix — the screen, not the world, has the last word", () => 
     expect(DISTRICT).toContain("state.camera.position");
     expect(DISTRICT).toMatch(/Math\.abs\(k\.x - zuletzt\.x\)[^;]*> 0\.02/);
     expect(DISTRICT).toContain("state.size.width !== zuletzt.breite");
-    expect(DISTRICT).toContain(
-      "sitzMesh.visible = !bankUnterPlakette(sitzMesh, plakette, state.camera, state.gl.domElement);",
+    // Absicht pruefen, nicht den Zeilenumbruch: das Formatierwerkzeug des
+    // Pre-Commit-Hooks darf diese Zeile umbrechen, ohne dass die Wache stirbt.
+    expect(DISTRICT).toMatch(
+      /sitzMesh\.visible\s*=\s*!bankUnterPlakette\(\s*sitzMesh,\s*plakette,\s*state\.camera,\s*state\.gl\.domElement,?\s*\);/,
     );
     expect(DISTRICT.match(/useFrame\(/g) ?? []).toHaveLength(1);
   });
