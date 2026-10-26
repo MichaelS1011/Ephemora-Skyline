@@ -43,7 +43,7 @@ vi.mock("child_process", () => ({
 /**
  * BELEG-02 — the scan-configuration table the README prints.
  *
- * Claim source: README.md:123-130 (the profile table, the "nine switchable
+ * Claim source: README.md:102-109 (the profile table, the "nine switchable
  * categories", the
  * custom-pattern sentence) and README.md:106/91 with docs/GETTING_STARTED.md:81-85
  * (the offline switch and what it closes). Data source: the presets
@@ -103,7 +103,7 @@ describe("nine categories a scan can be switched by (README.md:141)", () => {
   });
 });
 
-describe("the profile table (README.md:132-134)", () => {
+describe("the profile table (README.md:102-107)", () => {
   const base = defaultScanConfig();
 
   it("offers the four profiles the table has rows for", () => {
@@ -178,7 +178,7 @@ describe("your own patterns (docs/SCANNERS.md:9)", () => {
   });
 
   it("stops at the twenty-five the sentence names", () => {
-    // README.md:123 "up to 25 regular expressions"; backend/tests/scan-config.test.ts:74
+    // README.md:109 "up to 25 regular expressions"; backend/tests/scan-config.test.ts:74
     // already shows a longer list being cut, this pins the number itself.
     expect(MAX_CUSTOM_PATTERNS).toBe(25);
     const many = Array.from({ length: 26 }, (_, i) => ({
@@ -192,8 +192,8 @@ describe("your own patterns (docs/SCANNERS.md:9)", () => {
     expect(errors.join(" ")).toContain(`truncated to ${MAX_CUSTOM_PATTERNS}`);
   });
 
-  it("runs the ReDoS canary before a pattern is ever run (README.md:147)", () => {
-    // README.md:147 "Each one is validated against a ReDoS canary before it is ever run."
+  it("runs the ReDoS canary before a pattern is ever run (README.md:109)", () => {
+    // README.md:109 "each validated against a ReDoS canary before it runs"
     const rejected = resolveConfig({
       customPatterns: [{ id: "BLOWUP", regex: "(a|aa)*b", severity: "P1", message: "x" }],
     });
@@ -208,7 +208,7 @@ describe("your own patterns (docs/SCANNERS.md:9)", () => {
   });
 });
 
-describe("the docker fallback the offline switch closes (README.md:106, README.md:106, docs/GETTING_STARTED.md:81)", () => {
+describe("the docker fallback the offline switch closes (README.md:91, README.md:94, docs/GETTING_STARTED.md:81)", () => {
   const previous = process.env["SKYLINE_OFFLINE"];
   /**
    * `SEMGREP_DOCKER=0` is how a machine says "my Docker is not an engine source"
@@ -239,7 +239,7 @@ describe("the docker fallback the offline switch closes (README.md:106, README.m
 
       const inspected = calls.filter((c) => c[1] === "image");
       expect(inspected, "the offline path never asked the local image store").toHaveLength(1);
-      // README.md:103 names this image and this tag
+      // README.md:91 names this image and this tag
       expect(inspected[0]![3]).toBe("semgrep/semgrep:1.162.0");
       expect(
         calls.filter((c) => c[1] === "run"),

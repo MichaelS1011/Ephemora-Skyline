@@ -343,8 +343,8 @@ describe("the README line citations inside this repository's own checks", () => 
     const veraltet: string[] = [];
     const ohneZitat: string[] = [];
     /**
-     * One comment can name two places and quote one sentence — "(README.md:112,
-     * README.md:106)" beside the offline paragraph is such a line. The quote has
+     * One comment can name two places and quote one sentence — "(README.md:91,
+     * README.md:94)" beside the offline paragraph is such a line. The quote has
      * to be found at one of the positions a line names, not at each of them,
      * or the check would demand a sentence twice.
      */

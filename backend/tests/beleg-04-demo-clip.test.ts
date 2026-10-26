@@ -5,7 +5,7 @@ import path from "path";
 /**
  * BELEG-02 — the numbers the demo clip is sold with.
  *
- * README.md:18 states the clip's seconds, frame size, rate and weight in one
+ * README.md:20 states the clip's seconds, frame size, rate and weight in one
  * sentence and adds "No sound, no cuts, no sped-up frames". CHANGELOG.md
  * repeats them. The data is the bytes of docs/assets/demo-city.mp4: an ISO
  * base-media file states its own track list, timescale, sample count and
@@ -204,7 +204,7 @@ describe("one visit, filmed as it happens (README.md:20, CHANGELOG.md)", () => {
     expect(found.filter((b) => b.type === "mdat")).toHaveLength(1);
   });
 
-  it("opens on a loop that runs where a video cannot (README.md:18)", () => {
+  it("opens on a loop that runs where a video cannot (README.md:135)", () => {
     const md = readFileSync(path.resolve(import.meta.dirname, "../../README.md"), "utf-8");
     const m = md.match(
       /(\d+) seconds of that build, (\d+) frames at (\d+) × (\d+) and ([\d.]+) fps, ([\d,]+) KB/,

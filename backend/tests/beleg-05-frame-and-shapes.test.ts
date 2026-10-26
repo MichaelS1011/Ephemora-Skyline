@@ -5,7 +5,7 @@ import { maskSecretText } from "../src/services/security/redact.js";
 /**
  * BELEG-02 — what a finding card quotes, and what it must not quote.
  *
- * README.md:72 promises "the line the rule matched with two lines either side
+ * README.md:57 promises "the line the rule matched with two lines either side
  * read out of your copy of the file"; docs/PRIVACY.md:15 promises "a finding stores
  * the line it was found on plus a two-line code frame" and names the token
  * shapes the erasure hides "GitHub, AWS, Slack, Google, Stripe, OpenAI, npm,
@@ -21,7 +21,7 @@ const FILE = [
   "line 5", //                            5
 ].join("\n");
 
-describe("the frame around the line the rule matched (README.md:72)", () => {
+describe("the frame around the line the rule matched (README.md:57)", () => {
   it("quotes two lines on either side of a finding in the middle of a file", () => {
     const frame = buildSnippet(FILE, 3)!;
     expect(frame.line).toBe("const query = db.find(a, b);");
@@ -60,7 +60,7 @@ describe("the frame around the line the rule matched (README.md:72)", () => {
   });
 
   it("hands back nothing when there is no file to read", () => {
-    // README.md:178: "on the demo it is the one line, because nothing was read"
+    // README.md:57: "on the demo it is the one line, because nothing was read"
     expect(buildSnippet(undefined, 4)).toBeUndefined();
   });
 
@@ -71,7 +71,7 @@ describe("the frame around the line the rule matched (README.md:72)", () => {
   });
 });
 
-describe("the shapes the erasure knows (README.md:120)", () => {
+describe("the shapes the erasure knows (docs/PRIVACY.md:15)", () => {
   const hidden = "‹hidden›";
 
   /**
@@ -83,9 +83,9 @@ describe("the shapes the erasure knows (README.md:120)", () => {
    * `/\b_npmp_[0-9a-f]{32,}\b/g` (backend/src/services/security/redact.ts:66),
    * which needs the literal "_npmp_" — a real npm token reads `npm_…`. Behind an
    * innocent name the value therefore reaches the city JSON, which is what
-   * README.md:120 says cannot happen.
+   * docs/PRIVACY.md:15 says cannot happen.
    */
-  it("hides an npm token behind any name (README.md:120)", () => {
+  it("hides an npm token behind any name (docs/PRIVACY.md:15)", () => {
     const token = "npm_" + "0123456789abcdef0123456789abcdef0123";
     const masked = maskSecretText(`cfg.put("${token}")`);
     expect(masked, `npm token survived masking: ${masked}`).not.toContain(token);
@@ -93,7 +93,7 @@ describe("the shapes the erasure knows (README.md:120)", () => {
   });
 
   /**
-   * FINDING, same class: README.md:120 names "GitHub" among the shapes and the
+   * FINDING, same class: docs/PRIVACY.md:15 names "GitHub" among the shapes and the
    * sentence's own example is `const pat = "ghp_…"`. The fine-grained form, which
    * GitHub issues today, reads `github_pat_…` and matches no pattern in the table
    * (`gh[pousr]_` needs g/h followed by p,o,u,s,r and an underscore).
@@ -130,7 +130,7 @@ describe("the shapes the erasure knows (README.md:120)", () => {
     );
   });
 
-  it("keeps the name, because the name says where to fix (README.md:120)", () => {
+  it("keeps the name, because the name says where to fix (docs/PRIVACY.md:15)", () => {
     const masked = maskSecretText('const JWT_SECRET = "replaced-by-env";');
     expect(masked).toContain("JWT_SECRET");
     expect(masked).not.toContain("replaced-by-env");
