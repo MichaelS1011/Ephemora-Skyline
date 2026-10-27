@@ -2024,10 +2024,14 @@ describe("Die Typ-Skala der vier Platten trägt ihre Stufen als Token", () => {
   it("fällt, sobald eine neue Rohgröße neben die Leiter gesetzt wird", () => {
     // Gegenlauf in einer Kopie: dieselbe Masche, ein `text-[14px]` mehr. 14 px
     // ist weder Stufe noch benannte Anzeige — die Masche muss es melden.
-    const text = HEAT.replace(
-      "text-[length:var(--fs-small)] tracking-wider text-[color:var(--meta)]",
-      "text-[14px] tracking-wider text-[color:var(--meta)]",
-    );
+    const STUFE = "text-[length:var(--fs-small)] tracking-wider text-[color:var(--meta)]";
+    // The line the copy puts the raw value on is where the ladder token sits in
+    // the real file — read, not remembered. A pinned number here went stale the
+    // moment an unrelated row was added above it, and a control that fails
+    // because the source grew is a control that teaches people to edit numbers.
+    const stufeZeile = HEAT.slice(0, HEAT.indexOf(STUFE)).split("\n").length;
+    expect(stufeZeile, "die Leiter-Stufe steht nicht mehr in HeatmapToggle").toBeGreaterThan(1);
+    const text = HEAT.replace(STUFE, "text-[14px] tracking-wider text-[color:var(--meta)]");
     expect(text, "die Kopie erreicht HeatmapToggle nicht").not.toBe(HEAT);
     const funds = rohwerte(text, "HeatmapToggle.tsx");
     expect(
@@ -2037,7 +2041,7 @@ describe("Die Typ-Skala der vier Platten trägt ihre Stufen als Token", () => {
     expect(
       funds.filter(istisch).map(melde),
       "ein text-[14px] wäre als Leiter-Stufe durchgegessen",
-    ).toEqual(["HeatmapToggle.tsx:57 text-[14px] (= 14 px)"]);
+    ).toEqual([`HeatmapToggle.tsx:${stufeZeile} text-[14px] (= 14 px)`]);
     // Dieselbe Masche auf der echten Quelle: grün, aber nicht, weil sie nichts sähe.
     expect(
       NAMEN.flatMap((d) => rohwerte(PLATTEN[d], d)).filter(istisch),

@@ -117,7 +117,11 @@ export interface CameraInfo {
   dist: number;
 }
 
-export type HeatChannel = "threat" | "complexity" | "churn";
+/**
+ * The four far-zoom heat channels. `time` is not a colour ramp but a census:
+ * which towers already stood at `heatDateMs` — see `city/stoodAt.ts`.
+ */
+export type HeatChannel = "threat" | "complexity" | "churn" | "time";
 
 /**
  * Whether this city's folder is on the machine the backend runs on.
@@ -336,6 +340,14 @@ interface AppState {
   /** What the far-zoom heat cells are colored by. */
   heatChannel: HeatChannel;
   setHeatChannel: (c: HeatChannel) => void;
+  /**
+   * The date the `time` channel asks about, epoch-ms. Committed only on the
+   * debounced release of the slider — the heat field rebuilds its instance
+   * matrices when this changes, so a frame-rate slider would rebuild towers
+   * while the thumb moves.
+   */
+  heatDateMs: number | null;
+  setHeatDateMs: (ms: number | null) => void;
 
   // ── View mode (spec §14) ─────────────────────────────────────────────────
   /** Which layer the city shows: structure (default), security or dependencies. */
@@ -1290,6 +1302,8 @@ export const useStore = create<AppState>((set, get) => {
 
     heatChannel: "threat",
     setHeatChannel: (c) => set({ heatChannel: c }),
+    heatDateMs: null,
+    setHeatDateMs: (ms) => set({ heatDateMs: ms }),
 
     viewMode: "structure",
     setViewMode: (m) => set({ viewMode: m }),

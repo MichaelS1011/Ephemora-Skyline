@@ -2714,6 +2714,26 @@ export const DICT = {
     en: "No .git folder in this upload — churn and author districts need the project’s git metadata",
     de: "Kein .git-Ordner in diesem Upload — Churn- und Autor-Bezirke brauchen die Git-Metadaten des Projekts",
   },
+  "heat.timeTip": {
+    en: "TIME: ask which towers already stood at a date in the project's git history. A tower that had not been committed yet sinks to a foundation stub; a file the history never dated keeps the calm plate.",
+    de: "TIME: frage, welche Türme zu einem Datum der Git-Geschichte schon standen. Ein Turm, der noch nicht committet war, sinkt zur Fundament-Stufe; eine Datei, die die Historie nie datierte, bleibt die ruhende Platte.",
+  },
+  "heat.timeUnavailableTip": {
+    en: "This city carries no scan moment or no git dates — the question 'stood at which date?' cannot be asked of it",
+    de: "Diese Stadt trägt keinen Scan-Moment oder keine Git-Daten — die Frage „stand zu welchem Datum?“ lässt sich an sie nicht stellen",
+  },
+  "heat.timeSliderAria": {
+    en: "Date of the city census, currently {date}",
+    de: "Datum der Stadt-Zählung, aktuell {date}",
+  },
+  "heat.timeCensus": {
+    en: "{stood} of {files} files stood at {date}",
+    de: "{stood} von {files} Dateien standen am {date}",
+  },
+  "heat.timeBoundary": {
+    en: "Files deleted before the scan are not in this city. Files without a git date ({noHistory}) stay untouched — never drawn as 'not yet'.",
+    de: "Vor dem Scan gelöschte Dateien sind nicht in dieser Stadt. Dateien ohne Git-Datum ({noHistory}) bleiben unberührt — nie als „noch nicht“ gezeichnet.",
+  },
 
   // ── First-visit primer (CoachMarks) ───────────────────────────────────────
   "coach.regionAria": {
