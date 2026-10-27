@@ -3,7 +3,7 @@
   "private": true,
   "license": "Apache-2.0",
   "type": "module",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "packageManager": "npm@10.0.0",
   "description": "3D city visualizer for local codebases \u2014 folders rise as districts, security findings glow as beacons",
   "repository": {
