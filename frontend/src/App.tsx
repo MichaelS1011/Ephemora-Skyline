@@ -230,6 +230,13 @@ export default function App() {
   const rebuildScene = (): void => {
     setSceneRebuilding(true);
     setSceneCrashed(false);
+    // The flag belongs to the canvas this click throws away. Only a
+    // `webglcontextrestored` clears it, and the unmounted canvas can never
+    // send one — so it stayed set, and when the grace window closed the
+    // sentence came back and tore down the healthy rebuilt canvas with it
+    // (measured: the new city drew again after 235 ms and was unmounted at
+    // 2500 ms; see tests/lost-context-rebuild.test.tsx). A rebuild clears it.
+    useStore.getState().onContextRestored();
     setCanvasNonce((n) => n + 1);
   };
   const [permalinkError, setPermalinkError] = useState("");
