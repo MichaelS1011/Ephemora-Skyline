@@ -8,7 +8,12 @@ import { formatCount, formatDecimal, t, type Lang } from "../i18n";
 import { ts, tsCount } from "./startCopy";
 import type { CityData } from "../city/types";
 import { recentCities, recentCitiesRead, cityGoneForSure, type RecentCity } from "../recentCities";
-import { readArrivalStage, rememberArrivalStage, type ArrivalStage } from "../firstArrival";
+import {
+  arrivalBeat,
+  readArrivalStageRead,
+  rememberArrivalStage,
+  type ArrivalStage,
+} from "../firstArrival";
 import { clearPendingRun, readPendingRun } from "../pendingRun";
 import { clearEpheLook, hasStoredLook, readEpheLookRead } from "../epheLook";
 import { honouredNames } from "../epheNames";
@@ -588,8 +593,10 @@ export function Landing() {
   // the introduction, and the one who skipped is not greeted again. `firstRun`
   // still outranks the record — a machine that has shown a city has finished the
   // introduction whatever the storage says about it.
+  // §19.05: the decision itself is `arrivalBeat` — the same function the
+  // headless case set drives, so this line cannot drift from its tests.
   const [arrival, setArrival] = useState<ArrivalStage>(() =>
-    firstRun ? readArrivalStage() : "done",
+    arrivalBeat({ firstRun, stage: readArrivalStageRead() }),
   );
   const goTo = (stage: ArrivalStage): void => {
     rememberArrivalStage(stage);

@@ -20,7 +20,15 @@
  * §03.08 adds the second arrival fact: how far the guided sequence got. It lives
  * beside the stamp because it is the same kind of statement — a fact about this
  * browser's own history, holding one word out of three and no project data.
+ *
+ * §19.05 puts the beat's read on the shared honest reader (`storageRead.ts`):
+ * absent, read, and unreadable-kept are three different answers, and only the
+ * first may look like the greeting without a word. The quarantine slot is
+ * `codecity-arrival-stage:v1:unreadable` — one short word or a hand-edit, no
+ * project path, same privacy promise as the key itself.
  */
+
+import { readStoredText, type StoredRead } from "./storageRead";
 
 const KEY = "codecity-first-arrival:v1";
 const STAGE_KEY = "codecity-arrival-stage:v1";
@@ -70,9 +78,20 @@ export function markArrived(): void {
  */
 export type ArrivalStage = "welcome" | "intro" | "done";
 
-/** A stored value is a stage only if it names one of the three. */
-function stageOf(value: string | null): ArrivalStage {
-  return value === "welcome" || value === "intro" || value === "done" ? value : "welcome";
+/**
+ * §19.05 — the honest three-state read of the beat.
+ *
+ * `readArrivalStage` answers ONE question ("which beat to open on") and may
+ * collapse a failed read into the greeting — a door, never a gate. This
+ * reader answers a different question ("what does the storage actually
+ * say"), where collapsing is the lie `storageRead.ts` was written against:
+ * bytes that exist and cannot be honoured are `unreadable`, they are parked
+ * in the quarantine slot, and the caller can still choose the greeting.
+ */
+export function readArrivalStageRead(): StoredRead<ArrivalStage> {
+  return readStoredText(STAGE_KEY, (raw) =>
+    raw === "welcome" || raw === "intro" || raw === "done" ? raw : undefined,
+  );
 }
 
 /**
@@ -82,14 +101,36 @@ function stageOf(value: string | null): ArrivalStage {
  * recognise: an unreadable or hand-edited key must not strand a reader on a
  * screen that does not exist. Storage that throws is read the same way, because
  * the sequence is a door, never a gate — the worst this can do is greet twice.
+ * (The refused bytes are kept first, §19.05: a fallback may not trade them.)
  */
 export function readArrivalStage(): ArrivalStage {
-  if (typeof window === "undefined") return "welcome";
-  try {
-    return stageOf(window.localStorage.getItem(STAGE_KEY));
-  } catch {
-    return "welcome";
-  }
+  return stageOfArrival(readArrivalStageRead());
+}
+
+/** The fallback rule itself: only a READ value is a beat; absent and
+ *  unreadable both open on the greeting. */
+function stageOfArrival(read: StoredRead<ArrivalStage>): ArrivalStage {
+  return read.state === "read" ? read.value : "welcome";
+}
+
+/**
+ * §19.05 — the whole beat decision, as a machine.
+ *
+ * Two facts stand behind the greeting surface: whether this machine has
+ * ever shown a city (`firstRun`, the stamp — read at store creation, where
+ * a throwing storage fails CLOSED toward "arrived") and what the record
+ * says about the beat. The stamp outranks the record — Landing's rule,
+ * written down here so it is one decision with a case, not an inline
+ * ternary inside a `useState` initializer. Reduced motion never enters
+ * this function on purpose: it short-circuits the BUILD (useStore's
+ * `skipBuild`), not the greeting — pinned as a case, not restated as code.
+ */
+export function arrivalBeat(lage: {
+  firstRun: boolean;
+  stage: StoredRead<ArrivalStage>;
+}): ArrivalStage {
+  if (!lage.firstRun) return "done";
+  return stageOfArrival(lage.stage);
 }
 
 /**
