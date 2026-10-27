@@ -43,10 +43,19 @@ function dropRows(
   lang: Lang,
   dropped: DroppedFiles | undefined,
   churnRan: boolean,
+  churnInterrupted: boolean,
 ): { key: string; text: string }[] {
-  if (!dropped) return [];
-  const nf = (n: number) => formatCount(lang, n);
   const rows: { key: string; text: string }[] = [];
+  // The Git-Mauer state rides the drop list because it IS one — of the
+  // history: the .git arrived, a pack over the per-file wall split the
+  // object store, and the log stopped. Saying only "no churn" would blame
+  // the folder for what the upload did to it. It leads the list because it
+  // qualifies every git-shaped number below.
+  if (churnInterrupted) {
+    rows.push({ key: "churnInterrupted", text: ts(lang, "drop.churnInterrupted") });
+  }
+  if (!dropped) return rows;
+  const nf = (n: number) => formatCount(lang, n);
   if ((dropped.preview ?? 0) > 0)
     rows.push({
       key: "preview",
@@ -236,7 +245,12 @@ export function ScanSummary({ demo = false }: { demo?: boolean }) {
   // The scan is only complete for what the project itself called source.
   // Say what the .gitignore kept out while the user is still reading this.
   const skipped = describeGitignoreSkips(cityData.skippedByGitignore, lang);
-  const drops = dropRows(lang, cityData.dropped, cityData.scanProvenance?.churn === true);
+  const drops = dropRows(
+    lang,
+    cityData.dropped,
+    cityData.scanProvenance?.churn === true,
+    cityData.scanProvenance?.churnInterrupted === true,
+  );
   // one number for the strip: how many files in the folder were never read.
   // Summed over the record's own fields, so an eighth reason cannot join the
   // counts and stay out of the strip the way the first five hand-list did.

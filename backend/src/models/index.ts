@@ -275,6 +275,15 @@ export interface ProjectSummary {
     ruff?: boolean;
     /** git history was deep enough for trustworthy churn scores */
     churn?: boolean;
+    /**
+     * The churn pass met a `.git` folder and could not finish: the history
+     * arrived cut off (a pack over the upload's per-file wall leaves the
+     * object store split — `git log` then dies with `unable to read tree`) or
+     * the git call failed. This is NOT `churn: false` "without history": the
+     * folder has history, the upload truncated it. Payloads written before the
+     * distinction carry neither value.
+     */
+    churnInterrupted?: boolean;
     /** copy-paste clones were found */
     duplicates?: boolean;
     /** a lcov-style coverage report was found and parsed */

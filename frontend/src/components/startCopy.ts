@@ -130,6 +130,28 @@ const BRIDGE: Record<string, { en: string; de: string }> = {
     en: " — churn rests on the history that arrived",
     de: " — Churn beruht auf dem Teil der Geschichte, der angekommen ist",
   },
+  /**
+   * The Git-Mauer state (Auftrag #25): `.git` arrived, but a pack over the
+   * upload's 8 MB per-file wall left the object store split — the measured
+   * `git log --numstat` on this repository's own staged copy dies after 2 of
+   * 254 commits with `unable to read tree 4e0dde60`. The drop list must say
+   * THAT, not "no .git folder": the folder's history exists, the upload cut
+   * it off. Hand-off row for the text lane — dict.ts is claimed elsewhere
+   * today, so the sentence rides the bridge until `drop.*` moves with the
+   * gitBudget keys.
+   */
+  "drop.churnInterrupted": {
+    en: "the git history arrived cut off — reading it stopped on missing objects, so this city carries no dates although the folder has history",
+    de: "die Git-Geschichte kam abgeschnitten an — ihr Lesen brach an fehlenden Objekten ab, diese Stadt trägt keine Daten, obwohl der Ordner Geschichte hat",
+  },
+  "heat.churnInterruptedTip": {
+    en: ".git arrived, but cut off mid-history — the log stopped on missing objects. CHURN needs the whole history",
+    de: ".git ist angekommen, aber mitten in der Geschichte abgeschnitten — das Log brach an fehlenden Objekten ab. CHURN braucht die vollständige Geschichte",
+  },
+  "heat.timeInterruptedTip": {
+    en: "The git history was cut off in transit — files the broken log never reached cannot be asked when they stood",
+    de: "Die Git-Geschichte wurde unterwegs abgeschnitten — Dateien, die das abgebrochene Log nie erreichte, lassen sich nicht nach ihrem Steh-Datum fragen",
+  },
   "drop.unsupported": {
     en: "{n} files in a format the scanners do not read",
     de: "{n} Dateien in einem Format, das die Scanner nicht lesen",

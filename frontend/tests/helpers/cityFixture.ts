@@ -417,8 +417,9 @@ export function dir(overrides: Partial<CityDir> = {}): CityDir {
  *
  * The six engine flags default to RAN, because a test that says nothing should
  * not be read as "gitleaks was switched off" — that is the claim the whole
- * provenance table exists to police. The three optional dimensions
- * (`churn`, `duplicates`, `coverage`) and `dependencyRunner` stay absent: an
+ * provenance table exists to police. The four optional dimensions
+ * (`churn`, `churnInterrupted`, `duplicates`, `coverage`) and `dependencyRunner`
+ * stay absent: an
  * engine that is not in the payload is a scanner the result never spoke of.
  * `dependencyRunner` in particular is the field no local builder knew, and
  * `engineLabel` reads it to decide whether the CVE answer came from
@@ -434,6 +435,7 @@ export function provenance(overrides: Partial<ScanProvenance> = {}): ScanProvena
     osv: overrides.osv ?? true,
     ruff: overrides.ruff ?? true,
     churn: field(overrides, "churn", undefined),
+    churnInterrupted: field(overrides, "churnInterrupted", undefined),
     duplicates: field(overrides, "duplicates", undefined),
     coverage: field(overrides, "coverage", undefined),
     live: field(overrides, "live", undefined),

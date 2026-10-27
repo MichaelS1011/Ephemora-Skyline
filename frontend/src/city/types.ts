@@ -202,6 +202,14 @@ export interface ScanProvenance {
   osv?: boolean;
   ruff?: boolean;
   churn?: boolean;
+  /**
+   * The churn pass met a `.git` folder and could not finish — the history
+   * arrived cut off (a pack over the upload's per-file wall) or git errored.
+   * Distinct from `churn: false` alone, which also covers "no .git" and "too
+   * shallow": here the folder HAS history and the upload truncated it. Absent
+   * in payloads written before the distinction existed.
+   */
+  churnInterrupted?: boolean;
   duplicates?: boolean;
   coverage?: boolean;
   /** Present once a live delta replaced part of the result. */

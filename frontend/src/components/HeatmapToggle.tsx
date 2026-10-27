@@ -6,13 +6,15 @@ import { getDirLayout } from "../city/layout";
 import { useLodFar, LOD_THRESHOLDS } from "../hooks/useLodFar";
 import { cityFiles, timeCensus, timeRange } from "../city/stoodAt";
 import { formatCount, formatDate, t, type DictKey } from "../i18n";
+import { ts } from "./startCopy";
 
 /**
  * Far-zoom heatmap channel switch — what the LOD heat cells are colored by.
  * Picking a channel zooms the camera out to the heat-grid view immediately,
  * so the click always has a visible effect. The churn channel is disabled
- * (aria-disabled — hover must still work) with an honest tooltip when the
- * scan carried no git history (local upload / shallow clone).
+ * (aria-disabled — hover must still work) with an honest tooltip, and honest
+ * means TWO tooltips: one when the upload carried no .git, one when the .git
+ * arrived cut off and the log died mid-history (scanProvenance.churnInterrupted).
  *
  * The fourth channel is TIME: not a colour ramp but a census — which towers
  * already stood at a chosen date (see `city/stoodAt.ts` for the decision and
@@ -46,6 +48,9 @@ export function HeatmapToggle() {
   const setHeatChannel = useStore((s) => s.setHeatChannel);
   const cityData = useStore((s) => s.cityData);
   const churnAvailable = useStore((s) => s.cityData?.meta.churn ?? false);
+  // Two different reasons for the same disabled switch, and the reader should
+  // hear the true one: "no .git in this upload" vs ".git arrived cut off".
+  const churnInterrupted = useStore((s) => s.cityData?.scanProvenance?.churnInterrupted === true);
   const bounds = useStore((s) => (s.cityData ? getDirLayout(s.cityData, s.focusPath).bounds : 100));
   const lodFar = useLodFar(bounds);
   const requestFly = useStore((s) => s.requestFly);
@@ -125,7 +130,9 @@ export function HeatmapToggle() {
             aria-disabled={unavailable || undefined}
             data-tip={
               unavailable
-                ? t(lang, id === "time" ? "heat.timeUnavailableTip" : "heat.churnUnavailableTip")
+                ? churnInterrupted
+                  ? ts(lang, id === "time" ? "heat.timeInterruptedTip" : "heat.churnInterruptedTip")
+                  : t(lang, id === "time" ? "heat.timeUnavailableTip" : "heat.churnUnavailableTip")
                 : t(lang, tipKey)
             }
             onClick={() => pick(id)}

@@ -43,6 +43,60 @@ interface ProgressCallback {
   (event: ProgressEvent): void;
 }
 
+/**
+ * The three git-history states, decided in one place (Auftrag #25, the
+ * Git-Mauer finding). A folder whose `.git` arrived CUT OFF — one pack over
+ * the upload's 8 MB per-file wall, its `.idx` still shipped — makes
+ * `git log --numstat` die with `unable to read tree`; measured on this
+ * repository, 2 of 254 commits come out before the fatal. That is a
+ * different fact than "no history here" or "history too shallow", and the
+ * city must be able to tell the three apart: only the middle one means the
+ * scanner looked at everything and found nothing worth dating.
+ */
+export interface ChurnPhaseOutcome {
+  churnRan: boolean;
+  churnInterrupted: boolean;
+}
+
+/**
+ * Run the churn pass over `files` and report which history state resulted.
+ * `onStart` announces the stage only when a `.git` was actually found; the
+ * caller's error-swallowing contract stays the same — a failing git call is
+ * caught HERE and returned as `churnInterrupted`, never thrown upward, so a
+ * cut-off history can no longer hide in the server log.
+ */
+export async function runChurnPhase(
+  dirPath: string,
+  files: FileAnalysis[],
+  hooks: {
+    onStart?: () => void;
+    log: { warn: (obj: unknown, msg: string) => void; debug: (obj: unknown, msg: string) => void };
+  },
+): Promise<ChurnPhaseOutcome> {
+  const outcome: ChurnPhaseOutcome = { churnRan: false, churnInterrupted: false };
+  try {
+    if (!(await hasGitHistory(dirPath))) return outcome; // absent: silence is the honest answer
+    hooks.onStart?.();
+    const churn = await collectGitChurn(dirPath);
+    if (churn.meaningful) {
+      for (const f of files) {
+        const c = churn.byPath.get(f.path);
+        if (c) f.churn = c;
+      }
+      outcome.churnRan = true;
+    } else {
+      hooks.log.debug(
+        { totalCommits: churn.totalCommits },
+        "Git history too shallow for churn scores",
+      );
+    }
+  } catch (e) {
+    outcome.churnInterrupted = true;
+    hooks.log.warn({ e }, "Git churn analysis failed — continuing without erosion data");
+  }
+  return outcome;
+}
+
 const MAX_FILE_SIZE = 2 * 1024 * 1024; // 2MB max per file
 export const SUPPORTED_EXTENSIONS = new Set([
   ".ts",
@@ -313,6 +367,7 @@ export class AnalysisOrchestrator {
       ruffRan: boolean;
       osvRan: boolean;
       churnRan: boolean;
+      churnInterrupted: boolean;
       duplicatesRan: boolean;
       coverageRan: boolean;
     } = {
@@ -323,6 +378,7 @@ export class AnalysisOrchestrator {
       ruffRan: false,
       osvRan: false,
       churnRan: false,
+      churnInterrupted: false,
       duplicatesRan: false,
       coverageRan: false,
     };
@@ -356,26 +412,12 @@ export class AnalysisOrchestrator {
 
     // --- Phase 3d: Git churn (hotspot analysis, clone-based scans only) ---
     stop();
-    try {
-      if (await hasGitHistory(dirPath)) {
-        emit(90, "Analyzing git history");
-        const churn = await collectGitChurn(dirPath);
-        if (churn.meaningful) {
-          for (const f of fileAnalyses) {
-            const c = churn.byPath.get(f.path);
-            if (c) f.churn = c;
-          }
-          scanProvenance.churnRan = true;
-        } else {
-          this.logger.debug(
-            { totalCommits: churn.totalCommits },
-            "Git history too shallow for churn scores",
-          );
-        }
-      }
-    } catch (e) {
-      this.logger.warn({ e }, "Git churn analysis failed — continuing without erosion data");
-    }
+    const churnOutcome = await runChurnPhase(dirPath, fileAnalyses, {
+      onStart: () => emit(90, "Analyzing git history"),
+      log: this.logger,
+    });
+    scanProvenance.churnRan = churnOutcome.churnRan;
+    scanProvenance.churnInterrupted = churnOutcome.churnInterrupted;
 
     // --- Phase 3e: Code duplicates (copy-paste detection) ---
     stop();
@@ -451,6 +493,8 @@ export class AnalysisOrchestrator {
         osv: scanProvenance.osvRan,
         ruff: scanProvenance.ruffRan,
         churn: scanProvenance.churnRan,
+        /** `.git` was there and the log could not finish — cut off, not empty */
+        churnInterrupted: scanProvenance.churnInterrupted,
         duplicates: scanProvenance.duplicatesRan,
         coverage: scanProvenance.coverageRan,
       },
