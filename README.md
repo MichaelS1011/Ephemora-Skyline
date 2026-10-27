@@ -93,7 +93,7 @@ The backend binds to `127.0.0.1` by default, and the fifteen routes that carry t
 
 The entry screen renders this same list from the same declaration the backend obeys, and a test fails if the two ever name different hosts. `SKYLINE_OFFLINE=1` switches off the update check, the OSV and dependency checks, and Semgrep unless a local rule pack is on disk; it also closes pip-audit, the Docker pull and any `npm ci` the runner would attempt. With it set, nothing above is reached.
 
-Limits are numbers too: local analysis is capped at **10,000 files / 150 MB / 2 MB per file**, a larger folder opens as a preview sample of up to 2,000 files with the full count named, and your own `.gitignore` sets paths aside before the cap applies. Over this checkout, the browser reader's own decision counts **594** files the project calls source and admits them to the read, and the scan's own single decision, `isScanCandidate`, then reads **572** of those. Two sets, two names, and `backend/tests/claims-counts.test.ts` calls both shipped functions over this tree and fails, printing both numbers, the moment this sentence drifts.
+Limits are numbers too: local analysis is capped at **10,000 files / 150 MB / 2 MB per file**, a larger folder opens as a preview sample of up to 2,000 files with the full count named, and your own `.gitignore` sets paths aside before the cap applies. Over this checkout, the browser reader's own decision counts **602** files the project calls source and admits them to the read, and the scan's own single decision, `isScanCandidate`, then reads **579** of those. Two sets, two names, and `backend/tests/claims-counts.test.ts` calls both shipped functions over this tree and fails, printing both numbers, the moment this sentence drifts.
 
 **Telemetry: none.** The only request the app makes for itself is the anonymous release check above, and that switch starts off. Maintainers read adoption through [GitHub's traffic and clone statistics](https://docs.github.com/en/rest/metrics/traffic) (`GH_TOKEN=*** node scripts/clone-stats.mjs`), which count clones without identifying anyone; those endpoints need a token with write access to this repository and report 14 days. The UI typeface ships inside the app, and a test fails if the entry document ever references a third-party host. More in [`docs/PRIVACY.md`](./docs/PRIVACY.md); reporting a vulnerability follows [SECURITY.md](./SECURITY.md).
 
@@ -136,22 +136,22 @@ The clip at the top is the same visit, filmed end to end. The clip plays 27.2 s 
 
 ## Documentation
 
-Every screen, switch and shortcut: [`docs/GETTING_STARTED.md`](./docs/GETTING_STARTED.md) · module map, render pipeline, live delta and budgets: [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md) · endpoints and what each one guards: [`docs/API.md`](./docs/API.md) · masking, staging, fingerprints, retention: [`docs/PRIVACY.md`](./docs/PRIVACY.md) · what the shipped rules cannot see, and the full self-scan: [`docs/LIMITS.md`](./docs/LIMITS.md) · rule packs and their licence: [`docs/SCANNERS.md`](./docs/SCANNERS.md) · feeding one finding to a coding agent: [`docs/AGENTS.md`](./docs/AGENTS.md) · how each frame above was measured: [`docs/UI_REVIEW.md`](./docs/UI_REVIEW.md)
+First look in one screen — what you see, what you can do, what you cannot: [`docs/AT_A_GLANCE.md`](./docs/AT_A_GLANCE.md) · Every screen, switch and shortcut: [`docs/GETTING_STARTED.md`](./docs/GETTING_STARTED.md) · module map, render pipeline, live delta and budgets: [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md) · endpoints and what each one guards: [`docs/API.md`](./docs/API.md) · masking, staging, fingerprints, retention: [`docs/PRIVACY.md`](./docs/PRIVACY.md) · what the shipped rules cannot see, and the full self-scan: [`docs/LIMITS.md`](./docs/LIMITS.md) · rule packs and their licence: [`docs/SCANNERS.md`](./docs/SCANNERS.md) · feeding one finding to a coding agent: [`docs/AGENTS.md`](./docs/AGENTS.md) · how each frame above was measured: [`docs/UI_REVIEW.md`](./docs/UI_REVIEW.md)
 
 ## Contributing
 
-**Apache License 2.0** — full text in [LICENSE](./LICENSE), attribution and the bundled components' licences in [NOTICE](./NOTICE). You may read it, run it, change it, ship it and sell work built on it; the name `Ephemora Skyline` is not part of what it grants (§6), and there is no warranty (§7, §8).
+**Apache License 2.0** — full text in [LICENSE](./LICENSE), attribution and the bundled components' licences in [NOTICE](./NOTICE). You may read it, run it, change it, ship it and sell work built on it; the name `Ephemora Skyline` is not part of what it grants (§6), and there is no warranty (§7, §8). How contributors treat each other in issues and pull requests is written in [CODE_OF_CONDUCT.md](./CODE_OF_CONDUCT.md).
 
 `.github/workflows/ci.yml` runs five gates on every push to `main` and on every pull request: lint, the type check, the test suite, the build, the dependency audit. No status badge sits above this text — a badge would need a service to answer to — so the commands are here for you to run:
 
 ```bash
 npm run lint                  # ESLint, zero warnings
 npm run type-check            # tsc --noEmit, both packages
-npm run test                  # Vitest — 284 test files: 199 frontend, 85 backend (2026-10-27)
+npm run test                  # Vitest — 289 test files: 204 frontend, 85 backend (2026-10-27)
 npm run build                 # production build, both packages
 node scripts/audit-gate.mjs   # dependency audit
 ```
 
-3,284 cases measured 2026-10-27 — 2,384 frontend, 900 backend. The audit gate fails on every high or critical finding **except** those accepted in `scripts/audit-gate.mjs` by name with a dated re-check; on this lockfile `npm audit` reported `0 vulnerabilities` on 2026-10-26, so it passes on the fix and prints that the one remaining exception matches no finding. Gates, conventions and the PR checklist: **[CONTRIBUTING.md](./CONTRIBUTING.md)**. Small, reviewable changes land fastest. Interface strings need an English and a German entry, and anything that changes the 3D render needs a real-GPU screenshot — headless CI cannot judge a WebGL scene.
+3,339 cases measured 2026-10-27 — 2,439 frontend, 900 backend. The audit gate fails on every high or critical finding **except** those accepted in `scripts/audit-gate.mjs` by name with a dated re-check; on this lockfile `npm audit` reported `0 vulnerabilities` on 2026-10-26, so it passes on the fix and prints that the one remaining exception matches no finding. Gates, conventions and the PR checklist: **[CONTRIBUTING.md](./CONTRIBUTING.md)**. Small, reviewable changes land fastest. Interface strings need an English and a German entry, and anything that changes the 3D render needs a real-GPU screenshot — headless CI cannot judge a WebGL scene.
 
-Skyline is the piece of this work meant to be read and argued with, not the piece meant to earn.
+Skyline is the piece of this work meant to be read and argued with, not the piece meant to earn. What changed since the last line of the story, each entry measured before it was written, is in [CHANGELOG.md](./CHANGELOG.md).

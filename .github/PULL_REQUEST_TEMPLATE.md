@@ -10,14 +10,15 @@
 - [ ] Refactor / test
 - [ ] Accessibility
 
-## The four gates are green
+## The five gates are green
 
 Run these locally and confirm each exits 0 before requesting review (this is exactly what CI checks):
 
 - [ ] `npm run lint`
 - [ ] `npm run type-check`
-- [ ] `npm run test` (expected: 120 passed)
+- [ ] `npm run test` (Vitest — the current suite counts and the day they were counted stand in the README)
 - [ ] `npm run build`
+- [ ] `node scripts/audit-gate.mjs` (dependency audit)
 
 ## Notes for the reviewer
 

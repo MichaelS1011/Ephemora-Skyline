@@ -1,6 +1,6 @@
 # Contributing to Ephemora Skyline
 
-Thanks for your interest. Ephemora Skyline is a focused 3D visualizer — small, reviewable pull requests land far faster than big rewrites.
+Thanks for your interest. Ephemora Skyline is a focused 3D visualizer — small, reviewable pull requests land far faster than big rewrites. How we treat each other while doing that is written down in [CODE_OF_CONDUCT.md](./CODE_OF_CONDUCT.md).
 
 ## Ground rules
 
@@ -36,7 +36,7 @@ These are exactly what CI enforces: the steps in `.github/workflows/ci.yml`, whi
 ```bash
 npm run lint          # ESLint, zero warnings
 npm run type-check    # tsc --noEmit across both packages
-npm run test          # Vitest — 284 test files: 199 frontend, 85 backend (2026-10-27)
+npm run test          # Vitest — 289 test files: 204 frontend, 85 backend (2026-10-27)
 npm run build         # production build, both packages
 ```
 

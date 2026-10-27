@@ -1,6 +1,6 @@
 # Getting Started — Ephemora Skyline
 
-Ephemora Skyline renders a local folder as an interactive 3D city: folders become districts, files become buildings, building height reflects complexity, and red beacons mark security risks. Everything runs on your machine — **your code is never uploaded**. Some scanners fetch their own rule and advisory data over the network ([the full list](../README.md#privacy-model)); `SKYLINE_OFFLINE=1` stops all of it and the city shows which checks then went missing.
+Ephemora Skyline renders a local folder as an interactive 3D city: folders become districts, files become buildings, building height reflects complexity, and red beacons mark security risks. Everything runs on your machine — **your code is never uploaded**. Some scanners fetch their own rule and advisory data over the network ([the full list](../README.md#privacy)); `SKYLINE_OFFLINE=1` stops all of it and the city shows which checks then went missing.
 
 ## In 30 seconds — your first city
 

@@ -24,7 +24,7 @@ body:
   - type: input
     attributes:
       label: Commit or version
-      placeholder: e.g. main @ abc1234, or v0.1.0
+      placeholder: the output of `git rev-parse --short HEAD`, or the release tag you built from
     validations:
       required: true
   - type: input
