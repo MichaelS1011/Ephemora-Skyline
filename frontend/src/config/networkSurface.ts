@@ -21,11 +21,11 @@ export const OUTBOUND_CALLS: readonly OutboundCall[] = [
     host: "api.github.com",
     by: "update-check",
     what: "one anonymous GET for the newest release tag",
-    when: "once per hour, and only after you switch it on — off by default",
+    when: "once per hour, from the first run — one click in a city's More menu ends it for good",
     de: {
       by: "Update-Prüfung",
       what: "ein anonymer Abruf des neuesten Release-Tags",
-      when: "einmal pro Stunde, und erst wenn du es einschaltest — Standard: aus",
+      when: "einmal pro Stunde, ab dem ersten Lauf — ein Klick im Mehr-Menü einer Stadt beendet es endgültig",
     },
   },
   {
