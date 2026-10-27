@@ -83,6 +83,19 @@
   min-height: 28px;
   cursor: pointer;
 }
+/* Auftrag #35 — the line is the plate's own row, not a caption of a portrait
+   that is gone: it sits inside the frame, under the plate's caption, and says
+   with a glyph and a word (never with colour, which stays the focus ring's)
+   that it opens the picture above it. It hugs its own word, so the one focus
+   ring marks a door and not a second frame inside the plate. */
+.landing-shell.start-v2 .start-plate .start-ephe-open {
+  display: block;
+  margin: 6px auto 0;
+  padding: 4px 8px;
+}
+.landing-shell.start-v2 .start-plate .start-ephe-open > span {
+  margin-right: 7px;
+}
 .landing-shell.start-v2 .start-ephe-open:hover {
   color: var(--meta-strong);
   text-decoration: underline;

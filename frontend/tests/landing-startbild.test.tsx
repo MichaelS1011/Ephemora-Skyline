@@ -99,6 +99,45 @@ describe("the start picture carries its explanation (#27)", () => {
   });
 });
 
+/**
+ * #35 — the door into the figure's vitrine belongs to the plate it opens.
+ * It used to stand on the empty ground below the frame, where it read as the
+ * caption of the portrait that #27 removed.
+ */
+describe("the resident's door belongs to the plate it opens (#35)", () => {
+  it("stands inside the plate, under its caption", async () => {
+    await mountLanding();
+    const plate = host.querySelector(".start-plate");
+    const open = host.querySelector(".start-plate .start-ephe-open");
+    expect(open, "the 3D line left the plate — it is a door, not a footer").not.toBeNull();
+    const caption = plate?.querySelector("figcaption");
+    const nodes = Array.from(plate?.children ?? []);
+    expect(
+      caption && open
+        ? nodes.indexOf(caption as HTMLElement) < nodes.indexOf(open as HTMLElement)
+        : false,
+      "the door sits above the caption it is supposed to follow",
+    ).toBe(true);
+  });
+
+  it("names itself with the word alone, not with the glyph", async () => {
+    await mountLanding();
+    const open = host.querySelector<HTMLButtonElement>(".start-plate .start-ephe-open");
+    expect(open).not.toBeNull();
+    // A CSS `content` glyph lands in the accessible name (measured in Chrome:
+    // "▸See the resident in 3D"), so the mark is a real node and hidden.
+    const marks = open?.querySelectorAll("[aria-hidden='true']") ?? [];
+    expect(marks.length, "the glyph is not a hideable node").toBe(1);
+    const name =
+      Array.from(open?.childNodes ?? [])
+        .filter((n) => !(n instanceof HTMLElement && n.getAttribute("aria-hidden") === "true"))
+        .map((n) => n.textContent ?? "")
+        .join("")
+        .trim() ?? "";
+    expect(name).toBe(t("en", "landing.previewOpen"));
+  });
+});
+
 describe("the step bar is one shape, and the last entry names the real next action (#30)", () => {
   function bar(lang: Lang): HTMLDivElement {
     const el = document.createElement("div");

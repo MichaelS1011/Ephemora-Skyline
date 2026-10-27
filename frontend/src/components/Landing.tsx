@@ -71,7 +71,7 @@ function LangSwitch({ lang, onPick }: { lang: Lang; onPick: (lang: Lang) => void
 }
 
 /** A schematic, not scan data: explains the visual language before the first scan. */
-function CityIllustration({ lang }: { lang: Lang }) {
+function CityIllustration({ lang, onOpenPreview }: { lang: Lang; onOpenPreview: () => void }) {
   const buildings = [
     { x: 242, y: 302, h: 78, w: 40, color: "#7e99af" },
     { x: 303, y: 332, h: 120, w: 42, color: "#b3a589" },
@@ -177,6 +177,19 @@ function CityIllustration({ lang }: { lang: Lang }) {
         <figcaption>
           {t(lang, "landing.illuFigcaption")} <span>{t(lang, "landing.illuFigcaptionNote")}</span>
         </figcaption>
+        {/* §04.02 — the plate is the picture, this line is its door: the
+          resident the schematic stands for, in three dimensions and in the
+          city's own light, for as long as it is open. Auftrag #35 took it out
+          of the empty ground below the plate, where it hung as the caption of a
+          portrait that is gone. Opened on ask only, so the start screen keeps
+          its one WebGL context until someone looks. */}
+        <button type="button" className="start-ephe-open" onClick={onOpenPreview}>
+          {/* A real node, not CSS content: a ::before glyph lands in the
+              accessible name ("▸See the resident in 3D"), so the button would
+              announce a triangle before its own word. */}
+          <span aria-hidden="true">▸</span>
+          {t(lang, "landing.previewOpen")}
+        </button>
       </div>
       <p className="start-street-note">{ts(lang, "landing.streetNote")}</p>
     </figure>
@@ -1343,17 +1356,11 @@ export function Landing() {
         <div className="landing-visual">
           {/* Auftrag #27: the flat portrait stood here as the largest picture of
               the first view and explained nothing — the figure is met in 3D
-              instead, from this quiet labelled line and, inside a city, from
-              the dock's menu that already holds everything asked for by name
-              (§04.11). The plate carries the image that shows what the words
-              explain: the schematic city. */}
-          <CityIllustration lang={lang} />
-          {/* §04.02 — the schematic draws the city; this opens the figure the
-              crowd actually walks, in the city's own light, for as long as it
-              is open. */}
-          <button type="button" className="start-ephe-open" onClick={() => setPreviewOpen(true)}>
-            {t(lang, "landing.previewOpen")}
-          </button>
+              instead, from the plate's own labelled line and, inside a city,
+              from the dock's menu that already holds everything asked for by
+              name (§04.11). The plate carries the image that shows what the
+              words explain: the schematic city, and now the door into it. */}
+          <CityIllustration lang={lang} onOpenPreview={() => setPreviewOpen(true)} />
         </div>
       </div>
       {previewOpen && <EphePreview lang={lang} onClose={() => setPreviewOpen(false)} />}
