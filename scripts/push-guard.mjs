@@ -55,16 +55,22 @@ try {
 }
 const head = git(["rev-parse", "HEAD"]);
 const tree = git(["rev-parse", "HEAD^{tree}"]);
-const changed = base
-  ? git(["diff", "--name-only", `${base}...${head}`]).split("\n").filter(Boolean)
-  : git(["ls-files"]).split("\n").filter(Boolean);
+const changed = git(["diff", "--name-only", ...(base ? [`${base}...${head}`] : ["--cached", "--diff-filter=d", "HEAD"])]).split("\n").filter(Boolean);
+// Which paths the pushed commits ADD or DELETE — that is what moves a count.
+const addedOrRemoved = base
+  ? git(["diff", "--name-status", "--diff-filter=ADR", `${base}...${head}`]).split("\n").filter(Boolean)
+  : ["<full tree>"];
 
 const tsTouched = changed.filter((f) => /\.(ts|tsx|mjs)$/.test(f));
 const workspaces = [...new Set(tsTouched.map((f) => f.split("/")[0]).filter((w) => ["frontend", "backend"].includes(w)))];
 if (tsTouched.some((f) => !/^(frontend|backend)\//.test(f))) workspaces.push("root");
 const testsTouched = changed.filter((f) => TEST_PATHS.test(f));
 const docsTouched = changed.filter((f) => DOC_PATHS.test(f));
-const countsAtRisk = testsTouched.length > 0 || docsTouched.length > 0;
+// The walk count is a count of FILES. Any added or removed path can move it —
+// `6585e9f` and `eb01eeb` both went red in CI for exactly this, once because a
+// test file appeared and once because a script did, and the first version of
+// this guard watched only tests and docs.
+const countsAtRisk = testsTouched.length > 0 || docsTouched.length > 0 || addedOrRemoved.length > 0;
 
 // A verified tree stays verified: the same HEAD does not need the same minute
 // twice, and a re-push after a rejected hook run should cost nothing.
@@ -89,7 +95,7 @@ function readOK(p) {
 
 console.log(
   `push-guard: ${changed.length} file(s) between origin/main and ${head.slice(0, 7)} — ` +
-    `type-check [${workspaces.join(", ") || "none"}], count guards [${countsAtRisk ? "yes" : "not at risk"}]`,
+    `type-check [${workspaces.join(", ") || "none"}], count guards [${countsAtRisk ? `yes — ${addedOrRemoved.length} added/removed path(s)` : "not at risk"}]`,
 );
 
 const failures = [];
