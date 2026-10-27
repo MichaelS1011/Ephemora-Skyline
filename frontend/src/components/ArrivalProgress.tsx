@@ -8,11 +8,12 @@ import { t, type DictKey, type Lang } from "../i18n";
  * This says where the reader stands in them — a filled mark for what is done, a
  * ring for where they are — so the setup is not a screen that changes with no
  * explanation. It is deliberately calm: no percentage, no countdown, nothing
- * that presses. And it is honest: it lists only steps that actually exist.
- * "Create an Ephe" and "choose a project" are NOT shown as steps yet, because
- * the first is §04 and the second leaves this screen entirely — a progress bar
- * that counts a step nobody can take is the false progress §22 forbids. When
- * §04 lands, its step joins this list as a real, observable one.
+ * that presses. And it is honest: every entry has the same shape, and each one
+ * names something the reader really takes. #30 gave the third entry that same
+ * shape: after #28 the folder action is the next real step on this very screen
+ * (it arrives with the plain landing), so it is named as a todo step — in the
+ * button's own words, not a bare sentence hanging beside two rings. "Create an
+ * Ephe" (§04) stays out of the list: it is not a step of this sequence.
  *
  * It is shown only while the guided beats are on screen; once the reader is in
  * the landing the guide is over and the marks would only nag.
@@ -32,6 +33,9 @@ function stepsFor(stage: ArrivalStage): Step[] {
       current: stage === "welcome",
     },
     { labelKey: "landing.arrivalStepGuide", done: false, current: stage === "intro" },
+    // #30 — the action that really follows, in the button's own words (EN and
+    // DE alike). Never `current`: the beats decide themselves; this only points ahead.
+    { labelKey: "landing.primary", done: false, current: false },
   ];
 }
 
@@ -67,7 +71,6 @@ export function ArrivalProgress({
           </li>
         ))}
       </ol>
-      <span className="start-progress-next">{t(lang, "landing.arrivalNext")}</span>
       {/* §03.07 — one Skip for the whole introduction, on the sequence's own
           chrome rather than repeated inside each card. The welcome keeps its
           single decision (§03.03); the escape hatch belongs to the guide, not

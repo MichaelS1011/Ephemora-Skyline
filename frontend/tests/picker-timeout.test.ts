@@ -80,6 +80,9 @@ beforeEach(() => {
   uploads = [];
   useStore.setState({
     ...useStore.getInitialState(),
+    // #28: the entry surface (and its picker controls) appears once the
+    // guided beats are through. Mount as the reader who is there.
+    firstRun: false,
     prefs: { ...useStore.getInitialState().prefs, lang: "en", updateCheck: false },
   });
   vi.stubGlobal("fetch", async (url: string, init?: RequestInit) => {

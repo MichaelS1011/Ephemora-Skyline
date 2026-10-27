@@ -163,10 +163,6 @@ export const DICT = {
     en: "next",
     de: "als Nächstes",
   },
-  "landing.arrivalNext": {
-    en: "then, choose a project",
-    de: "danach: ein Projekt wählen",
-  },
   "landing.arrivalSkip": {
     en: "Skip",
     de: "Überspringen",

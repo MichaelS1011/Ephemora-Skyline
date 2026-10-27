@@ -10,8 +10,10 @@ import type { ArrivalStage } from "../src/firstArrival";
  *
  * The claim this file holds is honesty: the marks move only with the two guided
  * beats that actually exist, and nothing is shown as done that the reader has
- * not done. It lists exactly two steps (welcome, how it works); "create an Ephe"
- * (§04) and "choose a project" (which leaves the screen) are NOT counted.
+ * not done. #30 added a third entry in the same shape as the two beats: the
+ * folder action that really follows, named in the button's own words. It is
+ * never `current` — the beats decide themselves. "Create an Ephe" (§04) stays
+ * out of the list: it is not a step of this sequence.
  */
 
 let host: HTMLDivElement;
@@ -42,24 +44,32 @@ function states(stage: ArrivalStage): string[] {
 
 describe("the marks follow the real beats", () => {
   it("opens on the greeting — nothing done yet", () => {
-    expect(states("welcome")).toEqual(["current", "todo"]);
+    expect(states("welcome")).toEqual(["current", "todo", "todo"]);
   });
 
   it("advances to the introduction — the greeting is done", () => {
-    expect(states("intro")).toEqual(["done", "current"]);
+    expect(states("intro")).toEqual(["done", "current", "todo"]);
   });
 });
 
 describe("it does not invent progress", () => {
-  it("lists only the two steps that exist on this screen", () => {
+  it("lists the two beats and the action that really follows (#30)", () => {
     const el = render("intro");
     const lis = [...el.querySelectorAll("li")];
-    expect(lis).toHaveLength(2);
-    // no counted step mentions Ephe or the project — those are §04 / off-screen,
-    // not beats taken here. The separate "then" hint may name the next action;
-    // it is a forward pointer, not a step with a mark.
+    expect(lis).toHaveLength(3);
+    // The third entry names the folder action in the button's own words — it
+    // is a real step on this screen (#28 brought the entry surface to it).
+    // "Create an Ephe" (§04) stays out: not a beat of this sequence.
     const stepText = lis.map((li) => li.textContent ?? "").join(" ");
-    expect(stepText).not.toMatch(/Ephe|project|Projekt/i);
+    expect(stepText).toMatch(/Choose project folder|Projektordner/);
+    expect(stepText).not.toMatch(/Ephe/);
+    // every entry has the same shape: a dot span, no bare sentence beside it
+    for (const li of lis) {
+      expect(
+        li.querySelector(".start-progress-dot"),
+        `${li.textContent}: kein Punkt`,
+      ).not.toBeNull();
+    }
   });
 
   it("marks the current step for assistive tech, and names each state", () => {

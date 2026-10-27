@@ -382,7 +382,9 @@ function stubRoutes(): void {
 
 async function mountLanding(lang: Lang): Promise<string> {
   const initial = useStore.getInitialState();
-  useStore.setState({ ...initial, prefs: { ...initial.prefs, lang } }, true);
+  // #28: the entry surface (and its disclosure lines) appears once the guided
+  // beats are through. Mount as the reader who is there.
+  useStore.setState({ ...initial, firstRun: false, prefs: { ...initial.prefs, lang } }, true);
   return await mount(createElement(Landing));
 }
 

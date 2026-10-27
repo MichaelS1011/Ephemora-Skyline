@@ -2488,13 +2488,6 @@ describe("Gold-Sweep: die Restliste trägt ihre Zustände in words und Leiter-Ti
         "Ephe-Vorschau-Rahmen: bewusste Marke, nicht in der Inventur-Liste",
       ],
       [/\.ephe-name-tag$/, "Bewohner-Namensschild: bewusste Marke"],
-      [/\.landing-welcome$/, "Willkommensplatte: Randlinie der Einführung (Marke)"],
-      [
-        /\.landing-welcome-begin$/,
-        "Der eine gefüllte Gold-CTA der Landung (dokumentierter Markenentscheid §03.03)",
-      ],
-      [/\.landing-guide$/, "Guide-Platte: Randlinie wie die Willkommensplatte"],
-      [/landing-guide-steps li::marker$/, "Zähler-Marker der Guide-Schritte (Deko, Wörter tragen)"],
       [/\.landing-resume$/, "Wiederaufnahme-Platte: Randlinie derselben Familie"],
       [
         /\.landing-resume-open$/,
@@ -2593,6 +2586,12 @@ describe("Gold-Sweep: die Restliste trägt ihre Zustände in words und Leiter-Ti
     ["start.css", "Zustands-Ziffer", /^\.start-state-figure$/],
     ["start.css", "Varianten-Chip gedrückt", /^\.ephe-variant\[aria-pressed="true"\]$/],
     ["start.css", "Marken-Chip gedrückt", /^\.ephe-mark\[aria-pressed="true"\]$/],
+    // #29: die Ankunfts-Karten und ihr Vorwärtsknopf tragen Tinte wie die
+    // übrigen Felder — Gold gehört ausschließlich dem Fokusring.
+    ["start.css", "Welcome-Platte", /\.landing-welcome$/],
+    ["start.css", "Welcome-Knopf", /\.landing-welcome-begin$/],
+    ["start.css", "Guide-Platte", /\.landing-guide$/],
+    ["start.css", "Guide-Marker", /\.landing-guide-steps li::marker$/],
   ];
   const blätter: Record<string, string> = {
     "start.css": START,
@@ -2817,6 +2816,45 @@ describe("Gold-Sweep: die Restliste trägt ihre Zustände in words und Leiter-Ti
     ).toBeGreaterThanOrEqual(STUFE);
   });
 
+  // #29: die Vorwärtsentscheidung der Ankunft sitzt auf der Platte der Platte —
+  // gemessen wird sie auf deren Feldton, über dem hellsten Grund, den die
+  // Stadt zeigen kann, durch denselben Wortspalten-Scrim wie die Karten oben.
+  it("misst die Tinte der Ankunfts-Karten auf ihrem Feld (#29)", () => {
+    const hellster = GRÜNDE.map((g) => g.farbe as string).sort(
+      (a, b) => relLum(b) - relLum(a),
+    )[0] as string;
+    const wortscrim = toHex(composite(parseColor("rgba(23, 23, 21, 0.93)"), hellster));
+    const regel = bloque(START).find(([s]) => /\.landing-welcome$/.test(s));
+    expect(regel, "die Welcome-Platte hat ihre Feldregel verloren").toBeTruthy();
+    const tint = (regel as [string, string])[1].match(/background:\s*(rgba\([^)]+\))/)?.[1];
+    expect(tint, "kein Welcome-Feldton zu messen").toBeTruthy();
+    const feld = toHex(composite(parseColor(tint as string), wortscrim));
+    const knopf = bloque(START).find(([s]) => /\.landing-welcome-begin$/.test(s));
+    expect(knopf, "der Vorwärtsknopf hat seine Regel verloren").toBeTruthy();
+    const tinte = (knopf as [string, string])[1].match(/color:\s*var\(--brand-ink\)/)
+      ? rootToken("brand-ink")
+      : "";
+    expect(tinte, "der Knopf trägt nicht die Marken-Tinte der Leiter").toBe(rootToken("brand-ink"));
+    expect(
+      contrast(tinte, feld),
+      `${tinte} über Welcome-Feld ${feld} (Knopf-Tinte)`,
+    ).toBeGreaterThanOrEqual(STUFE);
+    const rand = toHex(composite(parseColor("rgba(242, 239, 232, 0.4)"), feld));
+    expect(
+      contrast(rand, feld),
+      `Knopf-Rand ${rand} über Welcome-Feld ${feld} (UI-Komponente, 3:1)`,
+    ).toBeGreaterThanOrEqual(3);
+    const wort = bloque(START).find(([s]) => /\.landing-welcome-body$/.test(s));
+    expect(wort, "der Willkommenssatz hat seine Regel verloren").toBeTruthy();
+    const wortTinte = (
+      ((wort as [string, string])[1].match(/color:\s*(#[0-9a-f]{6})/) as RegExpMatchArray)[1] ?? ""
+    ).toLowerCase();
+    expect(
+      contrast(wortTinte, feld),
+      `${wortTinte} über Welcome-Feld ${feld} (Fließtext)`,
+    ).toBeGreaterThanOrEqual(STUFE);
+  });
+
   it("fällt rot, sobald eine geraeumte Stelle wieder vergoldet wird (Positivkontrolle)", () => {
     const kopie = START.replace(
       "background: var(--meta-strong);\n  border-color: var(--meta-strong);",
@@ -2880,5 +2918,31 @@ describe("Gold-Sweep: die Restliste trägt ihre Zustände in words und Leiter-Ti
       dauerring,
       "die Ring-Wache ließ den Dauerring am gedrückten Chip durch",
     ).not.toHaveLength(0);
+    // #29: vergoldet die Welcome-Platte wieder, sieht es die Platten-Wache.
+    const welcomeKopie = START.replace(
+      ".landing-shell.start-v2 .landing-welcome {\n  max-width: 620px;",
+      ".landing-shell.start-v2 .landing-welcome {\n  border-left: 2px solid var(--accent-gold);\n  max-width: 620px;",
+    );
+    expect(welcomeKopie, "die Platten-Kopie traf die Welcome-Regel nicht").not.toBe(START);
+    expect(
+      goldSelektoren(welcomeKopie),
+      "die Wache ließ eine vergoldete Welcome-Platte durch",
+    ).toContain(".landing-shell.start-v2 .landing-welcome");
+    expect(goldSelektoren(START), "das echte Blatt ist schon betroffen").not.toContain(
+      ".landing-shell.start-v2 .landing-welcome",
+    );
+    // #29: und vergoldet der Vorwärtsknopf wieder, sieht es die Knopf-Wache.
+    const knopfKopie = START.replace(
+      "background: none;\n  border: 1px solid rgba(242, 239, 232, 0.4);\n  color: var(--brand-ink);",
+      "background: var(--accent-gold);\n  border: 1px solid var(--accent-gold);\n  color: #201e18;",
+    );
+    expect(knopfKopie, "die Knopf-Kopie traf den Vorwärtsknopf nicht").not.toBe(START);
+    expect(
+      goldSelektoren(knopfKopie),
+      "die Wache ließ einen vergoldeten Vorwärtsknopf durch",
+    ).toContain(".landing-shell.start-v2 .landing-welcome-begin");
+    expect(goldSelektoren(START), "das echte Blatt ist schon betroffen").not.toContain(
+      ".landing-shell.start-v2 .landing-welcome-begin",
+    );
   });
 });

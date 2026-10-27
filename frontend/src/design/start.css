@@ -363,14 +363,15 @@
 /* ── 4a. The calm welcome (§03.03) ─────────────────────────────────────────
    The first thing a brand-new reader sees, and the only thing they must
    decide: a single "Let's start". It is a quiet card, not a modal — the
-   folder and demo below stay reachable so an experienced reader skips it.
-   One entrance fade, removed under reduced motion (section 12). */
+   chrome's own Skip and Escape end the sequence at any beat. Since #28 the
+   entry surface waits for its turn instead of standing beside the greeting,
+   so the beat holds exactly one action prompt. One entrance fade, removed
+   under reduced motion (section 12). */
 .landing-shell.start-v2 .landing-welcome {
   max-width: 620px;
   margin: 0 0 26px;
   padding: 16px 18px 18px;
   border: 1px solid rgba(242, 239, 232, 0.12);
-  border-left: 2px solid var(--accent-gold);
   border-radius: 8px;
   background: rgba(255, 255, 255, 0.02);
   animation: landing-welcome-in 0.28s ease-out;
@@ -390,17 +391,21 @@
   line-height: 1.65;
   color: #b1b1a8;
 }
+/* #29: the beat's forward decision rides the same ink ladder as the rest of
+   the landing's fields — the brighter step of the border and the lifted hover
+   carry it, Gold carries only `--focus-ring`. */
 .landing-shell.start-v2 .landing-welcome-begin {
   min-height: 42px;
   padding: 10px 18px;
   border-radius: 8px;
   font-size: var(--fs-body);
-  background: var(--accent-gold);
-  border: 1px solid var(--accent-gold);
-  color: #201e18;
+  background: none;
+  border: 1px solid rgba(242, 239, 232, 0.4);
+  color: var(--brand-ink);
 }
 .landing-shell.start-v2 .landing-welcome-begin:hover {
-  filter: brightness(1.08);
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(242, 239, 232, 0.55);
 }
 .landing-shell.start-v2 .landing-welcome-begin:focus-visible {
   outline: 2px solid var(--focus-ring);
@@ -409,15 +414,15 @@
 
 /* ── 4a-2. The short introduction (§03.05) ─────────────────────────────────
    The second beat of the first arrival: three plain steps in the same quiet
-   card. One "Continue", and a smaller "Skip" beside it — the reader can end
-   the intro from either, and the real actions below stay reachable throughout.
-   No step counter, no paging: that is §03.06 and §03.07, not here. */
+   card. One "Continue", and a smaller "Back" beside it — the reader can end
+   the intro from either, and since #28 the entry surface arrives with the
+   last beat, not beside it. No step counter, no paging: that is §03.06 and
+   §03.07, not here. */
 .landing-shell.start-v2 .landing-guide {
   max-width: 620px;
   margin: 0 0 26px;
   padding: 16px 18px 18px;
   border: 1px solid rgba(242, 239, 232, 0.12);
-  border-left: 2px solid var(--accent-gold);
   border-radius: 8px;
   background: rgba(255, 255, 255, 0.02);
   animation: landing-welcome-in 0.28s ease-out;
@@ -442,7 +447,7 @@
   margin: 0 0 6px;
 }
 .landing-shell.start-v2 .landing-guide-steps li::marker {
-  color: var(--accent-gold);
+  color: var(--meta-strong);
 }
 .landing-shell.start-v2 .landing-guide-actions {
   display: flex;
@@ -554,10 +559,6 @@
   border-color: var(--brand-ink);
   box-shadow: 0 0 0 3px rgba(242, 239, 232, 0.12);
 }
-.landing-shell.start-v2 .start-progress-next {
-  font: 400 var(--fs-small)/1 var(--font-mono);
-  color: var(--meta-faint);
-}
 /* §03.07 — the sequence's one Skip, pushed to the right so it reads as chrome
    of the guide, not as a competing action on the card below. */
 .landing-shell.start-v2 .start-progress-skip {
@@ -588,15 +589,22 @@
   }
 }
 
-/* ── 4b. The resident at the centre (§03.04) ───────────────────────────────
-   The Ephe stands above the schematic city in the right column, so the first
-   figure a reader meets is the one they will make their own. The two-column
-   pairing (intro | resident+city) is pinned to explicit columns so the
-   first-run welcome — which spans the full width above them — never nudges
-   the resident out of place. */
+/* ── 4b. The city plate in the right column ────────────────────────────────
+   Auftrag #27 removed the flat portrait from this column: the first figure a
+   reader meets is the live one, opened by name below the plate. The two-column
+   pairing (intro | city plate) is pinned to explicit columns so the first-run
+   welcome — which spans the full width above them — never nudges the plate out
+   of place. */
+/* #28 — the guided beats stand alone in the left column beside the plate: the
+   entry surface is not rendered while one of them is on screen, so the card no
+   longer spans the grid — it takes the intro's column and the pairing holds. */
 .landing-shell.start-v2 .landing-welcome,
 .landing-shell.start-v2 .landing-guide {
-  grid-column: 1 / -1;
+  grid-column: 1;
+  /* The row's other occupant is the tall plate; `align-items: center` on the
+     grid would float the beat to half the fold. The beat belongs under the
+     step bar, at the top of its column. */
+  align-self: start;
 }
 .landing-shell.start-v2 .landing-intro {
   grid-column: 1;

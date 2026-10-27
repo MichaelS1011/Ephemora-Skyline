@@ -13,8 +13,11 @@ import { Landing } from "../src/components/Landing";
  *
  * §03.02 produced `firstRun`; this is its first reader. The claims the step has
  * to hold are exactly the §03 UX rules: one central decision (a single "Let's
- * start"), not a gate (the folder and demo stay reachable so an experienced
- * reader skips it), and it opens only for a machine that has never shown a city.
+ * start"), and it opens only for a machine that has never shown a city.
+ * Betreiberentscheid 2026-10-27 (#28) changed one of them: the beat is now the
+ * only action prompt on screen — the entry surface appears when its turn comes,
+ * and the way out is the sequence's own Skip and Escape (§03.07), not a folder
+ * button standing beside the greeting.
  */
 
 let host: HTMLDivElement;
@@ -67,7 +70,7 @@ describe("the welcome opens for a first run", () => {
     useStore.setState({ ...useStore.getInitialState(), firstRun: true });
   });
 
-  it("greets with exactly one decision, and does not hide the way in", async () => {
+  it("greets with exactly one decision — the entry surface waits (#28)", async () => {
     await mountLanding();
     const welcome = host.querySelector(".landing-welcome");
     expect(welcome).not.toBeNull();
@@ -75,8 +78,10 @@ describe("the welcome opens for a first run", () => {
     expect(welcome?.getAttribute("role")).toBe("region");
     // One button inside it — "nur eine zentrale Entscheidung pro Schritt".
     expect(welcome?.querySelectorAll("button")).toHaveLength(1);
-    // Not a gate: the folder and demo actions below are still on the screen.
-    expect(host.querySelector(".landing-actions")).not.toBeNull();
+    // #28: the greeting holds the screen alone — no second prompt for the
+    // same action beside it. Skip and Escape (§03.07) are the way out.
+    expect(host.querySelector(".landing-intro")).toBeNull();
+    expect(host.querySelector(".landing-actions")).toBeNull();
   });
 
   it("folds away when the reader starts, and shows the short introduction", async () => {
@@ -91,9 +96,10 @@ describe("the welcome opens for a first run", () => {
     const guide = host.querySelector(".landing-guide");
     expect(guide).not.toBeNull();
     expect(guide?.querySelectorAll("ol li")).toHaveLength(3);
-    // The offer below is unchanged throughout — the intro is not a gate.
-    expect(host.querySelector(".primary-button")).not.toBeNull();
-    expect(host.querySelector(".secondary-button")).not.toBeNull();
+    // #28 — the second beat holds the screen just as alone as the first.
+    expect(host.querySelector(".landing-intro")).toBeNull();
+    expect(host.querySelector(".primary-button")).toBeNull();
+    expect(host.querySelector(".secondary-button")).toBeNull();
   });
 });
 
@@ -273,12 +279,23 @@ describe("a read left running is offered once it finished (§03.09)", () => {
 
   it("keeps the first-arrival welcome intact when both are on screen", async () => {
     // The measured case: a first visit whose read finished in the background.
-    // The greeting is still one decision; the offer does not stack a second one.
+    // The greeting is still one decision; the offer does not stack a second
+    // one. #28 sharpens this: while a beat is on screen the entry surface —
+    // the offer's slot included — waits, and the offer arrives with it.
     useStore.setState({ ...useStore.getInitialState(), firstRun: true });
     stubStatus({ ok: true, status: 200, body: { status: "complete" } });
     await mountLanding();
     expect(host.querySelector(".landing-welcome")).not.toBeNull();
     expect(host.querySelectorAll(".landing-welcome button")).toHaveLength(1);
+    expect(host.querySelector(".landing-resume")).toBeNull();
+    await act(async () => {
+      host.querySelector<HTMLButtonElement>(".landing-welcome-begin")?.click();
+    });
+    await act(async () => {
+      [...host.querySelectorAll<HTMLButtonElement>(".landing-guide-actions button")]
+        .find((b) => /Continue|Weiter/.test(b.textContent ?? ""))
+        ?.click();
+    });
     expect(host.querySelector(".landing-resume")).not.toBeNull();
   });
 });
@@ -417,11 +434,12 @@ describe("the arrival beat survives a reload (§03.08)", () => {
     await reloadLanding();
     expect(host.querySelector(".landing-welcome")).toBeNull();
     expect(host.querySelector(".landing-guide")).not.toBeNull();
-    // the marks agree with the card: beat one done, beat two current
+    // the marks agree with the card: beat one done, beat two current, and the
+    // third entry is the action that follows — marked, never posed as current
     const states = [...host.querySelectorAll(".start-progress-steps li")].map((li) =>
       li.getAttribute("data-state"),
     );
-    expect(states).toEqual(["done", "current"]);
+    expect(states).toEqual(["done", "current", "todo"]);
   });
 
   it("keeps a skip skipped", async () => {

@@ -51,7 +51,9 @@ function stubVerdictRoutes(answer: { status: number; body: unknown }): string[] 
 
 async function mountLanding(lang: Lang): Promise<void> {
   const initial = useStore.getInitialState();
-  useStore.setState({ ...initial, prefs: { ...initial.prefs, lang } }, true);
+  // #28: the entry surface — and with it these disclosure buttons — appears
+  // once the guided beats are through. Mount as the reader who is there.
+  useStore.setState({ ...initial, firstRun: false, prefs: { ...initial.prefs, lang } }, true);
   host = document.createElement("div");
   document.body.append(host);
   root = createRoot(host);
