@@ -239,7 +239,16 @@ export default function App() {
     useStore.getState().onContextRestored();
     setCanvasNonce((n) => n + 1);
   };
-  const [permalinkError, setPermalinkError] = useState("");
+  // A failed permalink is a FACT about the load, not a translated string:
+  // holding the finished sentence in state made `lang` part of `loadCity`'s
+  // identity, and the permalink effect re-ran on every language switch —
+  // re-fetching the SAME city through `setCityData`, the door that folds
+  // every deferred surface. Measured live (drive-result.json, 2026-10-27):
+  // one menu language click = 1-2 extra `GET /api/result/<id>/city` and the
+  // open heat shell dropped out of the DOM (shell 1 -> 0, channel lost).
+  // A language switch is a display choice, not a city visit, so the city
+  // request count and the reader's open surfaces must not move with it.
+  const [permalinkFailed, setPermalinkFailed] = useState(false);
 
   const canvasWrapperRef = useRef<HTMLDivElement | null>(null);
   const cityOnlyExitRef = useRef<HTMLButtonElement | null>(null);
@@ -279,12 +288,14 @@ export default function App() {
         // it may never have existed (a mistyped or stale link) or its scan may
         // have been dropped — the store is in-memory with a 24 h ceiling.
         setApiStatus("demo");
-        setPermalinkError(t(lang, "app.permalinkError"));
+        setPermalinkFailed(true);
       } finally {
         setIsLoading(false);
       }
     },
-    [setCityData, setIsLoading, setAnalysisId, lang],
+    // No `lang` here on purpose: see the permalinkFailed note above. A display
+    // preference must not re-drive the data-loading identity.
+    [setCityData, setIsLoading, setAnalysisId],
   );
 
   useEffect(() => {
@@ -624,7 +635,7 @@ export default function App() {
       {/* Landing hero — only on the empty world */}
       {!inCity && (
         <>
-          {permalinkError && (
+          {permalinkFailed && (
             <div
               role="alert"
               className="absolute top-20 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3
@@ -639,9 +650,9 @@ export default function App() {
                 width: "calc(100% - 32px)",
               }}
             >
-              <span>{permalinkError}</span>
+              <span>{t(lang, "app.permalinkError")}</span>
               <button
-                onClick={() => setPermalinkError("")}
+                onClick={() => setPermalinkFailed(false)}
                 aria-label={t(lang, "app.dismissAria")}
                 className="cursor-pointer shrink-0 hover:brightness-125"
                 style={{ color: "#ff8f9a" }}
