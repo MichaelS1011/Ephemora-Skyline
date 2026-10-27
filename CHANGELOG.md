@@ -7,10 +7,10 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 Every line below states what was measured, not what was intended: a number here
 came from a run on this machine, with the file and the check that produced it.
 
-## [Unreleased]
+## [0.2.0] - 2026-10-27
 
-The work in the tree since the last commit. Not yet released; the gates below
-were run on it as a whole.
+The work in the tree since 0.1.0, released as this version. The gates below were
+run on it as a whole, on this machine, and each line names what it measured.
 
 ### Added
 
