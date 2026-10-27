@@ -244,14 +244,31 @@ describe("the surface a stranger reads", () => {
         expect(read("backend/src/server/bind-address.ts")).toMatch(
           /env\.HOST\?\.trim\(\) \|\|\s*"127\.0\.0\.1"/,
         );
-        // "no telemetry": the entry document asks nothing of a host that is not
-        // this machine. The one request the app makes for itself is the release
-        // check — anonymous, hourly, and the default since 2026-10-27 precisely
-        // because a user is better served by hearing about an update than by
-        // missing it; a single click in a city's More menu turns it off for good.
+        // "no telemetry" is measured, not defined: the entry document asks
+        // nothing of a host that is not this machine, and the one request the app
+        // makes for itself — the release check, on from the first run since
+        // 2026-10-27 because a reader is better served hearing about an update
+        // than missing it — leaves through a fixed public path that carries no
+        // query and identifies the app, never the machine or the person.
         expect(
           [...read("frontend/index.html").matchAll(/https?:\/\/([^/"'\s]+)/g)].map((m) => m[1]),
           "the entry document references a host beyond this machine",
+        ).toEqual([]);
+        const checkRoute = read("backend/src/server/routes/update-check.ts");
+        const asked = [...checkRoute.matchAll(/await fetch\(\s*([^,)]+)/g)].map((m) =>
+          m[1]!.trim(),
+        );
+        expect(asked, "the release check asks more than one question").toEqual([
+          "`https://api.github.com/repos/${REPO}/releases/latest`",
+        ]);
+        expect(checkRoute, "the release check names the app, not the machine").toMatch(
+          /"User-Agent":\s*"Ephemora-Skyline"/,
+        );
+        expect(
+          [...checkRoute.matchAll(/\bhostname|userInfo|os\.platform|process\.env\.HOME\b/g)].map(
+            (m) => m[0],
+          ),
+          "the update-check route reads something about this machine into its request",
         ).toEqual([]);
         expect(read("frontend/src/prefs.ts")).toMatch(/updateCheck:\s*true/);
         expect(read("frontend/src/prefs.ts")).toMatch(

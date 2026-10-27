@@ -53,7 +53,11 @@ describe("GET /api/update/check", () => {
       html_url: "https://github.com/x/r/releases/tag/v99.0.0",
     });
     expect(data.updateAvailable).toBe(true);
-    expect(data.latest).toBe("v99.0.0");
+    // A version, not a tag: the More menu puts `current` and `latest` into two
+    // sentences of one exchange, and "you are on 0.3.0" beside "v0.4.0 is
+    // available" reads as two numbering systems for the same thing.
+    expect(data.latest).toBe("99.0.0");
+    expect(data.releaseUrl).toBe("https://github.com/x/r/releases/tag/v99.0.0");
     expect(data.current).toBe(currentVersion());
   });
 

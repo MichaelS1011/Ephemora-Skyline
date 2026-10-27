@@ -23,11 +23,14 @@ export interface Prefs {
    * (`setPref`, `toggleUpdateCheck`) from the "••• More" menu row in
    * `components/ActionBar.tsx`.
    *
-   * Off by default. An anonymous GET for a release tag gives away no source
-   * code — but on a first visit it is the one entry in the network panel before
-   * the reader has done anything, and the screen above it promises exactly that
-   * nothing does. So the screen asks whether they ever want to be asked, and the
-   * one who says yes gets the note.
+   * On from the first run (operator decision 2026-10-27): a reader who installed
+   * an older build learns about a newer one without hunting for a switch, which
+   * is the whole point of having a switch at all. The cost is one anonymous GET
+   * per hour for a release tag — no source, no path, no identifier — it is the
+   * first row of the disclosure table the landing itself renders, and one click
+   * in a city's More menu ends it for good. `savePrefs` writes the whole set, so
+   * a `false` in an older file is read as a decline even when the reader never
+   * saw the switch; nothing here switches a request back on behind a stored no.
    */
   updateCheck: boolean;
 }
@@ -41,11 +44,8 @@ const KEY = "codecity-prefs";
  * network path, closed here on the storage path.
  */
 const UNREADABLE_KEY = "codecity-prefs:unreadable";
-// The update check is on from the first run (operator decision 2026-10-27): a person who
-// installed an older build learns about a new one without hunting for a switch. What it
-// costs is one anonymous GET per hour to `api.github.com` for the newest release tag —
-// no source, no path, no identifier — it is the first host in the disclosure table, and
-// the switch sits in a city's More menu, where turning it off is one click and sticks.
+// Why `updateCheck` is the one default a reader never has to discover: see the
+// field's own doc above.
 const DEFAULTS: Prefs = { lang: "en", gfxLite: false, colorblind: false, updateCheck: true };
 
 /**

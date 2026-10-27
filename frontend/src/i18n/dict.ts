@@ -66,8 +66,8 @@ export const DICT = {
     de: "Worauf achten",
   },
   "landing.localBadgeNote": {
-    en: "Source code is never uploaded. Scanners fetch their own rule and advisory data (semgrep.dev, api.osv.dev, npm, one GitHub release check). SKYLINE_OFFLINE=1 stops every one of them.",
-    de: "Quellcode wird nie hochgeladen. Die Scanner holen ihre Regel- und Sicherheitsdaten selbst (semgrep.dev, api.osv.dev, npm, ein GitHub-Release-Check). SKYLINE_OFFLINE=1 schaltet sie alle ab.",
+    en: "Source code is never uploaded. Two things reach out by themselves: the app asks GitHub once an hour for the newest release tag, and the scanners fetch their own rule and advisory data (semgrep.dev, api.osv.dev, npm) while a scan runs. SKYLINE_OFFLINE=1 stops every one of them, and the release check is one click off in a city's More menu.",
+    de: "Quellcode wird nie hochgeladen. Zwei Dinge gehen von selbst hinaus: die App fragt einmal pro Stunde bei GitHub nach der neuesten Version, und die Scanner holen beim Scan ihre eigenen Regel- und Sicherheitsdaten (semgrep.dev, api.osv.dev, npm). SKYLINE_OFFLINE=1 schaltet sie alle ab, der Versionshinweis ist ein Klick im Mehr-Menü einer Stadt.",
   },
   "landing.langAria": {
     en: "Change display language",

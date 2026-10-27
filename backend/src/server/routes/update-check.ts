@@ -65,7 +65,13 @@ function build(latest: string | null, url: string | null, offline?: boolean): Up
   const current = currentVersion();
   return {
     current,
-    latest,
+    // The GitHub release carries a TAG ("v0.4.0"), the manifest carries a
+    // VERSION ("0.3.0"), and both are shown in one sentence by the More menu
+    // ("You are on 0.3.0" / "Version v0.4.0 is available"). The payload field
+    // is a version, so the tag's decoration comes off here, at the one
+    // boundary where the tag enters this program. `releaseUrl` keeps the tag —
+    // it is an address, not a number.
+    latest: latest === null ? null : latest.replace(/^v/i, ""),
     updateAvailable: latest !== null && isNewerVersion(latest, current),
     releaseUrl: url,
     checkedAt: new Date().toISOString(),

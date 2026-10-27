@@ -125,10 +125,14 @@ export class SecurityScanner {
       const semgrep = new SemgrepAdapter();
       this.gitleaksAdapter = engines?.gitleaks !== undefined ? engines.gitleaks : gitleaks;
       this.semgrepAdapter = engines?.semgrep !== undefined ? engines.semgrep : semgrep;
-      // The local channel goes last on purpose: `dedupIssues()` keeps the first
-      // finding for a line and type, so a regex or engine claim about the same
-      // line is the one that shows, and the pack's own rule id rides along only
-      // where nothing else spoke up.
+      // The local channel goes last, and `dedupIssues()` is the one that decides
+      // what a shared line shows: it sorts by severity first, then line, and a
+      // stable sort keeps arrival order only inside an exact tie. So on the same
+      // line and type the higher-severity finding wins regardless of which
+      // channel produced it — a P0 from the pack outranks a P1 from the regex
+      // layer — and between two findings of equal severity the earlier adapter
+      // keeps the slot, which is why the pack's own rule id rides along only
+      // where nothing else of the same weight spoke up.
       this.adapters = [new RegexAdapter(), gitleaks, semgrep, this.localRules];
     }
     this.dependencyAdapter =

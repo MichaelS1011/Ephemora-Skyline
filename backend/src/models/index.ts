@@ -271,9 +271,10 @@ export interface ProjectSummary {
     /**
      * The shipped rule pack was executed in-process by `local-rules.ts`, over at
      * least one file of THIS scan. It is a separate flag because it is a
-     * separate channel: `semgrep` may only ever be set by the engine. Like the
-     * regex layer the field sits beside, it is a per-file pass, so a live delta
-     * re-runs it and never lists it as stale.
+     * separate channel: `semgrep` may only ever be set by the engine. It is a
+     * per-file pass, but the live delta builds its scanner from a regex-only
+     * adapter list (`server/index.ts:101`), so a delta answers `false` here —
+     * the honest reading of a channel that did not run, not a stale flag.
      */
     localRules?: boolean;
     dependencies?: boolean;
