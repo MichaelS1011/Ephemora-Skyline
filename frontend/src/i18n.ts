@@ -48,6 +48,20 @@ export function formatDecimal(lang: Lang, n: number, digits = 1): string {
 }
 
 /**
+ * A date the payload carries (epoch-ms) in the UI language — `formatCount`'s
+ * rule for calendar values: the language decides the shape ("Jan 9, 2026" /
+ * "9. Jan. 2026"), never the browser. No clock: the app's dates answer "which
+ * day", and churn counts whole days.
+ */
+export function formatDate(lang: Lang, ms: number): string {
+  return new Date(ms).toLocaleDateString(lang === "de" ? "de-DE" : "en-US", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  });
+}
+
+/**
  * The count phrase for places that build text from parts instead of picking a
  * `…One`/`…Many` key: `plural("de", 1, "Fund", "Funde")` → "1 Fund". Only an
  * exact 1 takes the singular — 0 and 0.5 stay plural in both languages, so a

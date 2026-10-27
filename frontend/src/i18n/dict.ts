@@ -1689,6 +1689,17 @@ export const DICT = {
     en: "Git churn — how often this file changes ({commits} commits, weighted by change size and recency). High churn on complex code is a refactor hotspot — add tests before touching it.",
     de: "Git-Churn — wie oft sich diese Datei ändert ({commits} Commits, gewichtet nach Umfang und Aktualität). Hoher Churn bei komplexem Code ist ein Refactoring-Hotspot — erst Tests ergänzen, dann anfassen.",
   },
+  // The age sentence rides ONLY with the scan moment it was counted from: a
+  // city re-opened later would otherwise claim an age too small by its shelf
+  // time. No moment delivered — no age claimed.
+  "panel.churnAgeOne": {
+    en: " Last change: {days} day before this scan ({when}).",
+    de: " Letzte Änderung: {days} Tag vor diesem Scan ({when}).",
+  },
+  "panel.churnAgeMany": {
+    en: " Last change: {days} days before this scan ({when}).",
+    de: " Letzte Änderung: {days} Tage vor diesem Scan ({when}).",
+  },
   "panel.apiTitle": {
     en: "API surface — exported functions/classes other files may import. A wide building footprint means many exports; trimming them shrinks the building.",
     de: "API-Fläche — exportierte Funktionen/Klassen, die andere Dateien importieren können. Ein breiter Gebäudefußabdruck bedeutet viele Exporte; weniger Exporte verkleinern das Gebäude.",
@@ -4364,6 +4375,8 @@ export const DICT = {
   "xray.imports": { en: "imports", de: "Importe" },
   "xray.findings": { en: "findings", de: "Funde" },
   "xray.churn": { en: "churn", de: "Churn" },
+  "xray.lastCommit": { en: "last", de: "zuletzt" },
+  "xray.firstCommit": { en: "since", de: "seit" },
   "xray.coverage": { en: "coverage", de: "Abdeckung" },
   "xray.coverageValue": { en: "{pct}%", de: "{pct} %" },
   /** The screen-reader name says what stands on the plate and why it is

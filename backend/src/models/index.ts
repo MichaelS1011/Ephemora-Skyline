@@ -56,6 +56,13 @@ export interface FileAnalysis {
     addedLines: number;
     deletedLines: number;
     daysSinceLastCommit: number;
+    /**
+     * Epoch-ms of the path's earliest / last known commit, rename chains
+     * followed. Optional because results persisted before these fields ship
+     * restore without them — a mapper must carry `undefined`, never invent 0.
+     */
+    firstCommitAt?: number;
+    lastCommitAt?: number;
     authors: number;
     /** Developer with the most commits on this file */
     topAuthor?: string;

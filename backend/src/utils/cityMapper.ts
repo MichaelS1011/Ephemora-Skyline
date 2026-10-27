@@ -139,6 +139,13 @@ export interface CityFile {
   churnScore?: number;
   commitCount?: number;
   daysSinceLastCommit?: number;
+  /**
+   * Epoch-ms of the path's earliest / last known commit — absolute, so they
+   * stay true while a city sits in the local index. Absent when the scan did
+   * not deliver them (older results, shallow history).
+   */
+  firstCommitAt?: number;
+  lastCommitAt?: number;
   /** Developer with the most commits touching this file */
   topAuthor?: string;
   /** Number of exported symbols — the file's public API surface */
@@ -970,6 +977,8 @@ function mapCityFile(
     churnScore: churn?.score,
     commitCount: churn?.commits,
     daysSinceLastCommit: churn?.daysSinceLastCommit,
+    firstCommitAt: churn?.firstCommitAt,
+    lastCommitAt: churn?.lastCommitAt,
     topAuthor: churn?.topAuthor,
     exportedSymbols: f.exports.length,
     importCount: f.imports.length,

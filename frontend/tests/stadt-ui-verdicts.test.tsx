@@ -549,6 +549,74 @@ describe("Schweregrade tragen nicht nur ihre Farbe", () => {
 });
 
 /**
+ * Auftrag #15 (defect lane, 2026-10-27): the age number aged silently.
+ *
+ * `daysSinceLastCommit` is counted against the scan's clock, but the bare day
+ * number shipped without it. A city lives 24 h in the browser's local index
+ * (`recentCities.ts`); re-opened later, any surface quoting that number
+ * asserted an age too small by its shelf time. The dossier's churn tooltip
+ * therefore names the age AND the moment it counts from (the payload's
+ * `createdAt`) — and where no moment was delivered it says nothing about an
+ * age, exactly the not-delivered-is-not-zero rule the X-ray plate lives by.
+ */
+describe("the churn age names its reference moment", () => {
+  const SCAN_MS = Date.now() - 5 * 3_600_000; // five hours on the shelf
+  const dateText = (lang: Lang, ms: number): string =>
+    new Date(ms).toLocaleDateString(lang === "de" ? "de-DE" : "en-US", {
+      day: "numeric",
+      month: "short",
+      year: "numeric",
+    });
+  const agedFile = (): CityFile =>
+    fileOf("src/hot.js", "JavaScript", [], undefined, {
+      linesOfCode: 3,
+      churnScore: 0.4,
+      commitCount: 12,
+      daysSinceLastCommit: 3,
+    });
+  const cityAged = (files: CityFile[], createdAt?: string): CityData =>
+    cityOf({
+      analysisId: "scan-1",
+      createdAt,
+      languages: { JavaScript: 100 },
+      scanProvenance: provenance({ churn: true }),
+      tree: dir({ path: "", detailFiles: files }),
+    });
+  const churnTitle = (): string => {
+    const chip = [...container.querySelectorAll("span")].find((s) =>
+      (s.textContent ?? "").startsWith("CHURN"),
+    );
+    return chip?.getAttribute("title") ?? "";
+  };
+
+  it("anchors a delivered age to the scan it was counted from (en)", async () => {
+    const hot = agedFile();
+    await show(createElement(InfoPanel), cityAged([hot], new Date(SCAN_MS).toISOString()), "en");
+    await act(async () => useStore.getState().setSelectedUnit({ kind: "file", id: hot.id }));
+    const title = churnTitle();
+    expect(title, "the churn chip is missing").not.toBe("");
+    expect(title).toMatch(/3\s+days/);
+    expect(title, "the age must name the moment it counts from").toContain(dateText("en", SCAN_MS));
+  });
+
+  it("says the same age in German, anchored too (de)", async () => {
+    const hot = agedFile();
+    await show(createElement(InfoPanel), cityAged([hot], new Date(SCAN_MS).toISOString()), "de");
+    await act(async () => useStore.getState().setSelectedUnit({ kind: "file", id: hot.id }));
+    const title = churnTitle();
+    expect(title).toMatch(/3\s+Tage/);
+    expect(title).toContain(dateText("de", SCAN_MS));
+  });
+
+  it("a payload without a scan moment gets no age claim at all", async () => {
+    const hot = agedFile();
+    await show(createElement(InfoPanel), cityAged([hot], undefined), "en");
+    await act(async () => useStore.getState().setSelectedUnit({ kind: "file", id: hot.id }));
+    expect(churnTitle()).not.toMatch(/3\s*days/);
+  });
+});
+
+/**
  * V1: the FIRST verdict of a visit is the commitment the panel confirms — with
  * the promise the storage actually keeps, in the panel's own language, and only
  * when the write succeeded. A "Saved" next to the blocked-storage warning would

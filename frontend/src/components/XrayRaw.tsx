@@ -1,6 +1,6 @@
 import { useStore } from "../stores/useStore";
 import { findFileById } from "../city/layout";
-import { formatCount, formatDecimal, t, type DictKey, type Lang } from "../i18n";
+import { formatCount, formatDate, formatDecimal, t, type DictKey, type Lang } from "../i18n";
 import type { CityFile, Severity } from "../city/types";
 
 /**
@@ -45,6 +45,8 @@ export interface XrayRow {
     | "importCount"
     | "findings"
     | "churnScore"
+    | "lastCommitAt"
+    | "firstCommitAt"
     | "coveragePct";
 }
 
@@ -62,6 +64,8 @@ export function xrayFacts(file: CityFile, lang: Lang): XrayRow[] {
   const branches = delivered(file.cyclomaticComplexity);
   const imports = delivered(file.importCount);
   const churn = delivered(file.churnScore);
+  const lastAt = delivered(file.lastCommitAt);
+  const firstAt = delivered(file.firstCommitAt);
   const coverage = delivered(file.coveragePct);
   // Findings by grade: counted from the list the file itself carries — the
   // same list the dossier's finding rows print, never a second census.
@@ -94,6 +98,18 @@ export function xrayFacts(file: CityFile, lang: Lang): XrayRow[] {
       field: "churnScore",
       labelKey: "xray.churn",
       value: churn === null ? null : formatDecimal(lang, churn, 2),
+    },
+    // Absolute dates, not a day count: the plate stays honest while the city
+    // sits in the local index. Only from delivered fields — no invented zero.
+    {
+      field: "lastCommitAt",
+      labelKey: "xray.lastCommit",
+      value: lastAt === null ? null : formatDate(lang, lastAt),
+    },
+    {
+      field: "firstCommitAt",
+      labelKey: "xray.firstCommit",
+      value: firstAt === null ? null : formatDate(lang, firstAt),
     },
     {
       field: "coveragePct",

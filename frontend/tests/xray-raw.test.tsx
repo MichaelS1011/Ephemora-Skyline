@@ -54,6 +54,15 @@ import { DICT, formatCount, formatDecimal, t, type DictKey } from "../src/i18n";
 import { ROWS } from "../src/interaction/shortcuts";
 
 /** A tower whose payload carries everything X-ray reads. */
+const FIRST_MS = Date.UTC(2026, 0, 9, 12); // the file's first commit
+const LAST_MS = Date.UTC(2026, 3, 21, 18); // and its last known one
+/** The locale rule the plate must follow: UI language decides, never the browser. */
+const dateText = (lang: "en" | "de", ms: number): string =>
+  new Date(ms).toLocaleDateString(lang === "de" ? "de-DE" : "en-US", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  });
 const RICH = file(
   "src/api/routes.ts",
   "TypeScript",
@@ -69,6 +78,8 @@ const RICH = file(
     cyclomaticComplexity: 17,
     importCount: 21,
     churnScore: 0.62,
+    firstCommitAt: FIRST_MS,
+    lastCommitAt: LAST_MS,
     coveragePct: 88,
   },
 );
@@ -206,7 +217,13 @@ describe("(c) the X-ray is a key, not a surface", () => {
 describe("(b) not delivered is not zero", () => {
   it("shows no row and no digit for fields the payload never carried", () => {
     const rows = xrayFacts(SPARSE, "en");
-    for (const field of ["importCount", "churnScore", "coveragePct"]) {
+    for (const field of [
+      "importCount",
+      "churnScore",
+      "coveragePct",
+      "lastCommitAt",
+      "firstCommitAt",
+    ]) {
       expect(rows.find((r) => r.field === field)!.value, field).toBeNull();
     }
     mount("en", { hoveredId: SPARSE.id });
@@ -242,6 +259,57 @@ describe("(b) not delivered is not zero", () => {
     );
     expect(xrayFacts(SPARSE, "en").find((r) => r.field === "findings")!.value).toBe("0");
     expect(xrayFacts(SPARSE, "de").find((r) => r.field === "findings")!.value).toBe("0");
+  });
+});
+
+/**
+ * Auftrag #15 (defect lane, 2026-10-27): the plate carries the ABSOLUTE dates.
+ *
+ * `daysSinceLastCommit` was a bare day count against the scan's clock; a city
+ * re-opened from the local index (24 h shelf, `recentCities.ts`) showed an age
+ * too small by its shelf time. Dates survive lying around; day counts do not.
+ * The plate therefore prints "last <date>" and "since <date>" — only from
+ * delivered fields, and the age claim on the dossier chip names the moment it
+ * counts from (pinned in `stadt-ui-verdicts.test.tsx`).
+ */
+describe("churn dates ride the plate", () => {
+  it("reads the delivered epoch-ms fields, formatted in the UI language", () => {
+    const rows = xrayFacts(RICH, "en");
+    expect(rows.find((r) => r.field === "lastCommitAt")!.value).toBe(dateText("en", LAST_MS));
+    expect(rows.find((r) => r.field === "firstCommitAt")!.value).toBe(dateText("en", FIRST_MS));
+    const de = xrayFacts(RICH, "de");
+    expect(de.find((r) => r.field === "lastCommitAt")!.value).toBe(dateText("de", LAST_MS));
+    expect(de.find((r) => r.field === "firstCommitAt")!.value).toBe(dateText("de", FIRST_MS));
+  });
+
+  it("prints the two date rows on the held plate, in both languages", () => {
+    for (const lang of ["en", "de"] as const) {
+      mount(lang, { hoveredId: RICH.id });
+      pressX("keydown");
+      const p = plate()!;
+      expect(p.querySelector('[data-xray-row="lastCommitAt"]'), lang).not.toBeNull();
+      expect(p.querySelector('[data-xray-row="firstCommitAt"]'), lang).not.toBeNull();
+      expect(p.textContent ?? "", lang).toContain(dateText(lang, LAST_MS));
+      expect(p.textContent ?? "", lang).toContain(dateText(lang, FIRST_MS));
+      pressX("keyup");
+    }
+  });
+
+  it("an old payload without dates shows neither row nor a invented zero", () => {
+    mount("en", { hoveredId: SPARSE.id });
+    pressX("keydown");
+    const p = plate()!;
+    expect(p.querySelector('[data-xray-row="lastCommitAt"]')).toBeNull();
+    expect(p.querySelector('[data-xray-row="firstCommitAt"]')).toBeNull();
+    expect(p.textContent ?? "").not.toMatch(/\b(last|since)\b/i);
+    pressX("keyup");
+  });
+
+  it("both new labels carry EN and DE", () => {
+    for (const key of ["xray.lastCommit", "xray.firstCommit"] as const) {
+      expect(DICT[key]?.en.trim(), key).not.toBe("");
+      expect(DICT[key]?.de.trim(), key).not.toBe("");
+    }
   });
 });
 

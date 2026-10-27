@@ -152,6 +152,6 @@ npm run build                 # production build, both packages
 node scripts/audit-gate.mjs   # dependency audit
 ```
 
-3,273 cases measured 2026-10-27 — 2,377 frontend, 896 backend. The audit gate fails on every high or critical finding **except** those accepted in `scripts/audit-gate.mjs` by name with a dated re-check; on this lockfile `npm audit` reported `0 vulnerabilities` on 2026-10-26, so it passes on the fix and prints that the one remaining exception matches no finding. Gates, conventions and the PR checklist: **[CONTRIBUTING.md](./CONTRIBUTING.md)**. Small, reviewable changes land fastest. Interface strings need an English and a German entry, and anything that changes the 3D render needs a real-GPU screenshot — headless CI cannot judge a WebGL scene.
+3,284 cases measured 2026-10-27 — 2,384 frontend, 900 backend. The audit gate fails on every high or critical finding **except** those accepted in `scripts/audit-gate.mjs` by name with a dated re-check; on this lockfile `npm audit` reported `0 vulnerabilities` on 2026-10-26, so it passes on the fix and prints that the one remaining exception matches no finding. Gates, conventions and the PR checklist: **[CONTRIBUTING.md](./CONTRIBUTING.md)**. Small, reviewable changes land fastest. Interface strings need an English and a German entry, and anything that changes the 3D render needs a real-GPU screenshot — headless CI cannot judge a WebGL scene.
 
 Skyline is the piece of this work meant to be read and argued with, not the piece meant to earn.

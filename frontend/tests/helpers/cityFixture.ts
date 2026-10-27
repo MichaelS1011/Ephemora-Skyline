@@ -247,6 +247,8 @@ export function file(
     churnScore: field(overrides, "churnScore", undefined),
     commitCount: field(overrides, "commitCount", undefined),
     daysSinceLastCommit: field(overrides, "daysSinceLastCommit", undefined),
+    firstCommitAt: field(overrides, "firstCommitAt", undefined),
+    lastCommitAt: field(overrides, "lastCommitAt", undefined),
     topAuthor: field(overrides, "topAuthor", undefined),
     exportedSymbols: field(overrides, "exportedSymbols", undefined),
     importCount: field(overrides, "importCount", undefined),

@@ -292,3 +292,51 @@ describe("mapResultToCityData", () => {
     expect(city.scanProvenance).toStrictEqual(provenance);
   });
 });
+
+/**
+ * Auftrag #15 (defect lane, 2026-10-27): the churn dates must reach the city.
+ *
+ * The scan already knows WHEN a path first appeared and when it last moved;
+ * until now the payload shipped only the derived day count. The mapper carries
+ * the two epoch-ms fields through — and invents nothing: a result persisted
+ * before the dates shipped (or from another producer) keeps both undefined.
+ */
+describe("churn absolute dates in the payload", () => {
+  it("carries firstCommitAt and lastCommitAt when the churn entry has them", () => {
+    const city = mapResultToCityData(
+      makeResult([
+        makeFile({
+          path: "src/dated.ts",
+          churn: {
+            commits: 2,
+            addedLines: 5,
+            deletedLines: 1,
+            daysSinceLastCommit: 3,
+            authors: 1,
+            firstCommitAt: 1700000000000,
+            lastCommitAt: 1700259200000,
+            score: 0.2,
+          },
+        }),
+        makeFile({
+          path: "src/undated.ts",
+          churn: {
+            commits: 1,
+            addedLines: 2,
+            deletedLines: 0,
+            daysSinceLastCommit: 0,
+            authors: 1,
+            score: 0.1,
+          },
+        }),
+      ]),
+    );
+    const src = city.tree.children.find((c) => c.name === "src")!;
+    const dated = src.detailFiles.find((f) => f.name === "dated.ts")!;
+    expect(dated.firstCommitAt).toBe(1700000000000);
+    expect(dated.lastCommitAt).toBe(1700259200000);
+    const undated = src.detailFiles.find((f) => f.name === "undated.ts")!;
+    expect(undated.firstCommitAt).toBeUndefined();
+    expect(undated.lastCommitAt).toBeUndefined();
+  });
+});

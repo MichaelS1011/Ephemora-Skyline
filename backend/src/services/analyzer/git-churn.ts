@@ -30,7 +30,18 @@ export interface FileChurn {
   commits: number;
   addedLines: number;
   deletedLines: number;
+  /**
+   * Whole days between `lastCommitAt` and the scan moment — derived from the
+   * SAME `now` the dates are read with, so the two can never disagree. It is
+   * a snapshot: a city opened hours later from the local index ages with the
+   * shelf time, which is why the absolute fields below ship alongside it and
+   * every surface quoting this number names its reference moment.
+   */
   daysSinceLastCommit: number;
+  /** Epoch-ms (integer, second-resolution as git reports it) of the path's earliest commit, rename chains followed */
+  firstCommitAt: number;
+  /** Epoch-ms of the path's known last commit */
+  lastCommitAt: number;
   authors: number;
   /** Developer with the most commits on this file ("author territory") */
   topAuthor?: string;
@@ -50,6 +61,7 @@ interface RawChurn {
   commits: number;
   addedLines: number;
   deletedLines: number;
+  firstCommitMs: number;
   lastCommitMs: number;
   /** author → number of commits touching this file */
   authorCommits: Map<string, number>;
@@ -105,7 +117,14 @@ export function parseNumstatLine(
   return { path: to, added, deleted, renamedFrom: from };
 }
 
-/** Collect raw per-path churn over all available history. */
+/**
+ * Collect raw per-path churn over all available history.
+ *
+ * Known limits of this one pass (they describe the git call, not the fields):
+ * `--no-merges` never sees a path that only appears on a merged branch, and a
+ * deleted file has no entry here because the scan analyses the current tree —
+ * a file that was deleted before the scan is simply not in the city.
+ */
 export async function collectGitChurn(dirPath: string, timeoutMs = 120_000): Promise<ChurnResult> {
   const args = ["-C", dirPath, "log", "--numstat", "--format=%H%x1f%aI%x1f%an", "--no-merges"];
   const { stdout } = await execFileAsync("git", args, {
@@ -146,7 +165,8 @@ export async function collectGitChurn(dirPath: string, timeoutMs = 120_000): Pro
         commits: 0,
         addedLines: 0,
         deletedLines: 0,
-        lastCommitMs: 0,
+        firstCommitMs: currentCommitMs,
+        lastCommitMs: currentCommitMs,
         authorCommits: new Map(),
       };
       raw.set(row.path, entry);
@@ -154,6 +174,7 @@ export async function collectGitChurn(dirPath: string, timeoutMs = 120_000): Pro
     entry.commits += 1;
     entry.addedLines += row.added;
     entry.deletedLines += row.deleted;
+    entry.firstCommitMs = Math.min(entry.firstCommitMs, currentCommitMs);
     entry.lastCommitMs = Math.max(entry.lastCommitMs, currentCommitMs);
     entry.authorCommits.set(currentAuthor, (entry.authorCommits.get(currentAuthor) ?? 0) + 1);
 
@@ -172,6 +193,7 @@ export async function collectGitChurn(dirPath: string, timeoutMs = 120_000): Pro
     cur.commits += prev.commits;
     cur.addedLines += prev.addedLines;
     cur.deletedLines += prev.deletedLines;
+    cur.firstCommitMs = Math.min(cur.firstCommitMs, prev.firstCommitMs);
     cur.lastCommitMs = Math.max(cur.lastCommitMs, prev.lastCommitMs);
     for (const [a, n] of prev.authorCommits) {
       cur.authorCommits.set(a, (cur.authorCommits.get(a) ?? 0) + n);
@@ -199,7 +221,11 @@ export async function collectGitChurn(dirPath: string, timeoutMs = 120_000): Pro
       commits: r.commits,
       addedLines: r.addedLines,
       deletedLines: r.deletedLines,
+      // One clock, one moment: the day count is derived from `lastCommitAt`
+      // and the same `now` above, so the two fields can never disagree.
       daysSinceLastCommit: days,
+      firstCommitAt: r.firstCommitMs,
+      lastCommitAt: r.lastCommitMs,
       authors: r.authorCommits.size,
       topAuthor,
       score: 0.5 * commitFactor + 0.3 * volumeFactor + 0.2 * recencyFactor,

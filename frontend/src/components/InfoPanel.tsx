@@ -12,7 +12,7 @@ import {
 import { coverageLine, isUncheckedClean, verdictBasis } from "../city/provenance";
 import { OpenInIde } from "./OpenInIde";
 import { findingKey, loadReviewsForCityRead, reviewKeyFor } from "../reviews";
-import { formatCount, formatDecimal, t } from "../i18n";
+import { formatCount, formatDate, formatDecimal, t, type Lang } from "../i18n";
 import { PanelAdvice } from "./PanelAdvice";
 import { focusBelongsToFile, lineSegmentFor } from "../findings/panelLogic";
 import { learningCopy } from "./learningCopy";
@@ -25,6 +25,26 @@ import "../design/stadt-ui.css";
 import "../design/learning.css";
 
 /* ── Main panel ────────────────────────────────────────────────────────── */
+
+/**
+ * The age sentence for the churn tooltip — or nothing at all.
+ *
+ * `daysSinceLastCommit` was counted against the scan's clock, not the
+ * browser's: a city re-opened from the local index (24 h shelf) would
+ * otherwise read an age too small by its shelf time. So the panel only quotes
+ * the number when the payload names the moment it counts from (`createdAt`),
+ * and stays silent — not-delivered, not zero — when it does not.
+ */
+function churnAgeNote(lang: Lang, days: number | undefined, createdAt: string | undefined): string {
+  if (days === undefined) return "";
+  const scanMs = createdAt === undefined ? Number.NaN : Date.parse(createdAt);
+  if (Number.isNaN(scanMs)) return "";
+  return t(lang, days === 1 ? "panel.churnAgeOne" : "panel.churnAgeMany", {
+    days: formatCount(lang, days),
+    when: formatDate(lang, scanMs),
+  });
+}
+
 export function InfoPanel() {
   const lang = useStore((s) => s.prefs.lang);
   const colorblind = useStore((s) => s.prefs.colorblind);
@@ -467,7 +487,10 @@ export function InfoPanel() {
                   border: `1px solid ${churn}4d`,
                   background: `${churn}14`,
                 }}
-                title={t(lang, "panel.churnTitle", { commits: file.commitCount ?? 0 })}
+                title={
+                  t(lang, "panel.churnTitle", { commits: file.commitCount ?? 0 }) +
+                  churnAgeNote(lang, file.daysSinceLastCommit, cityData.createdAt)
+                }
               >
                 CHURN {formatDecimal(lang, file.churnScore, 2)}
               </span>

@@ -98,6 +98,14 @@ export interface CityFile {
   churnScore?: number;
   commitCount?: number;
   daysSinceLastCommit?: number;
+  /**
+   * Epoch-ms of the path's earliest / last known commit. Absolute times age
+   * correctly on a re-opened city; `daysSinceLastCommit` was counted when the
+   * scan ran, so any surface quoting it must name that moment (`createdAt`).
+   * Absent when the payload did not deliver them — never shown as 0.
+   */
+  firstCommitAt?: number;
+  lastCommitAt?: number;
   /** Developer with the most commits touching this file */
   topAuthor?: string;
   /** Number of exported symbols — the file's public API surface */

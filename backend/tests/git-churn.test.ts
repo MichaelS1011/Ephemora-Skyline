@@ -13,7 +13,7 @@
  * and it is the shortest honest way to ask this question.
  */
 
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { promises as fs } from "fs";
 import os from "os";
 import path from "path";
@@ -151,6 +151,67 @@ describe("collectGitChurn", () => {
       expect(result.meaningful).toBe(false);
     } finally {
       await fs.rm(shallow, { recursive: true, force: true });
+    }
+  });
+});
+
+/**
+ * Auftrag #15 (defect lane, 2026-10-27): the absolute dates behind the age.
+ *
+ * `daysSinceLastCommit` was counted against `Date.now()` AT SCAN TIME and
+ * shipped as a bare day number. A city lives in the browser's local index for
+ * 24 h (`frontend/src/recentCities.ts`); re-opening it later showed an age too
+ * small by its shelf time, and no field in the payload said which moment the
+ * count started from. The honest repair is to ship the epoch-ms dates the same
+ * parse already holds — `firstCommitAt` (earliest commit of the path, rename
+ * chains followed) and `lastCommitAt` — so a surface can name its reference.
+ *
+ * Known limits of the pass (they belong to the git call, not to these fields):
+ * `--no-merges` never sees a path that only appears on a merged branch, and a
+ * deleted file has no entry because the scan analyses the current tree.
+ */
+describe("absolute commit dates per path", () => {
+  it("ships firstCommitAt and lastCommitAt as epoch-ms integers", async () => {
+    const result = await collectGitChurn(tmpDir);
+    const hot = result.byPath.get("hot-renamed.ts")!;
+    expect(Number.isInteger(hot.firstCommitAt), "firstCommitAt must ship").toBe(true);
+    expect(Number.isInteger(hot.lastCommitAt), "lastCommitAt must ship").toBe(true);
+    expect(hot.firstCommitAt).toBeLessThanOrEqual(hot.lastCommitAt);
+    expect(hot.lastCommitAt).toBeLessThanOrEqual(Date.now());
+  });
+
+  it("keeps the rename chain's FIRST commit, not the rename's", async () => {
+    const result = await collectGitChurn(tmpDir);
+    // The one commit that created hot.ts (before the git mv) — independent
+    // evidence read from git itself, not from the parser's own bookkeeping.
+    const initialMs = Date.parse(
+      execFileSync(
+        "git",
+        ["-C", tmpDir, "log", "--format=%aI", "--no-merges", "--reverse", "-1", "--", "hot.ts"],
+        {
+          encoding: "utf-8",
+        },
+      ).trim(),
+    );
+    expect(result.byPath.get("hot-renamed.ts")!.firstCommitAt).toBe(initialMs);
+    // calm.ts came from that same initial commit — the two must agree.
+    expect(result.byPath.get("calm.ts")!.firstCommitAt).toBe(initialMs);
+  });
+
+  it("derives daysSinceLastCommit from lastCommitAt on the scan's one clock", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    try {
+      // Pretend the scan runs 40 days later than it does: the day count must
+      // move WITH lastCommitAt, because both read the same Date.now().
+      vi.setSystemTime(Date.now() + 40 * 86_400_000 + 5 * 60_000);
+      const result = await collectGitChurn(tmpDir);
+      const hot = result.byPath.get("hot-renamed.ts")!;
+      expect(hot.daysSinceLastCommit).toBe(
+        Math.max(0, Math.floor((Date.now() - hot.lastCommitAt) / 86_400_000)),
+      );
+      expect(hot.daysSinceLastCommit).toBeGreaterThanOrEqual(39);
+    } finally {
+      vi.useRealTimers();
     }
   });
 });
