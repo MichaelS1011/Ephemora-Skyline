@@ -384,6 +384,15 @@ export const DICT = {
     en: "{n} name deleted",
     de: "{n} Name gelöscht",
   },
+  /** The done line when a names bucket refused to read (Auftrag #22): the
+   *  number is the readable part — the only part a count can honestly reach
+   *  — and the word says what the sweep genuinely did with the rest. It was
+   *  cleared, not kept; a "the bytes are preserved" here would describe the
+   *  warn line above the door, not the action this note reports. */
+  "landing.footprintNamesDoneUnreadable": {
+    en: "{n} names deleted — the unreadable names bytes were cleared too; unreadable is not the same as nothing saved.",
+    de: "{n} Namen gelöscht — auch die unlesbaren Namens-Bytes wurden weggeräumt; unlesbar heißt nicht, dass nichts gespeichert war.",
+  },
   // §04.09 — the third thing this browser keeps: one resident's look.
   "landing.footprintLook": {
     en: "the resident's jacket and mark saved in this browser",

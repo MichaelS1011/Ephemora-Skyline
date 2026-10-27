@@ -804,12 +804,16 @@ export function Landing() {
   };
 
   const resetNames = (): void => {
-    // The number counts the readable part; names inside bytes that refused to
-    // read cannot be counted and are not promised as a number (open finding,
-    // mixed buckets). The loop below deletes every key of the prefix, the
-    // quarantine slots included, so the unreadable state genuinely ends here —
-    // the line would lie if it went on sounding the alarm over deleted bytes.
-    const n = countStoredNames().names;
+    // Auftrag #22, decided: the sweep takes the unreadable bucket with it —
+    // the loop below deletes every key of the prefix, the quarantine slot
+    // included. The reader asked for what this browser saves of this class,
+    // and corrupt names bytes ARE that; leaving them behind would let the
+    // door undo half its own label and strand the warn line over bytes no
+    // other surface can clear. The honest half of the deal is the done line:
+    // it counts what a count can reach — the readable names as a number, the
+    // unreadable rest as a word, never an invented sum (storageRead.ts class
+    // law: unreadable is not the same as empty, and not the same as either).
+    const names = countStoredNames();
     for (const k of Object.keys(localStorage)) {
       if (k.startsWith("codecity-ephe-names:")) localStorage.removeItem(k);
     }
@@ -819,7 +823,13 @@ export function Landing() {
     setNameCount(0);
     setNamesUnreadable(false);
     setFootNote(
-      ts(lang, n === 1 ? "landing.footprintNamesDoneOne" : "landing.footprintNamesDone", { n }),
+      names.unreadable
+        ? ts(lang, "landing.footprintNamesDoneUnreadable", { n: names.names })
+        : ts(
+            lang,
+            names.names === 1 ? "landing.footprintNamesDoneOne" : "landing.footprintNamesDone",
+            { n: names.names },
+          ),
     );
   };
 
@@ -1206,11 +1216,16 @@ export function Landing() {
                   <button type="button" className="btn-ghost" onClick={() => void resetVerdicts()}>
                     {t(lang, "landing.footprintReset")}
                   </button>
+                  {/* Auftrag #22: the door opens whenever ANYTHING of this
+                      class is there — readable names, or bytes that refuse to
+                      read. A corrupt bucket counted zero and kept the one
+                      button that could clear it shut, over exactly the bytes
+                      an owner most needs to sweep. */}
                   <button
                     type="button"
                     className="btn-ghost"
                     onClick={resetNames}
-                    disabled={nameCount === 0}
+                    disabled={nameCount === 0 && !namesUnreadable}
                   >
                     {t(lang, "landing.footprintResetNames")}
                   </button>

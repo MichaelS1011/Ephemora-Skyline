@@ -33,6 +33,7 @@ const KEYS: DictKey[] = [
   "landing.footprintResetLook",
   "landing.footprintLookDone",
   "landing.footprintNamesDone",
+  "landing.footprintNamesDoneUnreadable",
   "landing.footprintPurged",
   "landing.footprintResetDone",
   "landing.footprintError",
@@ -64,17 +65,23 @@ describe("the footprint block", () => {
     );
   });
 
-  it("counts the names it keeps, and only offers the removal when there are some", () => {
+  it("counts the names it keeps, and opens the removal door over any of them", () => {
     // Three states ride this line (Auftrag #13): the count answers with the
     // readable part AND with whether a bucket refused to read — through the
     // class reader, not a hand-parsed loop whose `catch` called unreadable
-    // bytes "never named". The door's disable stays on the countable number
-    // (open finding, named in the round report); the word is what moved.
-    expect(landing).toContain("countStoredNames().names");
+    // bytes "never named". Auftrag #22 opened the door: `disabled` now fires
+    // only when NOTHING of this class is there — readable zero AND unreadable
+    // false — because a corrupt bucket is exactly the bytes the sweep exists
+    // for. The done line counts what it deletes: readable names as a number
+    // (both branches below), the unreadable rest as a word, never a sum.
+    expect(landing).toContain("const names = countStoredNames();");
     expect(landing).toContain("setNameCount(names.names)");
     expect(landing).toContain("setNamesUnreadable(names.unreadable)");
     expect(landing).toContain("readStoredJson<Record<string, string>>(k, honouredNames)");
-    expect(landing).toMatch(/disabled=\{nameCount === 0\}/);
+    expect(landing).toMatch(/disabled=\{nameCount === 0 && !namesUnreadable\}/);
+    expect(landing).toContain(
+      'ts(lang, "landing.footprintNamesDoneUnreadable", { n: names.names })',
+    );
     // The screen's copy is cleared with the storage, or the card would go on
     // showing a name the reader just deleted.
     expect(landing).toContain(

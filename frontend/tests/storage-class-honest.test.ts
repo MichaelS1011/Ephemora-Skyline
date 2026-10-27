@@ -537,6 +537,83 @@ describe("the word where the names count lives (Landing footprint block)", () =>
   });
 });
 
+/* ── Auftrag #22: the delete door over names bytes. A corrupt bucket counted
+ * zero readable names, and `disabled={nameCount === 0}` kept the one button
+ * that could clear those bytes shut — over exactly the bytes an owner most
+ * needs to sweep. The door now opens whenever anything of this class is
+ * there, readable or not; and the done line counts what it truly deletes:
+ * the readable names as a number, the unreadable remainder as a word —
+ * never a sum invented over bytes nobody can read. ──────────────────────── */
+
+describe("the names delete door opens over unreadable bytes, and the done line says so", () => {
+  const SECOND_BUCKET = "codecity-ephe-names:p-second-bucket";
+
+  function namesDoor(lang: Lang): HTMLButtonElement {
+    const label = (lang === "de" ? tDe : tEn)("landing.footprintResetNames");
+    const btn = [...host.querySelectorAll("button")].find(
+      (b) => (b.textContent ?? "").trim() === label.trim(),
+    ) as HTMLButtonElement | undefined;
+    expect(btn, "the delete-the-names button is gone").toBeTruthy();
+    return btn!;
+  }
+
+  it("unreadable bucket, no readable name: the door is open (EN)", async () => {
+    localStorage.setItem(NAMES_BUCKET, '{"plot:f-a#0":"At');
+    await mountLanding("en");
+    expect(namesDoor("en").disabled).toBe(false);
+  });
+
+  it("pressing it sweeps live bucket and quarantine slot, and the note says both halves (EN)", async () => {
+    localStorage.setItem(NAMES_BUCKET, '{"plot:f-a#0":"At');
+    await mountLanding("en");
+    await act(async () => namesDoor("en").click());
+    // Deleted, not kept: the reader asked for what this browser saves, and a
+    // corrupt names bucket is names bytes — the watch is the warn line BEFORE
+    // the press; after the press the bytes are gone and the line must say so.
+    expect(
+      Object.keys(localStorage).filter((k) => k.startsWith("codecity-ephe-names:")).length,
+    ).toBe(0);
+    expect(preservedUnreadableBytes(NAMES_BUCKET)).toBeNull();
+    const text = host.textContent ?? "";
+    expect(text).toContain(tEn("landing.footprintNamesDoneUnreadable").replace("{n}", "0"));
+    expect(text).not.toContain(tEn("landing.footprintNamesUnreadable"));
+    expect(text).toContain(tEn("landing.footprintNamesNone"));
+  });
+
+  it("mixed buckets: the number counts the readable part, the word names the rest — no fake total (EN)", async () => {
+    localStorage.setItem(SECOND_BUCKET, '{"plot:f-b#0":"Ada"}');
+    localStorage.setItem(NAMES_BUCKET, '{"plot:f-a#0":"At');
+    await mountLanding("en");
+    expect(namesDoor("en").disabled).toBe(false);
+    await act(async () => namesDoor("en").click());
+    const text = host.textContent ?? "";
+    expect(text).toContain(tEn("landing.footprintNamesDoneUnreadable").replace("{n}", "1"));
+    // Not the old bare number (which under-counted the sweep), and not the
+    // sum of both buckets (which no reader can verify from unreadable bytes).
+    expect(text).not.toContain(tEn("landing.footprintNamesDoneOne").replace("{n}", "1"));
+    expect(text).not.toContain(tEn("landing.footprintNamesDone").replace("{n}", "2"));
+  });
+
+  it("mixed buckets, deutsch", async () => {
+    localStorage.setItem(SECOND_BUCKET, '{"plot:f-b#0":"Ada"}');
+    localStorage.setItem(NAMES_BUCKET, '{"plot:f-a#0":"At');
+    await mountLanding("de");
+    await act(async () => namesDoor("de").click());
+    expect(host.textContent ?? "").toContain(
+      tDe("landing.footprintNamesDoneUnreadable").replace("{n}", "1"),
+    );
+  });
+
+  it("healthy bytes keep the old short done line — the unreadable word is not noise", async () => {
+    localStorage.setItem(SECOND_BUCKET, '{"plot:f-b#0":"Ada"}');
+    await mountLanding("en");
+    await act(async () => namesDoor("en").click());
+    const text = host.textContent ?? "";
+    expect(text).toContain(tEn("landing.footprintNamesDoneOne").replace("{n}", "1"));
+    expect(text).not.toContain(tEn("landing.footprintNamesDoneUnreadable"));
+  });
+});
+
 describe("the word where the names live (ResidentCard)", () => {
   async function mountCard(lang: Lang): Promise<string> {
     const initial = useStore.getInitialState();
@@ -724,6 +801,7 @@ const NUMERAL = [
   "eleven",
   "twelve",
   "thirteen",
+  "fourteen",
 ];
 const UNREADABLE_KEYS = Object.keys(DICT).filter((k) => k.includes("Unreadable"));
 const README_SRC = readFileSync(resolve(import.meta.dirname, "../../README.md"), "utf8");
