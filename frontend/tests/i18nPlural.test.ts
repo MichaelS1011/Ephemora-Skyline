@@ -56,7 +56,10 @@ describe("i18n coverage after the text pass", () => {
       "scan.readingOf",
       "scan.uploading",
       "scan.elapsed",
-      "scan.etaHint",
+      // `scan.etaHint` ("usually about {s} s") stood here until #39 removed it:
+      // no screen ever printed it, and nothing in the payload carries a
+      // duration a scan could promise. A key that no surface reads is not a
+      // plan requirement — it is a sentence waiting to be a lie.
       "scan.cancelled",
       "cap.filesFound",
       "cap.hint",

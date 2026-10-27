@@ -2432,10 +2432,6 @@ export const DICT = {
     en: "elapsed {s} s",
     de: "seit {s} s",
   },
-  "scan.etaHint": {
-    en: "usually about {s} s",
-    de: "dauert meist {s} s",
-  },
   "scan.cancelled": {
     en: "Cancelled — nothing continues",
     de: "Abgebrochen — nichts läuft weiter",
