@@ -4,9 +4,10 @@
  *
  * Deliberately a real-process test, and deliberately not one of the quiet
  * scanner's customers. It builds a five-commit history with `git init/add/commit
- * /mv` because the claim is about what `git log --numstat` actually prints for a
- * rename — a stubbed churn reader would test the parser against a fixture someone
- * typed, and the whole point is that the fixture is the tool's own output. What
+ * /mv`, every step stamped with its own second-aligned `--date` (author AND
+ * committer), because the claim is about what `git log --numstat` actually prints
+ * for a rename — a stubbed churn reader would test the parser against a fixture
+ * someone typed, and the whole point is that the fixture is the tool's own output. What
  * it forks is `git`, twice per case, into a temp directory it deletes: no
  * gitleaks, no semgrep, no ruff, no osv-scanner, no `npm audit`. Measured
  * 5,4 s of test time at load 106 — the load is git indexing, not a scanner engine,
@@ -30,6 +31,30 @@ function git(...args: string[]): void {
   execFileSync("git", ["-C", tmpDir, ...args], { stdio: "pipe" });
 }
 
+/**
+ * Every history step gets its OWN second-resolution timestamp, far apart in
+ * the past. Plain `git commit -qm` (the old fixture) put all five commits in
+ * the same second — `%aI` truncates to seconds, so every date the parser
+ * reads collapsed to one value, the rename-chain case could not tell the
+ * chain's first commit from the rename, and any run whose setup crossed a
+ * second boundary made exactly that undecidable claim fail (Auftrag #20).
+ * Author AND committer date move together so the object database's own
+ * ordering matches the timeline the test asserts.
+ */
+const FIXTURE_STEP_MS = 120_000; // two minutes between history steps
+const FIXTURE_BASE_MS = Math.floor((Date.now() - 15 * 60_000) / 1000) * 1000; // whole seconds, 15 min ago
+function fixtureDate(step: number): string {
+  return new Date(FIXTURE_BASE_MS + step * FIXTURE_STEP_MS).toISOString();
+}
+
+function commitAt(step: number, message: string): void {
+  const iso = fixtureDate(step);
+  execFileSync("git", ["-C", tmpDir, "commit", "-qm", message, `--date=${iso}`], {
+    stdio: "pipe",
+    env: { ...process.env, GIT_AUTHOR_DATE: iso, GIT_COMMITTER_DATE: iso },
+  });
+}
+
 async function write(rel: string, content: string): Promise<void> {
   const abs = path.join(tmpDir, rel);
   await fs.mkdir(path.dirname(abs), { recursive: true });
@@ -42,23 +67,23 @@ beforeAll(async () => {
   git("config", "user.email", "test@example.com");
   git("config", "user.name", "Churn Test");
 
-  // Commit 1: create two files
+  // Commit 1 (step 0): create two files
   await write("hot.ts", "export const a = 1;\n");
   await write("calm.ts", "export const b = 2;\n");
   git("add", ".");
-  git("commit", "-qm", "initial");
+  commitAt(0, "initial");
 
-  // Commits 2-4: churn hot.ts heavily, touch calm.ts once more
+  // Commits 2-4 (steps 1-3): churn hot.ts heavily, touch calm.ts once more
   for (let i = 0; i < 3; i++) {
     await write("hot.ts", `export const a = ${i + 10};\n`.repeat(20));
     await write("calm.ts", `export const b = ${i + 3};\n`);
     git("add", ".");
-    git("commit", "-qm", `update ${i}`);
+    commitAt(i + 1, `update ${i}`);
   }
 
-  // Rename hot.ts → hot-renamed.ts (parser must track the new path)
+  // Rename hot.ts → hot-renamed.ts at step 4 (parser must track the new path)
   execFileSync("git", ["-C", tmpDir, "mv", "hot.ts", "hot-renamed.ts"]);
-  git("commit", "-qm", "rename hot");
+  commitAt(4, "rename hot");
 });
 
 afterAll(async () => {
@@ -182,18 +207,31 @@ describe("absolute commit dates per path", () => {
 
   it("keeps the rename chain's FIRST commit, not the rename's", async () => {
     const result = await collectGitChurn(tmpDir);
-    // The one commit that created hot.ts (before the git mv) — independent
-    // evidence read from git itself, not from the parser's own bookkeeping.
-    const initialMs = Date.parse(
-      execFileSync(
-        "git",
-        ["-C", tmpDir, "log", "--format=%aI", "--no-merges", "--reverse", "-1", "--", "hot.ts"],
-        {
-          encoding: "utf-8",
-        },
-      ).trim(),
-    );
-    expect(result.byPath.get("hot-renamed.ts")!.firstCommitAt).toBe(initialMs);
+    // Independent evidence read from git itself, not from the parser's own
+    // bookkeeping: `git log -- hot.ts` prints newest-first, so the OLDEST
+    // commit touching the pre-rename path is the LAST line. (The previous
+    // `--reverse -1` form returned the NEWEST — `--max-count` applies before
+    // `--reverse` — which is the rename commit; with the old undated fixture
+    // both read the same second and the claim was undecidable.)
+    const gitIso = (...args: string[]) =>
+      execFileSync("git", ["-C", tmpDir, "log", "--format=%aI", "--no-merges", ...args], {
+        encoding: "utf-8",
+      });
+    const initialMs = Date.parse(gitIso("--", "hot.ts").trim().split("\n").pop()!);
+    const renameMs = Date.parse(gitIso("-1", "--", "hot-renamed.ts").trim());
+    // The fixture must actually separate the two moments, or this case proves
+    // nothing: second-resolution dates, two minutes per step.
+    expect(
+      initialMs,
+      "fixture must place the chain's first commit apart from the rename",
+    ).toBeLessThan(renameMs);
+
+    const hot = result.byPath.get("hot-renamed.ts")!;
+    // The chain ends at the FIRST commit of hot.ts, not at the rename's.
+    expect(hot.firstCommitAt).toBe(initialMs);
+    expect(hot.firstCommitAt).not.toBe(renameMs);
+    // lastCommitAt is the last real touch of the path — the rename commit.
+    expect(hot.lastCommitAt).toBe(renameMs);
     // calm.ts came from that same initial commit — the two must agree.
     expect(result.byPath.get("calm.ts")!.firstCommitAt).toBe(initialMs);
   });
