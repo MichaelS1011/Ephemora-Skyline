@@ -8,7 +8,7 @@ import { UNCHECKED_COLOR } from "../src/city/palette";
  * BELEG-02 — two numbers the README prints that no test had held still.
  *
  * README.md:71 promises the excluded-folders field "caps the list at fifty", and
- * README.md:66 names the grey for ground no scanner looked at as `#6b6a63`.
+ * README.md:67 names the grey for ground no scanner looked at as `#6b6a63`.
  * The suite already walks both mechanisms — `frontend/tests/scan-excludes.test.tsx:101`
  * and the heat-grid tests — but each of them compares behaviour against the module's
  * own constant, so changing the constant to 40, or the grey to another hex, kept
@@ -48,7 +48,7 @@ describe("the excluded-folders list caps at fifty (README.md:45)", () => {
   });
 });
 
-describe("the grey that says nobody looked (README.md:66)", () => {
+describe("the grey that says nobody looked (README.md:67)", () => {
   it("is the #6b6a63 the table names", () => {
     expect(UNCHECKED_COLOR.toLowerCase()).toBe("#6b6a63");
   });

@@ -164,7 +164,7 @@ describe("the gates the README tells a reader to run (README.md:78-90)", () => {
   });
 
   it("accepts exactly one advisory by name, the braces one it states", () => {
-    // README.md:155 names it: "the one remaining exception matches no finding" — ALLOWED carries GHSA-vfj7-8cjw-p6xm
+    // README.md:156 names it: "the one remaining exception matches no finding" — ALLOWED carries GHSA-vfj7-8cjw-p6xm
     const gate = read("scripts/audit-gate.mjs");
     const allowed = gate.slice(gate.indexOf("const ALLOWED"), gate.indexOf("function audit"));
     const accepted = [
@@ -173,7 +173,7 @@ describe("the gates the README tells a reader to run (README.md:78-90)", () => {
       ),
     ];
     expect(accepted).toEqual(["GHSA-vfj7-8cjw-p6xm"]);
-    // README.md:155 "accepted in `scripts/audit-gate.mjs` by name, with a reason and a re-check date"
+    // README.md:156 "accepted in `scripts/audit-gate.mjs` by name, with a reason and a re-check date"
     expect(allowed).toContain("why:");
     expect(allowed).toContain("recheck:");
     // …and the tree carries the fixed release the override asks for

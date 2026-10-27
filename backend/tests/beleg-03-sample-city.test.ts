@@ -90,7 +90,7 @@ describe("the caption over the built city (README.md:123)", () => {
   });
 
   it("names its own alarm count: one of six plots carries a critical finding", () => {
-    // README.md:122 quotes the map's sentence "▲ 1 of 6 plots carries a critical finding"
+    // README.md:123 quotes the map's sentence "▲ 1 of 6 plots carries a critical finding"
     const withCritical = city.tree.children.filter((d) => d.findingsBySeverity.P0 > 0);
     expect(withCritical).toHaveLength(1);
     expect(withCritical[0]!.name).toBe("backend");

@@ -52,7 +52,7 @@ vi.mock("child_process", () => ({
  * adapter makes. No sentence is read back out of the README.
  */
 
-describe("nine categories a scan can be switched by (README.md:141)", () => {
+describe("nine categories a scan can be switched by (README.md:142)", () => {
   /**
    * The README's sentence names nine groups in order. The labels below are what
    * FINDING_CATEGORIES carries; the count and the order are the claim.
@@ -178,7 +178,7 @@ describe("your own patterns (docs/SCANNERS.md:9)", () => {
   });
 
   it("stops at the twenty-five the sentence names", () => {
-    // README.md:109 "up to 25 regular expressions"; backend/tests/scan-config.test.ts:74
+    // README.md:110 "up to 25 regular expressions"; backend/tests/scan-config.test.ts:74
     // already shows a longer list being cut, this pins the number itself.
     expect(MAX_CUSTOM_PATTERNS).toBe(25);
     const many = Array.from({ length: 26 }, (_, i) => ({
@@ -192,8 +192,8 @@ describe("your own patterns (docs/SCANNERS.md:9)", () => {
     expect(errors.join(" ")).toContain(`truncated to ${MAX_CUSTOM_PATTERNS}`);
   });
 
-  it("runs the ReDoS canary before a pattern is ever run (README.md:109)", () => {
-    // README.md:109 "each validated against a ReDoS canary before it runs"
+  it("runs the ReDoS canary before a pattern is ever run (README.md:110)", () => {
+    // README.md:110 "each validated against a ReDoS canary before it runs"
     const rejected = resolveConfig({
       customPatterns: [{ id: "BLOWUP", regex: "(a|aa)*b", severity: "P1", message: "x" }],
     });
@@ -208,7 +208,7 @@ describe("your own patterns (docs/SCANNERS.md:9)", () => {
   });
 });
 
-describe("the docker fallback the offline switch closes (README.md:91, README.md:94, docs/GETTING_STARTED.md:81)", () => {
+describe("the docker fallback the offline switch closes (README.md:91, README.md:95, docs/GETTING_STARTED.md:81)", () => {
   const previous = process.env["SKYLINE_OFFLINE"];
   /**
    * `SEMGREP_DOCKER=0` is how a machine says "my Docker is not an engine source"

@@ -950,7 +950,12 @@ export function ActionBar() {
                         ? t(lang, "update.available", { version: d.latest ?? "" })
                         : d.offline
                           ? t(lang, "update.unavailable")
-                          : t(lang, "update.upToDate", { version: d.current ?? "" }),
+                          : // `latest: null` is not "you are current" — it is the
+                            // absence of anything to compare against (no release
+                            // published, or the registry answer was not usable).
+                            d.latest == null
+                            ? t(lang, "update.nonePublished")
+                            : t(lang, "update.upToDate", { version: d.current ?? "" }),
                       error: !!d.offline,
                     });
                   } catch {

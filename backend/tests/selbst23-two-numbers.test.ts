@@ -120,7 +120,7 @@ describe("the delivered self-scan list (docs/self-scan-findings.ndjson)", () => 
   });
 });
 
-describe("the two numbers README.md:83 claims (README.md accuracy bullet)", () => {
+describe("the two numbers README.md:84 claims (README.md accuracy bullet)", () => {
   const total = () => findingLines().length;
   const quoted = () => findings().filter(isQuotedTestText).length;
 

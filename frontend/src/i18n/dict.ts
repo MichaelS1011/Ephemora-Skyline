@@ -1066,6 +1066,17 @@ export const DICT = {
     en: "Could not check for updates",
     de: "Update-Prüfung nicht möglich",
   },
+  /**
+   * The check's fourth answer, and the one this project lives in today: no
+   * release has ever been published, so there is nothing to compare the
+   * running version against. Answering "you are up to date" to an unanswered
+   * question is the same move the storage class refuses everywhere else — an
+   * absence of evidence drawn as evidence of absence.
+   */
+  "update.nonePublished": {
+    en: "No published version to compare with — this project has no release yet, so the check cannot say whether a newer one exists.",
+    de: "Kein veröffentlichter Stand zum Vergleichen — dieses Projekt hat noch keinen Release, die Prüfung kann daher nicht sagen, ob es einen neueren gibt.",
+  },
   "mode.structure": {
     en: "STRUCTURE",
     de: "STRUKTUR",
