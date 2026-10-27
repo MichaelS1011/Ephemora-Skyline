@@ -7,6 +7,12 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 Every line below states what was measured, not what was intended: a number here
 came from a run on this machine, with the file and the check that produced it.
 
+## [Unreleased]
+
+- **The resident's door hangs on the plate it opens.** The 3D entrance stood on the empty ground below the schematic plate — the caption of a portrait that had been removed. It is the plate's last row now, measured at 1440×900: plate 893,326 343×359, door 965,643 200×28, 5 px under the caption, inside the frame (was 71 px below it). Its glyph was CSS `content` and Chrome folded it into the accessible name — `ariaSnapshot` read "▸See the resident in 3D"; it is a hidden node now and reads "See the resident in 3D". Two guards, each proven red by sabotage before it was restored byte-identical.
+- **The ground says it itself, the note is gone.** The start screen's longest line described the empty world behind the page in seventeen words, at the one place where the background cannot be guaranteed: on the delivered frame its ink `#a8a49a` sat at 1.02:1 against a bright road marking, with 5 % of its ground pixels at or below 2.79:1. First beat: 117 → 101 words, 41.7 % → 38.7 % coverage, four surfaces unchanged.
+- **The wait is a surface with a clock.** Nine seconds of the first run asked for patience without a name or a number: the build bar had no class, so the first-run census counted 0 surfaces / 0 words / 0.0 % there, and no elapsed figure appeared. It is `.build-bar` now and carries the store's own elapsed seconds. Measured on the real demo run at 1440×900: 1 s = 2 surfaces / 17 words / 8.7 %, 3 s = 2 / 16 / 9.5 %, city standing = 3 / 40 / 23.1 %. The probe was recalibrated first — two of its seventeen selectors named classes that no longer exist.
+
 ## [0.2.0] - 2026-10-27
 
 The work in the tree since 0.1.0, released as this version. The gates below were
