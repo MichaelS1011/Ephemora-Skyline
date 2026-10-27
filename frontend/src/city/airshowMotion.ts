@@ -16,8 +16,8 @@
  *
  * What is deliberately not here: a frustum model. The overview the reader lands
  * in is a fitted `worldFraming.fitWorldPoints`, not a closed-form pose, so
- * whether the banner is in shot is answered by the frames and their pixels
- * (`.qoder-scratch/airshow/`), never by an approximation of the camera. The
+ * whether the banner is in shot is answered by the frames and their pixels,
+ * never by an approximation of the camera. The
  * component reads the live camera for one thing only — which way the audience
  * is — and that is a direction, not a projection.
  */
