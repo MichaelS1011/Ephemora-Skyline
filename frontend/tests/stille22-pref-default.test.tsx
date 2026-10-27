@@ -66,20 +66,24 @@ afterEach(() => {
   localStorage.clear();
 });
 
-describe("the entry screen is silent before the first click", () => {
-  it("asks for a new version by default: no", () => {
+describe("the entry screen asks once, before the first click", () => {
+  it("asks for a new version by default: yes", () => {
     const fresh = loadPrefs();
-    expect(fresh.updateCheck).toBe(false);
+    expect(fresh.updateCheck).toBe(true);
     // the store the landing's gate reads is the same object
-    expect(useStore.getInitialState().prefs.updateCheck).toBe(false);
+    expect(useStore.getInitialState().prefs.updateCheck).toBe(true);
   });
 
-  it("does not ask just because an older build saved the file", () => {
-    // Preferences saved before this decision carry no `updateCheck` key at all.
-    // A default that reads "anything but an explicit false" would turn the
-    // lookup back on for every reader who already has a saved file.
+  it("treats a file saved before the switch existed as no decision", () => {
+    // Preferences saved before the switch existed carry no `updateCheck` key at
+    // all. Silence is not a decline, so such a file inherits the product
+    // default; the case that must stay off is the one below, where the reader
+    // wrote `false` themselves.
     localStorage.setItem(KEY, JSON.stringify({ lang: "de", gfxLite: false, colorblind: false }));
-    expect(loadPrefs().updateCheck).toBe(false);
+    // A blob saved before the switch existed says nothing about it, so it inherits
+    // the product default — which since 2026-10-27 is "on". Only a written false
+    // declines, and declining is kept.
+    expect(loadPrefs().updateCheck).toBe(true);
   });
 
   it("keeps asking for the reader who switched it on", () => {
@@ -89,11 +93,14 @@ describe("the entry screen is silent before the first click", () => {
     expect(loadPrefs().updateCheck).toBe(true);
   });
 
-  it("mounts the entry screen without naming the release feed", async () => {
+  it("asks the release feed once on a fresh screen, and only that", async () => {
+    // The decision moved on 2026-10-27: a returning reader is told about a new
+    // version without hunting for a switch, so the entry screen asks — once,
+    // through the app's own loopback endpoint, which is the only outbound hop
+    // the screen makes and the first line of the disclosure table.
     stubFetch();
     await mountLanding();
-    const updateCalls = calls.filter((c) => c.includes("/api/update/check"));
-    expect(updateCalls).toEqual([]);
+    expect(calls.filter((c) => c.includes("/api/update/check"))).toHaveLength(1);
     // …and is still the same screen: the copy footprint it shows is read
     expect(calls.some((c) => c.includes("/api/footprint"))).toBe(true);
   });
@@ -108,11 +115,11 @@ describe("the entry screen is silent before the first click", () => {
     expect(calls.filter((c) => c.includes("/api/update/check")).length).toBe(1);
   });
 
-  it("shows no version note on a fresh screen", async () => {
+  it("names a newer version on the entry screen the moment it knows one", async () => {
     stubFetch({ updateAvailable: true, latest: "v9.9.9", releaseUrl: null });
     await mountLanding();
     const text = (host.textContent ?? "").replace(/\s+/g, " ");
-    expect(text).not.toMatch(/Version\s+\S+\s+(is available|ist verfügbar)/);
-    expect(host.querySelector(".landing-update-banner")).toBeNull();
+    expect(text).toMatch(/Version\s+\S+\s+(is available|ist verfügbar)/);
+    expect(host.querySelector(".landing-update-banner")).not.toBeNull();
   });
 });

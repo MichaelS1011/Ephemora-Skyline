@@ -249,6 +249,29 @@ function applyOffline(config: ScanConfig): ScanConfig {
 }
 
 /**
+ * Does this scan ask for the AST rule channel?
+ *
+ * Two different switches read as one in `tools.semgrep`, and the in-process
+ * matcher has to tell them apart:
+ *
+ * - the **quick** preset switches it off, and the README row for that profile
+ *   promises "no AST scan" — so the local channel stays off there too;
+ * - **offline** switches it off because the registry rules would be fetched over
+ *   the network. Rules already on the local disk are not a network fetch, and
+ *   the same README sentence says exactly that ("Semgrep unless a local rule
+ *   pack is on disk"). So a scan whose rules are read off disk still runs them
+ *   with `SKYLINE_OFFLINE=1`, and the folder gives the same findings with the
+ *   switch as without it.
+ * - **custom** is the reader's own checkbox, and a checkbox that only changes
+ *   its own label is worse than no checkbox: here the toggle decides.
+ */
+export function astRulesRequested(config: ScanConfig): boolean {
+  if (profilePreset(config.profile).tools?.semgrep === false) return false;
+  if (config.profile === "custom") return config.tools.semgrep;
+  return true;
+}
+
+/**
  * Validate + normalize an unknown client payload into a ScanConfig.
  * Unknown keys are ignored (forward compatible); every list is capped;
  * custom patterns run through the ReDoS validation.

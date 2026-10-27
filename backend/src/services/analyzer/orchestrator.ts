@@ -486,6 +486,13 @@ export class AnalysisOrchestrator {
         regex: true,
         gitleaks: scanProvenance.gitleaksRan,
         semgrep: scanProvenance.semgrepRan,
+        /**
+         * Which channel delivered the shipped rule pack. The engine's flag above
+         * stays the engine's: a match by the in-process matcher is not a semgrep
+         * run, and a payload that credits one would tell a reader their machine
+         * has an AST engine it does not have.
+         */
+        localRules: this.scanner.localRuleChannel().ran,
         dependencies: scanProvenance.depsRan,
         /** names the engine that answered the CVE question, so the card never
             credits `npm audit` for a scan only osv-scanner took part in */

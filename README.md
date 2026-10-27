@@ -11,13 +11,25 @@
   <img alt="Dependencies are checked for advisories weekly by Dependabot, and the audit gate fails on any high or critical finding that was not explicitly accepted" src="https://img.shields.io/badge/deps-Dependabot%20weekly-4078c0?style=flat&logo=dependabot&logocolor=white">
 </p>
 
+<a href="docs/assets/demo-city.mp4"><img src="docs/assets/demo-city-loop.gif" alt="The demo city rising: the front-end district mid-build, its blue file towers climbing, the streets and the other districts already standing" width="100%"></a>
+
+<sub>**[Watch the 27-second clip](docs/assets/demo-city.mp4)** — one visit, filmed as it happens: the entry screen, the demo opened, the city building itself, the tour flying finding to finding. No sound, no cuts, no sped-up frames, every pixel drawn by the app on a laptop.</sub>
+
 **Skyline turns a folder of code into a 3D city you can look around in.** A folder is a district. A file is a building. A taller building means more tangled code inside it, and a red light on top means a security finding. Click a building and you get the file, the line, the rule that fired and the steps to fix it.
 
 Nothing is uploaded. No account, no login, no telemetry. It runs on your own machine and opens in your browser — **your source is never uploaded and never sent to a third party**. English and German. Desktop web app; phones are not supported and not planned.
 
-|                                                                                                                                                                                                             |                                                                                                                                                                                                                                                                               |
-| ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| [![The demo city rising: the front-end district mid-build, its blue file towers climbing, the streets and the other districts already standing](docs/assets/demo-city-loop.gif)](docs/assets/demo-city.mp4) | **[Watch the 27-second clip](docs/assets/demo-city.mp4)** — one visit, filmed as it happens: the entry screen, the demo opened, the city building itself, the tour flying finding to finding. No sound, no cuts, no sped-up frames, every pixel drawn by the app on a laptop. |
+## What's new
+
+0.3.0 — 2026-10-27
+
+- **The two columns of a guided beat share one top line** — plate top 378 → 316, floor under the plate 106 → 168 px
+- **An aircraft tows the product's own invitation across the sky** — the show crosses a 273×119 px band
+- **A promise with no number behind it left the dictionary** — 28 of 1,038
+- **The resident's door hangs on the plate it opens** — 5 px under the caption
+- **The wait is a surface with a clock** — city standing = 3 / 40 / 23.1 %
+
+More in [CHANGELOG.md](./CHANGELOG.md).
 
 ## Run it
 
@@ -81,22 +93,22 @@ Colour never carries a meaning alone: severity chips have a shape and a word, an
 
 The backend binds to `127.0.0.1` by default, and the fifteen routes that carry the origin guard refuse a request a foreign web page sent, checked by `Origin` and `Sec-Fetch-Site`. Ten of them can do something beyond answering a question: start a scan, fold a live delta into one, cancel one, run a folder's own tests, purge staged copies, verify a scan against a later one, write a project's verdicts, delete every stored verdict, export a city, ask a model on this machine about one flagged line. The five reads of the local program: the demo, the city-mapped demo, the rule-pack list, the rule-class names, the disk footprint. When you pick a folder, the browser reads it and posts the contents over loopback — code crosses the loopback interface and stops there. What does leave the machine are lookups the scanners make for their own rule and advisory data, and those carry names, never code:
 
-| Host                   | Made by                             | Leaves the machine                                          | When                                                  |
-| ---------------------- | ----------------------------------- | ----------------------------------------------------------- | ----------------------------------------------------- |
-| `api.github.com`       | the app (update check)              | one anonymous request for the newest release tag            | once an hour, only if the check is on (default: off)  |
-| `semgrep.dev`          | `semgrep`                           | the name of the rule pack it downloads (`p/security-audit`) | a Semgrep scan with no local rule pack selected       |
-| `api.osv.dev`          | `osv-scanner`                       | package names and versions read out of your lockfiles       | a scan with the OSV check switched on                 |
-| `api.deps.dev`         | `osv-scanner`                       | the same package names, resolved against the deps.dev index | with `osv-scanner` installed, next to the OSV queries |
-| `registry.npmjs.org`   | `npm audit`                         | the same dependency names, via npm's advisory path          | dependency check on, but no `osv-scanner` installed   |
-| `pypi.org`             | `pip-audit`                         | Python requirement names and versions                       | OSV check on, but no `osv-scanner` installed          |
-| `registry-1.docker.io` | the Semgrep Docker fallback         | nothing but an image pull (`semgrep/semgrep:1.162.0`)       | Semgrep selected, no binary on `PATH`, Docker present |
-| `registry.npmjs.org`   | `npm ci` in the in-city test runner | whatever your own project's tests install                   | only when you press **Run test file** on a building   |
+| Host                   | Made by                             | Leaves the machine                                          | When                                                                                                |
+| ---------------------- | ----------------------------------- | ----------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
+| `api.github.com`       | the app (update check)              | one anonymous request for the newest release tag            | once an hour, on from the first run — one click in a city's More menu turns it off and it stays off |
+| `semgrep.dev`          | `semgrep`                           | the name of the rule pack it downloads (`p/security-audit`) | a Semgrep scan with no local rule pack selected                                                     |
+| `api.osv.dev`          | `osv-scanner`                       | package names and versions read out of your lockfiles       | a scan with the OSV check switched on                                                               |
+| `api.deps.dev`         | `osv-scanner`                       | the same package names, resolved against the deps.dev index | with `osv-scanner` installed, next to the OSV queries                                               |
+| `registry.npmjs.org`   | `npm audit`                         | the same dependency names, via npm's advisory path          | dependency check on, but no `osv-scanner` installed                                                 |
+| `pypi.org`             | `pip-audit`                         | Python requirement names and versions                       | OSV check on, but no `osv-scanner` installed                                                        |
+| `registry-1.docker.io` | the Semgrep Docker fallback         | nothing but an image pull (`semgrep/semgrep:1.162.0`)       | Semgrep selected, no binary on `PATH`, Docker present                                               |
+| `registry.npmjs.org`   | `npm ci` in the in-city test runner | whatever your own project's tests install                   | only when you press **Run test file** on a building                                                 |
 
 The entry screen renders this same list from the same declaration the backend obeys, and a test fails if the two ever name different hosts. `SKYLINE_OFFLINE=1` switches off the update check, the OSV and dependency checks, and Semgrep unless a local rule pack is on disk; it also closes pip-audit, the Docker pull and any `npm ci` the runner would attempt. With it set, nothing above is reached.
 
-Limits are numbers too: local analysis is capped at **10,000 files / 150 MB / 2 MB per file**, a larger folder opens as a preview sample of up to 2,000 files with the full count named, and your own `.gitignore` sets paths aside before the cap applies. Over this checkout, the browser reader's own decision counts **618** files the project calls source and admits them to the read, and the scan's own single decision, `isScanCandidate`, then reads **595** of those. Two sets, two names, and `backend/tests/claims-counts.test.ts` calls both shipped functions over this tree and fails, printing both numbers, the moment this sentence drifts.
+Limits are numbers too: local analysis is capped at **10,000 files / 150 MB / 2 MB per file**, a larger folder opens as a preview sample of up to 2,000 files with the full count named, and your own `.gitignore` sets paths aside before the cap applies. Over this checkout, the browser reader's own decision counts **620** files the project calls source and admits them to the read, and the scan's own single decision, `isScanCandidate`, then reads **597** of those. Two sets, two names, and `backend/tests/claims-counts.test.ts` calls both shipped functions over this tree and fails, printing both numbers, the moment this sentence drifts.
 
-**Telemetry: none.** The only request the app makes for itself is the anonymous release check above, and that switch starts off. Maintainers read adoption through [GitHub's traffic and clone statistics](https://docs.github.com/en/rest/metrics/traffic) (`GH_TOKEN=*** node scripts/clone-stats.mjs`), which count clones without identifying anyone; those endpoints need a token with write access to this repository and report 14 days. The UI typeface ships inside the app, and a test fails if the entry document ever references a third-party host. More in [`docs/PRIVACY.md`](./docs/PRIVACY.md); reporting a vulnerability follows [SECURITY.md](./SECURITY.md).
+**Telemetry: none.** The only request the app makes for itself is the anonymous release check above — no code, no path, no machine identity, once an hour, and one click in a city's More menu ends it permanently. Maintainers read adoption through [GitHub's traffic and clone statistics](https://docs.github.com/en/rest/metrics/traffic) (`GH_TOKEN=*** node scripts/clone-stats.mjs`), which count clones without identifying anyone; those endpoints need a token with write access to this repository and report 14 days. The UI typeface ships inside the app, and a test fails if the entry document ever references a third-party host. More in [`docs/PRIVACY.md`](./docs/PRIVACY.md); reporting a vulnerability follows [SECURITY.md](./SECURITY.md).
 
 ## What it checks
 
@@ -148,7 +160,7 @@ First look in one screen — what you see, what you can do, what you cannot: [`d
 ```bash
 npm run lint                  # ESLint, zero warnings
 npm run type-check            # tsc --noEmit, both packages
-npm run test                  # Vitest — 300 test files: 213 frontend, 87 backend (2026-10-27)
+npm run test                  # Vitest — 301 test files: 213 frontend, 88 backend (2026-10-27)
 npm run build                 # production build, both packages
 node scripts/audit-gate.mjs   # dependency audit
 ```

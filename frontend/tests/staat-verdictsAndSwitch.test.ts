@@ -36,20 +36,21 @@ beforeEach(() => {
 
 describe("the update check has a state side", () => {
   it("flips the switch and the switch is what the page reloads read", () => {
-    // off on arrival — the entry screen asks nothing before the reader does
-    expect(useStore.getState().prefs.updateCheck).toBe(false);
-    expect(useStore.getState().toggleUpdateCheck()).toBe(true);
+    // on arrival — since 2026-10-27 the entry screen asks on its own, so the
+    // switch's first move is a decline, and the second gives the choice back.
     expect(useStore.getState().prefs.updateCheck).toBe(true);
-    // the landing page's gate reads the STORE, so the fetch is on from now on
+    expect(useStore.getState().toggleUpdateCheck()).toBe(false);
+    expect(useStore.getState().prefs.updateCheck).toBe(false);
+    // the landing page's gate reads the STORE, so the fetch is off from now on
     expect(JSON.parse(localStorage.getItem("codecity-prefs") ?? "{}")).toEqual({
       lang: "en",
       gfxLite: false,
       colorblind: false,
-      updateCheck: true,
+      updateCheck: false,
     });
-    expect(loadPrefs().updateCheck).toBe(true);
-    expect(useStore.getState().toggleUpdateCheck()).toBe(false);
     expect(loadPrefs().updateCheck).toBe(false);
+    expect(useStore.getState().toggleUpdateCheck()).toBe(true);
+    expect(loadPrefs().updateCheck).toBe(true);
   });
 
   it("keeps every other preference intact while switching", () => {

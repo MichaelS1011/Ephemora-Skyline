@@ -32,7 +32,7 @@ const walkTree = (node: CityDir): void => {
 };
 walkTree(city.tree);
 
-describe("the caption over the built city (README.md:123)", () => {
+describe("the caption over the built city (README.md:135)", () => {
   it("ships 74 sample files", () => {
     expect(demo.summary.totalFiles).toBe(74);
     expect(demo.files).toHaveLength(74);
@@ -41,7 +41,7 @@ describe("the caption over the built city (README.md:123)", () => {
   });
 
   it("raises six districts over them", () => {
-    // README.md:123 "74 sample files in six districts"; the summary says the same
+    // README.md:135 "74 sample files in six districts"; the summary says the same
     expect(demo.summary.totalDirectories).toBe(6);
     expect(city.tree.children).toHaveLength(6);
   });
@@ -58,8 +58,8 @@ describe("the caption over the built city (README.md:123)", () => {
   });
 
   it("draws the riskiest file as the critical one, and it is the tallest too", () => {
-    // README.md:123 "the riskiest file as a landmark tower";
-    // README.md:41-42 say what the two channels carry: height = complexity,
+    // README.md:135 "the riskiest file as a landmark tower";
+    // README.md:53-54 say what the two channels carry: height = complexity,
     // beacon = findings weighted by risk.
     const drawn: CityFile[] = [];
     const collect = (node: CityDir): void => {
@@ -90,7 +90,7 @@ describe("the caption over the built city (README.md:123)", () => {
   });
 
   it("names its own alarm count: one of six plots carries a critical finding", () => {
-    // README.md:123 quotes the map's sentence "▲ 1 of 6 plots carries a critical finding"
+    // README.md:135 quotes the map's sentence "▲ 1 of 6 plots carries a critical finding"
     const withCritical = city.tree.children.filter((d) => d.findingsBySeverity.P0 > 0);
     expect(withCritical).toHaveLength(1);
     expect(withCritical[0]!.name).toBe("backend");
@@ -98,7 +98,7 @@ describe("the caption over the built city (README.md:123)", () => {
   });
 });
 
-describe("the finding cards the captions describe (README.md:128, CHANGELOG.md)", () => {
+describe("the finding cards the captions describe (README.md:140, CHANGELOG.md)", () => {
   it("shows eight findings in seven files", () => {
     expect(allFindings).toHaveLength(8);
     expect(new Set(allFindings.map((f) => f.file)).size).toBe(7);
@@ -129,7 +129,7 @@ describe("the finding cards the captions describe (README.md:128, CHANGELOG.md)"
     for (const [engine, ran] of Object.entries(provenance)) {
       expect(ran, `the demo claims ${engine} ran`).toBe(false);
     }
-    // README.md:35 "The demo uses sample files and findings; no scanner ran on that city."
+    // README.md:47 "The demo uses sample files and findings; no scanner ran on that city."
     expect(city.unverifiedEngines.length).toBeGreaterThan(0);
   });
 });
@@ -163,8 +163,8 @@ describe("the district badge's three states, measured on the sample city (CHANGE
   });
 });
 
-describe("the nine reasons a file gives for not joining a scan (README.md:71)", () => {
-  // README.md:71 "counted by the reason they left"
+describe("the nine reasons a file gives for not joining a scan (README.md:83)", () => {
+  // README.md:83 "counted by the reason they left"
   const documented = [
     "pathTooLong",
     "unsafePath",
@@ -201,7 +201,7 @@ describe("the nine reasons a file gives for not joining a scan (README.md:71)", 
   });
 
   it("refuses a count it cannot read instead of inventing one", () => {
-    // README.md:71 promises the numbers arrive together and reconstructable:
+    // README.md:83 promises the numbers arrive together and reconstructable:
     // a garbage field must not become a number the UI quotes.
     expect(sanitizeDropped({ pathTooLong: 7, tooLarge: -3, unsupportedFormat: "nine" })).toEqual({
       ...emptyDroppedFiles(),

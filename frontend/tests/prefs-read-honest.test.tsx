@@ -69,7 +69,7 @@ describe("the corrupt blob is not destroyed on sight", () => {
 describe("what must NOT move", () => {
   it("empty storage still reads as first run: defaults, and no quarantined bytes", () => {
     const fresh = loadPrefs();
-    expect(fresh).toEqual({ lang: "en", gfxLite: false, colorblind: false, updateCheck: false });
+    expect(fresh).toEqual({ lang: "en", gfxLite: false, colorblind: false, updateCheck: true });
     expect(localStorage.getItem(PRESERVED)).toBeNull();
   });
 

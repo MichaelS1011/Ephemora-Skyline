@@ -18,6 +18,7 @@ import type { ResolvedScanConfig } from "./scan-config.js";
 import { dedupIssues, compareBySeverityThenLine } from "./dedup.js";
 import { enrichIssues } from "./finding-knowledge.js";
 import { maskSecretText } from "./redact.js";
+import { suppressLocalDuplicates } from "./local-rules.js";
 import type { GitleaksEngine, OsvEngine, RuffEngine, SemgrepEngine } from "./scanner.js";
 
 /** What the batch run borrows from its scanner — the scanner's half of the seam. */
@@ -129,12 +130,31 @@ export async function runRepositoryBatch(
 
   let mergedCount = 0;
   for (const fa of fileAnalyses) {
+    const semgrepForFile = semgrepByFile.get(fa.path) ?? [];
     const extras: SecurityIssue[] = [
       ...(secretsByFile?.get(fa.path) ?? []),
-      ...(semgrepByFile.get(fa.path) ?? []),
+      ...semgrepForFile,
       ...(ruffByFile.get(fa.path) ?? []),
       ...(osvByFile.get(fa.path) ?? []),
     ];
+
+    /**
+     * The two rule channels, one answer per line.
+     *
+     * The local matcher and semgrep read the same YAML pack, so on a machine
+     * that has the engine both of them can describe the same line. The rule is
+     * written down in one place — `suppressLocalDuplicates()` — and it always
+     * favors the engine: the in-process matcher is what a machine without
+     * semgrep gets, not a second opinion on a machine that has one. Without
+     * this, the per-file findings are already in `fa.vulnerabilities` when the
+     * engine's arrive, and `dedupIssues()` keeps the first for a line and type,
+     * which would silently replace the engine's verdict with ours.
+     */
+    const existing =
+      semgrepForFile.length > 0
+        ? suppressLocalDuplicates(fa.vulnerabilities, semgrepForFile)
+        : fa.vulnerabilities;
+
     if (extras.length === 0) continue;
     const allowed = ctx.filterForPath(extras, fa.path);
     if (allowed.length === 0) continue;
@@ -159,8 +179,8 @@ export async function runRepositoryBatch(
     // frame against the on-disk content read above
     enrichIssues(allowed, contentByPath.get(fa.path));
 
-    const merged = dedupIssues([...fa.vulnerabilities, ...allowed]);
-    mergedCount += merged.length - fa.vulnerabilities.length;
+    const merged = dedupIssues([...existing, ...allowed]);
+    mergedCount += merged.length - existing.length;
     merged.sort(compareBySeverityThenLine);
     fa.vulnerabilities = merged;
   }

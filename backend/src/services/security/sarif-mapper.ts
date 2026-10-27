@@ -88,7 +88,7 @@ export function sarifToIssues(sarif: Sarif, contentByPath?: Map<string, string>)
       ).slice(0, 120);
       const level = res.level ?? "warning";
       const severity = SEVERITY_MAP[level] ?? "P1";
-      const type = sarifRuleToType(res.ruleId);
+      const type = ruleTypeFromId(res.ruleId);
       // Both fields cross the boundary cleaned (R3-10). When the strip leaves
       // nothing behind, the finding falls back to the curated knowledge entry
       // for its type instead of showing an empty or advertised card.
@@ -120,7 +120,15 @@ export function sarifToIssues(sarif: Sarif, contentByPath?: Map<string, string>)
   return issues;
 }
 
-function sarifRuleToType(ruleId: string): string {
+/**
+ * The one derivation of a finding's `type` from the rule that fired.
+ *
+ * It is exported because a second channel now reports the same rules: the local
+ * matcher (`local-rules.ts`) runs the shipped pack in-process on a machine that
+ * has no semgrep. Two channels naming the same rule two ways would give one line
+ * two cards, and the dedup that decides which one shows keys on this name.
+ */
+export function ruleTypeFromId(ruleId: string): string {
   const id = ruleId.toLowerCase();
   if (id.includes("xss")) return "XSS";
   if (id.includes("sql") || id.includes("sqli")) return "SQL_INJECTION";

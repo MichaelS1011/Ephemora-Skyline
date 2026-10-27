@@ -268,6 +268,14 @@ export interface ProjectSummary {
     regex: boolean;
     gitleaks: boolean;
     semgrep: boolean;
+    /**
+     * The shipped rule pack was executed in-process by `local-rules.ts`, over at
+     * least one file of THIS scan. It is a separate flag because it is a
+     * separate channel: `semgrep` may only ever be set by the engine. Like the
+     * regex layer the field sits beside, it is a per-file pass, so a live delta
+     * re-runs it and never lists it as stale.
+     */
+    localRules?: boolean;
     dependencies?: boolean;
     /** Which engine answered the dependency CVE question: `npm-audit`, `osv`, `pip-audit`. */
     dependencyRunner?: string | null;

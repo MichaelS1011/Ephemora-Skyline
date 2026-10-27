@@ -178,3 +178,27 @@ export function validatePackIds(value: unknown, errors: string[]): string[] {
 export function semgrepRuleDirs(ids: string[]): string[] {
   return ids.map((id) => packById(id)?.dir).filter((d): d is string => typeof d === "string");
 }
+
+/**
+ * The packs a scan falls back to when the reader selected none — the ones whose
+ * own manifest says `default: true`, which is what `RulePack.default` has always
+ * meant and nothing ever read. Without it the shipped pack is a folder on disk
+ * that no scan sees, and the sentence in its manifest is a claim about a file.
+ */
+export function defaultPackDirs(): string[] {
+  return listPacks()
+    .filter((pack) => pack.default)
+    .map((pack) => pack.dir);
+}
+
+/**
+ * Which rule directories a scan's own rule channel reads: the selected packs,
+ * or the shipped default when nothing was selected.
+ *
+ * The semgrep path deliberately keeps using `semgrepRuleDirs()` instead: an
+ * empty selection there is the registry string `p/security-audit`, which is a
+ * network fetch and a licence question, not a fallback we own.
+ */
+export function ruleDirsForScan(ids: string[]): string[] {
+  return ids.length > 0 ? semgrepRuleDirs(ids) : defaultPackDirs();
+}

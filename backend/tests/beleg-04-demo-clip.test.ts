@@ -5,7 +5,7 @@ import path from "path";
 /**
  * BELEG-02 — the numbers the demo clip is sold with.
  *
- * README.md:20 states the clip's seconds, frame size, rate and weight in one
+ * README.md:16 states the clip's seconds, frame size, rate and weight in one
  * sentence and adds "No sound, no cuts, no sped-up frames". CHANGELOG.md
  * repeats them. The data is the bytes of docs/assets/demo-city.mp4: an ISO
  * base-media file states its own track list, timescale, sample count and
@@ -17,7 +17,7 @@ import path from "path";
 const FILE = path.resolve(import.meta.dirname, "../../docs/assets/demo-city.mp4");
 const bytes = readFileSync(FILE);
 
-/** What README.md:20 promises about this file. */
+/** What README.md:16 promises about this file. */
 const claimed = (() => {
   const md = readFileSync(path.resolve(import.meta.dirname, "../../README.md"), "utf-8");
   const m = md.match(
@@ -150,7 +150,7 @@ const gifFrames = (gif: Buffer): number => {
   return frames;
 };
 
-describe("the clip's stated shape (README.md:20)", () => {
+describe("the clip's stated shape (README.md:16)", () => {
   it("is the frame size README names", () => {
     expect(trackSize()).toEqual({ width: claimed.width, height: claimed.height });
   });
@@ -171,7 +171,7 @@ describe("the clip's stated shape (README.md:20)", () => {
   });
 });
 
-describe("one visit, filmed as it happens (README.md:20, CHANGELOG.md)", () => {
+describe("one visit, filmed as it happens (README.md:16, CHANGELOG.md)", () => {
   it("carries exactly one track, and it is a video track", () => {
     expect(found.filter((b) => b.type === "trak")).toHaveLength(1);
     expect(handlers()).toEqual(["vide"]);
@@ -204,7 +204,7 @@ describe("one visit, filmed as it happens (README.md:20, CHANGELOG.md)", () => {
     expect(found.filter((b) => b.type === "mdat")).toHaveLength(1);
   });
 
-  it("opens on a loop that runs where a video cannot (README.md:136)", () => {
+  it("opens on a loop that runs where a video cannot (README.md:148)", () => {
     const md = readFileSync(path.resolve(import.meta.dirname, "../../README.md"), "utf-8");
     const m = md.match(
       /(\d+) seconds of that build, (\d+) frames at (\d+) × (\d+) and ([\d.]+) fps, ([\d,]+) KB/,

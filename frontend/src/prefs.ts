@@ -41,7 +41,12 @@ const KEY = "codecity-prefs";
  * network path, closed here on the storage path.
  */
 const UNREADABLE_KEY = "codecity-prefs:unreadable";
-const DEFAULTS: Prefs = { lang: "en", gfxLite: false, colorblind: false, updateCheck: false };
+// The update check is on from the first run (operator decision 2026-10-27): a person who
+// installed an older build learns about a new one without hunting for a switch. What it
+// costs is one anonymous GET per hour to `api.github.com` for the newest release tag —
+// no source, no path, no identifier — it is the first host in the disclosure table, and
+// the switch sits in a city's More menu, where turning it off is one click and sticks.
+const DEFAULTS: Prefs = { lang: "en", gfxLite: false, colorblind: false, updateCheck: true };
 
 /**
  * What reading the stored preferences can answer (the pattern is
@@ -81,10 +86,11 @@ export function loadPrefsRead(): PrefsRead {
         lang: parsed.lang === "de" ? "de" : "en",
         gfxLite: parsed.gfxLite === true,
         colorblind: parsed.colorblind === true,
-        // `=== true`, not `!== false`: a file saved before this decision has no
-        // `updateCheck` key, and reading its absence as "on" would switch the
-        // lookup back for every reader who already has saved preferences.
-        updateCheck: parsed.updateCheck === true,
+        // `!== false`, not `=== true`: the product default moved to "on", so a
+        // file saved before the switch existed states nothing about it and gets
+        // the default. Only a written `false` is a decision — and a decision this
+        // app keeps, which is the whole reason the key is stored at all.
+        updateCheck: parsed.updateCheck !== false,
       },
     };
   } catch {

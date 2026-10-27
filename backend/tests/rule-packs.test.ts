@@ -6,12 +6,19 @@ import { execFileSync } from "child_process";
 import {
   listPacks,
   packById,
+  ruleDirsForScan,
   semgrepRuleDirs,
   shippedPacksRoot,
   validatePackIds,
 } from "../src/services/security/rule-packs.js";
-import { resolveConfig } from "../src/services/security/scan-config.js";
+import { astRulesRequested, resolveConfig } from "../src/services/security/scan-config.js";
 import { SemgrepAdapter } from "../src/services/security/adapters/semgrep-adapter.js";
+import { SecurityScanner } from "../src/services/security/scanner.js";
+import {
+  LocalRulesAdapter,
+  suppressLocalDuplicates,
+} from "../src/services/security/local-rules.js";
+import type { SecurityIssue } from "../src/models/index.js";
 import { categoryOf } from "../src/services/security/categories.js";
 import { existsSync, mkdirSync, writeFileSync } from "fs";
 import { SEMGREP_RUN_BUDGET_MS, SEMGREP_CONCURRENT_BUDGET_MS } from "./helpers/budgets.js";
@@ -283,6 +290,234 @@ describe("der Scan läuft ohne Netz gegen das lokale Pack", () => {
       const byRule = new Map(issues.map((i) => [i.ruleId?.split(".").pop(), i.cwe]));
       expect(byRule.get("ephemora-node-command-injection")).toMatch(/^CWE-78/);
       expect(byRule.get("ephemora-python-sql-injection")).toMatch(/^CWE-89/);
+    },
+    SEMGREP_RUN_BUDGET_MS,
+  );
+});
+
+/**
+ * #38 — der eigene Regel-Pack muss ohne Fremdprogramm feuern.
+ *
+ * Die Messung vor diesem Test: `scanner.ts` schaltete die zwolf Regeln des
+ * Hauses allein über den Semgrep-Adapter ein. Eine Maschine ohne Semgrep —
+ * jeder, der dieses Repo herunterlädt, bevor er irgendetwas installiert —
+ * sah deshalb keine einzige der eigenen Regeln; auf einer echten Fixtur
+ * deckte nur die Regex-Schicht 3 von 7 erwarteten Zeilen ab, Zeile 7/11/12/14
+ * blieben völlig unbedient (Sonde:
+ * `.qoder-scratch/skyline-defect-hunter/2026-10-27-auftrag38/red.mts`).
+ * Der lokale Kanal ist kein viertes Fremdprogramm: er liest dasselbe YAML
+ * und führt es im Prozess aus, über den TypeScript-Parser, der schon
+ * Abhängigkeit ist.
+ */
+describe("der lokale Regelkanal feuert ohne jeden Download (#38)", () => {
+  const packDir = semgrepRuleDirs(["ephemora-core"])[0] ?? "";
+
+  /** Zeilen aus NODE_FIXTURE (Zeile 1 ist die leere erste Zeile des Templates). */
+  const EXPECTED: { rule: string; lines: number[]; severity: "P0" | "P1" }[] = [
+    { rule: "ephemora-node-command-injection", lines: [6, 7, 8], severity: "P0" },
+    { rule: "ephemora-node-eval-of-dynamic-code", lines: [9], severity: "P0" },
+    { rule: "ephemora-node-weak-hash", lines: [11], severity: "P1" },
+    { rule: "ephemora-node-world-writable-file", lines: [12], severity: "P1" },
+    { rule: "ephemora-node-tls-verification-disabled", lines: [14], severity: "P0" },
+  ];
+
+  const localAdapter = () => {
+    const adapter = new LocalRulesAdapter();
+    adapter.setRuleDirs([packDir], ["ephemora-core"]);
+    return adapter;
+  };
+
+  it("kompiliert die 5 JS-Regeln und lehnt die 7 Python-Regeln mit Grund ab", () => {
+    const st = localAdapter().status();
+    expect(st).toHaveLength(12);
+    expect(
+      st
+        .filter((s) => s.local)
+        .map((s) => s.id)
+        .sort(),
+    ).toEqual([
+      "ephemora-node-command-injection",
+      "ephemora-node-eval-of-dynamic-code",
+      "ephemora-node-tls-verification-disabled",
+      "ephemora-node-weak-hash",
+      "ephemora-node-world-writable-file",
+    ]);
+    for (const rejected of st.filter((s) => !s.local)) {
+      expect(rejected.id).toMatch(/^ephemora-python-/);
+      expect(rejected.reason).toContain("kein Parser");
+    }
+    expect(localAdapter().runnableRules()).toBe(5);
+  });
+
+  it("meldet 7 Befunde auf den Positivbeispielen — die Negativbeispiele bleiben still", async () => {
+    const adapter = localAdapter();
+    const issues = ((await adapter.scanFile("bad.ts", NODE_FIXTURE)) as SecurityIssue[]).sort(
+      (a, b) => a.line - b.line,
+    );
+    const byRule = new Map<string, number[]>();
+    for (const i of issues) {
+      byRule.set(i.ruleId ?? "?", [...(byRule.get(i.ruleId ?? "?") ?? []), i.line]);
+    }
+    for (const e of EXPECTED) {
+      expect(byRule.get(e.rule), e.rule).toEqual(e.lines);
+      for (const i of issues.filter((x) => x.ruleId === e.rule)) {
+        expect(i.severity).toBe(e.severity);
+        expect(i.provenance).toBe("local-rules");
+      }
+    }
+    // exakt sieben Befunde: eval("1+1") (Z. 10) und chmodSync(…, 0o644) (Z. 13) feuern nicht
+    expect(issues.map((i) => i.line)).toEqual([6, 7, 8, 9, 11, 12, 14]);
+    expect(issues.filter((i) => i.line === 10 || i.line === 13)).toEqual([]);
+    expect(issues.find((i) => i.ruleId === "ephemora-node-command-injection")!.cwe).toMatch(
+      /^CWE-78/,
+    );
+    expect(adapter.filesScanned()).toBe(1);
+  });
+
+  it("bedient die Hausregeln auch ohne Engine — und nennt den Kanal ehrlich", async () => {
+    const scanner = new SecurityScanner(undefined, undefined, { semgrep: null, gitleaks: null });
+    // leerer Pack-Auswahl-Wort: der gelieferte Default-Pack wird gelesen
+    expect(scanner.localRuleChannel().dirs.length).toBe(1);
+    expect(scanner.localRuleChannel().rules).toBe(5);
+    const issues = await scanner.scanFile("bad.ts", NODE_FIXTURE);
+    // die vier Zeilen, die die HEAD-Messung völlig unbedient ließ (7, 11, 12, 14)
+    for (const line of [7, 11, 12, 14]) {
+      const hits = issues.filter(
+        (i) => i.line === line && (i.provenance === "local-rules" || i.provenance === "semgrep"),
+      );
+      expect(hits.length, `Zeile ${line}`).toBeGreaterThan(0);
+    }
+    // kein Befund des lokalen Kanals gibt sich als semgrep-Lauf aus
+    for (const i of issues.filter((x) => x.provenance === "local-rules")) {
+      expect(i.ruleId).toMatch(/^ephemora-node-/);
+    }
+    expect(issues.some((i) => i.provenance === "semgrep")).toBe(false);
+    expect(scanner.localRuleChannel().ran).toBe(true);
+  });
+
+  it("liefert offline dieselben Befunde wie online — der lokale Kanal holt nichts", async () => {
+    const res = resolveConfig({ rulePacks: ["ephemora-core"] });
+    expect(res.errors).toEqual([]);
+    const scannerOnline = new SecurityScanner(undefined, res.config, {
+      semgrep: null,
+      gitleaks: null,
+    });
+    const online = await scannerOnline.scanFile("bad.ts", NODE_FIXTURE);
+    const prev = process.env.SKYLINE_OFFLINE;
+    process.env.SKYLINE_OFFLINE = "1";
+    try {
+      const offlineRes = resolveConfig({ rulePacks: ["ephemora-core"] });
+      // offline darf ein Kanal, der nur die Platte liest, nicht abgeschaltet sein
+      expect(offlineRes.config.tools.semgrep).toBe(true);
+      expect(astRulesRequested(offlineRes.config)).toBe(true);
+      const scanner = new SecurityScanner(undefined, offlineRes.config, {
+        semgrep: null,
+        gitleaks: null,
+      });
+      expect(scanner.localRuleChannel().dirs).toEqual([packDir]);
+      const offline = await scanner.scanFile("bad.ts", NODE_FIXTURE);
+      const key = (list: SecurityIssue[]) =>
+        list.map((i) => `${i.line}|${i.type}|${i.severity}|${i.provenance}`).sort();
+      expect(key(offline)).toEqual(key(online));
+      // und der Matcher selbst liefert unbeordnet dieselben sieben Befunde
+      const matcher = (await localAdapter().scanFile("bad.ts", NODE_FIXTURE)) as SecurityIssue[];
+      expect(matcher.map((i) => i.line).sort((a, b) => a - b)).toEqual([6, 7, 8, 9, 11, 12, 14]);
+    } finally {
+      if (prev === undefined) delete process.env.SKYLINE_OFFLINE;
+      else process.env.SKYLINE_OFFLINE = prev;
+    }
+    // und das Quick-Profil, das "no AST scan" verspricht, schaltet auch ihn ab
+    expect(astRulesRequested(resolveConfig({ profile: "quick" }).config)).toBe(false);
+  });
+
+  it("ergeduppt Kanal-Dubletten an einer Zeile: wo die Engine sprach, gewinnt sie", () => {
+    const local: SecurityIssue = {
+      type: "CMD_INJECTION",
+      severity: "P0",
+      score: 10,
+      line: 6,
+      code: 'exec("ls " + user, () => {});',
+      message: "m",
+      provenance: "local-rules",
+      ruleId: "ephemora-node-command-injection",
+    };
+    const other: SecurityIssue = { ...local, line: 7 };
+    const engine: SecurityIssue = {
+      ...local,
+      ruleId: "backend.rules.ephemora-core.node.yaml.ephemora-node-command-injection",
+      provenance: "semgrep",
+    };
+    // gleiche Linie, gleicher Typ → der lokale Befund weicht der Engine
+    expect(suppressLocalDuplicates([local, other], [engine])).toEqual([other]);
+    // Engine-Befunde werden von dieser Regel niemals weggenommen
+    expect(suppressLocalDuplicates([engine], [local])).toEqual([engine]);
+    // andere Linie bleibt stehen, gleicher type ohne ruleId reicht als Schlüssel
+    const engineNoId: SecurityIssue = { ...engine, ruleId: undefined };
+    expect(suppressLocalDuplicates([local, other], [engineNoId])).toEqual([other]);
+  });
+
+  it.skipIf(!SEMGREP_BIN)(
+    "End-zu-End: mit echter Engine erscheint keine Zeile zweimal",
+    async () => {
+      const dir = await mkdtemp(path.join(tmpdir(), "codecity-dedup38-"));
+      await writeFile(path.join(dir, "bad.ts"), NODE_FIXTURE, "utf-8");
+      const res = resolveConfig({ rulePacks: ["ephemora-core"] });
+      const scanner = new SecurityScanner(undefined, res.config);
+      // der Scan liest genau die Ordner, die die Pack-Auswahl ihm nennt
+      expect(scanner.localRuleChannel().dirs).toEqual(ruleDirsForScan(["ephemora-core"]));
+      // pro Datei zuerst der Per-File-Lauf (Regex + lokale Regeln), dann der
+      // echte Semgrep-Batch, wie der Orchestrator ihn fährt
+      const perFile = await scanner.scanFile("bad.ts", NODE_FIXTURE);
+      const fa = {
+        path: "bad.ts",
+        language: "TypeScript",
+        lines: { total: 16, code: 14, comments: 0, blank: 2 },
+        complexity: { cyclomatic: 1 },
+        functions: [],
+        classes: [],
+        imports: [],
+        exports: [],
+        vulnerabilities: perFile,
+        content: NODE_FIXTURE,
+      };
+      await scanner.scanRepositoryBatch(dir, [fa]);
+      const keys = fa.vulnerabilities.map((i) => `${i.line}|${i.type}`);
+      expect(new Set(keys).size).toBe(keys.length);
+      // jede Positivzeile ist genau einmal mit ihrem Regeltyp bedient —
+      // gleichgültig welcher Kanal sie trug (regex beansprucht Zeile+Typ vor
+      // Engine und lokalem Kanal, das ist Hausordnung seit #41)
+      const lineTypes: Record<number, string> = {
+        6: "CMD_INJECTION",
+        7: "CMD_INJECTION",
+        8: "CMD_INJECTION",
+        9: "EVAL_USAGE",
+        11: "EPHEMORA_NODE_WEAK_HASH",
+        12: "EPHEMORA_NODE_WORLD_WRITABLE_FILE",
+        14: "EPHEMORA_NODE_TLS_VERIFICATION_DISABLED",
+      };
+      for (const [line, type] of Object.entries(lineTypes)) {
+        const hits = fa.vulnerabilities.filter((i) => i.line === Number(line) && i.type === type);
+        expect(hits, `Zeile ${line} Typ ${type}`).toHaveLength(1);
+      }
+      // die Negativbeispiele feuern auf keinem Kanal
+      expect(fa.vulnerabilities.filter((i) => i.line === 13)).toEqual([]);
+      // wo semgrep eine Regelzeile meldete, steht kein zweiter Kanal mehr darauf
+      for (const line of [6, 7, 8, 9, 11, 12, 14]) {
+        const engineHere = fa.vulnerabilities.filter(
+          (i) => i.line === line && i.provenance === "semgrep",
+        );
+        if (engineHere.length > 0) {
+          const localSame = fa.vulnerabilities.filter(
+            (i) => i.line === line && i.provenance === "local-rules",
+          );
+          for (const l of localSame) {
+            expect(
+              engineHere.some((e) => e.type === l.type),
+              `Zeile ${line}: ${l.type}`,
+            ).toBe(false);
+          }
+        }
+      }
     },
     SEMGREP_RUN_BUDGET_MS,
   );

@@ -311,7 +311,10 @@ describe("Selbst-Erkennung beim ersten Start", () => {
     const prefs = loadPrefs();
     expect(prefs.gfxLite).toBe(true);
     expect(prefs.colorblind).toBe(true);
-    expect(prefs.updateCheck, "a network request is never adopted").toBe(false);
+    // `true` here is the product default, not an adoption: no system signal
+    // carries an update wish, and `systemAdoption()` below still names only the
+    // two the system actually asked for.
+    expect(prefs.updateCheck, "the default, not an adoption").toBe(true);
     expect(prefs.lang, "a language is never adopted").toBe("en");
     expect(systemAdoption()).toEqual(["gfxLite", "colorblind"]);
     expect(localStorage.getItem(KEY), "adoption persisted behind the reader's back").toBeNull();
@@ -349,7 +352,7 @@ describe("Selbst-Erkennung beim ersten Start", () => {
       lang: "en",
       gfxLite: false,
       colorblind: false,
-      updateCheck: false,
+      updateCheck: true, // asking is the default since 2026-10-27
     });
     expect(localStorage.getItem(KEY), "the unreadable bytes were overwritten").toBe(CORRUPT);
     expect(preservedUnreadablePrefs()).toBe(CORRUPT);
@@ -362,7 +365,7 @@ describe("Selbst-Erkennung beim ersten Start", () => {
       lang: "en",
       gfxLite: false,
       colorblind: false,
-      updateCheck: false,
+      updateCheck: true, // the reader's silence is not a decline
     });
     expect(systemAdoption()).toEqual([]);
   });

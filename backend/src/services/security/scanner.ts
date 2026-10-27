@@ -18,9 +18,10 @@ import { dedupIssues, compareBySeverityThenLine } from "./dedup.js";
 import { categoryOf } from "./categories.js";
 import { enrichIssues } from "./finding-knowledge.js";
 import { maskIssueFrames } from "./redact.js";
-import { resolveConfig, type ResolvedScanConfig } from "./scan-config.js";
+import { astRulesRequested, resolveConfig, type ResolvedScanConfig } from "./scan-config.js";
 import { runRepositoryBatch, type RepositoryBatchResult } from "./batch-scan.js";
-import { semgrepRuleDirs } from "./rule-packs.js";
+import { ruleDirsForScan, semgrepRuleDirs } from "./rule-packs.js";
+import { LocalRulesAdapter, type LocalRuleStatus } from "./local-rules.js";
 import { scanFileStructure as parseFileStructure } from "../analyzer/file-structure.js";
 import type { FileStructure } from "../analyzer/file-structure.js";
 
@@ -99,10 +100,17 @@ export class SecurityScanner {
   /** osv was tried this scan, with or without an answer: asking twice is one trip too many. */
   private cveAsked = false;
   private semgrepAdapter: SemgrepEngine | null;
+  /**
+   * The shipped rule pack, executed in-process. It is a per-file adapter like
+   * the regex layer — no engine, no process, no socket — and it is the only
+   * channel that can deliver the pack's rules on a machine without semgrep.
+   */
+  private localRules: LocalRulesAdapter;
 
   constructor(adapters?: ScannerAdapter[], config?: ResolvedScanConfig, engines?: ScannerEngines) {
     this.logger = pino({ name: "security-scanner" });
     this.config = config ?? resolveConfig().config;
+    this.localRules = new LocalRulesAdapter();
     if (adapters) {
       // An explicit per-file list owns the per-file loop; the engine fields
       // stay separate and default to "absent" exactly as before.
@@ -117,7 +125,11 @@ export class SecurityScanner {
       const semgrep = new SemgrepAdapter();
       this.gitleaksAdapter = engines?.gitleaks !== undefined ? engines.gitleaks : gitleaks;
       this.semgrepAdapter = engines?.semgrep !== undefined ? engines.semgrep : semgrep;
-      this.adapters = [new RegexAdapter(), gitleaks, semgrep];
+      // The local channel goes last on purpose: `dedupIssues()` keeps the first
+      // finding for a line and type, so a regex or engine claim about the same
+      // line is the one that shows, and the pack's own rule id rides along only
+      // where nothing else spoke up.
+      this.adapters = [new RegexAdapter(), gitleaks, semgrep, this.localRules];
     }
     this.dependencyAdapter =
       engines?.dependency !== undefined ? engines.dependency : new DependencyAdapter();
@@ -160,6 +172,11 @@ export class SecurityScanner {
    * falling through to the registry — a pack disappearing between "the config
    * was valid" and "the scan runs" must not turn into a network fetch the user
    * never asked for, nor into a scan that quietly widened itself.
+   *
+   * The local channel is decided from the same selection, with one difference:
+   * nothing it reads has to be fetched, so a pack that is on disk runs even when
+   * the network is switched off, and the same folder gives the same findings
+   * with or without `SKYLINE_OFFLINE=1`.
    */
   private applyRulePacks(): void {
     const dirs = semgrepRuleDirs(this.config.rulePacks);
@@ -171,6 +188,25 @@ export class SecurityScanner {
       this.config.tools.semgrep = false;
     }
     this.semgrepAdapter?.setRuleDirs(dirs);
+    this.localRules.resetScanAccounting();
+    this.localRules.setRuleDirs(
+      astRulesRequested(this.config) ? ruleDirsForScan(this.config.rulePacks) : [],
+    );
+  }
+
+  /**
+   * The in-process rule channel, as the payload has to describe it: which packs
+   * it read, how many of their rules it can run, and whether it read a single
+   * file of this scan. A local match is not a semgrep run — the two flags are
+   * separate on purpose, and `semgrep` in the summary keeps meaning the engine.
+   */
+  localRuleChannel(): { ran: boolean; rules: number; dirs: string[]; status: LocalRuleStatus[] } {
+    return {
+      ran: this.localRules.filesScanned() > 0,
+      rules: this.localRules.runnableRules(),
+      dirs: this.localRules.ruleDirs(),
+      status: this.localRules.status(),
+    };
   }
 
   /**
@@ -258,9 +294,14 @@ export class SecurityScanner {
    * Switch adapters to whole-clone batch mode. Call BEFORE the per-file loop
    * when a clone directory is available: gitleaks then contributes its findings
    * via scanRepositoryBatch() instead of one process spawn per file.
+   *
+   * The call is also where a new scan begins, so the local rule channel starts
+   * its accounting here: `ran` then describes this scan's files and not the
+   * last one the process happened to read.
    */
   enableBatchScans(): void {
     this.gitleaksAdapter?.enableBatchMode();
+    this.localRules.resetScanAccounting();
   }
 
   /**

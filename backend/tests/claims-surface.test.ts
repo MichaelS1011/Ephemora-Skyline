@@ -245,14 +245,17 @@ describe("the surface a stranger reads", () => {
           /env\.HOST\?\.trim\(\) \|\|\s*"127\.0\.0\.1"/,
         );
         // "no telemetry": the entry document asks nothing of a host that is not
-        // this machine, and the one request the app makes for itself starts off
+        // this machine. The one request the app makes for itself is the release
+        // check — anonymous, hourly, and the default since 2026-10-27 precisely
+        // because a user is better served by hearing about an update than by
+        // missing it; a single click in a city's More menu turns it off for good.
         expect(
           [...read("frontend/index.html").matchAll(/https?:\/\/([^/"'\s]+)/g)].map((m) => m[1]),
           "the entry document references a host beyond this machine",
         ).toEqual([]);
-        expect(read("frontend/src/prefs.ts")).toMatch(/updateCheck:\s*false/);
+        expect(read("frontend/src/prefs.ts")).toMatch(/updateCheck:\s*true/);
         expect(read("frontend/src/prefs.ts")).toMatch(
-          /updateCheck:\s*parsed\.updateCheck === true/,
+          /updateCheck:\s*parsed\.updateCheck !== false/,
         );
       },
       gates: () => {

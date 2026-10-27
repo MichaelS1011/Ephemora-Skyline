@@ -401,7 +401,13 @@ export function ScanSummary({ demo = false }: { demo?: boolean }) {
         role="status"
         aria-live="polite"
         className={`start-summary is-${shape}`}
-        style={{ borderColor: `${accent}55`, maxWidth: "calc(100% - 28px)" }}
+        // Only the accent travels inline. The width does not: an inline
+        // `maxWidth` here outranked the plate's own cap in `start.css` and let
+        // the announcement grow to whatever its longest line wanted — measured
+        // 878.641 px on a real 403-file scan, 258.641 px past the documented
+        // 620 px, covering the project card by 93 × 176 px at 1280 × 800.
+        // `tests/narrowWorkspace.test.ts` holds the cap to the one place it is set.
+        style={{ borderColor: `${accent}55` }}
         onMouseEnter={hold}
         onMouseLeave={release}
         onFocus={hold}
