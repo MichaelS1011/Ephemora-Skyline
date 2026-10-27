@@ -15,6 +15,8 @@ import {
 } from "../src/components/CameraRig";
 import type { XYZ } from "../src/components/CameraRig";
 import { overviewShot } from "../src/city/layout";
+import { WORLD_OVERVIEW_ELEVATION } from "../src/city/worldFraming";
+import { STANDARD_AZIMUTH } from "../src/city/cameraPresets";
 
 /** Horizontal azimuth of a vector on the XZ plane (radians, atan2 convention). */
 function azimuth(v: { x: number; z: number }): number {
@@ -89,16 +91,42 @@ describe("approachFromCurrentDirection", () => {
     expect(pos.z).toBeCloseTo(5, 6);
   });
 
-  it("falls back to the legacy south-east formula when camPos == camTarget", () => {
+  it("falls back to the standard heading at the world's overview elevation", () => {
+    // No direction to preserve (the first flight of a freshly loaded city) and
+    // no elevation asked for: the heading is the one shipped azimuth and the
+    // height is the overview elevation, not the legacy factors this used to
+    // carry (`0,4 / 0,75 / 0,75` of the distance, which landed every arrival at
+    // 41,6° and overrode whatever the shot itself had said).
     const pos = approachFromCurrentDirection(
       { x: 10, y: 4, z: -3 },
       { x: 10, y: 4, z: -3 },
       { x: 50, y: 0, z: -20 },
       40,
     );
-    expect(pos.x).toBeCloseTo(50 + 40 * 0.4, 6);
-    expect(pos.y).toBeCloseTo(40 * 0.75, 6);
-    expect(pos.z).toBeCloseTo(-20 + 40 * 0.75, 6);
+    const horiz = Math.cos(WORLD_OVERVIEW_ELEVATION) * 40;
+    expect(pos.x).toBeCloseTo(50 + Math.cos(STANDARD_AZIMUTH) * horiz, 6);
+    expect(pos.y).toBeCloseTo(Math.sin(WORLD_OVERVIEW_ELEVATION) * 40, 6);
+    expect(pos.z).toBeCloseTo(-20 + Math.sin(STANDARD_AZIMUTH) * horiz, 6);
+    // A true `distance` from the target, where the legacy formula sat 1,083 × it.
+    expect(len({ x: pos.x - 50, y: pos.y, z: pos.z + 20 })).toBeCloseTo(40, 6);
+  });
+
+  it("honours the shot's own elevation on that first flight", () => {
+    // The arrival as the store sends it: the demo level's shot, 0,52 rad, and
+    // the camera lands at exactly that angle instead of the old 41,6°.
+    const shot = { dist: 117.06, targetY: 6.89, elevation: 0.52 };
+    const target = { x: 0.32, y: shot.targetY, z: 3.02 };
+    const pos = approachFromCurrentDirection(
+      { x: 0, y: 0, z: 0 },
+      { x: 0, y: 0, z: 0 },
+      target,
+      shot.dist,
+      shot.elevation,
+    );
+    const off = { x: pos.x - target.x, y: pos.y - target.y, z: pos.z - target.z };
+    expect(elevation(off)).toBeCloseTo(0.52, 6);
+    expect(len(off)).toBeCloseTo(shot.dist, 4);
+    expect(pos.y).toBeCloseTo(shot.targetY + Math.sin(0.52) * shot.dist, 4);
   });
 
   it("falls back when camPos is numerically indistinguishable from camTarget", () => {
@@ -108,7 +136,7 @@ describe("approachFromCurrentDirection", () => {
       { x: 0, y: 0, z: 0 },
       30,
     );
-    expect(pos.y).toBeCloseTo(30 * 0.75, 6);
+    expect(pos.y).toBeCloseTo(30 * Math.sin(WORLD_OVERVIEW_ELEVATION), 6);
   });
 });
 

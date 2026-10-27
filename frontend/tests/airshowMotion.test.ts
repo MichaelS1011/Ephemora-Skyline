@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   ALT_FLOOR,
   ALT_MIN_CLEARANCE,
+  BANNER_W,
   BANK_MAX,
   CITY_TOP,
   CROWN_MAX,
@@ -101,6 +102,16 @@ describe("the track is a straight, a turn, a straight, a turn", () => {
     // the picture. A lap that filled the whole cycle would be a spinner.
     expect(PASS_REST).toBeGreaterThan(0);
     expect(lapLength(legHalf)).toBeLessThan(lapLength(legHalf) + PASS_REST);
+    // The pause is written in travelled units, so a slower aircraft stretches it:
+    // at 140 units and 13 u/s the sky would be empty for eleven seconds.
+    expect(PASS_REST / SPEED).toBeLessThan(8);
+  });
+
+  it("gives a reader the two seconds a towed banner needs", () => {
+    // The one number the show exists for: how long the address is in front of a
+    // fixed point of the screen. At the speed the first cut shipped with (34)
+    // this was 0,76 s — a flicker, not an invitation.
+    expect(BANNER_W / SPEED).toBeGreaterThanOrEqual(1.5);
   });
 });
 

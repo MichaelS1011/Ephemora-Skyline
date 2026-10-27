@@ -1024,7 +1024,16 @@ export function overviewShot(bounds: number, tallest: number): OverviewShot {
     // (`worldFraming.WORLD_PIVOT_Y`, re-exported as `CameraRig.PIVOT_Y`),
     // not the same number written twice.
     targetY: Math.max(WORLD_PIVOT_Y, tallest * 0.4),
-    elevation: 0.32,
+    // 0,52 rad = 29,8°, chosen on frames at 1440×900 and 1280×800: it is the
+    // flattest arrival that keeps the level inside the frame at the distance the
+    // drawn band allows (1,6 × bounds, capped at 1,8 before the far heat grid
+    // takes over). Flatter shots — 0,32 and 0,45 were both flown — push the
+    // near corner's towers out through the bottom edge, because the corner sits
+    // almost under the camera. Steeper than this and the roofs win the frame
+    // again, which is what the arrival used to be: the legacy fallback in
+    // `CameraRig.approachFromCurrentDirection` held 41,6° and overrode this
+    // number entirely until 2026-10-27.
+    elevation: 0.52,
   };
 }
 

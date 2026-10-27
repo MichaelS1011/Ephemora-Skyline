@@ -79,12 +79,19 @@ export const BANNER_BACK = 16;
  */
 export const BANNER_ADDRESS = "github.com/MichaelS1011";
 
-/** Speed along the path, the roll a turn asks for, and the rest between passes. */
-export const SPEED = 34;
+/** Speed along the path, the roll a turn asks for, and the rest between passes.
+ *  34 was the first number and it was wrong: at the shipped framing the cloth is
+ *  273 px wide for a 26-unit banner (10,5 px per unit), so the address swept past
+ *  a fixed point of the screen in 0,76 s and crossed the whole 1440-px frame in
+ *  4,0 s — nobody reads a towed banner at that speed, and the show stopped being
+ *  an invitation and became a flicker. At 13 the banner's own length takes 2,0 s
+ *  and one crossing takes 10,5 s. */
+export const SPEED = 13;
 export const GRAVITY = 60;
 export const BANK_MAX = 0.45;
-/** Rest between passes, in travelled world units: the show is a fly-past, not a spinner. */
-export const PASS_REST = 140;
+/** Rest between passes, in travelled world units: the show is a fly-past, not a
+ *  spinner. Scaled with the slower speed so the gap stays near five seconds. */
+export const PASS_REST = 60;
 
 /** The camera's own frame, from `App.tsx`'s `fov: 52` and the shipped aspect. */
 export const VERTICAL_HALF_FOV_DEG = 26;

@@ -165,16 +165,25 @@ describe("the outer clamp — one radius, computed one way", () => {
 
 describe("flight targets — the fallbacks and the durations", () => {
   for (const d of [18, 40, 220]) {
-    it(`degenerate flight keeps the legacy south-east vector at distance ${d}`, () => {
+    it(`degenerate flight stands on the standard azimuth at the overview elevation, distance ${d}`, () => {
+      // The legacy vector this replaces was `0,4 / 0,75 / 0,75` of the distance:
+      // the same heading, but a 41,6° height that every arrival inherited and
+      // no shot could overrule. The heading is still the one azimuth; the
+      // height is now the elevation the world asks for, and the offset is a
+      // true `distance` instead of 1,083 × it.
       const pos = approachFromCurrentDirection(
         { x: 10, y: 4, z: -3 },
         { x: 10, y: 4, z: -3 },
         { x: 50, y: 0, z: -20 },
         d,
       );
-      expect(pos).toEqual({ x: 50 + d * 0.4, y: d * 0.75, z: -20 + d * 0.75 });
+      const horiz = Math.cos(WORLD_OVERVIEW_ELEVATION) * d;
+      expect(pos.x).toBeCloseTo(50 + Math.cos(STANDARD_AZIMUTH) * horiz, 9);
+      expect(pos.y).toBeCloseTo(Math.sin(WORLD_OVERVIEW_ELEVATION) * d, 9);
+      expect(pos.z).toBeCloseTo(-20 + Math.sin(STANDARD_AZIMUTH) * horiz, 9);
       // and that vector really sits on the one standard azimuth
-      expect(Math.atan2(d * 0.75, d * 0.4)).toBe(Math.atan2(0.75, 0.4));
+      expect(Math.atan2(pos.z + 20, pos.x - 50)).toBe(STANDARD_AZIMUTH);
+      expect(Math.hypot(pos.x - 50, pos.y, pos.z + 20)).toBeCloseTo(d, 9);
     });
   }
   it("a straight-down approach falls back onto the standard azimuth", () => {

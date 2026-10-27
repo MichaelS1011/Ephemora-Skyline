@@ -8,7 +8,12 @@ import type { CameraInfo } from "../stores/useStore";
 import { getDirLayout } from "../city/layout";
 import type { CraneShot } from "../city/layout";
 import { getKeyboardMark } from "../interaction/keyboardMark";
-import { fitWorldOverview, WORLD_FOV_DEG, WORLD_PIVOT_Y } from "../city/worldFraming";
+import {
+  fitWorldOverview,
+  WORLD_FOV_DEG,
+  WORLD_OVERVIEW_ELEVATION,
+  WORLD_PIVOT_Y,
+} from "../city/worldFraming";
 import { STANDARD_AZIMUTH, fitAnsicht, isAnsicht } from "../city/cameraPresets";
 import { currentVisit } from "../urlState";
 import {
@@ -100,11 +105,20 @@ export function approachFromCurrentDirection(
   const oy = camPos.y - camTarget.y;
   const offsetLen = Math.hypot(ox, oy, oz);
   if (offsetLen < 1e-9) {
-    // Legacy default approach — the pre-pilot fixed south-east vantage.
+    // The first flight of a freshly loaded city has no direction to preserve,
+    // so the shot's own elevation decides where the reader lands. It used to be
+    // three hard-coded factors — `0,4 / 0,75 / 0,75` of the distance — which put
+    // every arrival at 41,6° above the city and silently overrode the 18,3° the
+    // shot asked for: roofs filled the frame, facades disappeared, and the whole
+    // level sat small in the middle of it. The azimuth stays the standard
+    // south-east heading; the height comes from `elevation` like every other
+    // flight, and the offset is a true `distance` again instead of 1,083 × it.
+    const el = elevation ?? WORLD_OVERVIEW_ELEVATION;
+    const horiz = Math.cos(el) * distance;
     return {
-      x: target.x + distance * 0.4,
-      y: distance * 0.75,
-      z: target.z + distance * 0.75,
+      x: target.x + Math.cos(STANDARD_AZIMUTH) * horiz,
+      y: target.y + Math.sin(el) * distance,
+      z: target.z + Math.sin(STANDARD_AZIMUTH) * horiz,
     };
   }
   const horizRadius = Math.hypot(ox, oz);

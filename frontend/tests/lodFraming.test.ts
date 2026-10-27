@@ -177,7 +177,11 @@ describe("the reveal flies the level's own overview shot", () => {
     // inside 85 m, so dropping the cap changes this reveal not by one metre.
     const demo = overviewShot(50, 47.6);
     expect(demo.dist).toBeLessThanOrEqual(85);
-    expect(demo.elevation).toBe(0.32);
+    // 0,52 rad — the flattest arrival that keeps the level inside the frame at
+    // the distance this band allows, chosen on frames at 1440×900 and 1280×800.
+    // It only reaches the screen because `CameraRig`'s first-flight fallback
+    // stopped overriding the shot with its own 41,6° vantage (2026-10-27).
+    expect(demo.elevation).toBe(0.52);
     // A 200-unit level: the shot asks for 1.6 × bounds = 320 m — far inside
     // the heat grid's margin at 699.2 m — while the cap landed the camera at
     // 85 m, 235 m closer than the level's own framing.
