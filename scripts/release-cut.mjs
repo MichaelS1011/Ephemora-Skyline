@@ -81,7 +81,10 @@ console.log(`release ${current} -> ${next} (${kind})${DRY ? " [dry]" : ""}`);
 
 // ── 3. the notes must already exist ────────────────────────────────────────
 const changelog = read("CHANGELOG.md");
-const unreleased = /^## \[Unreleased\]\n([\s\S]*?)(?=^## \[|\s*$)/m.exec(changelog);
+// Up to the next released heading, or to the end of the file. The first cut of this
+// regex let `\s*$` end the lazy group on the heading's own newline, so a section of
+// five written notes read as none — caught by a dry run, not by a release.
+const unreleased = /^## \[Unreleased\]\n([\s\S]*?)(?=^## \[|(?![\s\S]))/m.exec(changelog);
 if (!unreleased) die('CHANGELOG.md has no "## [Unreleased]" section — every pushed improvement gets a line there first');
 const lines = unreleased[1].split("\n").filter((l) => l.trim().startsWith("- "));
 if (lines.length === 0) die("the Unreleased section holds no bullet — a release without notes is a version number nobody can use");
