@@ -45,7 +45,7 @@ describe("the test files the changelog and the readme cite", () => {
   });
 
   /**
-   * README.md:61 promises the counted runs ended with "no test skipped". A cited
+   * README.md:60 promises the counted runs ended with "no test skipped". A cited
    * file is the evidence for a public claim, so a skip in it would quietly retire
    * that claim.
    */
@@ -343,8 +343,8 @@ describe("the README line citations inside this repository's own checks", () => 
     const veraltet: string[] = [];
     const ohneZitat: string[] = [];
     /**
-     * One comment can name two places and quote one sentence — "(README.md:103,
-     * README.md:107)" beside the offline paragraph is such a line. The quote has
+     * One comment can name two places and quote one sentence — "(README.md:102,
+     * README.md:106)" beside the offline paragraph is such a line. The quote has
      * to be found at one of the positions a line names, not at each of them,
      * or the check would demand a sentence twice.
      */

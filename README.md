@@ -21,13 +21,12 @@ Nothing is uploaded. No account, no login, no telemetry. It runs on your own mac
 
 ## What's new
 
-0.3.0 — 2026-10-27
+0.4.0 — 2026-10-27
 
-- **The two columns of a guided beat share one top line** — plate top 378 → 316, floor under the plate 106 → 168 px
-- **An aircraft tows the product's own invitation across the sky** — the show crosses a 273×119 px band
-- **A promise with no number behind it left the dictionary** — 28 of 1,038
-- **The resident's door hangs on the plate it opens** — 5 px under the caption
-- **The wait is a surface with a clock** — city standing = 3 / 40 / 23.1 %
+- **The arrival plate holds the width its own stylesheet promised** — plate 878,641 → 620 px, overflow 258,641 → 0 px
+- **The house rules fire before anything is downloaded** — a folder scanned with no `semgrep` and no `gitleaks` on `PATH` yields 7 findings
+- **A stranger sees the city first** — hero 203×127 → 838×524 px at 1280 wide, caption 12 px
+- **A newer version is announced, not waited for** — one anonymous request an hour, and the check is on from the first run
 
 More in [CHANGELOG.md](./CHANGELOG.md).
 

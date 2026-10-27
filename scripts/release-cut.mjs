@@ -175,13 +175,89 @@ const dated = `## [${next}] - ${today}\n${unreleased[1].replace(/\n+$/, "")}\n`;
 const withRelease = changelog.replace(unreleased[0], `## [Unreleased]\n\n${dated}`);
 write("CHANGELOG.md", withRelease);
 
+// ── 6b. the README advertises the release it just made ─────────────────────
+// A What's new that keeps naming the release before last is the shop window of
+// an older shop, and `claims-whats-new.test.ts` now fails on exactly that. So the
+// cut writes the block itself: the lead sentence and the first sentence carrying
+// a number, both taken verbatim out of the notes above — never paraphrased,
+// because a number a reader cannot re-check is not allowed here.
+function note(bullet) {
+  const lead = /^\*\*(.+?)\*\*/.exec(bullet)?.[1];
+  if (!lead) die(`the note "${bullet.slice(0, 48)}…" has no bold lead sentence to advertise`);
+  const body = bullet.slice(bullet.indexOf("**", 2) + 2).replace(/^[:.]\s*/, "");
+  const sentence = body.split(/(?<=[.])\s+/).find((s) => /\d/.test(s)) ?? "";
+  let tail = sentence.replace(/\s+$/, "").replace(/\.+$/, "");
+  if (tail.length > 200) tail = tail.split(/,\s+/).find((c) => /\d/.test(c)) ?? "";
+  return tail ? `- **${lead}** — ${tail}` : `- **${lead}**`;
+}
+const advertised = lines.slice(0, 5).map((l) => l.trim().replace(/^-\s*/, "")).map(note);
+
+const readmeOld = read("README.md");
+const blockFrom = readmeOld.indexOf("## What's new");
+if (blockFrom === -1) die("README.md has no \"## What's new\" block to refresh");
+const blockRest = readmeOld.slice(blockFrom + "## What's new".length);
+const nextHeading = blockRest.search(/^## /m);
+const blockTo = blockFrom + "## What's new".length + (nextHeading === -1 ? blockRest.length : nextHeading);
+const blockOld = readmeOld.slice(blockFrom, blockTo);
+const blockNew = `## What's new\n\n${next} — ${today}\n\n${advertised.join("\n")}\n\nMore in [CHANGELOG.md](./CHANGELOG.md).\n\n`;
+write("README.md", readmeOld.slice(0, blockFrom) + blockNew + readmeOld.slice(blockTo));
+
+// The block's length is the only thing that can move the 54 `README.md:N`
+// citations, and a citation that points one line off is a wrong public claim.
+// Shift them by the same delta the block changed, in every tracked test file.
+const delta = blockNew.split("\n").length - blockOld.split("\n").length;
+const pastBlock = readmeOld.slice(0, blockTo).split("\n").length; // first line after the old block
+const touched = [];
+if (delta !== 0) {
+  const files = run("git", ["grep", "-l", "-E", "README\\.md:[0-9]", "--", "backend/tests", "frontend/tests"])
+    .split("\n")
+    .filter(Boolean);
+  for (const rel of files) {
+    const src = read(rel);
+    const out = src.replace(/README\.md:(\d+)(?:-(\d+))?/g, (whole, a, b) => {
+      const move = (n) => (Number(n) >= pastBlock ? String(Number(n) + delta) : String(n));
+      return b === undefined ? `README.md:${move(a)}` : `README.md:${move(a)}-${move(b)}`;
+    });
+    if (out !== src) {
+      write(rel, out);
+      touched.push(rel);
+    }
+  }
+  console.log(`  What's new block ${blockOld.split("\n").length} -> ${blockNew.split("\n").length} lines, ${touched.length} test file(s) re-pointed`);
+}
+if (DRY) {
+  console.log(
+    blockNew
+      .split("\n")
+      .map((l) => "  | " + l)
+      .join("\n")
+  );
+}
+
 if (DRY) {
   console.log("dry run stops here: nothing was written, committed, tagged or published.");
   process.exit(0);
 }
 
+// ── 6c. the state that will be pushed is the state that was tested ─────────
+// The gates above checked the tree BEFORE these writes. The writes move public
+// line numbers, so the guards that read them run again here — over exactly what
+// the commit will contain. Red means the cut stops and the tree goes back.
+const written = ["CHANGELOG.md", "README.md", ...touched];
+{
+  process.stdout.write("  post-write: npm run test … ");
+  try {
+    run("npm", ["run", "test"], { stdio: ["ignore", "pipe", "pipe"] });
+    console.log("ok");
+  } catch {
+    run("git", ["checkout", "--", ...written, ...MANIFESTS, "package-lock.json"]);
+    console.log("");
+    die("the released tree does not pass its own guards — the rewritten files are restored, nothing committed");
+  }
+}
+
 // ── 7. commit, tag, publish ────────────────────────────────────────────────
-run("git", ["add", ...MANIFESTS, "package-lock.json", "CHANGELOG.md"]);
+run("git", ["add", ...MANIFESTS, "package-lock.json", ...written]);
 run("git", ["commit", "-m", `chore: ${next}`]);
 const sha = run("git", ["rev-parse", "HEAD"]);
 const tree = run("git", ["rev-parse", "HEAD^{tree}"]);

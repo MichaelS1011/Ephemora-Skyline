@@ -204,7 +204,7 @@ describe("one visit, filmed as it happens (README.md:16, CHANGELOG.md)", () => {
     expect(found.filter((b) => b.type === "mdat")).toHaveLength(1);
   });
 
-  it("opens on a loop that runs where a video cannot (README.md:148)", () => {
+  it("opens on a loop that runs where a video cannot (README.md:147)", () => {
     const md = readFileSync(path.resolve(import.meta.dirname, "../../README.md"), "utf-8");
     const m = md.match(
       /(\d+) seconds of that build, (\d+) frames at (\d+) × (\d+) and ([\d.]+) fps, ([\d,]+) KB/,

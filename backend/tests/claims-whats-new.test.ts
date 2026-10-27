@@ -53,6 +53,21 @@ describe("the What's new block at the top of the README", () => {
     );
   });
 
+  it("names the newest released version, not a comfortable older one", () => {
+    // A What's new that quietly keeps advertising the release before last is
+    // worse than none: the reader is shown a shop window from an older shop.
+    // This is the forcing function a version cut leans on — `release-cut.mjs`
+    // rewrites the block from the notes it just released, so the cut and this
+    // case cannot disagree.
+    const after = changelog.slice(changelog.indexOf("## [Unreleased]"));
+    const newest = /## \[(\d+\.\d+\.\d+)\]/.exec(after);
+    expect(newest, "the CHANGELOG carries no released version to point at").toBeTruthy();
+    expect(
+      version,
+      `the What's new block advertises ${version}, but ${newest![1]} is the newest release`,
+    ).toBe(newest![1]);
+  });
+
   it("prints no number the CHANGELOG does not print for that version", () => {
     const section = sectionFor(version!);
     const allowed = new Set(numbers(section));
