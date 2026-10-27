@@ -42,9 +42,14 @@ describe("one version, everywhere it is written", () => {
       packages: Record<string, { version?: string }>;
     }>("package-lock.json");
     expect(lock.version).toBe(want);
-    expect(lock.packages[""].version).toBe(want);
-    expect(lock.packages["frontend"].version, "frontend workspace").toBe(want);
-    expect(lock.packages["backend"].version, "backend workspace").toBe(want);
+    const entry = (key: string): string => {
+      const found = lock.packages[key];
+      expect(found, `package-lock.json has no packages.${key} entry`).not.toBeUndefined();
+      return found?.version ?? "(none)";
+    };
+    expect(entry("")).toBe(want);
+    expect(entry("frontend"), "frontend workspace").toBe(want);
+    expect(entry("backend"), "backend workspace").toBe(want);
   });
 
   it("is three numbers, because a fourth would silence the update notice", () => {

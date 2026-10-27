@@ -1,5 +1,6 @@
 import { expect } from "vitest";
 import { existsSync, readFileSync, readdirSync } from "fs";
+import { execFileSync } from "child_process";
 import path from "path";
 import type { emptyDroppedFiles } from "../../src/services/analyzer/orchestrator.js";
 
@@ -105,6 +106,28 @@ export function repoSlug(): string {
 }
 
 /**
+ * Paths git does not track yet and does not ignore either — the work a lane
+ * leaves in the tree while it runs. Every count in this family describes the
+ * CHECKOUT a stranger clones, so these are skipped: without the skip the same
+ * commit reads 610 admitted files in CI and 613 at a desk with an open lane,
+ * and then the published number can be true in only one of the two places.
+ * This narrows nothing — it moves the measurement off the working tree and
+ * onto the thing the sentence is about.
+ */
+let untrackedWork: Set<string> | null = null;
+export function isUntrackedWork(rel: string): boolean {
+  if (!untrackedWork) {
+    const out = execFileSync(
+      "git",
+      ["-c", "core.quotepath=false", "ls-files", "--others", "--exclude-standard"],
+      { cwd: REPO, encoding: "utf8" },
+    );
+    untrackedWork = new Set(out.split("\n").filter(Boolean));
+  }
+  return untrackedWork.has(rel);
+}
+
+/**
  * Test files under one directory, counted recursively: the number a stranger
  * gets by naming the four test-file shapes to `find` under that directory and
  * counting the lines, which is why the file counts belong in this guard and the
@@ -117,7 +140,7 @@ export function testFileCount(dir: string): number {
     for (const entry of readdirSync(abs, { withFileTypes: true })) {
       const child = path.join(abs, entry.name);
       if (entry.isDirectory()) walk(child);
-      else if (pattern.test(entry.name)) count += 1;
+      else if (pattern.test(entry.name) && !isUntrackedWork(path.relative(REPO, child))) count += 1;
     }
   };
   walk(path.join(REPO, dir));

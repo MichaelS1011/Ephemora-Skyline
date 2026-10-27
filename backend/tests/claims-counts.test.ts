@@ -9,6 +9,7 @@ import {
   constExpr,
   evaluate,
   importClient,
+  isUntrackedWork,
   read,
   testFileCount,
   type ClientGitignore,
@@ -88,6 +89,8 @@ async function walkWithShippedRules(root: string): Promise<WalkResult> {
         continue;
       }
       if (!entry.isFile()) continue;
+      // A lane's uncommitted work is not in the clone this sentence describes.
+      if (isUntrackedWork(rel)) continue;
       if (isGitPath(rel)) {
         gitFiles += 1;
         reader.classifyCandidate(rel, new File([], entry.name), [], plan, ignores);
