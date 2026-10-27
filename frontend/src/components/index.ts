@@ -10,6 +10,7 @@ export { CityTree } from "./CityTree";
 export { District } from "./District";
 export { Building } from "./Building";
 export { RoadSystem } from "./RoadSystem";
+export { BannerPlane } from "./BannerPlane";
 export { CityConnections } from "./CityConnections";
 export { CameraRig } from "./CameraRig";
 export { ParticleField } from "./ParticleField";

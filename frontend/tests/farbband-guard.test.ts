@@ -26,6 +26,7 @@ const CITY_FILES = [
   "components/District.tsx",
   "components/HeatCells.tsx",
   "components/CoachMarks.tsx",
+  "components/BannerPlane.tsx",
 ];
 
 /** Every spelling an alarm colour can take in a stylesheet or a JSX attribute. */

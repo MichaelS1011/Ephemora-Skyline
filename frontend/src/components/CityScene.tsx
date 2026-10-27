@@ -41,6 +41,7 @@ import { CELL_SPREAD } from "./HeatCells";
 import { CameraRig } from "./CameraRig";
 import { CityTree } from "./CityTree";
 import { Pedestrians } from "./Pedestrians";
+import { BannerPlane } from "./BannerPlane";
 import "../design/world.css";
 
 /** How long a lost context gets to restore itself before the app offers a rebuild. */
@@ -111,6 +112,7 @@ export function CityScene() {
   const shareHero = useStore((s) => s.shareHero);
   const buildStartedAt = useStore((s) => s.buildStartedAt);
   const buildPhase = useStore((s) => s.buildPhase);
+  const lang = useStore((s) => s.prefs.lang);
   const { camera, gl } = useThree();
 
   /**
@@ -339,7 +341,14 @@ export function CityScene() {
   }, [cityData, guide, focusPath, camera, gl, requestFly]);
 
   const frame = useMemo(() => {
-    if (!cityData) return { bounds: 60, centre: { x: 0, z: 0 }, radius: 60, surface: FLAT_SURFACE };
+    if (!cityData)
+      return {
+        bounds: 60,
+        centre: { x: 0, z: 0 },
+        radius: 60,
+        tallest: 0,
+        surface: FLAT_SURFACE,
+      };
     const layout = getDirLayout(cityData, focusPath);
     // The floor's ruler is what actually covers the floor: the far-zoom heat
     // cells overhang their plots by `CELL_SPREAD`, while `bounds` carries the
@@ -355,6 +364,8 @@ export function CityScene() {
     return {
       bounds: layout.bounds,
       centre: layout.centre,
+      // The tallest thing the airshow has to stay above; 0 over bare streets.
+      tallest: layout.buildings.reduce((m, b) => Math.max(m, b.h), 0),
       radius,
       surface: surfaceForLayout(layout, focusPath.length > 0),
     };
@@ -449,6 +460,18 @@ export function CityScene() {
       )}
 
       {cityData && <CityTree />}
+
+      {/* §04.12 — the airshow: one aircraft and the invitation it tows, outside
+          the city branch on purpose, because the empty world is the first thing
+          a stranger sees. It owns no DOM surface, no focus stop and no click
+          target; the track is sized from the live camera inside the component. */}
+      <BannerPlane
+        bounds={frame.bounds}
+        centre={frame.centre}
+        tallest={frame.tallest}
+        lang={lang}
+        active={buildPhase !== "constructing" || shareHero !== null}
+      />
     </WorldSurfaceContext.Provider>
   );
 }

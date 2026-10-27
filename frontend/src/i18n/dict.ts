@@ -545,6 +545,16 @@ export const DICT = {
     de: "Echte Städte entstehen aus deinem Code.",
   },
 
+  // ── The airshow banner (§04.12) ───────────────────────────────────────────
+  // The invitation towed behind the aircraft. Its second line — the address to
+  // write to — is deliberately not here: `panelI18n.test.tsx` refuses a German
+  // value that is only a copy of the English one, and it is right. A URL is not
+  // a sentence; it lives in `city/airshowMotion.ts` as one constant.
+  "airshow.bannerLine": {
+    en: "YOUR AD FLIES HERE",
+    de: "IHRE WERBUNG FLIEGT HIER",
+  },
+
   // ── HUD overlay ───────────────────────────────────────────────────────────
   "hud.backToStart": {
     en: "Back to start",

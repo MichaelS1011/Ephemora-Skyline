@@ -27,6 +27,9 @@ const MUST_HONOUR = [
   // adds, and it reads the same shared signal, so a reader who asked for no
   // motion gets a still figure rather than a slowly spinning one.
   "EphePreview.tsx",
+  // §04.12 — the airshow. It crosses the sky and is gone; it still stands
+  // down for reduced motion, the crane and the heat grid.
+  "BannerPlane.tsx",
 ];
 
 /**

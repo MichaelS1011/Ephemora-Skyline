@@ -599,3 +599,17 @@ export const ENV = {
   arcCasing: "#141a24",
   selection: "#e8503c",
 } as const;
+
+/**
+ * The airshow's own coat — the aircraft and the banner it tows. Both values are
+ * already in ENV, so no new colour enters the world: the hull and the cloth's
+ * plate are the arc casing (14,1:1 against the haze, 5,45:1 against the zenith),
+ * and the copy is the plot ink on that plate (13,37:1). The plate is not
+ * decoration: the same ink reaches only 1,05:1 against the haze, so a banner
+ * without its dark ground is a sentence written on weather.
+ */
+export const AIRSHOW_LIVERY = {
+  hull: ENV.arcCasing,
+  plate: ENV.arcCasing,
+  ink: ENV.plot,
+} as const;
