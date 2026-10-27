@@ -685,6 +685,25 @@ export const DICT = {
     en: "Height = complexity",
     de: "Höhe = Komplexität",
   },
+  /**
+   * At far zoom the heat grid draws the height, and it draws it by the picked
+   * channel (HeatCells.heatCellRise): findings for THREAT, the churn score for
+   * CHURN, the stood-share at the slider's date for TIME. The axis sentence is
+   * chosen per channel by `city/heightAxis` — one of these three, or
+   * `hud.heightComplexity` for the CX channel and for the buildings up close.
+   */
+  "hud.axisThreat": {
+    en: "Height = how much was found here",
+    de: "Höhe = wie viel hier gefunden wurde",
+  },
+  "hud.axisChurn": {
+    en: "Height = churn",
+    de: "Höhe = Churn",
+  },
+  "hud.axisTime": {
+    en: "Height = stood at the chosen date",
+    de: "Höhe = stand am gewählten Datum",
+  },
   "hud.roofFindings": {
     en: "Roof = what was found here",
     de: "Dach = was hier gefunden wurde",

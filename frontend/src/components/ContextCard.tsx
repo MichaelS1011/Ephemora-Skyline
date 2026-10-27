@@ -3,7 +3,9 @@ import { useStore } from "../stores/useStore";
 import { formatCount, formatDecimal, t } from "../i18n";
 import { severityTotal } from "../city/facts";
 import { anchorFor, verifyAnchorsUnreadable } from "../verify";
-import { explainDistrictDraw, resolveDir, tourStops } from "../city/layout";
+import { explainDistrictDraw, getDirLayout, resolveDir, tourStops } from "../city/layout";
+import { heightAxisKey } from "../city/heightAxis";
+import { useLodFar } from "../hooks/useLodFar";
 import { describeGitignoreSkips, scanVerdict } from "../city/provenance";
 import { blindCategories, categoryMeta, summarizeCategories } from "../config/findingCategories";
 import { topLanguages, languageColor, severityColor, authorColor } from "../city/palette";
@@ -45,6 +47,14 @@ export function ContextCard() {
   const showFindings = useStore((s) => s.showFindings);
   const selectedUnit = useStore((s) => s.selectedUnit);
   const compact = useCompactChrome();
+  // The card's grammar line repeats the mast's sentence — it must follow the
+  // same decision (city/heightAxis): complexity up close, the picked channel
+  // while the far-zoom heat grid draws the heights.
+  const heatChannel = useStore((s) => s.heatChannel);
+  const heatBounds = useStore((s) =>
+    s.cityData ? getDirLayout(s.cityData, s.focusPath).bounds : 100,
+  );
+  const heatGridShown = useLodFar(heatBounds);
   useEffect(() => {
     if (showFindings) setCollapsed(true);
   }, [showFindings]);
@@ -197,7 +207,7 @@ export function ContextCard() {
           not count hidden text. */}
       {(compact || selectedUnit !== null || showFindings) && (
         <div className="ctx-grammar" aria-label={t(lang, "ctx.legendToggle")}>
-          <span>{t(lang, "hud.heightComplexity")}</span>
+          <span>{t(lang, heightAxisKey(heatGridShown, heatChannel))}</span>
           <span>{t(lang, "hud.roofFindings")}</span>
         </div>
       )}

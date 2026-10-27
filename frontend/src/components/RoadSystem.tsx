@@ -23,6 +23,8 @@ import {
 
 export { wheelRoll };
 import { COMPLEXITY_TICKS, heightForComplexity } from "../city/mapping";
+import { heightAxisKey } from "../city/heightAxis";
+import { useLodFar } from "../hooks/useLodFar";
 import { reducedSettle } from "../city/motion";
 import { formatDecimal, t } from "../i18n";
 import { useStore } from "../stores/useStore";
@@ -117,6 +119,11 @@ export function RoadSystem({
   active?: boolean;
 }) {
   const lang = useStore((s) => s.prefs.lang);
+  // The mast explains the height that is on screen: complexity up close, the
+  // picked channel's measure while the far-zoom heat grid draws it (see
+  // city/heightAxis — the same decision the HUD key and the card make).
+  const heatChannel = useStore((s) => s.heatChannel);
+  const lodFar = useLodFar(layout.bounds);
   const surface = useWorldSurface();
   const roadData = useMemo(
     () =>
@@ -855,7 +862,7 @@ export function RoadSystem({
               style={{ pointerEvents: "none" }}
             >
               <div className="cf-mast">
-                <div className="cf-mast-title">{t(lang, "hud.heightComplexity")}</div>
+                <div className="cf-mast-title">{t(lang, heightAxisKey(lodFar, heatChannel))}</div>
                 <div className="cf-mast-ticks">
                   {[...COMPLEXITY_TICKS].reverse().map((c) => (
                     <div key={c}>{formatDecimal(lang, c, 2)}</div>

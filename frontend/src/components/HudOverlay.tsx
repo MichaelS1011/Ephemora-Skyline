@@ -10,6 +10,9 @@ import { XrayRaw } from "./XrayRaw";
 import { openSearch } from "./SearchBar";
 import { PHASE_0_MS } from "./CityTree";
 import { t, formatCount, type DictKey, type Lang } from "../i18n";
+import { getDirLayout } from "../city/layout";
+import { heightAxisKey } from "../city/heightAxis";
+import { useLodFar } from "../hooks/useLodFar";
 import { severityCount, severityTotal } from "../city/facts";
 import { LiveBand } from "./LiveBand";
 import "../design/stadt-ui.css";
@@ -87,6 +90,15 @@ export function HudOverlay({ apiStatus }: HudOverlayProps) {
   const tourActive = useStore((s) => s.tourActive);
   const cameraInfo = useStore((s) => s.cameraInfo);
   const cameraMode = useStore((s) => s.cameraMode);
+  // The height sentence follows the field that draws it (city/heightAxis):
+  // far zoom is where CityTree mounts the heat grid, and the grid raises
+  // every cell by the picked channel — the legend may not keep naming
+  // complexity while the tiles stand by "stood at the date".
+  const heatChannel = useStore((s) => s.heatChannel);
+  const heatBounds = useStore((s) =>
+    s.cityData ? getDirLayout(s.cityData, s.focusPath).bounds : 100,
+  );
+  const heatGridShown = useLodFar(heatBounds);
   // The cone test needs the viewport's shape; a resize is the only moment
   // the answer changes, so the aspect is state, not a per-frame read.
   const [viewportAspect, setViewportAspect] = useState(
@@ -367,7 +379,9 @@ export function HudOverlay({ apiStatus }: HudOverlayProps) {
               {language.name}
             </span>
           ))}
-          <span className="legend-explainer">{t(lang, "hud.heightComplexity")}</span>
+          <span className="legend-explainer">
+            {t(lang, heightAxisKey(heatGridShown, heatChannel))}
+          </span>
           <span className="legend-explainer">{t(lang, "hud.roofFindings")}</span>
         </div>
       )}
