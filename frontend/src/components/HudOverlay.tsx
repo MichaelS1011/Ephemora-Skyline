@@ -160,6 +160,11 @@ export function HudOverlay({ apiStatus }: HudOverlayProps) {
   // interval in CityTree (setConstructionProgress) — no extra timer here.
   const constructing = buildPhase === "constructing";
   const phase0 = constructing && Date.now() < buildStartedAt + PHASE_0_MS;
+  // Seconds since the build began, off the store's own stamp — no extra timer.
+  const buildElapsedSec =
+    constructing && buildStartedAt > 0
+      ? Math.max(0, Math.round((Date.now() - buildStartedAt) / 1000))
+      : 0;
   const pct = constructionTotal > 0 ? Math.round((constructionDone / constructionTotal) * 100) : 0;
   const verdict = scanVerdict(cityData.scanProvenance, totalFindings, cityData.languages);
   // A preview reads a sample; the header must not present the sample size as
@@ -387,7 +392,7 @@ export function HudOverlay({ apiStatus }: HudOverlayProps) {
       )}
       {constructing && (
         <div
-          className="absolute bottom-4 left-1/2 z-40 flex max-w-[calc(100vw-24px)] -translate-x-1/2 flex-wrap
+          className="build-bar absolute bottom-4 left-1/2 z-40 flex max-w-[calc(100vw-24px)] -translate-x-1/2 flex-wrap
                      items-center justify-center gap-x-3 gap-y-1 rounded-lg px-4 py-2.5 font-mono text-[length:var(--fs-meta)]
                      pointer-events-auto"
           style={{
@@ -422,6 +427,13 @@ export function HudOverlay({ apiStatus }: HudOverlayProps) {
               </span>
             </>
           )}
+          {/* #31: the build asked for patience without saying how long. The
+              store already holds the moment construction began, and this plate
+              re-renders on the construction interval — so the clock is free,
+              and it sits on its own dark ground rather than on the city. */}
+          <span className="build-bar-elapsed whitespace-nowrap" style={{ color: "#dedbd3" }}>
+            {t(lang, "scan.elapsed", { s: buildElapsedSec })}
+          </span>
           <button
             onClick={requestBuildSkip}
             aria-label={t(lang, "hud.skipAria")}

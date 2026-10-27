@@ -2172,10 +2172,13 @@ describe("Die Typ-Skala der vier Platten trägt ihre Stufen als Token", () => {
     // Kein Blatt definiert diese Werte, und diese Runde erfindet keine neue
     // Variable. Beide bleiben Literal, und die Zeile unten fällt, sobald jemand
     // sie umbaut, ohne sie benannt zu haben.
+    // #31 hat die Wort-Tinte auf drei Zeilen gehoben: der Baubalken sagt jetzt
+    // auch, wie lange er baut, und die Uhr sitzt auf derselben Platte im
+    // selben Ton — kein neuer Wert, deshalb wächst nur die Zahl der Treffer.
     expect(
       [...HUD.matchAll(/style=\{\{ color: "(#[0-9a-f]{6})" \}\}/g)].map((m) => m[1]),
-      "die zwei unbenannten Banner-Tinten haben sich verändert",
-    ).toEqual(["#dedbd3", "#dedbd3"]);
+      "die drei unbenannten Banner-Tinten haben sich verändert",
+    ).toEqual(["#dedbd3", "#dedbd3", "#dedbd3"]);
     expect(
       allCss.includes("#dedbd3:") || allCss.includes("--dedbd3"),
       "doch ein Ton für #dedbd3 erfunden — diese Runde meldet sie, sie definiert sie nicht",
