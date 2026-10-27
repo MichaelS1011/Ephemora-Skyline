@@ -20,6 +20,7 @@ import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
 
 const REPO = path.resolve(import.meta.dirname, "..");
+const OWNER = "MichaelS1011/Ephemora-Skyline";
 const MANIFESTS = [
   "package.json",
   "frontend/package.json",
@@ -176,8 +177,36 @@ run("git", ["push", "origin", `v${next}`]);
 const notesDir = path.join(REPO, ".qoder-scratch", "release-notes");
 mkdirSync(notesDir, { recursive: true });
 const notesFile = path.join(notesDir, `${next}.md`);
-writeFileSync(notesFile, unreleased[1].trim() + "\n");
+
+// The release carries the built app, not only the notes. `pack:check` above
+// already proved this exact tarball installs and boots; shipping it means a
+// reader who wants to run the thing is three commands from doing so, and the
+// source link stays under the same paragraph.
+const stage = path.join(REPO, "dist-package");
+run("node", ["scripts/package-stage.mjs", stage]);
+const packed = JSON.parse(run("npm", ["pack", "--json"], { cwd: stage }))[0];
+const tarball = path.join(stage, packed.filename);
+const mb = (packed.size / 1024 / 1024).toFixed(2);
+const tarballSha = run("shasum", ["-a", "256", tarball]).split(/\s+/)[0];
+const asset = `https://github.com/${OWNER}/releases/download/v${next}/${packed.filename}`;
+const download = `### Want to run it without building?
+
+\`${packed.filename}\` is the app, already compiled — ${mb} MB, ${packed.entryCount} files. In an empty folder:
+
+\`\`\`
+npm init -y
+npm install ${asset}
+npx ephemora-skyline
+\`\`\`
+
+then open http://127.0.0.1:4000. It binds to your own machine only; your source never leaves it.
+SHA-256 \`${tarballSha}\`.
+The same code, readable: [source at v${next}](https://github.com/${OWNER}/tree/v${next}).
+
+`;
+writeFileSync(notesFile, download + unreleased[1].trim() + "\n");
 const url = run("gh", ["release", "create", `v${next}`, "--title", `Ephemora Skyline ${next}`, "--notes-file", notesFile]).trim();
+run("gh", ["release", "upload", `v${next}`, tarball]);
 
 // ── 8. the identity of what was published ──────────────────────────────────
 console.log(
