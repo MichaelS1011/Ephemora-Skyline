@@ -622,6 +622,18 @@
 .landing-shell.start-v2 .landing-intro {
   grid-column: 1;
 }
+/* #37 — in the two guided beats the columns share their top line. Centred, the
+   plate sank 62 px below the card it is paired with, which left 333 px of empty
+   floor under the card against 106 px under the plate: the screen read as two
+   columns of different heights instead of one row of two answers. The entrance
+   keeps the centre rule — there the left column is 597 px tall and centring is
+   what balances it (measured: 81 px below the intro against 203 px below the
+   plate), so the pairing rule follows the taller neighbour, not the theme. */
+.landing-shell.start-v2 .landing-main:has(.landing-welcome) .landing-visual,
+.landing-shell.start-v2 .landing-main:has(.landing-guide) .landing-visual {
+  align-self: start;
+}
+
 .landing-shell.start-v2 .landing-visual {
   grid-column: 2;
   display: flex;

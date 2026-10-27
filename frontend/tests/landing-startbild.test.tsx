@@ -106,6 +106,37 @@ describe("the start picture carries its explanation (#27)", () => {
  * It used to stand on the empty ground below the frame, where it read as the
  * caption of the portrait that #27 removed.
  */
+/**
+ * #37 — the two columns of a guided beat share their top line.
+ *
+ * jsdom has no grid layout, so this is a source guard: it pins the rule that
+ * carries the decision, and the number it was measured to lives in the
+ * composition census (`.qoder-scratch/skyline-experience-shaper/2026-10-27-auftrag37/`:
+ * plate top 378 → 316 against the beat's 316, floor under the plate 106 → 168 px,
+ * coverage and word count unmoved).
+ */
+describe("the guided beats share one top line (#37)", () => {
+  const CSS = readFileSync(join(process.cwd(), "src/design/start.css"), "utf8");
+
+  it("starts the plate with the card it is paired with", () => {
+    expect(
+      /\.landing-main:has\(\.landing-welcome\) \.landing-visual[\s\S]{0,160}?align-self:\s*start;/.test(
+        CSS,
+      ),
+      "the plate sank below the beat again — the row read as two heights",
+    ).toBe(true);
+    expect(CSS).toMatch(/:has\(\.landing-guide\)/);
+  });
+
+  it("leaves the entrance centred, because its own column is the taller one", () => {
+    const visual = /\.landing-shell\.start-v2 \.landing-visual \{([\s\S]*?)\}/.exec(CSS)?.[1] ?? "";
+    expect(
+      visual,
+      "an unconditional align-self would strand the plate above the tall intro",
+    ).not.toMatch(/align-self:\s*start/);
+  });
+});
+
 describe("the resident's door belongs to the plate it opens (#35)", () => {
   it("stands inside the plate, under its caption", async () => {
     await mountLanding();
