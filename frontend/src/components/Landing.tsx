@@ -191,7 +191,6 @@ function CityIllustration({ lang, onOpenPreview }: { lang: Lang; onOpenPreview: 
           {t(lang, "landing.previewOpen")}
         </button>
       </div>
-      <p className="start-street-note">{ts(lang, "landing.streetNote")}</p>
     </figure>
   );
 }

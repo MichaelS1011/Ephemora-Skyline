@@ -169,10 +169,6 @@ const BRIDGE: Record<string, { en: string; de: string }> = {
   "landing.recentDay": { en: "{n} d", de: "{n} T" },
   "landing.recentFiles": { en: "{n} files", de: "{n} Dateien" },
   "landing.recentFilesOne": { en: "{n} file", de: "{n} Datei" },
-  "landing.streetNote": {
-    en: "The ground behind this page is your project before the scan: plots and streets, no buildings yet.",
-    de: "Der Grund hinter dieser Seite ist dein Projekt vor dem Scan: Grundstücke und Straßen, noch ohne Gebäude.",
-  },
   "start.loadingCity": {
     en: "Loading the city this address asks for:",
     de: "Die Stadt unter diesem Link wird geladen:",

@@ -1,4 +1,6 @@
 // @vitest-environment jsdom
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -135,6 +137,29 @@ describe("the resident's door belongs to the plate it opens (#35)", () => {
         .join("")
         .trim() ?? "";
     expect(name).toBe(t("en", "landing.previewOpen"));
+  });
+});
+
+/**
+ * #36 — the ground speaks for itself. The plate explained itself in eight
+ * text lines (50 words EN); the longest, the street note, restated in 17
+ * words what the moving picture already shows — and it did so at the one
+ * spot on the screen whose background is not the plate's own: measured on
+ * the delivered frame, 5 % of the pixels behind it fell to ≤2,8:1 against
+ * its ink (worst 1,0:1), so it could not hold AA. The line and its copy are
+ * gone in both languages; the guard below says so if either returns.
+ */
+describe("the ground behind the start picture carries no caption (#36)", () => {
+  it("renders no street note over the moving ground", async () => {
+    await mountLanding();
+    expect(host.querySelector(".start-street-note")).toBeNull();
+    expect(host.textContent).not.toContain("plots and streets");
+  });
+
+  it("keeps the sentence out of the bridge in both languages", () => {
+    const src = readFileSync(join(import.meta.dirname, "../src/components/startCopy.ts"), "utf-8");
+    expect(src).not.toContain("landing.streetNote");
+    expect(src).not.toContain("Grundstücke und Straßen");
   });
 });
 

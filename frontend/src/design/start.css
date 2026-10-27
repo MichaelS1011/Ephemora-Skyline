@@ -782,19 +782,13 @@
 .start-plate figcaption span {
   color: #bdb8ac;
 }
-.start-street-note {
-  margin: 0;
-  padding-left: 16px;
-  max-width: 52ch;
-  font: 400 11px/1.6 var(--font-mono);
-  letter-spacing: 0.02em;
-  color: #a8a49a;
-}
-.start-street-note::before {
-  content: "◦";
-  margin-right: 7px;
-  color: #6f7a6a;
-}
+/* The street note ("the ground behind this page is your project before the
+   scan") stood here until #36: it said in 17 words what the moving ground
+   already shows, and it said them at the one place on the screen where the
+   background cannot be guaranteed — measured on the delivered frame, 5 % of
+   its ground pixels sit at or below 2,8:1 against the note's ink (#a8a49a),
+   worst 1,0:1. A caption that fails AA on its own subject is a caption off.
+   If the ground ever needs a word again, the word lives on a plate. */
 
 /* ── 7. Footer ──────────────────────────────────────────────────────────── */
 .landing-shell.start-v2 .landing-footer {
@@ -1232,8 +1226,7 @@
   .landing-shell.start-v2 .landing-assure,
   .landing-shell.start-v2 .scan-settings,
   .start-progress,
-  .start-state,
-  .start-street-note {
+  .start-state {
     max-width: 640px;
   }
 }
