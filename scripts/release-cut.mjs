@@ -20,7 +20,22 @@ import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
 
 const REPO = path.resolve(import.meta.dirname, "..");
-const OWNER = "MichaelS1011/Ephemora-Skyline";
+/**
+ * Which repository this pushes to — read from the remote, never written here.
+ * `tests/baum-hygiene.test.ts` fails a script that names one account's path,
+ * and it was right about this file: the first cut of the asset links hard-coded
+ * the owner, which makes the script useless to every other clone.
+ */
+function originSlug() {
+  const url = execFileSync("git", ["remote", "get-url", "origin"], {
+    cwd: REPO,
+    encoding: "utf8",
+  }).trim();
+  const m = url.match(/github\.com[/:]([^/]+\/[^/]+?)(?:\.git)?$/);
+  if (!m) throw new Error(`release-cut: origin is not a GitHub remote (${url})`);
+  return m[1];
+}
+const OWNER = originSlug();
 const MANIFESTS = [
   "package.json",
   "frontend/package.json",

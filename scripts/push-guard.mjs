@@ -139,6 +139,18 @@ if (countsAtRisk) {
   );
 }
 
+// The class CI just caught me in: a script naming one account's repository, or
+// a shipped comment pointing at a local scratch folder. It costs 17 ms and only
+// runs when something under scripts/ moved.
+if (changed.some((f) => f.startsWith("scripts/"))) {
+  step(
+    "hygiene guard (public links, derived paths)",
+    "npx",
+    ["vitest", "run", "tests/baum-hygiene.test.ts", "--reporter=dot"],
+    path.join(REPO, "backend"),
+  );
+}
+
 if (failures.length > 0) {
   console.log(`push-guard: ${failures.length} guard(s) RED — the push is refused. Fix, then push; CI would only say it later.`);
   process.exit(1);
