@@ -1101,7 +1101,10 @@ export function CameraRig() {
         ) === "lost";
       if (lost !== lostRef.current) {
         lostRef.current = lost;
-        setCityLostView(lost);
+        // Flying away from the city is the point of the mode, not a lost view:
+        // the rescue chip would tell a pilot to press Escape twice, and the
+        // first Escape already leaves the cockpit.
+        setCityLostView(lost && modeRef.current !== "pilot");
       }
     }
 

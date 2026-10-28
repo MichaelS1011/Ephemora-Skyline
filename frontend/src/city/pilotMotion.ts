@@ -57,15 +57,21 @@ export const PILOT_HULL_CLEAR = 2.6;
  *  the push grows linearly, so a reader feels the tower before touching it. */
 export const PUSH_SOFT = 7;
 
-/** The chase camera: far enough back to keep the towed cloth in frame (the
- *  cloth trails `BANNER_BACK` = 16 and is 26 wide), high enough to read the
- *  city behind it. These two were framed on the demo level, not guessed. */
-export const CHASE_BACK = 40;
-export const CHASE_UP = 15;
-/** Where the chase camera looks: slightly ahead of and below the hull, so the
- *  aircraft sits in the lower third and the city fills the upper frame. */
-export const CHASE_LOOK_AHEAD = 8;
-export const CHASE_LOOK_DROP = 9;
+/**
+ * The chase camera stands BETWEEN the hull and its own banner. Measured on the
+ * recorded frame: at 40 behind, the cloth (which trails 16 behind and hangs 11
+ * below the hull) sat directly on the view axis and filled the lower third of
+ * the picture — the reader watched their own advertisement instead of where the
+ * aircraft was going. At 12 behind and 9 above, the cloth is four units behind
+ * the lens and out of the shot, and the aircraft is the subject again.
+ */
+export const CHASE_BACK = 12;
+export const CHASE_UP = 9;
+/** Where the chase camera looks: ahead of the aircraft and a little below its
+ *  own height, so the nose points into the frame and the city comes up under
+ *  it instead of the horizon sitting on top of everything. */
+export const CHASE_LOOK_AHEAD = 26;
+export const CHASE_LOOK_DROP = 4;
 
 /** The pilot's eye inside the hull, in the aircraft's own frame (metres above
  *  the hull's origin and ahead of it). The canopy box's roof is at 0,725, so
