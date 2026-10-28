@@ -48,6 +48,29 @@ import { t, type Lang } from "../i18n";
 const CANVAS_W = 640;
 const CANVAS_H = 128;
 
+/** One primitive, placed by a matrix, into a shared position/normal/colour pool. */
+function addPart(
+  pos: number[],
+  nor: number[],
+  col: number[],
+  src: THREE.BufferGeometry,
+  m: THREE.Matrix4,
+  tint: THREE.Color,
+): void {
+  const g = (src.index ? src.toNonIndexed() : src).applyMatrix4(m);
+  const p = g.attributes.position?.array as ArrayLike<number> | undefined;
+  const n = g.attributes.normal?.array as ArrayLike<number> | undefined;
+  if (p) for (let i = 0; i < p.length; i += 1) pos.push(p[i]!);
+  if (n) for (let i = 0; i < n.length; i += 1) nor.push(n[i]!);
+  // One colour per vertex, from a token: the aircraft is one draw call, and the
+  // only way to give it a body, a glasshouse and wings that read apart is to
+  // paint them into the geometry instead of adding a mesh.
+  const count = (p?.length ?? 0) / 3;
+  for (let i = 0; i < count; i += 1) col.push(tint.r, tint.g, tint.b);
+  if (g !== src) g.dispose();
+  else src.dispose();
+}
+
 /** One box, placed by a matrix, into a shared position/normal/colour pool. */
 function addBox(
   pos: number[],
@@ -59,17 +82,7 @@ function addBox(
   m: THREE.Matrix4,
   tint: THREE.Color,
 ): void {
-  const g = new THREE.BoxGeometry(w, h, d).applyMatrix4(m);
-  const p = g.attributes.position?.array as ArrayLike<number> | undefined;
-  const n = g.attributes.normal?.array as ArrayLike<number> | undefined;
-  if (p) for (let i = 0; i < p.length; i += 1) pos.push(p[i]!);
-  if (n) for (let i = 0; i < n.length; i += 1) nor.push(n[i]!);
-  // One colour per vertex, from a token: the aircraft is one draw call, and the
-  // only way to give it a body, a glasshouse and wings that read apart is to
-  // paint them into the geometry instead of adding a mesh.
-  const count = (p?.length ?? 0) / 3;
-  for (let i = 0; i < count; i += 1) col.push(tint.r, tint.g, tint.b);
-  g.dispose();
+  addPart(pos, nor, col, new THREE.BoxGeometry(w, h, d), m, tint);
 }
 
 /** Move, then lean — the order matters, or the lean drags the position with it. */
@@ -78,41 +91,168 @@ const at = (x: number, y: number, z: number, rz = 0): THREE.Matrix4 =>
     .makeTranslation(new THREE.Vector3(x, y, z))
     .multiply(new THREE.Matrix4().makeRotationZ(rz));
 
+/** Translate, then turn about y, then lean about z — the mirrored wing's path. */
+const yawed = (x: number, y: number, z: number, ry: number, rz: number): THREE.Matrix4 =>
+  new THREE.Matrix4()
+    .makeTranslation(new THREE.Vector3(x, y, z))
+    .multiply(new THREE.Matrix4().makeRotationY(ry))
+    .multiply(new THREE.Matrix4().makeRotationZ(rz));
+
 /**
- * The hull, nose along +z — one draw call, twelve boxes, three tints.
- *
- * The first version was five boxes in one near-black token and read as a
- * silhouette: against a pale sky nothing separated the wings from the fuselage,
- * so the aircraft had no shape to read. It is now a low wing with a centre
- * section and tapered, slightly dihedral outer panels, a tapered nose, a dark
- * glasshouse, a tailplane and a fin — and the tints come from the tokens the
- * street already uses (kerb, lane dash, plot), never from a new colour.
+ * A tapered wing laid down flat: a symmetric trapezoid (so a half-turn about y
+ * mirrors it exactly — no mirrored normals anywhere) with a rounded tip,
+ * extruded through a bevel that rounds the leading and trailing edges. A
+ * plank-box wing reads as a plank; the bevel is what makes it a surface, and
+ * the taper is what makes the tip read as an end rather than a cut.
  */
-function hullGeometry(): THREE.BufferGeometry {
+function wingGeometry(
+  semiSpan: number,
+  rootChord: number,
+  tipChord: number,
+  thickness: number,
+): THREE.BufferGeometry {
+  const rs = rootChord / 2;
+  const ts = tipChord / 2;
+  const shoulder = semiSpan * 0.86; // where the tip rounding begins
+  const shape = new THREE.Shape();
+  shape.moveTo(0, rs);
+  shape.lineTo(shoulder, ts);
+  shape.quadraticCurveTo(semiSpan, ts, semiSpan, 0);
+  shape.quadraticCurveTo(semiSpan, -ts, shoulder, -ts);
+  shape.lineTo(0, -rs);
+  shape.closePath();
+  const bevel = Math.min(0.045, thickness * 0.3);
+  return new THREE.ExtrudeGeometry(shape, {
+    depth: thickness,
+    bevelEnabled: true,
+    bevelThickness: bevel,
+    bevelSize: bevel,
+    bevelSegments: 2,
+    curveSegments: 5,
+  }).translate(0, 0, -thickness / 2);
+  // ExtrudeGeometry lies in x/y and thickens along z; the callers rotate it
+  // with rotateX(π/2), which puts the chord along +z (nose) and the thickness
+  // along y — a wing, lying flat, seen from below as a trapezoid.
+}
+
+/**
+ * The hull, nose along +z — one draw call, one merged geometry, three tints.
+ *
+ * The box stack before this one solved the colour problem and left the form
+ * problem: twelve boxes taper in steps, their wings are planks, the glasshouse
+ * is invisible from the chase eye and the fin is a stump — from the recorded
+ * chase frame it read as a broken tower with a cross. This hull is built from
+ * bodies that carry the reading: a capsule fuselage (one continuous silhouette,
+ * a round nose without a box stack), a tapered tail cone, a cylinder cowl and
+ * a sphere spinner that put mass at the front where the eye expects the motor,
+ * a blister canopy that separates from the body by tone, extruded bevelled
+ * wings with dihedral (a V, not a plank cross), a tapered tailplane and a
+ * swept fin that rises to just under the pilot's eye, so the cockpit view
+ * finally shows the aircraft it sits in. Proportions: span 5,90 / hull length
+ * 4,25 = 1,40 — a tow plane reads WIDE; root chord 1,40; fin height 0,82 above
+ * the tube. The tints are the street's own tokens (kerb, lane dash, plot);
+ * what sits where is a readability choice: the darkest of the three on the
+ * surfaces whose silhouette falls on sky (body, fin, cowl), the middle one on
+ * the wings, the pale only on the glass blister, where the edge it needs to
+ * cross is the dark body beside it, not the sky.
+ *
+ * Exported for the readability probe in `.qoder-scratch/…/cockpit-raster.mjs`
+ * — the seat camera's view of the hull is a property of this geometry, and a
+ * live frame cannot separate it from the city scrolling behind it.
+ */
+export function hullGeometry(): THREE.BufferGeometry {
   const pos: number[] = [];
   const nor: number[] = [];
   const col: number[] = [];
   const body = new THREE.Color(AIRSHOW_LIVERY.body);
   const wing = new THREE.Color(AIRSHOW_LIVERY.wing);
   const glass = new THREE.Color(AIRSHOW_LIVERY.glass);
+  const Z90 = new THREE.Matrix4().makeRotationX(Math.PI / 2);
 
-  // Fuselage: a longer, slimmer tube with a tapered nose and a squared tail.
-  addBox(pos, nor, col, 0.62, 0.62, 2.6, at(0, 0, -0.2), body);
-  addBox(pos, nor, col, 0.44, 0.44, 0.9, at(0, -0.02, 1.5), body);
-  addBox(pos, nor, col, 0.5, 0.5, 0.7, at(0, 0.02, -1.75), body);
-  // The glasshouse sits over the wing step, dark against the light body.
-  addBox(pos, nor, col, 0.46, 0.4, 1.25, at(0, 0.46, 0.45), glass);
-  // Low wing: centre section, then tapered outer panels with a little dihedral.
-  addBox(pos, nor, col, 1.5, 0.11, 1.05, at(0, -0.1, 0.15), wing);
-  addBox(pos, nor, col, 1.75, 0.09, 0.85, at(1.6, -0.02, 0.1), wing);
-  addBox(pos, nor, col, 1.75, 0.09, 0.85, at(-1.6, -0.02, 0.1), wing);
-  // Tail: horizontal stabiliser with elevator, and the fin with a rudder.
-  addBox(pos, nor, col, 1.55, 0.07, 0.5, at(0, 0.16, -1.95), wing);
-  addBox(pos, nor, col, 0.1, 0.72, 0.6, at(0, 0.52, -1.9), body);
-  addBox(pos, nor, col, 0.08, 0.34, 0.26, at(0, 0.62, -2.18), wing);
-  // Undercarriage fairings, so the belly is not a flat line from the chase view.
-  addBox(pos, nor, col, 0.16, 0.22, 0.5, at(0.42, -0.36, 0.35), glass);
-  addBox(pos, nor, col, 0.16, 0.22, 0.5, at(-0.42, -0.36, 0.35), glass);
+  // Fuselage: one capsule, nose cap and tail cap round for free.
+  addPart(
+    pos,
+    nor,
+    col,
+    new THREE.CapsuleGeometry(0.33, 2.0, 6, 22).applyMatrix4(Z90),
+    at(0, 0, -0.25),
+    body,
+  );
+  // Tail cone: the tube's aft end narrows to the rudder post over 1,15 units.
+  addPart(
+    pos,
+    nor,
+    col,
+    new THREE.CylinderGeometry(0.075, 0.3, 1.15, 18).rotateX(-Math.PI / 2),
+    at(0, 0.02, -1.85),
+    body,
+  );
+  // Cowl and spinner: the motor mass in front of the wing, not behind it —
+  // and swept slightly up, so the seated eye (1,15 over the tube, `pilotMotion`)
+  // looks OVER the fin and still finds the nose in the lower frame: the cockpit
+  // view is only a cockpit view if some aircraft is in it.
+  addPart(
+    pos,
+    nor,
+    col,
+    new THREE.CylinderGeometry(0.36, 0.36, 0.55, 22).applyMatrix4(Z90),
+    at(0, 0.1, 1.3),
+    body,
+  );
+  addPart(pos, nor, col, new THREE.SphereGeometry(0.16, 12, 8), at(0, 0.13, 1.66), body);
+  // Canopy: a long low blister over the wing step, running toward the cowl —
+  // pale on dark body, so it reads from the chase eye without ever competing
+  // with the sky on its own. A sphere reads as a ball; this reads as glass.
+  addPart(
+    pos,
+    nor,
+    col,
+    new THREE.SphereGeometry(0.52, 18, 10).scale(0.56, 0.3, 1.7),
+    at(0, 0.24, 0.55),
+    glass,
+  );
+  // Low wing: tapered, bevelled, 7° dihedral — mirrored by a half-turn, so
+  // both panels' normals stay honest.
+  const mainWing = wingGeometry(2.95, 1.4, 0.62, 0.12).rotateX(Math.PI / 2);
+  addPart(pos, nor, col, mainWing, yawed(0, -0.16, 0.1, 0, 0.12), wing);
+  addPart(pos, nor, col, mainWing.clone(), yawed(0, -0.16, 0.1, Math.PI, 0.12), wing);
+  mainWing.dispose();
+  // Tailplane: the same wing, smaller, flat on the cone.
+  const tailWing = wingGeometry(1.15, 0.72, 0.34, 0.07).rotateX(Math.PI / 2);
+  addPart(pos, nor, col, tailWing, yawed(0, 0.1, -1.95, 0, 0.05), wing);
+  addPart(pos, nor, col, tailWing.clone(), yawed(0, 0.1, -1.95, Math.PI, 0.05), wing);
+  tailWing.dispose();
+  // Fin: swept in one plane, rising to just under the seated eye.
+  const fin = new THREE.Shape();
+  fin.moveTo(0.475, 0);
+  fin.lineTo(-0.475, 0);
+  fin.lineTo(-0.44, 0.62);
+  fin.quadraticCurveTo(-0.42, 0.8, -0.24, 0.82);
+  fin.lineTo(0.02, 0.72);
+  fin.closePath();
+  addPart(
+    pos,
+    nor,
+    col,
+    new THREE.ExtrudeGeometry(fin, {
+      depth: 0.11,
+      bevelEnabled: true,
+      bevelThickness: 0.035,
+      bevelSize: 0.035,
+      bevelSegments: 2,
+      curveSegments: 4,
+    })
+      .translate(0, 0, -0.055)
+      .rotateY(-Math.PI / 2),
+    at(0, 0.28, -1.675),
+    body,
+  );
+  // Gear fairings: two teardrops under the wing — the belly line gets two
+  // marks that read as landing gear instead of two dark smudges.
+  const spat = new THREE.SphereGeometry(0.17, 10, 8).scale(0.62, 1, 1.5);
+  addPart(pos, nor, col, spat, at(0.62, -0.44, 0.18), body);
+  addPart(pos, nor, col, spat.clone(), at(-0.62, -0.44, 0.18), body);
+  spat.dispose();
 
   const geo = new THREE.BufferGeometry();
   geo.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3));
@@ -412,7 +552,7 @@ export function BannerPlane({ centre, bounds, tallest, lang, active }: BannerPla
           ref={propRef}
           geometry={propGeo}
           material={propMat}
-          position={[0, 0, 1.9]}
+          position={[0, 0.12, 1.9]}
           raycast={() => null}
         />
       </group>
