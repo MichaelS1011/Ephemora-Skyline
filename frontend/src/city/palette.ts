@@ -612,4 +612,12 @@ export const AIRSHOW_LIVERY = {
   hull: ENV.arcCasing,
   plate: ENV.arcCasing,
   ink: ENV.plot,
+  /** The airframe's three tints, all of them tokens the street already paints:
+   *  kerb and lane dash for the body and wings, the plot ink for the glass. A
+   *  near-black hull alone read as a silhouette against the sky (measured on the
+   *  recorded flight frames), and a second colour had to come from somewhere
+   *  that was not a new hex. */
+  body: ENV.curb,
+  wing: ENV.laneDash,
+  glass: ENV.plot,
 } as const;

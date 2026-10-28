@@ -86,12 +86,12 @@ export const BANNER_ADDRESS = "github.com/MichaelS1011";
  *  4,0 s — nobody reads a towed banner at that speed, and the show stopped being
  *  an invitation and became a flicker. At 13 the banner's own length takes 2,0 s
  *  and one crossing takes 10,5 s. */
-export const SPEED = 13;
+export const SPEED = 8;
 export const GRAVITY = 60;
 export const BANK_MAX = 0.45;
 /** Rest between passes, in travelled world units: the show is a fly-past, not a
  *  spinner. Scaled with the slower speed so the gap stays near five seconds. */
-export const PASS_REST = 60;
+export const PASS_REST = 36;
 
 /** The camera's own frame, from `App.tsx`'s `fov: 52` and the shipped aspect. */
 export const VERTICAL_HALF_FOV_DEG = 26;

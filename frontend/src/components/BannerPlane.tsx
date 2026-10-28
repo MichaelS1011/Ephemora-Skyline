@@ -48,20 +48,27 @@ import { t, type Lang } from "../i18n";
 const CANVAS_W = 640;
 const CANVAS_H = 128;
 
-/** One box, placed by a matrix, into a shared position/normal pool. */
+/** One box, placed by a matrix, into a shared position/normal/colour pool. */
 function addBox(
   pos: number[],
   nor: number[],
+  col: number[],
   w: number,
   h: number,
   d: number,
   m: THREE.Matrix4,
+  tint: THREE.Color,
 ): void {
   const g = new THREE.BoxGeometry(w, h, d).applyMatrix4(m);
   const p = g.attributes.position?.array as ArrayLike<number> | undefined;
   const n = g.attributes.normal?.array as ArrayLike<number> | undefined;
   if (p) for (let i = 0; i < p.length; i += 1) pos.push(p[i]!);
   if (n) for (let i = 0; i < n.length; i += 1) nor.push(n[i]!);
+  // One colour per vertex, from a token: the aircraft is one draw call, and the
+  // only way to give it a body, a glasshouse and wings that read apart is to
+  // paint them into the geometry instead of adding a mesh.
+  const count = (p?.length ?? 0) / 3;
+  for (let i = 0; i < count; i += 1) col.push(tint.r, tint.g, tint.b);
   g.dispose();
 }
 
@@ -71,18 +78,46 @@ const at = (x: number, y: number, z: number, rz = 0): THREE.Matrix4 =>
     .makeTranslation(new THREE.Vector3(x, y, z))
     .multiply(new THREE.Matrix4().makeRotationZ(rz));
 
-/** The hull, nose along +z: fuselage, cockpit, wing, tailplane, fin — five boxes, one draw. */
+/**
+ * The hull, nose along +z — one draw call, twelve boxes, three tints.
+ *
+ * The first version was five boxes in one near-black token and read as a
+ * silhouette: against a pale sky nothing separated the wings from the fuselage,
+ * so the aircraft had no shape to read. It is now a low wing with a centre
+ * section and tapered, slightly dihedral outer panels, a tapered nose, a dark
+ * glasshouse, a tailplane and a fin — and the tints come from the tokens the
+ * street already uses (kerb, lane dash, plot), never from a new colour.
+ */
 function hullGeometry(): THREE.BufferGeometry {
   const pos: number[] = [];
   const nor: number[] = [];
-  addBox(pos, nor, 0.7, 0.7, 3.6, at(0, 0, 0));
-  addBox(pos, nor, 0.55, 0.45, 1.1, at(0, 0.5, 0.5));
-  addBox(pos, nor, 4.6, 0.12, 0.9, at(0, -0.05, 0.1));
-  addBox(pos, nor, 1.7, 0.1, 0.5, at(0, 0.15, -1.6));
-  addBox(pos, nor, 0.1, 0.85, 0.55, at(0, 0.6, -1.55));
+  const col: number[] = [];
+  const body = new THREE.Color(AIRSHOW_LIVERY.body);
+  const wing = new THREE.Color(AIRSHOW_LIVERY.wing);
+  const glass = new THREE.Color(AIRSHOW_LIVERY.glass);
+
+  // Fuselage: a longer, slimmer tube with a tapered nose and a squared tail.
+  addBox(pos, nor, col, 0.62, 0.62, 2.6, at(0, 0, -0.2), body);
+  addBox(pos, nor, col, 0.44, 0.44, 0.9, at(0, -0.02, 1.5), body);
+  addBox(pos, nor, col, 0.5, 0.5, 0.7, at(0, 0.02, -1.75), body);
+  // The glasshouse sits over the wing step, dark against the light body.
+  addBox(pos, nor, col, 0.46, 0.4, 1.25, at(0, 0.46, 0.45), glass);
+  // Low wing: centre section, then tapered outer panels with a little dihedral.
+  addBox(pos, nor, col, 1.5, 0.11, 1.05, at(0, -0.1, 0.15), wing);
+  addBox(pos, nor, col, 1.75, 0.09, 0.85, at(1.6, -0.02, 0.1), wing);
+  addBox(pos, nor, col, 1.75, 0.09, 0.85, at(-1.6, -0.02, 0.1), wing);
+  // Tail: horizontal stabiliser with elevator, and the fin with a rudder.
+  addBox(pos, nor, col, 1.55, 0.07, 0.5, at(0, 0.16, -1.95), wing);
+  addBox(pos, nor, col, 0.1, 0.72, 0.6, at(0, 0.52, -1.9), body);
+  addBox(pos, nor, col, 0.08, 0.34, 0.26, at(0, 0.62, -2.18), wing);
+  // Undercarriage fairings, so the belly is not a flat line from the chase view.
+  addBox(pos, nor, col, 0.16, 0.22, 0.5, at(0.42, -0.36, 0.35), glass);
+  addBox(pos, nor, col, 0.16, 0.22, 0.5, at(-0.42, -0.36, 0.35), glass);
+
   const geo = new THREE.BufferGeometry();
   geo.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3));
   geo.setAttribute("normal", new THREE.Float32BufferAttribute(nor, 3));
+  geo.setAttribute("color", new THREE.Float32BufferAttribute(col, 3));
   return geo;
 }
 
@@ -90,10 +125,12 @@ function hullGeometry(): THREE.BufferGeometry {
 function barGeometry(): THREE.BufferGeometry {
   const pos: number[] = [];
   const nor: number[] = [];
-  addBox(pos, nor, 1, 0.06, 0.06, at(0.5, 0, 0));
+  const col: number[] = [];
+  addBox(pos, nor, col, 1, 0.06, 0.06, at(0.5, 0, 0), new THREE.Color(AIRSHOW_LIVERY.body));
   const geo = new THREE.BufferGeometry();
   geo.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3));
   geo.setAttribute("normal", new THREE.Float32BufferAttribute(nor, 3));
+  geo.setAttribute("color", new THREE.Float32BufferAttribute(col, 3));
   return geo;
 }
 
@@ -169,12 +206,19 @@ export function BannerPlane({ centre, bounds, tallest, lang, active }: BannerPla
     () => new THREE.CylinderGeometry(0.1, 0.1, 0.5, 8, 1).rotateX(Math.PI / 2),
     [],
   );
+  // `vertexColors` is what lets one draw call carry a body, a glasshouse and a
+  // set of wings that read apart. No new colour enters: the tints are the
+  // street's own tokens, mixed into the geometry once at build time.
   const hullMat = useMemo(
-    () => new THREE.MeshStandardMaterial({ color: AIRSHOW_LIVERY.hull, roughness: 0.72 }),
+    () => new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.66 }),
+    [],
+  );
+  const propMat = useMemo(
+    () => new THREE.MeshStandardMaterial({ color: AIRSHOW_LIVERY.glass, roughness: 0.5 }),
     [],
   );
   const barMat = useMemo(
-    () => new THREE.MeshBasicMaterial({ color: AIRSHOW_LIVERY.hull, toneMapped: false }),
+    () => new THREE.MeshBasicMaterial({ color: AIRSHOW_LIVERY.body, toneMapped: false }),
     [],
   );
   const clothMat = useMemo(() => {
@@ -206,7 +250,7 @@ export function BannerPlane({ centre, bounds, tallest, lang, active }: BannerPla
       clothMat.map?.dispose();
       clothMat.dispose();
     },
-    [hullGeo, barGeo, clothGeo, propGeo, hullMat, barMat, clothMat],
+    [hullGeo, barGeo, clothGeo, propGeo, hullMat, propMat, barMat, clothMat],
   );
 
   const pos = useMemo(() => new THREE.Vector3(), []);
@@ -367,7 +411,7 @@ export function BannerPlane({ centre, bounds, tallest, lang, active }: BannerPla
         <mesh
           ref={propRef}
           geometry={propGeo}
-          material={hullMat}
+          material={propMat}
           position={[0, 0, 1.9]}
           raycast={() => null}
         />

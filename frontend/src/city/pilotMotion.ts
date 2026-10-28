@@ -36,8 +36,8 @@ export const PILOT_CEIL = CITY_TOP;
 
 /** Airspeed band in world units per second. The show flies at `SPEED` (13);
  *  a person starts there and may ask for more or less. */
-export const PILOT_SPEED_MIN = 6;
-export const PILOT_SPEED_MAX = 30;
+export const PILOT_SPEED_MIN = 4;
+export const PILOT_SPEED_MAX = 14;
 export const PILOT_SPEED_START = SPEED;
 
 /** How fast the throttle moves the airspeed, in units per second per second. */
@@ -45,8 +45,8 @@ export const PILOT_THROTTLE_RATE = 12;
 
 /** Full stick rates, per second. Yaw is deliberately slower than a first-person
  *  shooter's turn: 0,9 rad/s is a wide, readable bank around a district. */
-export const PILOT_YAW_RATE = 0.9;
-export const PILOT_CLIMB_RATE = 11;
+export const PILOT_YAW_RATE = 0.7;
+export const PILOT_CLIMB_RATE = 8;
 /** How quickly the wings follow the stick (bank), per second. */
 export const PILOT_ROLL_RATE = 2.4;
 

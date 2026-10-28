@@ -159,11 +159,11 @@ describe("towers push, they never stop", () => {
 
 describe("the seat", () => {
   it("sits above the fin, not inside it", () => {
-    // The hull is five boxes in one geometry (BannerPlane.hullGeometry): the
-    // fin spans y 0,175 … 1,025 and the canopy roof is at 0,725. A seat below
-    // the fin top fills the frame with the aircraft's own tail — measured on
-    // the first cockpit frame, which showed exactly that.
-    const FIN_TOP = 1.025;
+    // The fin's top in the hull's own frame (BannerPlane.hullGeometry: the fin
+    // box at y 0,52 half-height 0,36). A seat below it fills the frame with the
+    // aircraft's own tail — measured on the first cockpit frame, which showed
+    // exactly that.
+    const FIN_TOP = 0.88;
     expect(PILOT_SEAT_Y).toBeGreaterThan(FIN_TOP);
   });
 
