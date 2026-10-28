@@ -17,7 +17,9 @@ import {
   PILOT_YAW_RATE,
   pilotStateAt,
   pilotWall,
+  noseOf,
   pushOutOfTowers,
+  rollAngle,
   setFlying,
   isFlying,
   stepPilot,
@@ -171,6 +173,42 @@ describe("the seat", () => {
     // The show's scale is derived from the camera's distance; with the camera
     // in the seat that is a feedback loop. One constant, no easing.
     expect(PILOT_SCALE).toBe(1);
+  });
+});
+
+describe("the directions mean what the keys say", () => {
+  it("turns the nose toward the right of the screen on ArrowRight", () => {
+    // The camera's screen-right for yaw = heading is (cos h, -sin h) in the
+    // level's plane. Holding the right key must move the nose along it.
+    const h = 0.7;
+    const before = noseOf(h);
+    const after = noseOf(h + 0.2);
+    const right = { x: Math.cos(h), z: -Math.sin(h) };
+    const moved = { x: after.x - before.x, z: after.z - before.z };
+    expect(moved.x * right.x + moved.z * right.z).toBeGreaterThan(0);
+  });
+
+  it("holds the stick left and the nose goes left", () => {
+    const s = pilotStateAt({ heading: 0 });
+    for (let i = 0; i < 60; i++) step(s, { ...PILOT_INPUT_IDLE, yaw: -1 });
+    expect(s.heading).toBeLessThan(0);
+  });
+
+  it("drops the RIGHT wing when the pilot rolls right", () => {
+    // Rotating the right wing (+x) about the nose (+z) by `rollAngle(bank)`
+    // must put it BELOW the horizon for a positive bank.
+    const bank = 0.3;
+    const wingTipY = Math.sin(rollAngle(bank));
+    expect(wingTipY).toBeLessThan(0);
+  });
+
+  it("climbs on ArrowUp and descends on ArrowDown", () => {
+    const up = pilotStateAt({ agl: 40 });
+    for (let i = 0; i < 60; i++) step(up, { ...PILOT_INPUT_IDLE, pitch: 1 });
+    expect(up.agl).toBeGreaterThan(40);
+    const down = pilotStateAt({ agl: 40 });
+    for (let i = 0; i < 60; i++) step(down, { ...PILOT_INPUT_IDLE, pitch: -1 });
+    expect(down.agl).toBeLessThan(40);
   });
 });
 

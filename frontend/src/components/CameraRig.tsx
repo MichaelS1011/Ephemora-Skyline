@@ -23,6 +23,7 @@ import {
   pilotState,
   pilotWall,
   pushOutOfTowers,
+  rollAngle,
   startPilot,
   stepPilot,
   stopPilot,
@@ -856,11 +857,12 @@ export function CameraRig() {
           seatY,
           st.z + Math.cos(st.heading) * PILOT_SEAT_Z,
         );
-        // Measured on the frame, not derived: yaw = heading looks along the
-        // nose, and the roll rides the same axis, so the horizon is what leans.
-        // The seat has to clear the fin (its top is 1,025 in the hull's own
-        // frame) — at 0,86 the tail filled the picture instead of the city.
-        _euler.set(0, st.heading, st.bank, "YXZ");
+        // Yaw = heading looks along the nose (measured on the frame); the roll
+        // goes through `rollAngle`, the one place the sign of "banked right"
+        // is decided, so the horizon in here can never lean the other way than
+        // the aircraft outside. The seat clears the fin — at 0,86 the tail
+        // filled the picture instead of the city.
+        _euler.set(0, st.heading, rollAngle(st.bank), "YXZ");
         camera.quaternion.setFromEuler(_euler);
       } else {
         camera.position.set(

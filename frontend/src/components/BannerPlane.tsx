@@ -19,7 +19,7 @@ import {
   settledDistance,
   trackAxes,
 } from "../city/airshowMotion";
-import { PILOT_SCALE, isFlying, notePlanePose, pilotState } from "../city/pilotMotion";
+import { PILOT_SCALE, isFlying, notePlanePose, pilotState, rollAngle } from "../city/pilotMotion";
 import { AIRSHOW_LIVERY } from "../city/palette";
 import { prefersReducedMotion, reducedSettle } from "../city/motion";
 import { surfaceQuaternion, surfacePoint } from "../city/worldSurface";
@@ -323,7 +323,7 @@ export function BannerPlane({ centre, bounds, tallest, lang, active }: BannerPla
     lift.scale.setScalar(PILOT_SCALE);
     if (shipRef.current) {
       yaw.setFromAxisAngle(Y_AXIS, st.heading);
-      roll.setFromAxisAngle(Z_AXIS, st.bank);
+      roll.setFromAxisAngle(Z_AXIS, rollAngle(st.bank));
       shipRef.current.quaternion.copy(yaw).multiply(roll);
     }
     if (bannerRef.current) {

@@ -253,6 +253,24 @@ export function pushOutOfTowers(state: PilotState, towers: readonly PilotTower[]
   return touched;
 }
 
+/**
+ * The roll the mesh and the camera both apply, in one place so they cannot
+ * disagree — and with a sign that matches what a person expects from the key:
+ * positive bank means the RIGHT wing goes down.
+ *
+ * The hull's nose is +z, its right wing is +x. Rotating about +z by +φ lifts
+ * the right wing (that is a left roll), so the angle both call sites use is
+ * `-bank`. Getting this backwards is the classic one: the aircraft leans away
+ * from the key, and the horizon in the cockpit tilts the wrong way too.
+ */
+export const rollAngle = (bank: number): number => -bank;
+
+/** Where the nose points: (sin h, cos h) in the level's plane. */
+export const noseOf = (heading: number): { x: number; z: number } => ({
+  x: Math.sin(heading),
+  z: Math.cos(heading),
+});
+
 /** What one contact costs: 8 % of the airspeed, floored at the minimum. */
 export const PILOT_CONTACT_DRAG = 0.92;
 /** How hard the soft band pushes per second of flight, as a share of airspeed. */
