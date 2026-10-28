@@ -109,6 +109,143 @@ const laneLength = (lane: StreetLine): number =>
 /** Top of the measuring mast — the saturated end of the mapping height rail. */
 const MAST_TOP = heightForComplexity(1);
 
+/** Extruded side profile of one car body, in the car's local frame (length +X,
+ *  height +Y), centred on the CAR_SHAPE body origin so the per-frame write
+ *  stays a position, a yaw and a scale. A box cannot taper — this outline can:
+ *  bumper, rising hood, flat beltline, kicked tail, and a wheel arch cut into
+ *  the sill at every axle, so the tyre separates from the flank it used to be
+ *  swallowed by. The bevel is the shoulder: one chamfer, not a step. */
+function carBodyProfile(): THREE.ExtrudeGeometry {
+  const { body, wheel } = CAR_SHAPE;
+  const hl = body.w / 2;
+  const yb = -0.19; // sill line: the rocker's bottom edge
+  const arch = wheel.r + 0.05; // arch clears the tyre, the gap is the edge
+  const s = new THREE.Shape();
+  s.moveTo(-hl, -0.13);
+  s.lineTo(-hl + 0.09, yb);
+  s.absarc(-wheel.x, yb, arch, Math.PI, 0, true);
+  s.lineTo(wheel.x - arch, yb);
+  s.absarc(wheel.x, yb, arch, Math.PI, 0, true);
+  s.lineTo(hl - 0.09, yb);
+  s.lineTo(hl, -0.13);
+  s.lineTo(hl, 0.02);
+  s.lineTo(hl - 0.07, 0.06); // nose corner
+  s.lineTo(0.3, 0.14); // hood, rising to the beltline
+  s.lineTo(0.08, 0.17);
+  s.lineTo(-0.56, 0.18); // flat deck to the tail
+  s.lineTo(-hl + 0.07, 0.12);
+  s.lineTo(-hl, 0.06); // tail corner
+  s.closePath();
+  const geo = new THREE.ExtrudeGeometry(s, {
+    depth: body.d,
+    bevelEnabled: true,
+    bevelThickness: 0.045,
+    bevelSize: 0.05,
+    bevelSegments: 1,
+    curveSegments: 10,
+  });
+  geo.computeBoundingBox();
+  const c = geo.boundingBox!.getCenter(new THREE.Vector3());
+  geo.translate(-c.x, 0, -c.z);
+  return geo;
+}
+
+/** The rocker band: the same sill, drawn as its own thin plate in front of the
+ *  flank. It exists because the instance colour cannot stop halfway up a door
+ *  — as a separate part it carries its own vertex colour (0.55) and, more than
+ *  that, its own top edge: the beltline the fleet never had. */
+function carSillBand(): THREE.ExtrudeGeometry {
+  const { body, wheel } = CAR_SHAPE;
+  const hl = body.w / 2;
+  const yb = -0.19;
+  const arch = wheel.r + 0.03;
+  const s = new THREE.Shape();
+  s.moveTo(-hl + 0.02, -0.06);
+  s.lineTo(-hl + 0.11, yb);
+  s.absarc(-wheel.x, yb, arch, Math.PI, 0, true);
+  s.lineTo(wheel.x - arch, yb);
+  s.absarc(wheel.x, yb, arch, Math.PI, 0, true);
+  s.lineTo(hl - 0.11, yb);
+  s.lineTo(hl - 0.02, -0.06);
+  s.closePath();
+  const geo = new THREE.ExtrudeGeometry(s, {
+    depth: body.d + 0.014,
+    bevelEnabled: true,
+    bevelThickness: 0.012,
+    bevelSize: 0.012,
+    bevelSegments: 1,
+    curveSegments: 8,
+  });
+  geo.computeBoundingBox();
+  const c = geo.boundingBox!.getCenter(new THREE.Vector3());
+  geo.translate(-c.x, 0, -c.z);
+  return geo;
+}
+
+/** One merged instance body: profile + sill band, vertex-coloured zone by zone
+ *  (1.0 paint, 0.55 rocker) — multiplied with the per-instance livery, so the
+ *  zones ride along with every coat the city hands out. Merged at build time
+ *  into a single non-indexed BufferGeometry: one draw, no shared wall. */
+function carBodyGeometry(): THREE.BufferGeometry {
+  const parts: Array<[THREE.ExtrudeGeometry, number]> = [
+    [carBodyProfile(), 1],
+    [carSillBand(), 0.55],
+  ];
+  let total = 0;
+  for (const [g] of parts) total += g.getAttribute("position").count;
+  const position = new Float32Array(total * 3);
+  const normal = new Float32Array(total * 3);
+  const color = new Float32Array(total * 3);
+  let off = 0;
+  for (const [g, shade] of parts) {
+    const p = g.getAttribute("position") as THREE.BufferAttribute;
+    const n = g.getAttribute("normal") as THREE.BufferAttribute;
+    position.set(p.array as Float32Array, off * 3);
+    normal.set(n.array as Float32Array, off * 3);
+    for (let i = 0; i < p.count; i++) {
+      color[(off + i) * 3] = shade;
+      color[(off + i) * 3 + 1] = shade;
+      color[(off + i) * 3 + 2] = shade;
+    }
+    off += p.count;
+    g.dispose();
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute("position", new THREE.BufferAttribute(position, 3));
+  geo.setAttribute("normal", new THREE.BufferAttribute(normal, 3));
+  geo.setAttribute("color", new THREE.BufferAttribute(color, 3));
+  return geo;
+}
+
+/** The greenhouse: one extruded profile with a raked A-pillar, a long roof and
+ *  a raked C-pillar — a wedge, not a second brick. Its deep skirt hides inside
+ *  the body so the two parts meet at a real edge (roof line, belt line) and
+ *  never at a coincident face. */
+function carCabinGeometry(): THREE.BufferGeometry {
+  const { cabin } = CAR_SHAPE;
+  const hh = cabin.h / 2;
+  const s = new THREE.Shape();
+  s.moveTo(-0.5, -hh - 0.12); // skirt, buried in the body
+  s.lineTo(0.34, -hh - 0.12);
+  s.lineTo(0.3, 0.02); // A-pillar, raked
+  s.lineTo(0.12, hh - 0.02);
+  s.lineTo(-0.22, hh); // long roof
+  s.lineTo(-0.42, 0.0); // C-pillar, raked
+  s.closePath();
+  const geo = new THREE.ExtrudeGeometry(s, {
+    depth: cabin.d,
+    bevelEnabled: true,
+    bevelThickness: 0.035,
+    bevelSize: 0.04,
+    bevelSegments: 1,
+    curveSegments: 4,
+  });
+  geo.computeBoundingBox();
+  const c = geo.boundingBox!.getCenter(new THREE.Vector3());
+  geo.translate(-c.x, 0, -c.z);
+  return geo;
+}
+
 export function RoadSystem({
   layout,
   sidewalks = null,
@@ -466,6 +603,10 @@ export function RoadSystem({
       ).rotateX(Math.PI / 2),
     [],
   );
+  /** Built once from CAR_SHAPE and shared by the fleet — the instance matrix
+   *  carries position, yaw and the ±8 % scale, exactly as it did for the box. */
+  const carBodyGeo = useMemo(() => carBodyGeometry(), []);
+  const carCabinGeo = useMemo(() => carCabinGeometry(), []);
   const carSettledRef = useRef(false);
   useLayoutEffect(() => {
     const mesh = carRef.current;
@@ -795,25 +936,25 @@ export function RoadSystem({
         <meshStandardMaterial color="#3a7a5c" roughness={0.9} />
       </instancedMesh>
 
-      {/* Traffic — body, cabin and four wheels per car. The wheels are one
-          instanced mesh whose geometry is laid on its side once, so a per-frame
-          write is a position, a yaw and a roll. */}
+      {/* Traffic — one merged CAR_SHAPE-derived body profile (nose, hood,
+          beltline, wheel arches, rocker band in vertex colours), a greenhouse
+          cabin and four wheels per car. The wheels are one instanced mesh
+          whose geometry is laid on its side once, so a per-frame write is a
+          position, a yaw and a roll. */}
       <instancedMesh
         ref={carRef}
-        args={[undefined, undefined, Math.max(1, carCount)]}
+        args={[carBodyGeo, undefined, Math.max(1, carCount)]}
         frustumCulled={false}
         visible={active}
       >
-        <boxGeometry args={[CAR_SHAPE.body.w, CAR_SHAPE.body.h, CAR_SHAPE.body.d]} />
-        <meshStandardMaterial roughness={0.42} metalness={0.16} />
+        <meshStandardMaterial roughness={0.42} metalness={0.16} vertexColors />
       </instancedMesh>
       <instancedMesh
         ref={cabinRef}
-        args={[undefined, undefined, Math.max(1, carCount)]}
+        args={[carCabinGeo, undefined, Math.max(1, carCount)]}
         frustumCulled={false}
         visible={active}
       >
-        <boxGeometry args={[CAR_SHAPE.cabin.w, CAR_SHAPE.cabin.h, CAR_SHAPE.cabin.d]} />
         <meshStandardMaterial color={ENV.road} roughness={0.3} metalness={0.4} />
       </instancedMesh>
       <instancedMesh
