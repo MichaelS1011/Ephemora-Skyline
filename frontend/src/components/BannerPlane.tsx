@@ -15,9 +15,11 @@ import {
   lapLength,
   legHalfFor,
   onTrack,
+  nearestAlong,
   settledDistance,
   trackAxes,
 } from "../city/airshowMotion";
+import { PILOT_SCALE, isFlying, notePlanePose, pilotState } from "../city/pilotMotion";
 import { AIRSHOW_LIVERY } from "../city/palette";
 import { prefersReducedMotion, reducedSettle } from "../city/motion";
 import { surfaceQuaternion, surfacePoint } from "../city/worldSurface";
@@ -145,6 +147,9 @@ export function BannerPlane({ centre, bounds, tallest, lang, active }: BannerPla
 
   const travelled = useRef(0);
   const settled = useRef(false);
+  /** The frame before this one was a flight: the show has to resume from the
+   *  spot the reader landed on, not from where its own clock had got to. */
+  const wasFlying = useRef(false);
   // The track is sized and turned to the reader: how far the camera stands off
   // decides how long a straight is worth, and which way it stands decides which
   // way the cloth faces. Both ease instead of snapping, so zooming reads as
@@ -232,6 +237,9 @@ export function BannerPlane({ centre, bounds, tallest, lang, active }: BannerPla
       // frame when the reader zooms instead of becoming a wall or a speck.
       lift.scale.setScalar(live.current.scale);
     }
+    // Publish where the show has the aircraft, so taking the controls is a
+    // handover at this spot — same yaw convention the law uses.
+    notePlanePose(pos.x, pos.y, pos.z, Math.atan2(vx, vz));
     const ship = shipRef.current;
     if (ship) {
       yaw.setFromAxisAngle(Y_AXIS, Math.atan2(vx, vz));
@@ -254,8 +262,71 @@ export function BannerPlane({ centre, bounds, tallest, lang, active }: BannerPla
     }
   };
 
+  /**
+   * The same meshes, flown by a person. The state comes from `pilotMotion` —
+   * this component never integrates anything itself — and the aircraft sits on
+   * the real ground with one fixed scale, because the show's scale is derived
+   * from the camera's distance and the camera now sits on the aircraft.
+   */
+  const placePilot = () => {
+    const st = pilotState();
+    const lift = liftRef.current;
+    if (!lift) return;
+    surfacePoint(surface, st.x, st.agl, st.z, pos);
+    surfaceQuaternion(surface, st.x, st.z, quat);
+    lift.position.copy(pos);
+    lift.quaternion.copy(quat);
+    lift.scale.setScalar(PILOT_SCALE);
+    if (shipRef.current) {
+      yaw.setFromAxisAngle(Y_AXIS, st.heading);
+      roll.setFromAxisAngle(Z_AXIS, st.bank);
+      shipRef.current.quaternion.copy(yaw).multiply(roll);
+    }
+    if (bannerRef.current) {
+      bannerRef.current.position.set(
+        -Math.sin(st.heading) * BANNER_BACK,
+        -BANNER_DROP,
+        -Math.cos(st.heading) * BANNER_BACK,
+      );
+      // Written for the reader behind the aircraft: the cloth's face (+z in its
+      // own frame) has to point BACK at the chase camera, so it turns with the
+      // heading plus a half — the opposite of the show, whose audience is ahead.
+      bannerRef.current.rotation.set(0, st.heading + Math.PI, 0);
+    }
+    if (barRef.current) {
+      barRef.current.position.set(BANNER_BACK, BANNER_DROP, 0);
+      barRef.current.rotation.set(0, 0, 0);
+    }
+    notePlanePose(pos.x, pos.y, pos.z, st.heading);
+  };
+
   useFrame((state, delta) => {
     const lift = liftRef.current;
+    // A person in the seat flies the aircraft; the show's clock stops where it
+    // is and resumes there when the seat is empty again.
+    if (isFlying()) {
+      if (lift) lift.visible = true;
+      placePilot();
+      const dt = Math.min(delta, 0.1);
+      if (propRef.current) propRef.current.rotation.z += dt * 30;
+      wasFlying.current = true;
+      return;
+    }
+    if (wasFlying.current) {
+      // Hand back without a teleport: the show resumes at the nearest point of
+      // its own track, and its easings close the rest.
+      wasFlying.current = false;
+      const st = pilotState();
+      travelled.current = nearestAlong(
+        st.x,
+        st.z,
+        live.current.legHalf,
+        centre.x,
+        centre.z,
+        live.current.nx,
+        live.current.nz,
+      );
+    }
     const cam = state.camera as THREE.PerspectiveCamera;
     eyeFlat.set(cam.position.x - centre.x, cam.position.z - centre.z);
     const eye = Math.max(24, eyeFlat.length());

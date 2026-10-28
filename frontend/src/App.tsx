@@ -143,6 +143,14 @@ function VisitCamera() {
       settledAt.current = 0;
       return;
     }
+    // A flight is not a visit. Writing `?cam=` while somebody is flying would
+    // promise a reload a flight it cannot start (a reload always lands free),
+    // and the address would churn every second of the flight.
+    if (useStore.getState().cameraMode === "pilot") {
+      sample.current = null;
+      settledAt.current = 0;
+      return;
+    }
     const held = armed.current;
     if (held && now < grabUntil.current) {
       applyPose(camera, held);
@@ -386,6 +394,12 @@ export default function App() {
         // Escape walks the regular chain below (hints, tour, deselect,
         // drill-out, overview).
         const cam = useStore.getState();
+        // The seat first: Escape hands the aircraft back and leaves the camera
+        // exactly where the flight ended. The orbit branch is one Escape later.
+        if (cam.cameraMode === "pilot") {
+          cam.exitPilot();
+          return;
+        }
         if (cam.cameraMode === "orbit") {
           cam.exitOrbit();
           return;

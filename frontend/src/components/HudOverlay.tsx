@@ -197,7 +197,7 @@ export function HudOverlay({ apiStatus }: HudOverlayProps) {
       ? worldTargetForFinding(cityData, waypointEntry.file.id, waypointLine)
       : null;
   const waypoint =
-    !constructing && !tourActive && waypointTarget
+    !constructing && !tourActive && cameraMode !== "pilot" && waypointTarget
       ? edgeSignalForWaypoint(
           waypointTarget,
           cameraInfo,

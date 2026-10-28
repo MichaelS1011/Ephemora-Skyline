@@ -8,6 +8,24 @@ import type { CameraInfo, CameraMode } from "../stores/useStore";
 import { getDirLayout } from "../city/layout";
 import type { CraneShot } from "../city/layout";
 import { getKeyboardMark } from "../interaction/keyboardMark";
+import { farLodExitDistance } from "../city/layout";
+import { dataPlots } from "../city/worldFraming";
+import {
+  CHASE_BACK,
+  CHASE_LOOK_AHEAD,
+  CHASE_LOOK_DROP,
+  CHASE_UP,
+  PILOT_INPUT_IDLE,
+  pilotEntryAgl,
+  pilotStarted,
+  pilotState,
+  pilotWall,
+  pushOutOfTowers,
+  startPilot,
+  stepPilot,
+  stopPilot,
+  type PilotTower,
+} from "../city/pilotMotion";
 import {
   fitWorldOverview,
   WORLD_FOV_DEG,
@@ -473,9 +491,19 @@ export function CameraRig() {
     typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches,
   );
   const lastPointer = useRef({ x: 0, y: 0 });
+  // One collision list per level: built on the first pilot frame, thrown away
+  // when the frame's layout changes. `dataPlots` allocates, so it may not run
+  // per frame.
+  const towers = useRef<{ layout: unknown; list: readonly PilotTower[] } | null>(null);
   // Mirrors cameraMode for the frame loop / listeners (no stale closures).
   const modeRef = useRef<CameraMode>(cameraMode);
   modeRef.current = cameraMode;
+
+  // Leaving the seat ends the flight for the law as well; the shared state
+  // stays readable so the show can resume from the landing point.
+  useEffect(() => {
+    if (cameraMode !== "pilot") stopPilot();
+  }, [cameraMode]);
 
   // A fresh city resets the viewpoint: the next flight uses the fallback.
   useEffect(() => {
@@ -577,6 +605,22 @@ export function CameraRig() {
   // ── Camera navigation keys — guarded against typing, dialogs and the tour ─
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
+      // Two keys that are not navigation: take the seat, and change the view
+      // from inside it. Both are refused in the same places every other
+      // camera command is refused (typing, dialog, the tour above).
+      if (e.code === "KeyV") {
+        const st = useStore.getState();
+        if (st.cameraMode === "pilot") st.togglePilotView();
+        return;
+      }
+      if (e.code === "KeyF") {
+        const st = useStore.getState();
+        if (st.cameraMode === "pilot") st.exitPilot();
+        else if (st.cityData && st.buildPhase !== "constructing" && !st.tourActive) {
+          st.enterPilot();
+        }
+        return;
+      }
       if (!isNavKey(e.code)) return;
       // Typing, an open modal dialog, or a HUD element that steers its own
       // arrows owns the keyboard — drop all held keys so no stale key keeps
@@ -761,7 +805,58 @@ export function CameraRig() {
     // running tween — the user takes over. In ORBIT mode camera + target move
     // together (the circle follows); in FREE mode only the camera moves.
     const keys = pressedKeys.current;
-    if (keys.size > 0) {
+
+    // ── the pilot flies ────────────────────────────────────────────────────
+    // One camera writer, one law: `pilotMotion` steps the aircraft, this loop
+    // puts the camera behind it. The walk, the crane and the tween stand down
+    // while a person is in the seat — they would each fight for the same pose.
+    const flying = modeRef.current === "pilot";
+    if (flying) {
+      if (!pilotStarted()) {
+        startPilot(
+          (x, z) => surfaceHeight(frame?.surface ?? FLAT_SURFACE, x, z),
+          pilotEntryAgl(frame?.top ?? 0),
+        );
+      }
+      const st = pilotState();
+      const input = {
+        ...PILOT_INPUT_IDLE,
+        throttle: (keys.has("KeyW") ? 1 : 0) - (keys.has("KeyS") ? 1 : 0),
+        yaw: (keys.has("ArrowRight") ? 1 : 0) - (keys.has("ArrowLeft") ? 1 : 0),
+        pitch: (keys.has("ArrowUp") ? 1 : 0) - (keys.has("ArrowDown") ? 1 : 0),
+        roll: (keys.has("KeyD") ? 1 : 0) - (keys.has("KeyA") ? 1 : 0),
+      };
+      const surface = frame?.surface ?? FLAT_SURFACE;
+      const sceneBounds = frame?.bounds ?? 60;
+      stepPilot(st, input, delta, {
+        // The wall is the nearer of the two numbers that already exist: the
+        // camera's collar and the distance where the level stops being drawn.
+        wall: pilotWall(cityClampRadius(sceneBounds), farLodExitDistance(sceneBounds)),
+        centreX: centre.x,
+        centreZ: centre.z,
+      });
+      if (frame?.layout) {
+        if (!towers.current || towers.current.layout !== frame.layout) {
+          towers.current = { layout: frame.layout, list: dataPlots(frame.layout) };
+        }
+        pushOutOfTowers(st, towers.current.list);
+      }
+      const y = surfaceHeight(surface, st.x, st.z) + st.agl;
+      camera.position.set(
+        st.x - Math.sin(st.heading) * CHASE_BACK,
+        y + CHASE_UP,
+        st.z - Math.cos(st.heading) * CHASE_BACK,
+      );
+      _look.set(
+        st.x + Math.sin(st.heading) * CHASE_LOOK_AHEAD,
+        y - CHASE_LOOK_DROP,
+        st.z + Math.cos(st.heading) * CHASE_LOOK_AHEAD,
+      );
+      camera.lookAt(_look);
+      if (keys.size > 0) useStore.getState().noteCameraManual();
+    }
+
+    if (!flying && keys.size > 0) {
       // Re-check the guard per frame: a dialog may have opened (or focus
       // moved into an input, or the tour started) while a key was held down.
       if (
@@ -863,7 +958,7 @@ export function CameraRig() {
     const tween = tweenRef.current;
     const crane =
       !tween && keys.size === 0 && !dragging.current ? useStore.getState().craneFraming : null;
-    if (crane) {
+    if (!flying && crane) {
       const step = craneAdvance(camera.position, controls.target, crane, delta);
       const kept = clampToCity(
         step.pos,
@@ -884,7 +979,7 @@ export function CameraRig() {
       }
     }
 
-    if (tween) {
+    if (!flying && tween) {
       tween.t = Math.min(1, tween.t + delta / tween.dur);
       const e = easeInOutCubic(tween.t);
       camera.position.lerpVectors(tween.fromPos, tween.toPos, e);

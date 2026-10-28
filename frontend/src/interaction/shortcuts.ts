@@ -296,6 +296,32 @@ export const ROWS: Row[] = [
     text: T("hints.camOrbitExit", "Esc — back to free camera", "Esc — zurück zur freien Kamera"),
     owner: "App.tsx",
   },
+  {
+    id: "flyStart",
+    keys: ["F"],
+    codes: ["F"],
+    group: "camera",
+    rank: 19,
+    text: T(
+      "hints.flyStart",
+      "F — take the controls of the tow-plane (W/S throttle, A/D bank, ←/→ turn, ↑/↓ climb, Esc gives it back)",
+      "F — das Schleppflugzeug selbst steuern (W/S Gas, A/D Querlage, ←/→ Richtung, ↑/↓ Höhe, Esc gibt es zurück)",
+    ),
+    owner: "components/CameraRig.tsx",
+  },
+  {
+    id: "flyView",
+    keys: ["V"],
+    codes: ["V"],
+    group: "camera",
+    rank: 20,
+    text: T(
+      "hints.flyView",
+      "V — while flying: behind the aircraft ⇄ seated in it",
+      "V — im Flug: hinter dem Flugzeug ⇄ darin sitzen",
+    ),
+    owner: "components/CameraRig.tsx",
+  },
 
   // ── Minimap ───────────────────────────────────────────────────────────────
   {

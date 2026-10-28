@@ -60,12 +60,12 @@ export const PUSH_SOFT = 7;
 /** The chase camera: far enough back to keep the towed cloth in frame (the
  *  cloth trails `BANNER_BACK` = 16 and is 26 wide), high enough to read the
  *  city behind it. These two were framed on the demo level, not guessed. */
-export const CHASE_BACK = 44;
-export const CHASE_UP = 16;
+export const CHASE_BACK = 40;
+export const CHASE_UP = 15;
 /** Where the chase camera looks: slightly ahead of and below the hull, so the
  *  aircraft sits in the lower third and the city fills the upper frame. */
 export const CHASE_LOOK_AHEAD = 8;
-export const CHASE_LOOK_DROP = 5;
+export const CHASE_LOOK_DROP = 9;
 
 /** The pilot's eye inside the hull, in the aircraft's own frame (metres above
  *  the hull's origin and ahead of it). The canopy box's roof is at 0,725, so
@@ -79,7 +79,9 @@ export interface PilotState {
   z: number;
   /** Height above the local ground, not above zero. */
   agl: number;
-  /** Heading in radians, atan2(x, z) convention like the show's yaw. */
+  /** Heading in radians, the show's own yaw convention (`atan2(vx, vz)`), so
+   *  the mesh, the tow bar and this law never disagree about which way is
+   *  forward. */
   heading: number;
   /** Bank in radians, positive rolling right. */
   bank: number;
@@ -146,7 +148,9 @@ export function stepPilot(
     PILOT_SPEED_MIN,
     PILOT_SPEED_MAX,
   );
-  state.heading += input.yaw * PILOT_YAW_RATE * step * (state.speed / PILOT_SPEED_START);
+  // Faster air does not turn faster: the factor stops at the show's speed, or
+  // a pilot at full throttle would spin like a top.
+  state.heading += input.yaw * PILOT_YAW_RATE * step * Math.min(1, state.speed / PILOT_SPEED_START);
   state.agl = clamp(state.agl + input.pitch * PILOT_CLIMB_RATE * step, PILOT_FLOOR_AGL, PILOT_CEIL);
 
   // The wings lean into a turn without being asked: a banked aircraft turns,
@@ -155,8 +159,8 @@ export function stepPilot(
   const follow = Math.min(1, PILOT_ROLL_RATE * step);
   state.bank += (wantBank - state.bank) * follow;
 
-  state.x += Math.cos(state.heading) * state.speed * step;
-  state.z += Math.sin(state.heading) * state.speed * step;
+  state.x += Math.sin(state.heading) * state.speed * step;
+  state.z += Math.cos(state.heading) * state.speed * step;
 
   // The wall is a soft edge: from `PILOT_WALL_SOFT` inside it the aircraft is
   // pressed back toward the level, and at the wall it stops moving outward.
@@ -168,7 +172,7 @@ export function stepPilot(
     const push = Math.min(1, over / PILOT_WALL_SOFT);
     const toward = Math.max(
       0,
-      -(dx * Math.cos(state.heading) + dz * Math.sin(state.heading)) / dist,
+      -(dx * Math.sin(state.heading) + dz * Math.cos(state.heading)) / dist,
     );
     state.x -= (dx / dist) * push * state.speed * step * (0.4 + toward);
     state.z -= (dz / dist) * push * state.speed * step * (0.4 + toward);
@@ -266,3 +270,66 @@ export const isFlying = (): boolean => flying;
 export const setFlying = (next: boolean): void => {
   flying = next;
 };
+
+/** Where the show left the aircraft, published by its frame loop. Entering the
+ *  seat is a handover at that spot, never a respawn over the town centre. */
+export interface PlanePose {
+  x: number;
+  y: number;
+  z: number;
+  heading: number;
+}
+const planePose: PlanePose = { x: 0, y: 0, z: 0, heading: 0 };
+
+export function notePlanePose(x: number, y: number, z: number, heading: number): void {
+  planePose.x = x;
+  planePose.y = y;
+  planePose.z = z;
+  planePose.heading = heading;
+}
+
+/** The one pilot state. The rig steps it, the aircraft reads it; both get the
+ *  same object so a frame never disagrees with itself. */
+const pilot = pilotStateAt();
+let started = false;
+
+export const pilotState = (): PilotState => pilot;
+
+/**
+ * Seed the flight from where the aircraft is. Called by the frame loop that has
+ * the ground under its hands (`groundAt`), so this module stays free of the
+ * world surface and of the layout. Height is measured above the local ground so
+ * the floor and the ceiling keep their meaning over curved land.
+ */
+export function startPilot(
+  groundAt: (x: number, z: number) => number,
+  enterAgl = PILOT_CEIL,
+  speed = PILOT_SPEED_START,
+): PilotState {
+  pilot.x = planePose.x;
+  pilot.z = planePose.z;
+  pilot.heading = planePose.heading;
+  pilot.bank = 0;
+  pilot.speed = speed;
+  // The show cruises high above the rooftops (its altitude is derived from the
+  // camera's eye line); a person enters at a flying height they can see the
+  // city from, not at the sky the show uses to stay out of the frame's way.
+  pilot.agl = clamp(
+    Math.min(planePose.y - groundAt(planePose.x, planePose.z), enterAgl),
+    PILOT_FLOOR_AGL,
+    PILOT_CEIL,
+  );
+  started = true;
+  return pilot;
+}
+
+/** The height a pilot enters at: clear of the tallest crown, low enough that
+ *  the streets read. `top` is the level's tallest tower. */
+export function pilotEntryAgl(top: number): number {
+  return clamp(top * 1.6 + 6, PILOT_FLOOR_AGL, PILOT_CEIL);
+}
+
+export const pilotStarted = (): boolean => started;
+export function stopPilot(): void {
+  started = false;
+}

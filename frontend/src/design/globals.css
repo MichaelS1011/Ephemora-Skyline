@@ -620,6 +620,9 @@ button:disabled {
    the camera moving after the user had already tried it. */
 .city-canvas canvas {
   cursor: grab;
+  /* A drag is a camera control on every device that can produce one. Without
+     this, a finger drag scrolls the page and the city never turns. */
+  touch-action: none;
 }
 .city-canvas canvas:active {
   cursor: grabbing;

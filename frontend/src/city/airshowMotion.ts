@@ -219,3 +219,44 @@ export function bannerPixelHeight(viewportH: number, distance: number): number {
     (BANNER_H / (2 * Math.tan((VERTICAL_HALF_FOV_DEG * Math.PI) / 180) * distance)) * viewportH
   );
 }
+
+/**
+ * The point on the track nearest to a world position, as a distance along it —
+ * the inverse of `onTrack`, needed when a person hands the aircraft back to the
+ * show: the aircraft must resume where it is, not teleport to where it would
+ * have been. Sampled rather than solved: the track is four segments and an arc,
+ * and a closed-form inversion would be a second copy of that geometry. 180
+ * samples put the worst error below `lapLength / 180` — under two units on any
+ * level the show flies, which the show's own easing then closes.
+ */
+export function nearestAlong(
+  x: number,
+  z: number,
+  legHalf: number,
+  centreX: number,
+  centreZ: number,
+  nx: number,
+  nz: number,
+  gap = TRACK_GAP,
+): number {
+  const lap = lapLength(legHalf, gap);
+  const tx = -nz;
+  const tz = nx;
+  const dx = x - centreX;
+  const dz = z - centreZ;
+  const wantT = dx * tx + dz * tz;
+  const wantN = dx * nx + dz * nz;
+  let best = 0;
+  let bestDist = Infinity;
+  const SAMPLES = 180;
+  for (let i = 0; i < SAMPLES; i++) {
+    const along = (i / SAMPLES) * lap;
+    const p = onTrack(along, legHalf, gap);
+    const d = (p.t - wantT) * (p.t - wantT) + (p.n - wantN) * (p.n - wantN);
+    if (d < bestDist) {
+      bestDist = d;
+      best = along;
+    }
+  }
+  return best;
+}
