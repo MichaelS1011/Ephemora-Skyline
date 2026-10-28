@@ -23,9 +23,18 @@ describe("idle drift", () => {
       rigSrc.indexOf("// The bracket pair's mark"),
     );
     expect(block.length, "the drift block was found").toBeLessThan(rigSrc.length);
-    for (const guard of ["!free", "!tween", "!crane", "keys.size === 0", "!dragging.current"]) {
+    for (const guard of [
+      "orbiting &&",
+      "!tween",
+      "!crane",
+      "keys.size === 0",
+      "!dragging.current",
+    ]) {
       expect(block, `drift yields to ${guard}`).toContain(guard);
     }
+    // "not free" was the old gate and is wrong now that a third mode exists:
+    // it would let the drift fight the pilot. Only orbit may drift.
+    expect(block, "drift is gated on orbit, not on the absence of free").not.toContain("!free");
   });
 
   it("waits four seconds of stillness before it moves", () => {
