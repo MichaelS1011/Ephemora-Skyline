@@ -17,14 +17,16 @@ import {
   CHASE_UP,
   PILOT_INPUT_IDLE,
   pilotEntryAgl,
+  PILOT_SEAT_PITCH,
   PILOT_SEAT_Y,
+  PILOT_SEAT_YAW,
   PILOT_SEAT_Z,
   pilotReadout,
   pilotStarted,
   pilotState,
   pilotWall,
   pushOutOfTowers,
-  rollAngle,
+  seatRollAngle,
   setFlying,
   startPilot,
   stepPilot,
@@ -879,12 +881,13 @@ export function CameraRig() {
           seatY,
           st.z + Math.cos(st.heading) * PILOT_SEAT_Z,
         );
-        // Yaw = heading looks along the nose (measured on the frame); the roll
-        // goes through `rollAngle`, the one place the sign of "banked right"
-        // is decided, so the horizon in here can never lean the other way than
-        // the aircraft outside. The seat clears the fin — at 0,86 the tail
-        // filled the picture instead of the city.
-        _euler.set(0, st.heading, rollAngle(st.bank), "YXZ");
+        // Yaw = heading + half a circle, because a camera looks down its own −z
+        // and the nose lies along +z: without the turn the seat shows the tail
+        // (measured dot −1,000 against the nose). The lean goes through
+        // `seatRollAngle`, the mirror of the mesh's own `rollAngle`, so the
+        // horizon in here leans exactly as the aircraft leans outside; the
+        // pitch is the seat's own, so the nose is in the frame.
+        _euler.set(-PILOT_SEAT_PITCH, st.heading + PILOT_SEAT_YAW, seatRollAngle(st.bank), "YXZ");
         camera.quaternion.setFromEuler(_euler);
       } else {
         camera.position.set(

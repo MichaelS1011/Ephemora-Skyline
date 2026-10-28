@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import * as THREE from "three";
 import { BANNER_DROP, BANNER_H, BANK_MAX, CITY_TOP, SPEED } from "../src/city/airshowMotion";
 import { farLodExitDistance } from "../src/city/layout";
 import { cityClampRadius } from "../src/components/CameraRig";
@@ -9,7 +10,9 @@ import {
   PILOT_HULL_CLEAR,
   PILOT_INPUT_IDLE,
   PILOT_SCALE,
+  PILOT_SEAT_PITCH,
   PILOT_SEAT_Y,
+  PILOT_SEAT_YAW,
   PILOT_SPEED_MAX,
   PILOT_SPEED_MIN,
   PILOT_SPEED_START,
@@ -20,6 +23,7 @@ import {
   noseOf,
   pushOutOfTowers,
   rollAngle,
+  seatRollAngle,
   setFlying,
   isFlying,
   stepPilot,
@@ -160,13 +164,78 @@ describe("towers push, they never stop", () => {
 });
 
 describe("the seat", () => {
-  it("sits above the fin, not inside it", () => {
-    // The fin's top in the hull's own frame (BannerPlane.hullGeometry: the fin
-    // box at y 0,52 half-height 0,36). A seat below it fills the frame with the
-    // aircraft's own tail — measured on the first cockpit frame, which showed
-    // exactly that.
-    const FIN_TOP = 0.88;
-    expect(PILOT_SEAT_Y).toBeGreaterThan(FIN_TOP);
+  it("looks along the nose and not at its own tail", () => {
+    // A three.js camera looks down its own −z, so `yaw = heading` aimed the
+    // seat straight at the aircraft's tail — dot −1,000 with the nose at every
+    // heading, measured on the shipped camera. The half-turn is what makes the
+    // cockpit view a view OUT of the cockpit.
+    for (const h of [0, 0.7, -1.1, 2.9]) {
+      const yaw = h + PILOT_SEAT_YAW;
+      const fwd = { x: -Math.sin(yaw), z: -Math.cos(yaw) };
+      const n = noseOf(h);
+      expect(fwd.x * n.x + fwd.z * n.z, `heading ${h}`).toBeCloseTo(1, 9);
+      const aft = { x: -Math.sin(h), z: -Math.cos(h) };
+      expect(aft.x * n.x + aft.z * n.z, `heading ${h} without the turn`).toBeCloseTo(-1, 9);
+    }
+  });
+
+  it("sits over its own canopy and still shows the aircraft", () => {
+    // The hull's cowl tops out at 0,46 and the canopy blister at 0,40 above the
+    // tube axis; the eye has to clear both. Live frames decided the height: at
+    // 0,62 the glasshouse filled the picture and the city was gone, at 1,15 the
+    // hull was a 0,28 % sliver behind the dock.
+    expect(PILOT_SEAT_Y).toBeGreaterThan(0.46);
+    // The pitch keeps the nose inside the frame: the vertical half-field is
+    // 26°, so a level eye leaves the hull below the bottom edge.
+    expect(PILOT_SEAT_PITCH).toBeGreaterThan(0.05);
+    expect(PILOT_SEAT_PITCH).toBeLessThan(0.3);
+  });
+
+  it("leans with the aircraft it sits in", () => {
+    // The mesh's attitude is `Ry(heading) · Rz(rollAngle(bank))` (BannerPlane's
+    // own placePilot). A seated camera that looks along the nose is turned half
+    // a circle away from it, so its lean has to carry the opposite sign —
+    // otherwise the horizon inside tilts against the aircraft outside.
+    for (const [h, bank] of [
+      [0.7, 0.3],
+      [-1.1, -0.25],
+      [0, 0.45],
+    ] as [number, number][]) {
+      const yaw = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), h);
+      const roll = new THREE.Quaternion().setFromAxisAngle(
+        new THREE.Vector3(0, 0, 1),
+        rollAngle(bank),
+      );
+      const ship = yaw.clone().multiply(roll);
+      const shipUp = new THREE.Vector3(0, 1, 0).applyQuaternion(ship);
+      const shipRight = new THREE.Vector3(1, 0, 0).applyQuaternion(ship);
+      const shipNose = new THREE.Vector3(0, 0, 1).applyQuaternion(ship);
+      const seat = new THREE.Quaternion().setFromEuler(
+        new THREE.Euler(-PILOT_SEAT_PITCH, h + PILOT_SEAT_YAW, seatRollAngle(bank), "YXZ"),
+      );
+      const camUp = new THREE.Vector3(0, 1, 0).applyQuaternion(seat);
+      // The seat's own pitch tilts the eye DOWN, so `camUp · shipUp` is cos(pitch)
+      // by design. What must not exist is a sideways component: that is the
+      // horizon leaning against the aircraft, and it is what the mirrored sign
+      // removes.
+      expect(
+        Math.abs(camUp.dot(shipRight)),
+        `bank ${bank}: the horizon carries no sideways tilt`,
+      ).toBeLessThan(0.02);
+      expect(camUp.dot(shipUp), `bank ${bank}: up stays up`).toBeGreaterThan(0.98);
+      expect(
+        new THREE.Vector3(0, 0, -1).applyQuaternion(seat).dot(shipNose),
+        `heading ${h}: the seat looks out of the cockpit`,
+      ).toBeGreaterThan(0.99);
+      // the same camera with the mesh's own roll sign tilts the other way
+      const wrong = new THREE.Quaternion().setFromEuler(
+        new THREE.Euler(-PILOT_SEAT_PITCH, h + PILOT_SEAT_YAW, rollAngle(bank), "YXZ"),
+      );
+      expect(
+        Math.abs(new THREE.Vector3(0, 1, 0).applyQuaternion(wrong).dot(shipRight)),
+        `bank ${bank}: the unmirrored roll is caught`,
+      ).toBeGreaterThan(0.3);
+    }
   });
 
   it("flies at one fixed scale, because the camera now rides the aircraft", () => {

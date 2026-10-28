@@ -74,10 +74,31 @@ export const CHASE_LOOK_AHEAD = 26;
 export const CHASE_LOOK_DROP = 4;
 
 /** The pilot's eye inside the hull, in the aircraft's own frame (metres above
- *  the hull's origin and ahead of it). The canopy box's roof is at 0,725, so
- *  this sits just above it and looks over the nose. */
-export const PILOT_SEAT_Y = 1.15;
+ *  the hull's origin and ahead of it).
+ *
+ *  Measured through the seat camera with the shipped hull, on live frames:
+ *  the eye at 0,62 fills the picture with the aircraft's own glasshouse and
+ *  the city disappears; at 1,15 the hull is a 0,28 % sliver behind the dock —
+ *  a cockpit view with no aircraft in it. 1,40 puts cowl and canopy in the
+ *  bottom quarter of the frame (the dark band starts at row 275 of 450) and
+ *  leaves the ground and the horizon above it. The old number (1,15) came from
+ *  the first cockpit frame, where the camera looked aft and the fin was the
+ *  thing in the way; with the half-turn below, the tail is behind the eye and
+ *  stops deciding anything. */
+export const PILOT_SEAT_Y = 1.4;
 export const PILOT_SEAT_Z = 0.05;
+/** A three.js camera looks down its own −z, so a seat that should look along
+ *  the nose has to be turned half a circle. Measured on the shipped seat
+ *  camera: with `yaw = heading` its forward vector had dot **−1,000** with the
+ *  nose at every heading — the "cockpit view" was a view of the aircraft's own
+ *  tail, which is also why the fin was the thing the seat height had to clear. */
+export const PILOT_SEAT_YAW = Math.PI;
+/** The seated eye looks slightly down over its own nose. The cowl's top sits
+ *  25° below a level eye line and the vertical half-field is 26°, so a level
+ *  camera leaves the aircraft a two-pixel band at the frame's bottom edge —
+ *  behind the dock. This tilt brings the cowl, the spinner and the propeller
+ *  into the lower fifth and lifts the horizon to the upper third. */
+export const PILOT_SEAT_PITCH = 0.13;
 
 export interface PilotState {
   /** Level coordinates, the same ones the layout and the towers use. */
@@ -264,6 +285,14 @@ export function pushOutOfTowers(state: PilotState, towers: readonly PilotTower[]
  * from the key, and the horizon in the cockpit tilts the wrong way too.
  */
 export const rollAngle = (bank: number): number => -bank;
+
+/** The seated camera's own lean. The mesh leans by `rollAngle(bank)`; a camera
+ *  looks down its own −z, so the same aircraft attitude reaches the eyepoint
+ *  through the opposite sign. Measured on the two conventions at 0,3 rad of
+ *  bank: the camera's up vector sat 0,825 off the aircraft's own up with
+ *  `rollAngle`, and 1,000 on it with this one — the difference between a
+ *  horizon that leans with the aircraft and one that does not. */
+export const seatRollAngle = (bank: number): number => -rollAngle(bank);
 
 /** Where the nose points: (sin h, cos h) in the level's plane. */
 export const noseOf = (heading: number): { x: number; z: number } => ({
