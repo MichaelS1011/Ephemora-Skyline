@@ -1205,6 +1205,62 @@ describe("Das Glas der festen Schale hält seine Lesbarkeit", () => {
   });
 
   /**
+   * The line that counts the plate down ("9 s"). It was the one ink of the
+   * announcement the list above never carried: `--meta-strong` was measured for
+   * this surface, `.start-summary-dwell` was not, and the line kept a literal
+   * from the days when the card sat on `rgba(18,18,16,.94)`. Once the card moved
+   * onto the control layer's glass (α 0,75 + sheen + blur over the city) that
+   * literal measured 2,75:1 at 1440×900 and 2,68:1 at 1280×800 on the delivered
+   * frames — `aria-hidden`, but the number says when the plate folds by itself,
+   * so it is text a reader acts on.
+   *
+   * Two obligations, one case: the line may bring no colour of its own (only a
+   * token follows the plate's ladder, globals.css lifts `--meta-strong` for
+   * `.start-summary-slot`), and the step it lands on has to clear AA over every
+   * field the plate composites.
+   */
+  const DWELL = /(\.start-summary-dwell\s*\{[^}]*color:\s*)([^;]+)(;)/;
+
+  it("hält die dwell-Zeile der Ankündigung auf der Leiter der Platte — und über AA", () => {
+    /** The declaration the rule carries, exactly as written. */
+    const declared = (files: Sheets): string => {
+      const m = withoutComments(designFile(files, "start.css")).match(DWELL);
+      expect(m, ".start-summary-dwell: keine regierende Farb-Deklaration").not.toBeNull();
+      return (m as RegExpMatchArray)[2]!.trim();
+    };
+    /** The worst field of the announcement's own ground, for one ink. */
+    const worstField = (files: Sheets, ink: string): { ratio: number; field: string } => {
+      const field = fläche(szene(files), "scan announcement").fields;
+      expect(field, "die Ankündigung rechnet keine Felder").toHaveLength(GROUNDS.length);
+      return field
+        .map((f) => ({ ratio: contrast(ink, f), field: f }))
+        .reduce((a, b) => (b.ratio < a.ratio ? b : a));
+    };
+
+    const raw = declared(css);
+    const token = raw.match(/^var\((--[\w-]+)\)$/)?.[1];
+    // A literal cannot follow a ladder: the plate's scope lifts its inks, and a
+    // hex written into the rule would stay behind when that lift moves.
+    expect(token, `.start-summary-dwell trägt "${raw}" statt einer Token-Tinte`).toBeDefined();
+    // Resolved where the plate paints it, not on `:root`: the announcement sits
+    // inside `.start-summary-slot`, and that scope is what steps up.
+    const ink = inkInScope(css, token as string, ".start-summary-slot");
+    const jetzt = worstField(css, ink);
+    expect(jetzt.ratio, `dwell ${token} (${ink}) auf ${jetzt.field}`).toBeGreaterThanOrEqual(STUFE);
+
+    // Der Gegenlauf: the ink of 2026-10-11 written back into a copy of the
+    // sheet. The same reader has to see it fall — a guard that cannot fail is a
+    // comment, and this one has to catch the next token that moves under it.
+    // It measures the literal itself: routing it through the token gate above
+    // would fail on the gate instead of on the contrast, which is the wrong
+    // test (found by running it: the first version died exactly there).
+    const alt = kopie("start.css", (t) => t.replace(DWELL, (_alle, kopf) => `${kopf}#8f958a;`));
+    expect(declared(alt), "die Kopie trägt die alte Tinte nicht").toBe("#8f958a");
+    const vorher = worstField(alt, "#8f958a");
+    expect(vorher.ratio, `#8f958a auf ${vorher.field}`).toBeLessThan(STUFE);
+  });
+
+  /**
    * The adaptive stage — Apple's own answer to "can you still see the city?".
    *
    * HIG, Materials (updated 9 September 2025): the *regular* variant "blurs and

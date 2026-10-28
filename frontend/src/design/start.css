@@ -1460,10 +1460,17 @@
   flex: 1;
   font: 400 12px/1.4 var(--font-mono);
   letter-spacing: 0.04em;
-  /* R2-07: #6f7469 measured 3,78:1 on the card ground (rgba(18,18,16,.94))
-     at 11 px — under AA for text this small that drives an action. #8f958a
-     recomputes to 5,90:1 on the same pixels. */
-  color: #8f958a;
+  /* R2-07 read 5,90:1 against `rgba(18,18,16,.94)` — the ground the card had
+     before it joined the control layer. It wears `--glass-control-bg`
+     (α 0,75) + sheen + blur over the city now, and on that ground `#8f958a`
+     measured 2,75:1 (1440×900) and 2,68:1 (1280×800), worst of three frames,
+     ink against the 90th-percentile ground of the row band. The plate's own
+     ladder answers it: `--meta-strong` is lifted to #d6d3cb for
+     `.start-summary-slot` in globals.css, and it holds 5,32:1 / 5,18:1 on the
+     same pixels. `--meta` was measured too and stops at 4,56:1 / 4,44:1 —
+     one viewport under AA, so the number, not the taste, picked the step.
+     `tests/glas-chrome.test.ts` holds this line on the plate's fields. */
+  color: var(--meta-strong);
   font-variant-numeric: tabular-nums;
 }
 .start-summary-pin,
