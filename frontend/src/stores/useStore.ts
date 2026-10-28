@@ -18,7 +18,7 @@ import {
   type CraneShot,
 } from "../city/layout";
 import { worldTargetForFinding } from "../city/waypoint";
-import { setFlying } from "../city/pilotMotion";
+import { pilotRefusal, setFlying } from "../city/pilotMotion";
 import { defaultOverviewPath } from "../city/overview";
 import type { ResidentOffer } from "../city/residentGreeting";
 import type { EpheRole, GuideRequest } from "../city/epheRoles";
@@ -285,13 +285,20 @@ interface AppState {
   exitOrbit: () => void;
   /** Which view the reader flies in: behind the aircraft or seated in it. */
   pilotView: "chase" | "cockpit";
-  /** Take the controls. The caller checks the refusals (building, tour, take,
-   *  no city) and explains them; the store itself only does the handover. */
+  /**
+   * Take the controls. `pilotRefusal` decides here, not in the door: a second
+   * way in (the dock's menu, a key, an address) must not be able to sit down
+   * while the first one is refusing. The doors ask the same law for the
+   * sentence they show.
+   */
   enterPilot: () => void;
   /** Hand the aircraft back to the show. The camera stays where it is. */
   exitPilot: () => void;
   /** Switch between the chase and the cockpit view mid-flight. */
   togglePilotView: () => void;
+  /** The two numbers the header carries while a person flies, or null. */
+  flightReadout: { alt: number; spd: number } | null;
+  setFlightReadout: (next: { alt: number; spd: number } | null) => void;
 
   // ── Camera command channel ─────────────────────────────────────────────
   flyRequest: FlyRequest | null;
@@ -1278,7 +1285,16 @@ export const useStore = create<AppState>((set, get) => {
 
     pilotView: "chase",
     enterPilot: () => {
-      if (get().cameraMode === "pilot") return;
+      const s = get();
+      if (s.cameraMode === "pilot") return;
+      if (
+        pilotRefusal({
+          hasCity: !!s.cityData,
+          building: s.buildPhase === "constructing",
+          tour: s.tourActive,
+        })
+      )
+        return;
       set({ cameraMode: "pilot", pilotView: "chase" });
       // The flag the two frame loops read without a store write per frame.
       setFlying(true);
@@ -1286,10 +1302,17 @@ export const useStore = create<AppState>((set, get) => {
     exitPilot: () => {
       if (get().cameraMode !== "pilot") return;
       setFlying(false);
-      set({ cameraMode: "free" });
+      set({ cameraMode: "free", flightReadout: null });
     },
     togglePilotView: () =>
       set((s) => ({ pilotView: s.pilotView === "chase" ? "cockpit" : "chase" })),
+    flightReadout: null,
+    setFlightReadout: (next) => {
+      const last = get().flightReadout;
+      // A write that changes nothing is a re-render for nobody.
+      if (last?.alt === next?.alt && last?.spd === next?.spd) return;
+      set({ flightReadout: next });
+    },
 
     flyRequest: null,
     requestFly: ({ distance = 40, x = 0, z = 0, ...rest }) =>

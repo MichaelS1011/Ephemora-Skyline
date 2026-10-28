@@ -116,11 +116,12 @@ describe("Das Dock trägt seinen Zustand ohne Deckkraft", () => {
   });
 
   it("hat für jede Sperre eine Markung, und keine hängt an nichts", () => {
-    // Eight blocked shapes on the bar and in its menu; a number that drops means
+    // Nine blocked shapes on the bar and in its menu; a number that drops means
     // one of them went back to being said by tone alone, which is exactly the
-    // fall `glas-chrome.test.ts` measures.
+    // fall `glas-chrome.test.ts` measures. The ninth is the seat in the
+    // tow-plane: refused while the crane is up or the tour drives.
     const marks = [...bar.matchAll(/struck\(([^)]*)\)/g)].map((m) => m[1] as string);
-    expect(marks, `Markungen: ${marks.join(" | ")}`).toHaveLength(8);
+    expect(marks, `Markungen: ${marks.join(" | ")}`).toHaveLength(9);
     for (const m of marks) expect(m, `eine Markung hängt an keiner Bedingung`).not.toBe("");
   });
 });

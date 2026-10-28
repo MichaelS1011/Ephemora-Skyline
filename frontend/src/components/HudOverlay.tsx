@@ -90,6 +90,9 @@ export function HudOverlay({ apiStatus }: HudOverlayProps) {
   const tourActive = useStore((s) => s.tourActive);
   const cameraInfo = useStore((s) => s.cameraInfo);
   const cameraMode = useStore((s) => s.cameraMode);
+  const flightReadout = useStore((s) => s.flightReadout);
+  const pilotView = useStore((s) => s.pilotView);
+  const togglePilotView = useStore((s) => s.togglePilotView);
   // The height sentence follows the field that draws it (city/heightAxis):
   // far zoom is where CityTree mounts the heat grid, and the grid raises
   // every cell by the picked channel — the legend may not keep naming
@@ -289,6 +292,30 @@ export function HudOverlay({ apiStatus }: HudOverlayProps) {
           </button>
           {!constructing && (
             <>
+              {/* The two numbers of a flight a person is flying, and the one
+                  control they need while doing it. They stand in the header
+                  line, not on a new panel: the arrival budget counts standing
+                  surfaces, and this one only exists while the aircraft moves. */}
+              {cameraMode === "pilot" && flightReadout && (
+                <span className="workspace-flight" data-testid="workspace-flight">
+                  <span className="workspace-flight-alt" title={t(lang, "hud.flightAltTitle")}>
+                    {flightReadout.alt} <span>m</span>
+                  </span>
+                  <span className="workspace-flight-spd" title={t(lang, "hud.flightSpdTitle")}>
+                    {flightReadout.spd} <span>m/s</span>
+                  </span>
+                  <button
+                    type="button"
+                    onClick={togglePilotView}
+                    title={t(lang, "hud.flightViewTitle")}
+                    aria-label={t(lang, "hud.flightViewAria", {
+                      view: t(lang, pilotView === "cockpit" ? "hud.flightSeat" : "hud.flightChase"),
+                    })}
+                  >
+                    {t(lang, pilotView === "cockpit" ? "hud.flightSeat" : "hud.flightChase")}
+                  </button>
+                </span>
+              )}
               {/* The frame budget the city is actually running on. Same window
                   the automatic graphics switch decides from, so the number and
                   the switch can never tell two stories — and nothing at all

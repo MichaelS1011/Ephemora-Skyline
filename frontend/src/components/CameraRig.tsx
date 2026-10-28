@@ -19,11 +19,13 @@ import {
   pilotEntryAgl,
   PILOT_SEAT_Y,
   PILOT_SEAT_Z,
+  pilotReadout,
   pilotStarted,
   pilotState,
   pilotWall,
   pushOutOfTowers,
   rollAngle,
+  setFlying,
   startPilot,
   stepPilot,
   stopPilot,
@@ -480,6 +482,8 @@ export function CameraRig() {
   const lostCheckAt = useRef(0);
   /** The pose last handed to the HUD — the frame loop only writes when it moved. */
   const lastReported = useRef<CameraInfo | null>(null);
+  /** Seconds since the header's flight numbers were last asked (0,5 s beat). */
+  const readoutAt = useRef(0);
   // The first flight after a fresh city load has no user-established
   // viewpoint yet — it keeps the legacy fallback approach; every later
   // flight preserves the direction the user is looking from.
@@ -503,9 +507,22 @@ export function CameraRig() {
   modeRef.current = cameraMode;
 
   // Leaving the seat ends the flight for the law as well; the shared state
-  // stays readable so the show can resume from the landing point.
+  // stays readable so the show can resume from the landing point. This is the
+  // one sweeper for every way out — `exitPilot`, a double-click that steals
+  // the camera for an orbit, a new city arriving — because a mode that left
+  // without handing the aircraft back froze the show's plane in mid-sky.
   useEffect(() => {
-    if (cameraMode !== "pilot") stopPilot();
+    if (cameraMode === "pilot") {
+      // The seat belongs to the world. Whoever took it with the mouse left
+      // their focus on a dock button, and that button answers ArrowUp by
+      // opening its own menu — measured: 2,2 s of held ↑ moved the aircraft
+      // 0 m until the focus went to the canvas.
+      document.querySelector<HTMLElement>(".city-canvas")?.focus();
+      return;
+    }
+    stopPilot();
+    setFlying(false);
+    useStore.getState().setFlightReadout(null);
   }, [cameraMode]);
 
   // A fresh city resets the viewpoint: the next flight uses the fallback.
@@ -609,19 +626,24 @@ export function CameraRig() {
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
       // Two keys that are not navigation: take the seat, and change the view
-      // from inside it. Both are refused in the same places every other
-      // camera command is refused (typing, dialog, the tour above).
+      // from inside it. Both stand down exactly where every other camera
+      // command does — a field the person is writing into, a dialog that holds
+      // the keyboard, the minimap that steers its own keys. An "f" typed into
+      // the search box may not put a reader in a cockpit.
+      const held = isTypingTarget(e.target) || dialogOpen() || ownsTheKeys(e.target);
       if (e.code === "KeyV") {
         const st = useStore.getState();
-        if (st.cameraMode === "pilot") st.togglePilotView();
+        if (!held && st.cameraMode === "pilot") st.togglePilotView();
         return;
       }
       if (e.code === "KeyF") {
+        if (held) return;
         const st = useStore.getState();
+        // From the seat, F is the way back out. Going in is the store's
+        // decision — `pilotRefusal` is one law for this key, the dock's menu
+        // and the header, and KeyEcho says the reason out loud.
         if (st.cameraMode === "pilot") st.exitPilot();
-        else if (st.cityData && st.buildPhase !== "constructing" && !st.tourActive) {
-          st.enterPilot();
-        }
+        else st.enterPilot();
         return;
       }
       if (!isNavKey(e.code)) return;
@@ -878,6 +900,13 @@ export function CameraRig() {
         camera.lookAt(_look);
       }
       if (keys.size > 0) useStore.getState().noteCameraManual();
+      // The header's two numbers, on a half-second beat: whole metres gain
+      // nothing from sixty writes a second, and the HUD is not the cockpit.
+      readoutAt.current += delta;
+      if (readoutAt.current >= 0.5) {
+        readoutAt.current = 0;
+        useStore.getState().setFlightReadout(pilotReadout(st));
+      }
     }
 
     if (!flying && keys.size > 0) {

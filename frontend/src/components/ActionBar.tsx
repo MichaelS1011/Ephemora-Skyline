@@ -15,6 +15,7 @@ import {
   useStore,
 } from "../stores/useStore";
 import { useOrigin } from "../stores/useOrigin";
+import { pilotRefusal } from "../city/pilotMotion";
 import { useTestRunner } from "../hooks/useTestRunner";
 import { t } from "../i18n";
 import { cityLinkNotice } from "../cityLifetime";
@@ -107,6 +108,9 @@ export function ActionBar() {
   const colorblind = useStore((s) => s.prefs.colorblind);
   const setPref = useStore((s) => s.setPref);
   const triageActive = useStore((s) => s.triageActive);
+  const cameraMode = useStore((s) => s.cameraMode);
+  const enterPilot = useStore((s) => s.enterPilot);
+  const exitPilot = useStore((s) => s.exitPilot);
   const triageCursor = useStore((s) => s.triageCursor);
   const triageTotal = useStore((s) => s.triageTotal);
   const startTriage = useStore((s) => s.startTriage);
@@ -248,6 +252,22 @@ export function ActionBar() {
    *  run is on its way the label says so in words, anything else (no scan, no
    *  folder behind the demo) is a step that leads nowhere and is struck. */
   const testsBlocked = !testing && (standalone || !analysisId || !cityOnDisk(cityData));
+  /**
+   * The seat in the tow-plane. Until this row existed the aircraft could only
+   * be taken by a key nobody lists on screen — the seat was in the shortcut
+   * list, and the shortcut list is not where a first visitor looks. The same
+   * `pilotRefusal` the store obeys decides what the menu offers, so the door
+   * and the law can never disagree, and a refusal carries its reason.
+   */
+  const flying = cameraMode === "pilot";
+  const seatRefusal = pilotRefusal({ hasCity: true, building: constructing, tour: tourActive });
+  const seatBlocked = seatRefusal !== null && !flying;
+  const seatRefusalKey =
+    seatRefusal === "building"
+      ? ("actions.flyBuilding" as const)
+      : seatRefusal === "tour"
+        ? ("actions.flyTour" as const)
+        : ("actions.flyNoCity" as const);
 
   /** What the system set on the genuine first run — read while the menu is
    *  open, never at arrival: this is an explanation for whoever looks at the
@@ -683,6 +703,33 @@ export function ActionBar() {
               >
                 <span aria-hidden="true">▷</span>
                 {testing ? t(lang, "actions.testsRunning") : t(lang, "actions.runTests")}
+              </button>
+              <button
+                role="menuitem"
+                type="button"
+                data-testid="menu-fly"
+                // The seat is either taken or given back; both states name
+                // themselves. A refusal is struck with its reason, because a
+                // control that offers itself and then does nothing is the
+                // defect this menu has been asked to avoid twice already.
+                disabled={seatBlocked}
+                onClick={() => {
+                  closeMenu();
+                  if (flying) exitPilot();
+                  else enterPilot();
+                }}
+                className="flex min-h-10 w-full items-center gap-3 rounded-lg px-3 text-left hover:bg-white/5"
+                style={struck(seatBlocked)}
+                title={
+                  flying
+                    ? t(lang, "actions.landTitle")
+                    : seatBlocked
+                      ? t(lang, seatRefusalKey)
+                      : t(lang, "actions.flyTitle")
+                }
+              >
+                <span aria-hidden="true">{flying ? "↩" : "✈"}</span>
+                {t(lang, flying ? "actions.land" : "actions.fly")}
               </button>
               <button
                 role="menuitem"

@@ -833,6 +833,35 @@ export function explain(press: Press, world: World): Text | null {
     );
   }
 
+  // The seat in the tow-plane. `F` in a built city answers by itself, and so
+  // does `F` from the seat (it hands the aircraft back); the two states where
+  // it cannot are the crane and the tour, and both read as a broken key
+  // without a sentence. `V` belongs to a flight nobody is in yet.
+  if (key === "f" && world.cameraMode !== "pilot") {
+    if (world.constructing) {
+      return T(
+        "keys.flyBuilding",
+        "The city is still under its crane — F takes the controls once it stands",
+        "Die Stadt steht noch unter dem Kran — F übernimmt, sobald sie steht",
+      );
+    }
+    if (world.tourActive) {
+      return T(
+        "keys.flyTour",
+        "The security tour is walking this city — Esc ends it, then F flies",
+        "Die Security-Tour geht gerade durch diese Stadt — Esc beendet sie, dann steuert F dich",
+      );
+    }
+  }
+
+  if (key === "v" && world.cameraMode !== "pilot") {
+    return T(
+      "keys.flyViewIdle",
+      "V swaps the view while you fly — F takes the controls of the tow-plane first",
+      "V wechselt die Ansicht im Flug — erst F übernimmt das Schleppflugzeug",
+    );
+  }
+
   if (key === "n") {
     if (world.triageActive && world.triageOpen === 0) {
       return T(

@@ -156,9 +156,9 @@ function wingGeometry(
  * the wings, the pale only on the glass blister, where the edge it needs to
  * cross is the dark body beside it, not the sky.
  *
- * Exported for the readability probe in `.qoder-scratch/…/cockpit-raster.mjs`
- * — the seat camera's view of the hull is a property of this geometry, and a
- * live frame cannot separate it from the city scrolling behind it.
+ * Exported so a measurement can ask the geometry directly what the seat sees:
+ * the hull's view from the cockpit is a property of these numbers, and a live
+ * frame cannot separate it from the city scrolling behind the window.
  */
 export function hullGeometry(): THREE.BufferGeometry {
   const pos: number[] = [];

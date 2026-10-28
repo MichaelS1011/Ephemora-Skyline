@@ -1091,6 +1091,39 @@ button:disabled {
   gap: 20px;
   min-width: 0;
 }
+/* The flight's own line in that row: how high, how fast, and the one control
+   a pilot reaches for most. Same tabular figures as the frame rate beside it,
+   so a climbing number does not shove the header around. */
+.workspace-flight {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  font-variant-numeric: tabular-nums;
+  font-size: 13px;
+  color: var(--brand-ink);
+  white-space: nowrap;
+}
+.workspace-flight > span > span {
+  font-size: var(--fs-meta);
+  color: var(--meta-strong);
+}
+.workspace-flight button {
+  font: inherit;
+  font-size: var(--fs-meta);
+  letter-spacing: 0.02em;
+  min-height: 26px;
+  padding: 0 9px;
+  border-radius: 6px;
+  border: 1px solid var(--meta-strong);
+  background: none;
+  color: var(--meta-strong);
+  cursor: pointer;
+}
+.workspace-flight button:hover,
+.workspace-flight button:focus-visible {
+  color: var(--brand-ink);
+  border-color: var(--brand-ink);
+}
 
 /* The live loop hangs under the header rather than floating in the middle of
    the skyline. It only exists after a handle scan and a change, so the arrival

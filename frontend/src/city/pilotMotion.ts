@@ -357,3 +357,35 @@ export const pilotStarted = (): boolean => started;
 export function stopPilot(): void {
   started = false;
 }
+
+/** ── Who may take the seat ────────────────────────────────────────────────── */
+
+/** Why the seat is empty right now, or `null` when anybody can sit down. */
+export type PilotRefusal = "noCity" | "building" | "tour" | null;
+
+/**
+ * The seat's one law, as a word rather than an `if`.
+ *
+ * The key, the dock's menu and the header all ask this same question, so a
+ * refusal cannot be true in one door and false in another — and each door can
+ * say the reason instead of silently doing nothing, which is what a bound
+ * control that refuses without explaining is: a defect (see `explain()` in
+ * `interaction/shortcuts.ts`).
+ */
+export function pilotRefusal(state: {
+  hasCity: boolean;
+  building: boolean;
+  tour: boolean;
+}): PilotRefusal {
+  if (!state.hasCity) return "noCity";
+  if (state.building) return "building";
+  if (state.tour) return "tour";
+  return null;
+}
+
+/** The two numbers the header shows while a person flies. Whole metres and
+ *  whole metres per second: a tenth of a metre is not something a reader can
+ *  compare against anything, and it would re-render the header every frame. */
+export function pilotReadout(st: PilotState): { alt: number; spd: number } {
+  return { alt: Math.round(st.agl), spd: Math.round(st.speed) };
+}

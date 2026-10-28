@@ -4452,6 +4452,50 @@ export const DICT = {
     en: "X shows raw numbers — aim at a tower: hover it, or step to one with [ ]",
     de: "X zeigt Rohzahlen — visiere einen Turm an: darüberfahren oder mit [ ] zu einem schalten",
   },
+  // ── The seat in the tow-plane, reachable by mouse ─────────────────────────
+  // The keys were listed and the seat was not: a reader who never opens the
+  // shortcut list never finds out that the aircraft is theirs. These strings
+  // are the door, the number behind it and the reason it stays shut.
+  "actions.fly": { en: "Fly the plane", de: "Steuer das Flugzeug" },
+  "actions.flyTitle": {
+    en: "The tow-plane is yours: W/S throttle, A/D bank, arrows turn and climb, Esc gives it back",
+    de: "Das Schleppflugzeug gehört dir: W/S Gas, A/D Querlage, Pfeile lenken und steigen, Esc gibt es zurück",
+  },
+  "actions.land": { en: "Hand the plane back", de: "Flugzeug zurückgeben" },
+  "actions.landTitle": {
+    en: "End the flight — the camera stays where you left it and the show takes the aircraft again",
+    de: "Flug beenden — die Kamera bleibt stehen und die Show übernimmt das Flugzeug wieder",
+  },
+  "actions.flyBuilding": {
+    en: "The city is still under its crane",
+    de: "Die Stadt steht noch unter dem Kran",
+  },
+  "actions.flyTour": {
+    en: "The security tour is walking this city — Esc ends it",
+    de: "Die Security-Tour geht gerade durch diese Stadt — Esc beendet sie",
+  },
+  "actions.flyNoCity": {
+    en: "There is no city to fly over yet",
+    de: "Es gibt noch keine Stadt, über die man fliegen könnte",
+  },
+  "hud.flightAltTitle": {
+    en: "Height above the street below the aircraft",
+    de: "Höhe über der Straße unter dem Flugzeug",
+  },
+  "hud.flightSpdTitle": {
+    en: "How fast the aircraft is flying",
+    de: "Wie schnell das Flugzeug fliegt",
+  },
+  "hud.flightChase": { en: "Behind", de: "Hinten" },
+  "hud.flightSeat": { en: "Seated", de: "Im Cockpit" },
+  "hud.flightViewTitle": {
+    en: "View: behind the aircraft ⇄ seated in it — V does the same",
+    de: "Ansicht: hinter dem Flugzeug ⇄ darin sitzen — V tut dasselbe",
+  },
+  "hud.flightViewAria": {
+    en: "Switch the flight view, currently {view}",
+    de: "Flugansicht wechseln, gerade {view}",
+  },
 } satisfies Record<string, { en: string; de: string }>;
 
 export type DictKey = keyof typeof DICT;

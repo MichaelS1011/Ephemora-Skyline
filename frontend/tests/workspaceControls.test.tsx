@@ -125,6 +125,8 @@ describe("city action menu", () => {
     expect(more.getAttribute("aria-expanded")).toBe("true");
     expect(document.activeElement).toBe(button("Run tests"));
     await press("ArrowDown");
+    expect(document.activeElement).toBe(button("Fly the plane"));
+    await press("ArrowDown");
     expect(document.activeElement).toBe(button("City image or video"));
     await press("End");
     expect(document.activeElement).toBe(button("Copy city link"));
@@ -144,7 +146,9 @@ describe("city action menu", () => {
     await click(button("More"));
     expect(button("Run tests").disabled).toBe(true);
     expect(button("Copy city link").disabled).toBe(true);
-    expect(document.activeElement).toBe(button("City image or video"));
+    // The seat is the first thing a demo city offers by mouse: it needs no
+    // scan and no folder on disk, only a city that stands.
+    expect(document.activeElement).toBe(button("Fly the plane"));
   });
 
   it("opens the vitrine, so a named resident can be restyled from the city", async () => {
