@@ -70,7 +70,7 @@ export const CHASE_LOOK_DROP = 9;
 /** The pilot's eye inside the hull, in the aircraft's own frame (metres above
  *  the hull's origin and ahead of it). The canopy box's roof is at 0,725, so
  *  this sits just above it and looks over the nose. */
-export const PILOT_SEAT_Y = 0.86;
+export const PILOT_SEAT_Y = 1.15;
 export const PILOT_SEAT_Z = 0.05;
 
 export interface PilotState {

@@ -17,6 +17,8 @@ import {
   CHASE_UP,
   PILOT_INPUT_IDLE,
   pilotEntryAgl,
+  PILOT_SEAT_Y,
+  PILOT_SEAT_Z,
   pilotStarted,
   pilotState,
   pilotWall,
@@ -842,17 +844,37 @@ export function CameraRig() {
         pushOutOfTowers(st, towers.current.list);
       }
       const y = surfaceHeight(surface, st.x, st.z) + st.agl;
-      camera.position.set(
-        st.x - Math.sin(st.heading) * CHASE_BACK,
-        y + CHASE_UP,
-        st.z - Math.cos(st.heading) * CHASE_BACK,
-      );
-      _look.set(
-        st.x + Math.sin(st.heading) * CHASE_LOOK_AHEAD,
-        y - CHASE_LOOK_DROP,
-        st.z + Math.cos(st.heading) * CHASE_LOOK_AHEAD,
-      );
-      camera.lookAt(_look);
+      if (useStore.getState().pilotView === "cockpit") {
+        // Seated: the camera rides on the roll axis above the canopy roof and
+        // the fin, and looks along the nose —
+        // so the horizon is what leans when the aircraft banks, and the city
+        // arrives instead of being looked down on. No new mesh, no new
+        // material: this is the same aircraft, seen from its own cockpit.
+        const seatY = y + PILOT_SEAT_Y * Math.cos(st.bank);
+        camera.position.set(
+          st.x + Math.sin(st.heading) * PILOT_SEAT_Z,
+          seatY,
+          st.z + Math.cos(st.heading) * PILOT_SEAT_Z,
+        );
+        // Measured on the frame, not derived: yaw = heading looks along the
+        // nose, and the roll rides the same axis, so the horizon is what leans.
+        // The seat has to clear the fin (its top is 1,025 in the hull's own
+        // frame) — at 0,86 the tail filled the picture instead of the city.
+        _euler.set(0, st.heading, st.bank, "YXZ");
+        camera.quaternion.setFromEuler(_euler);
+      } else {
+        camera.position.set(
+          st.x - Math.sin(st.heading) * CHASE_BACK,
+          y + CHASE_UP,
+          st.z - Math.cos(st.heading) * CHASE_BACK,
+        );
+        _look.set(
+          st.x + Math.sin(st.heading) * CHASE_LOOK_AHEAD,
+          y - CHASE_LOOK_DROP,
+          st.z + Math.cos(st.heading) * CHASE_LOOK_AHEAD,
+        );
+        camera.lookAt(_look);
+      }
       if (keys.size > 0) useStore.getState().noteCameraManual();
     }
 

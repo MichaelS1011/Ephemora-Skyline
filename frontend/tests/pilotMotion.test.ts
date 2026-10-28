@@ -8,6 +8,8 @@ import {
   PILOT_FLOOR_AGL,
   PILOT_HULL_CLEAR,
   PILOT_INPUT_IDLE,
+  PILOT_SCALE,
+  PILOT_SEAT_Y,
   PILOT_SPEED_MAX,
   PILOT_SPEED_MIN,
   PILOT_SPEED_START,
@@ -152,6 +154,23 @@ describe("towers push, they never stop", () => {
     const before = { x: s.x, z: s.z, speed: s.speed };
     expect(pushOutOfTowers(s, [tower])).toBe(false);
     expect({ x: s.x, z: s.z, speed: s.speed }).toEqual(before);
+  });
+});
+
+describe("the seat", () => {
+  it("sits above the fin, not inside it", () => {
+    // The hull is five boxes in one geometry (BannerPlane.hullGeometry): the
+    // fin spans y 0,175 … 1,025 and the canopy roof is at 0,725. A seat below
+    // the fin top fills the frame with the aircraft's own tail — measured on
+    // the first cockpit frame, which showed exactly that.
+    const FIN_TOP = 1.025;
+    expect(PILOT_SEAT_Y).toBeGreaterThan(FIN_TOP);
+  });
+
+  it("flies at one fixed scale, because the camera now rides the aircraft", () => {
+    // The show's scale is derived from the camera's distance; with the camera
+    // in the seat that is a feedback loop. One constant, no easing.
+    expect(PILOT_SCALE).toBe(1);
   });
 });
 
