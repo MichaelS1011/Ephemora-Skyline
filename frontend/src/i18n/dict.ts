@@ -92,13 +92,22 @@ export const DICT = {
   // §03.03 — the calm welcome, the first reader of `firstRun`. Everyday words,
   // no setup jargon, one action. It names what happens and what does not; it
   // asks for nothing.
+  //
+  // Erste Reise (2026-10-28): the body is the only place a first-time reader
+  // learns what a building IS — measured on the delivered frame, the sentence
+  // that stated it lived in the SVG's `<desc>` (read by a screen reader,
+  // painted for nobody) and in the bottom strip 333 px below the card. It also
+  // said "Nothing leaves this machine", which the hourly release check at
+  // GitHub contradicts: the claim is about the code, so the code is what the
+  // sentence names now. The exception is stated once, in the beat after this
+  // one (`landing.guideReaches`), where it is not the first thing anyone reads.
   "landing.welcomeTitle": {
     en: "Welcome.",
     de: "Willkommen.",
   },
   "landing.welcomeBody": {
-    en: "Pick a project folder and Skyline builds it into a city you can walk through. Nothing leaves this machine, and there is nothing to set up first.",
-    de: "Wähl einen Projektordner, und Skyline baut ihn in eine Stadt, die du durchgehen kannst. Nichts verlässt diesen Rechner, und einrichten musst du vorher nichts.",
+    en: "Pick the folder with your code. Skyline reads it here, uploads nothing, and builds a city you can walk through — every file becomes a building.",
+    de: "Wähl den Ordner mit deinem Code. Skyline liest ihn hier, lädt nichts hoch und baut eine Stadt, die du durchgehen kannst — aus jeder Datei wird ein Gebäude.",
   },
   "landing.welcomeBegin": {
     en: "Let's start",
@@ -123,12 +132,21 @@ export const DICT = {
     de: "Wähl den Ordner mit deinem Code.",
   },
   "landing.guideStep2": {
-    en: "Skyline reads it and builds a city — every file becomes a building.",
-    de: "Skyline liest ihn und baut eine Stadt — aus jeder Datei wird ein Gebäude.",
+    en: "Skyline reads each file and builds the city.",
+    de: "Skyline liest jede Datei und baut die Stadt.",
   },
   "landing.guideStep3": {
     en: "Walk the city to see how it is put together, and where to look next.",
     de: "Geh durch die Stadt und sieh, wie sie zusammenhängt und wo du als Nächstes hinschaust.",
+  },
+  // Erste Reise: the one question every reader has deserves its answer before
+  // the first city, in one sentence, without fine print — and the answer is
+  // not "nothing leaves". `landing.localBadgeNote` and the "What leaves the
+  // machine" list carry the same two rows in full; this is the beat where a
+  // newcomer is told they exist at all.
+  "landing.guideReaches": {
+    en: "Two things reach out on their own: the hourly version check at GitHub, and the scanners' rule and advisory data.",
+    de: "Zwei Dinge gehen von selbst hinaus: die stündliche Versionsprüfung bei GitHub und die Regel- und Sicherheitsdaten der Scanner.",
   },
   "landing.guideContinue": {
     en: "Continue",
@@ -139,9 +157,19 @@ export const DICT = {
     de: "Zurück",
   },
   // §03.06 — the visible progress of the two guided beats. Calm words, no count.
+  // Erste Reise changed one thing: the position is now said out loud, because
+  // the line used to hold three entries whose words were the beat titles
+  // themselves — "Welcome" stood above the card titled "Welcome." and "How it
+  // works" above the card titled "How it works", and the third named a button
+  // that is not on this screen and will not be for two more clicks. The beats
+  // are named once now, in the card; the line only says how far they are.
   "landing.arrivalAria": {
     en: "Getting started",
     de: "Erste Schritte",
+  },
+  "landing.arrivalPosition": {
+    en: "{i} of {n}",
+    de: "{i} von {n}",
   },
   "landing.arrivalStepWelcome": {
     en: "Welcome",
@@ -163,9 +191,12 @@ export const DICT = {
     en: "next",
     de: "als Nächstes",
   },
+  // §03.07 — the way out of the sequence. It names what it ends: a bare "Skip"
+  // over two beats that never said their length read as "there is nothing to
+  // see here", which is the opposite of why the escape exists.
   "landing.arrivalSkip": {
-    en: "Skip",
-    de: "Überspringen",
+    en: "Skip the introduction",
+    de: "Einführung überspringen",
   },
   // §03.09 — a read this tab left behind, finished by the server in the meantime.
   // It names what happened and offers the one thing that follows from it.
@@ -500,10 +531,13 @@ export const DICT = {
     en: "Understand the structure. Know where to look next.",
     de: "Verstehe die Struktur. Erkenne, wo es weitergeht.",
   },
-  "landing.footer2": {
-    en: "Folders become districts. Files become buildings.",
-    de: "Ordner werden zu Stadtteilen. Dateien werden zu Gebäuden.",
-  },
+  // `landing.footer2` ("Folders become districts. Files become buildings.") is
+  // gone, not translated away: on the first beat it repeated, 333 px below the
+  // card the reader is reading, the one sentence the card now carries itself
+  // (`landing.welcomeBody`). A strip at the fold's edge is not where a first
+  // explanation belongs, and the same screen may say a thing once.
+  // Key deleted rather than left unprinted — `dict-dead-keys.test.ts` counts
+  // sentences no surface reads.
   "landing.illuTitle": {
     en: "Read your code as a city",
     de: "Deinen Code als Stadt lesen",

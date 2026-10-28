@@ -991,6 +991,10 @@ export function Landing() {
               <li>{t(lang, "landing.guideStep2")}</li>
               <li>{t(lang, "landing.guideStep3")}</li>
             </ol>
+            {/* Erste Reise — the answer to the question every reader has, said
+              in the beat before the first city rather than in a tooltip or a
+              collapsed list two clicks away. */}
+            <p className="landing-guide-reaches">{t(lang, "landing.guideReaches")}</p>
             <div className="landing-guide-actions">
               <button type="button" className="landing-guide-back" onClick={() => goTo("welcome")}>
                 ← {t(lang, "landing.guideBack")}
@@ -1366,7 +1370,6 @@ export function Landing() {
       <RecentCities lang={lang} />
       <footer className="landing-footer">
         <span>{t(lang, "landing.footer1")}</span>
-        <span>{t(lang, "landing.footer2")}</span>
       </footer>
     </main>
   );

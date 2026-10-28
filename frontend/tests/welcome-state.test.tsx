@@ -434,12 +434,13 @@ describe("the arrival beat survives a reload (§03.08)", () => {
     await reloadLanding();
     expect(host.querySelector(".landing-welcome")).toBeNull();
     expect(host.querySelector(".landing-guide")).not.toBeNull();
-    // the marks agree with the card: beat one done, beat two current, and the
-    // third entry is the action that follows — marked, never posed as current
+    // the marks agree with the card: beat one done, beat two current. Erste
+    // Reise took the third entry out — it named a button that is not on this
+    // screen, and the row said the beat titles a second time.
     const states = [...host.querySelectorAll(".start-progress-steps li")].map((li) =>
       li.getAttribute("data-state"),
     );
-    expect(states).toEqual(["done", "current", "todo"]);
+    expect(states).toEqual(["done", "current"]);
   });
 
   it("keeps a skip skipped", async () => {

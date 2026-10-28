@@ -19,10 +19,11 @@ import { ArrivalProgress } from "../src/components/ArrivalProgress";
  * ephe-preview.test.tsx). If a portrait ever returns to the landing, this
  * file says so.
  *
- * #30: the step bar is one shape for all its entries, and the last entry
- * names the action that really follows — the folder button's own words, in
- * both languages. Click and keyboard paths are unchanged (the beats' tests
- * live in welcome-state and arrival-progress).
+ * #30 gave the step row three entries of one shape; Erste Reise (2026-10-28)
+ * kept the shape and dropped the words: two marks, one sentence about the
+ * length, one exit that says what it ends. The beats are named once, on their
+ * own cards. Click and keyboard paths are unchanged (the beats' tests live in
+ * welcome-state and arrival-progress).
  */
 
 // jsdom has no WebGL; the vitrine's canvas is stubbed exactly as
@@ -194,13 +195,13 @@ describe("the ground behind the start picture carries no caption (#36)", () => {
   });
 });
 
-describe("the step bar is one shape, and the last entry names the real next action (#30)", () => {
+describe("the arrival row states one thing and asks for one (#ErsteReise)", () => {
   function bar(lang: Lang): HTMLDivElement {
     const el = document.createElement("div");
     document.body.append(el);
     const r = createRoot(el);
     act(() => {
-      r.render(<ArrivalProgress lang={lang} stage="welcome" />);
+      r.render(<ArrivalProgress lang={lang} stage="welcome" onSkip={() => {}} />);
     });
     const holder = el.firstChild as HTMLDivElement;
     afterEachBar.push(() => {
@@ -215,28 +216,42 @@ describe("the step bar is one shape, and the last entry names the real next acti
   });
 
   for (const lang of ["en", "de"] as const) {
-    it(`gives every entry a dot in ${lang}`, () => {
+    it(`gives every beat a dot and no second title in ${lang}`, () => {
       const el = bar(lang);
       const lis = [...el.querySelectorAll("li")];
-      expect(lis).toHaveLength(3);
+      expect(lis).toHaveLength(2);
       for (const li of lis) {
         expect(
           li.querySelector(".start-progress-dot"),
           `${li.textContent}: kein Punkt`,
         ).not.toBeNull();
+        // the beat's word is the mark's name, never its painted text — the card
+        // below already titles itself, and a screen says a thing once
+        expect(li.textContent).toBe("");
+        expect(li.getAttribute("aria-label")).toMatch(
+          new RegExp(
+            `^(${t(lang, "landing.arrivalStepWelcome")}|${t(lang, "landing.arrivalStepGuide")}) — `,
+          ),
+        );
+        expect(li.getAttribute("aria-label")).toMatch(
+          new RegExp(
+            `(${t(lang, "landing.arrivalDone")}|${t(lang, "landing.arrivalCurrent")}|${t(lang, "landing.arrivalTodo")})$`,
+          ),
+        );
       }
       // no bare sentence hangs beside the rings any more
       expect(el.querySelector(".start-progress-next")).toBeNull();
     });
 
-    it(`names the folder action in the button's own words (${lang})`, () => {
+    it(`states the length, and the exit names what it ends (${lang})`, () => {
       const el = bar(lang);
-      const lis = [...el.querySelectorAll("li")];
-      const last = lis[2] as HTMLLIElement;
-      expect(last.textContent).toContain(t(lang, "landing.primary"));
-      expect(last.getAttribute("data-state")).toBe("todo");
-      // its state is a word, not only a dot
-      expect(last.getAttribute("aria-label")).toContain(t(lang, "landing.arrivalTodo"));
+      const line = el.querySelector(".start-progress-position");
+      expect(line?.textContent).toContain(t(lang, "landing.arrivalAria"));
+      expect(line?.textContent).toContain(t(lang, "landing.arrivalPosition", { i: 1, n: 2 }));
+      const skip = el.querySelector(".start-progress-skip");
+      expect(skip?.textContent).toBe(t(lang, "landing.arrivalSkip"));
+      // the folder button's words do not appear before the button does
+      expect(el.textContent).not.toContain(t(lang, "landing.primary"));
     });
   }
 });

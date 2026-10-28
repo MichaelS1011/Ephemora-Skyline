@@ -2728,7 +2728,10 @@ describe("Gold-Sweep: die Restliste trägt ihre Zustände in words und Leiter-Ti
   });
 
   it("trägt jeden geräumten Zustand an seinem Wort, seiner Form oder seinem aria-Anker", () => {
-    expect(ARRIVAL_SRC).toContain('aria-current={s.current ? "step" : undefined}');
+    // Erste Reise (2026-10-28) schrieb die Zeile um: die Marke trägt ihren
+    // Zustand weiter an Wort, Form und aria-Anker, nur heißt der Anker jetzt
+    // beim Stand der Marke statt bei ihrer `current`-Flagge.
+    expect(ARRIVAL_SRC).toContain('aria-current={s.state === "current" ? "step" : undefined}');
     expect(ARRIVAL_SRC).toContain("landing.arrivalDone");
     expect(SCAN_SRC).toContain("summary.guideGo");
     expect(SCAN_SRC).toContain("aria-pressed={pinned}");

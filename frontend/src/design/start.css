@@ -462,6 +462,17 @@
 .landing-shell.start-v2 .landing-guide-steps li::marker {
   color: var(--meta-strong);
 }
+/* Erste Reise — the one sentence that answers "what happens to my code" without
+  a tooltip and without fine print. It sits under the three steps and one step
+  quieter than they are: it is the exception to "this stays here", not a fourth
+  thing to do. */
+.landing-shell.start-v2 .landing-guide-reaches {
+  margin: 0 0 14px;
+  max-width: 56ch;
+  font-size: var(--fs-small);
+  line-height: 1.6;
+  color: var(--meta-strong);
+}
 .landing-shell.start-v2 .landing-guide-actions {
   display: flex;
   align-items: center;
@@ -525,6 +536,13 @@
    bar that creeps — it names where the reader is, nothing more. */
 .landing-shell.start-v2 .start-progress-steps {
   grid-column: 1 / -1;
+  /* Erste Reise: the row belongs to the beat it counts, so it stops at the
+     beat's own column. The full-width row pushed the exit to x=1176, where the
+     sky haze behind it measures #838686 — the label's ink (#d7e2e9) reaches
+     only 2,79:1 there, and the row is measured on the delivered frame, not on
+     the token. Inside the column the same ink sits on the city ground
+     (#1b1b19) and clears AA. */
+  max-width: 620px;
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -571,6 +589,17 @@
 .landing-shell.start-v2 .start-progress-steps li[data-state="current"] .start-progress-dot {
   border-color: var(--brand-ink);
   box-shadow: 0 0 0 3px rgba(242, 239, 232, 0.12);
+}
+/* Erste Reise — the row's one visible sentence. It used to hold three entries
+   whose words were the beat titles printed again below them, plus a fourth
+   name for a button that is not on this screen; the marks stayed, the words
+   became the length. Same ink ladder as the Skip beside it, so neither of the
+   two is the loudest thing on the page — the card's own button is. */
+.landing-shell.start-v2 .start-progress-position {
+  margin: 0;
+  font: 500 var(--fs-small)/1 var(--font-mono);
+  letter-spacing: 0.04em;
+  color: var(--meta-strong);
 }
 /* §03.07 — the sequence's one Skip, pushed to the right so it reads as chrome
    of the guide, not as a competing action on the card below. */
