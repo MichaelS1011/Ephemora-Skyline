@@ -30,6 +30,7 @@
 import { DICT, plural, t, type Lang } from "../i18n";
 import { getDirLayout } from "../city/layout";
 import type { CityData } from "../city/types";
+import type { CameraMode } from "../stores/useStore";
 
 // ── Text ────────────────────────────────────────────────────────────────────
 export interface Text {
@@ -696,7 +697,7 @@ export interface World {
   blocks: number;
   selectedFileId: string | null;
   markedDistrict: string | null;
-  cameraMode: "free" | "orbit";
+  cameraMode: CameraMode;
   triageActive: boolean;
   /** Findings the current filters put in the triage queue. */
   triageSize: number;

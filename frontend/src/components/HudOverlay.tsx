@@ -198,7 +198,12 @@ export function HudOverlay({ apiStatus }: HudOverlayProps) {
       : null;
   const waypoint =
     !constructing && !tourActive && waypointTarget
-      ? edgeSignalForWaypoint(waypointTarget, cameraInfo, cameraMode, viewportAspect)
+      ? edgeSignalForWaypoint(
+          waypointTarget,
+          cameraInfo,
+          cameraMode === "orbit" ? "orbit" : "free",
+          viewportAspect,
+        )
       : null;
 
   return (

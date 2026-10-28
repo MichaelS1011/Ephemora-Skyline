@@ -4,7 +4,7 @@ import { OrbitControls } from "@react-three/drei";
 import type { OrbitControls as OrbitControlsImpl } from "three-stdlib";
 import * as THREE from "three";
 import { useStore } from "../stores/useStore";
-import type { CameraInfo } from "../stores/useStore";
+import type { CameraInfo, CameraMode } from "../stores/useStore";
 import { getDirLayout } from "../city/layout";
 import type { CraneShot } from "../city/layout";
 import { getKeyboardMark } from "../interaction/keyboardMark";
@@ -474,7 +474,7 @@ export function CameraRig() {
   );
   const lastPointer = useRef({ x: 0, y: 0 });
   // Mirrors cameraMode for the frame loop / listeners (no stale closures).
-  const modeRef = useRef<"free" | "orbit">(cameraMode);
+  const modeRef = useRef<CameraMode>(cameraMode);
   modeRef.current = cameraMode;
 
   // A fresh city resets the viewpoint: the next flight uses the fallback.
@@ -641,17 +641,17 @@ export function CameraRig() {
         flyRequest.position.z,
       );
       firstFlightRef.current = false;
-      // In free mode the controls target is stale (lookAt never writes it).
+      // Outside orbit the controls target is stale (lookAt never writes it).
       // Interpolate the view axis from where the camera actually looks.
       const explicitFrom = fromTarget.clone();
-      if (cameraMode === "free") {
+      if (cameraMode !== "orbit") {
         camera.getWorldDirection(_dir);
         explicitFrom.copy(fromPos).addScaledVector(_dir, VIEW_ANCHOR_DIST);
       }
       const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
       if (reduceMotion || !controls || flyRequest.duration === 0) {
         camera.position.copy(explicitPos);
-        if (cameraMode === "free") {
+        if (cameraMode !== "orbit") {
           camera.lookAt(explicitTarget);
         } else if (controls) {
           controls.target.copy(explicitTarget);
@@ -685,7 +685,7 @@ export function CameraRig() {
     // direction" has to mean while flying free.
     const preserve = !firstFlightRef.current;
     let anchor: XYZ;
-    if (modeRef.current === "free" && preserve) {
+    if (modeRef.current !== "orbit" && preserve) {
       camera.getWorldDirection(_dir);
       anchor = {
         x: fromPos.x + _dir.x * VIEW_ANCHOR_DIST,
@@ -725,7 +725,7 @@ export function CameraRig() {
     const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     if (reduceMotion || !controls) {
       camera.position.copy(toPos);
-      if (cameraMode === "free") {
+      if (cameraMode !== "orbit") {
         camera.lookAt(toTarget);
       } else if (controls) {
         controls.target.copy(toTarget);
@@ -747,7 +747,10 @@ export function CameraRig() {
 
   // ── Per-frame tween + walk + camera reporting ────────────────────────────
   useFrame((_, delta) => {
-    const free = modeRef.current === "free";
+    // Orbit is the one mode where OrbitControls own the target: the walk moves
+    // both, the idle drift may turn the camera, and a tween ends at
+    // `controls.target`. Free and pilot both point the camera themselves.
+    const orbiting = modeRef.current === "orbit";
     // The level the pilot is in this frame — its extent, its centre, its top.
     const frame = boundsRef.current;
     const centre = frame?.centre ?? ORIGIN;
@@ -812,7 +815,7 @@ export function CameraRig() {
             kept.z - camera.position.z,
           );
           camera.position.set(kept.x, kept.y, kept.z);
-          if (!free) {
+          if (orbiting) {
             controls.target.add(_move);
             controls.update();
           }
@@ -837,7 +840,7 @@ export function CameraRig() {
           );
           if (next) {
             camera.position.set(next.x, next.y, next.z);
-            if (free) {
+            if (!orbiting) {
               camera.lookAt(_pivot);
               // Keep the drag-look state honest: turning and dragging at the
               // same time then compose instead of fighting over rotation.
@@ -870,7 +873,7 @@ export function CameraRig() {
       );
       camera.position.set(kept.x, kept.y, kept.z);
       _look.set(step.target.x, step.target.y, step.target.z);
-      if (free) {
+      if (!orbiting) {
         camera.lookAt(_look);
         _euler.setFromQuaternion(camera.quaternion, "YXZ");
         look.current.yaw = _euler.y;
@@ -885,8 +888,8 @@ export function CameraRig() {
       tween.t = Math.min(1, tween.t + delta / tween.dur);
       const e = easeInOutCubic(tween.t);
       camera.position.lerpVectors(tween.fromPos, tween.toPos, e);
-      if (free) {
-        // FREE: look directly at the lerped target point — OrbitControls is
+      if (!orbiting) {
+        // Outside orbit: look directly at the lerped target point — OrbitControls is
         // disabled and must never reposition the camera here.
         _look.lerpVectors(tween.fromTarget, tween.toTarget, e);
         camera.lookAt(_look);
@@ -908,7 +911,9 @@ export function CameraRig() {
       !crane &&
       keys.size === 0 &&
       !dragging.current &&
-      free
+      // A take holds only against a reader who is not flying: `atHome` would
+      // include the pilot, and a recorded frame must never be a flight.
+      modeRef.current === "free"
     ) {
       camera.position.set(shareHero.position.x, shareHero.position.y, shareHero.position.z);
       _look.set(shareHero.target.x, shareHero.target.y, shareHero.target.z);
@@ -923,7 +928,7 @@ export function CameraRig() {
     const manualAt = useStore.getState().cameraManualAt;
     const now = Date.now();
     const idleEligible =
-      !free &&
+      orbiting &&
       !tween &&
       !crane &&
       keys.size === 0 &&
@@ -984,7 +989,7 @@ export function CameraRig() {
     }
 
     if (frameCount.current % 6 === 0) {
-      const reported: CameraInfo = free
+      const reported: CameraInfo = !orbiting
         ? (() => {
             // Free flight reports the VIEW heading (minimap cone) and the
             // distance to the city core (drives the LOD tiers).

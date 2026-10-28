@@ -18,6 +18,7 @@ import {
   type CraneShot,
 } from "../city/layout";
 import { worldTargetForFinding } from "../city/waypoint";
+import { setFlying } from "../city/pilotMotion";
 import { defaultOverviewPath } from "../city/overview";
 import type { ResidentOffer } from "../city/residentGreeting";
 import type { EpheRole, GuideRequest } from "../city/epheRoles";
@@ -108,6 +109,10 @@ export interface PoseRequest {
   pose: CameraPose;
   nonce: number;
 }
+
+/** The three ways the reader can be holding the camera. `pilot` is the only
+ *  one where somebody else is flying the thing the camera looks at. */
+export type CameraMode = "free" | "orbit" | "pilot";
 
 export interface CameraInfo {
   x: number;
@@ -269,12 +274,24 @@ interface AppState {
    *         selection never moves the camera.
    * orbit — the classic inspect mode: double-click a building (or the
    *         breadcrumb refocus) and the camera circles ITS viewpoint.
+   * pilot — the reader has taken the tow-plane: the aircraft flies, the camera
+   *         follows it (behind or seated), and the show waits. Every other
+   *         camera writer stands down; see `city/pilotMotion.ts`.
    */
-  cameraMode: "free" | "orbit";
+  cameraMode: CameraMode;
   /** Select a building AND enter orbit mode around it (double-click). */
   focusBuilding: (fileId: string) => void;
   /** Leave orbit mode — the free-fly controller takes the live camera pose. */
   exitOrbit: () => void;
+  /** Which view the reader flies in: behind the aircraft or seated in it. */
+  pilotView: "chase" | "cockpit";
+  /** Take the controls. The caller checks the refusals (building, tour, take,
+   *  no city) and explains them; the store itself only does the handover. */
+  enterPilot: () => void;
+  /** Hand the aircraft back to the show. The camera stays where it is. */
+  exitPilot: () => void;
+  /** Switch between the chase and the cockpit view mid-flight. */
+  togglePilotView: () => void;
 
   // ── Camera command channel ─────────────────────────────────────────────
   flyRequest: FlyRequest | null;
@@ -922,6 +939,9 @@ export const useStore = create<AppState>((set, get) => {
     setPendingLive: (pending) => set({ pendingLive: pending }),
     setLiveState: (patch) => set({ live: { ...get().live, ...patch } }),
     setCityData: (data) => {
+      // A new city is never a flight: the mode and the flag the frame loops
+      // read have to start together, like they do after a reload.
+      setFlying(false);
       // One engine truth before anything reads the payload: the backend
       // attributes gitleaks/semgrep/ruff to files and stops there, so a project
       // scanned without the dependency audit arrives with lockfiles that read as
@@ -989,6 +1009,7 @@ export const useStore = create<AppState>((set, get) => {
         triageTotal: 0,
         focusedFindingKey: null,
         cameraMode: "free",
+        pilotView: "chase",
         reviews,
         orphanedReviews: countStrandedVerdicts(reviews, data),
         verdictsBlocked: false,
@@ -1254,6 +1275,21 @@ export const useStore = create<AppState>((set, get) => {
       }
     },
     exitOrbit: () => set({ cameraMode: "free" }),
+
+    pilotView: "chase",
+    enterPilot: () => {
+      if (get().cameraMode === "pilot") return;
+      set({ cameraMode: "pilot", pilotView: "chase" });
+      // The flag the two frame loops read without a store write per frame.
+      setFlying(true);
+    },
+    exitPilot: () => {
+      if (get().cameraMode !== "pilot") return;
+      setFlying(false);
+      set({ cameraMode: "free" });
+    },
+    togglePilotView: () =>
+      set((s) => ({ pilotView: s.pilotView === "chase" ? "cockpit" : "chase" })),
 
     flyRequest: null,
     requestFly: ({ distance = 40, x = 0, z = 0, ...rest }) =>
