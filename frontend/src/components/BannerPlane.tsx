@@ -57,7 +57,11 @@ function addPart(
   m: THREE.Matrix4,
   tint: THREE.Color,
 ): void {
-  const g = (src.index ? src.toNonIndexed() : src).applyMatrix4(m);
+  // NEVER transform `src` in place: ExtrudeGeometry is non-indexed, so the old
+  // `src.applyMatrix4(m)` baked the placement into the caller's geometry — the
+  // mirrored wing half then got the matrix twice and stood 0,19 higher than its
+  // other half. A temp copy keeps the caller's geometry the shape it was.
+  const g = (src.index ? src.toNonIndexed() : src.clone()).applyMatrix4(m);
   const p = g.attributes.position?.array as ArrayLike<number> | undefined;
   const n = g.attributes.normal?.array as ArrayLike<number> | undefined;
   if (p) for (let i = 0; i < p.length; i += 1) pos.push(p[i]!);
@@ -67,8 +71,8 @@ function addPart(
   // paint them into the geometry instead of adding a mesh.
   const count = (p?.length ?? 0) / 3;
   for (let i = 0; i < count; i += 1) col.push(tint.r, tint.g, tint.b);
-  if (g !== src) g.dispose();
-  else src.dispose();
+  g.dispose();
+  src.dispose();
 }
 
 /** One box, placed by a matrix, into a shared position/normal/colour pool. */
@@ -133,6 +137,38 @@ function wingGeometry(
   // ExtrudeGeometry lies in x/y and thickens along z; the callers rotate it
   // with rotateX(π/2), which puts the chord along +z (nose) and the thickness
   // along y — a wing, lying flat, seen from below as a trapezoid.
+}
+
+/**
+ * A stabilizer: the same trapezoid as a wing, but with a STRAIGHT tip.
+ *
+ * The rounded paddle `wingGeometry` draws is right for a wingtip and wrong for a
+ * tailplane — at the chase distance the tail is the nearest surface, and two
+ * round-ended paddles read as two little wings instead of one horizontal surface
+ * with an end. Same bevel, same flat chord along z, no tip curve.
+ */
+function stabilizerGeometry(
+  semiSpan: number,
+  rootChord: number,
+  tipChord: number,
+  thickness: number,
+): THREE.BufferGeometry {
+  const rs = rootChord / 2;
+  const ts = tipChord / 2;
+  const shape = new THREE.Shape();
+  shape.moveTo(0, rs);
+  shape.lineTo(semiSpan, ts);
+  shape.lineTo(semiSpan, -ts);
+  shape.lineTo(0, -rs);
+  shape.closePath();
+  const bevel = Math.min(0.03, thickness * 0.3);
+  return new THREE.ExtrudeGeometry(shape, {
+    depth: thickness,
+    bevelEnabled: true,
+    bevelThickness: bevel,
+    bevelSize: bevel,
+    bevelSegments: 2,
+  }).translate(0, 0, -thickness / 2);
 }
 
 /**
@@ -214,37 +250,48 @@ export function hullGeometry(): THREE.BufferGeometry {
   // Low wing: tapered, bevelled, 7° dihedral — mirrored by a half-turn, so
   // both panels' normals stay honest.
   const mainWing = wingGeometry(2.95, 1.4, 0.62, 0.12).rotateX(Math.PI / 2);
+  // The mirror is copied BEFORE the first placement: `addPart` consumes its
+  // source, so cloning afterwards would copy a placed geometry and place it again.
+  const mainMirror = mainWing.clone();
   addPart(pos, nor, col, mainWing, yawed(0, -0.16, 0.1, 0, 0.12), wing);
-  addPart(pos, nor, col, mainWing.clone(), yawed(0, -0.16, 0.1, Math.PI, 0.12), wing);
-  mainWing.dispose();
-  // Tailplane: the same wing, smaller, flat on the cone.
-  const tailWing = wingGeometry(1.15, 0.72, 0.34, 0.07).rotateX(Math.PI / 2);
-  addPart(pos, nor, col, tailWing, yawed(0, 0.1, -1.95, 0, 0.05), wing);
-  addPart(pos, nor, col, tailWing.clone(), yawed(0, 0.1, -1.95, Math.PI, 0.05), wing);
-  tailWing.dispose();
-  // Fin: swept in one plane, rising to just under the seated eye.
+  addPart(pos, nor, col, mainMirror, yawed(0, -0.16, 0.1, Math.PI, 0.12), wing);
+  // Tailplane: the same wing, smaller and flat, crossing the fin's root. It used
+  // to sit at y 0,10 while the fin's base was at 0,28 and 0,26 further forward —
+  // two horizontal surfaces and a vertical one that only met in projection, which
+  // is what "the wings at the back are wrong" was looking at. Both now stand on
+  // the same line (0,22), and the tailplane reaches 2,55 across: 43 % of the main
+  // span, the ratio a tow plane's stabilizer actually has.
+  const tailWing = stabilizerGeometry(1.275, 0.6, 0.28, 0.06).rotateX(Math.PI / 2);
+  const tailMirror = tailWing.clone();
+  addPart(pos, nor, col, tailWing, yawed(0, 0.22, -1.94, 0, 0.03), wing);
+  addPart(pos, nor, col, tailMirror, yawed(0, 0.22, -1.94, Math.PI, 0.03), wing);
+  // Fin: a swept trapezoid with a LEVEL top, not the rounded hump it had — from
+  // behind, a curve is a blob and a straight top is a tail. Leading edge sweeps
+  // back 27° over its 0,82; base sits on the tube where the cone still carries it.
   const fin = new THREE.Shape();
   fin.moveTo(0.475, 0);
   fin.lineTo(-0.475, 0);
-  fin.lineTo(-0.44, 0.62);
-  fin.quadraticCurveTo(-0.42, 0.8, -0.24, 0.82);
-  fin.lineTo(0.02, 0.72);
+  fin.lineTo(-0.44, 0.82);
+  fin.lineTo(0.06, 0.82);
   fin.closePath();
   addPart(
     pos,
     nor,
     col,
     new THREE.ExtrudeGeometry(fin, {
-      depth: 0.11,
+      // 0,045, not 0,11: from directly behind a fin is a LINE. At 0,11 it stood
+      // as a can on the tailplane — the chase view is exactly that angle, so the
+      // thickest surface of the aircraft was the one the reader saw most often.
+      depth: 0.045,
       bevelEnabled: true,
-      bevelThickness: 0.035,
-      bevelSize: 0.035,
+      bevelThickness: 0.018,
+      bevelSize: 0.018,
       bevelSegments: 2,
       curveSegments: 4,
     })
-      .translate(0, 0, -0.055)
+      .translate(0, 0, -0.0225)
       .rotateY(-Math.PI / 2),
-    at(0, 0.28, -1.675),
+    at(0, 0.22, -1.72),
     body,
   );
   // Gear fairings: two teardrops under the wing — the belly line gets two
