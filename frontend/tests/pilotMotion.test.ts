@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { readFileSync } from "node:fs";
 import * as THREE from "three";
 import { BANNER_DROP, BANNER_H, BANK_MAX, CITY_TOP, SPEED } from "../src/city/airshowMotion";
 import { farLodExitDistance } from "../src/city/layout";
@@ -99,10 +100,62 @@ describe("stepping the flight", () => {
     expect(s.speed).toBe(PILOT_SPEED_MIN);
   });
 
-  it("turns at its stated rate at the show's speed", () => {
+  it("turns at its stated rate once the wings are settled", () => {
+    const s = pilotStateAt({ heading: 0 });
+    for (let i = 0; i < 300; i++) step(s, { ...PILOT_INPUT_IDLE, yaw: 1 });
+    const before = s.heading;
+    for (let i = 0; i < 60; i++) step(s, { ...PILOT_INPUT_IDLE, yaw: 1 });
+    expect(s.heading - before).toBeCloseTo(PILOT_YAW_RATE, 2);
+  });
+
+  it("turns the nose with the wing, not only the wing", () => {
+    // The defect this law replaced: the letters leaned the aircraft and nothing
+    // else did, so a held right key moved the nose by 0,0° in a whole second.
+    // One second of held steer must now read as a turn the reader asked for.
     const s = pilotStateAt({ heading: 0 });
     for (let i = 0; i < 60; i++) step(s, { ...PILOT_INPUT_IDLE, yaw: 1 });
-    expect(s.heading).toBeCloseTo(PILOT_YAW_RATE, 2);
+    expect(s.heading).toBeGreaterThan(0.3);
+    expect(Math.abs(s.bank)).toBeLessThanOrEqual(BANK_MAX + 1e-9);
+  });
+
+  it("reads one intention from both hands, in the shipped rig", () => {
+    // The law cannot tell where its number came from, so the promise "the left
+    // key goes left, from either block" is only kept at the one place that reads
+    // the keyboard. Read as source: the arrow block and the letter block feed the
+    // SAME field, and no second steer field exists to lean without turning.
+    const src = readFileSync(
+      new URL("../src/components/CameraRig.tsx", import.meta.url),
+      "utf-8",
+    ).replace(/\s+/g, " ");
+    const input = src.slice(
+      src.indexOf("...PILOT_INPUT_IDLE,"),
+      src.indexOf("};", src.indexOf("...PILOT_INPUT_IDLE,")),
+    );
+    expect(input).toMatch(/yaw:[^;]*ArrowRight[^;]*KeyD/);
+    expect(input).toMatch(/yaw:[^;]*ArrowLeft[^;]*KeyA/);
+    expect(input).toMatch(/pitch:[^;]*ArrowUp[^;]*KeyW/);
+    expect(input).toMatch(/pitch:[^;]*ArrowDown[^;]*KeyS/);
+    expect(input).not.toMatch(/roll:/);
+  });
+
+  it("sweeps a wider arc at the same bank when the air is faster", () => {
+    // The physical half of the promise, and why the divisor is floored: a slow
+    // aircraft must not spin like a top, but it does turn inside a tighter circle.
+    const slow = pilotStateAt({ speed: PILOT_SPEED_START });
+    const fast = pilotStateAt({ speed: PILOT_SPEED_MAX });
+    for (let i = 0; i < 300; i++) {
+      step(slow, { ...PILOT_INPUT_IDLE, yaw: 1 });
+      step(fast, { ...PILOT_INPUT_IDLE, yaw: 1 });
+    }
+    const beforeSlow = slow.heading;
+    const beforeFast = fast.heading;
+    for (let i = 0; i < 60; i++) {
+      step(slow, { ...PILOT_INPUT_IDLE, yaw: 1 });
+      step(fast, { ...PILOT_INPUT_IDLE, yaw: 1 });
+    }
+    expect(Math.abs(slow.heading - beforeSlow)).toBeGreaterThan(
+      Math.abs(fast.heading - beforeFast),
+    );
   });
 
   it("leans the wings into a turn the reader did not ask for", () => {

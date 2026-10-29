@@ -304,8 +304,21 @@ export const ROWS: Row[] = [
     rank: 19,
     text: T(
       "hints.flyStart",
-      "F — take the controls of the tow-plane (W/S throttle, A/D bank, ←/→ turn, ↑/↓ climb, Esc gives it back)",
-      "F — das Schleppflugzeug selbst steuern (W/S Gas, A/D Querlage, ←/→ Richtung, ↑/↓ Höhe, Esc gibt es zurück)",
+      "F — take the controls of the tow-plane (←/→ or A/D turn, ↑/↓ or W/S climb and dive, Q/E throttle, Esc gives it back)",
+      "F — das Schleppflugzeug selbst steuern (←/→ oder A/D lenken, ↑/↓ oder W/S steigen und tauchen, Q/E Gas, Esc gibt es zurück)",
+    ),
+    owner: "components/CameraRig.tsx",
+  },
+  {
+    id: "driveStart",
+    keys: ["C"],
+    codes: ["C"],
+    group: "camera",
+    rank: 21,
+    text: T(
+      "hints.driveStart",
+      "C — drive a car through the streets (W/↑ forward, S/↓ brake, A/D or ←/→ steer, C gives it back)",
+      "C — fahr mit einem Auto durch die Straßen (W/↑ vorwärts, S/↓ bremsen, A/D oder ←/→ lenken, C gibt es zurück)",
     ),
     owner: "components/CameraRig.tsx",
   },

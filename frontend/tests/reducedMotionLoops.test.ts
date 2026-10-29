@@ -48,6 +48,11 @@ const KNOWN_OTHERS: Record<string, string> = {
   // flag — it draws nothing, so there is no motion for the query to stop.
   // Its own yield is perf.ts's streak machine.
   "GfxGovernor.tsx": "measures frame times; renders nothing, animates nothing",
+  // The car the reader drives. It moves only while a key is held and only in the
+  // drive seat — its motion is the reader's own hand, not decoration, so the
+  // reduce query must not take the controls away. The camera that follows it
+  // honours the query in CameraRig, like every other camera move.
+  "DriveCar.tsx": "moves only through the reader's keys; the camera honours the query",
 };
 
 const framesIn = (name: string): string => {

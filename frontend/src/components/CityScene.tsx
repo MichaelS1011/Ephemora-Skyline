@@ -42,6 +42,7 @@ import { CameraRig } from "./CameraRig";
 import { CityTree } from "./CityTree";
 import { Pedestrians } from "./Pedestrians";
 import { BannerPlane } from "./BannerPlane";
+import { DriveCar } from "./DriveCar";
 import "../design/world.css";
 
 /** How long a lost context gets to restore itself before the app offers a rebuild. */
@@ -472,6 +473,10 @@ export function CityScene() {
         lang={lang}
         active={buildPhase !== "constructing" || shareHero !== null}
       />
+
+      {/* The car the reader drives (C). One car, the fleet's own proportions,
+          visible only in the drive seat. */}
+      <DriveCar />
     </WorldSurfaceContext.Provider>
   );
 }

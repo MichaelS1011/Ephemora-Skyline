@@ -4492,8 +4492,8 @@ export const DICT = {
   // are the door, the number behind it and the reason it stays shut.
   "actions.fly": { en: "Fly the plane", de: "Steuer das Flugzeug" },
   "actions.flyTitle": {
-    en: "The tow-plane is yours: W/S throttle, A/D bank, arrows turn and climb, Esc gives it back",
-    de: "Das Schleppflugzeug gehört dir: W/S Gas, A/D Querlage, Pfeile lenken und steigen, Esc gibt es zurück",
+    en: "The tow-plane is yours: ←→ or A/D turn, ↑↓ or W/S climb, Q/E throttle, Esc hands it back",
+    de: "Das Schleppflugzeug gehört dir: ←→ oder A/D lenken, ↑↓ oder W/S Höhe, Q/E Gas, Esc gibt es zurück",
   },
   "actions.land": { en: "Hand the plane back", de: "Flugzeug zurückgeben" },
   "actions.landTitle": {

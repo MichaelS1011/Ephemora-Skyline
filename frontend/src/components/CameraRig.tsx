@@ -34,6 +34,21 @@ import {
   type PilotTower,
 } from "../city/pilotMotion";
 import {
+  DRIVE_CAM_BACK,
+  DRIVE_CAM_LOOK_AHEAD,
+  DRIVE_CAM_LOOK_UP,
+  DRIVE_CAM_UP,
+  DRIVE_INPUT_IDLE,
+  driveReadout,
+  driveStarted,
+  driveState,
+  driveWall,
+  pushCarOutOfTowers,
+  startDrive,
+  stepDrive,
+  stopDrive,
+} from "../city/driveMotion";
+import {
   fitWorldOverview,
   WORLD_FOV_DEG,
   WORLD_OVERVIEW_ELEVATION,
@@ -525,6 +540,10 @@ export function CameraRig() {
     stopPilot();
     setFlying(false);
     useStore.getState().setFlightReadout(null);
+    // The car's seat obeys the same rule: leaving the mode hands it back, and
+    // its number leaves the header instead of freezing at the last value.
+    stopDrive();
+    useStore.getState().setDriveSpeed(null);
   }, [cameraMode]);
 
   // A fresh city resets the viewpoint: the next flight uses the fallback.
@@ -636,6 +655,13 @@ export function CameraRig() {
       if (e.code === "KeyV") {
         const st = useStore.getState();
         if (!held && st.cameraMode === "pilot") st.togglePilotView();
+        return;
+      }
+      if (e.code === "KeyC") {
+        if (held) return;
+        const st = useStore.getState();
+        if (st.cameraMode === "drive") st.exitDrive();
+        else st.enterDrive();
         return;
       }
       if (e.code === "KeyF") {
@@ -846,12 +872,19 @@ export function CameraRig() {
         );
       }
       const st = pilotState();
+      // One intention per direction, answered by both hands: the arrow block and
+      // the letter block steer the same four words, and the throttle — which is
+      // not a direction — stands on Q/E where the walk mode keeps its own up and
+      // down. A held D used to lean the aircraft without turning it.
       const input = {
         ...PILOT_INPUT_IDLE,
-        throttle: (keys.has("KeyW") ? 1 : 0) - (keys.has("KeyS") ? 1 : 0),
-        yaw: (keys.has("ArrowRight") ? 1 : 0) - (keys.has("ArrowLeft") ? 1 : 0),
-        pitch: (keys.has("ArrowUp") ? 1 : 0) - (keys.has("ArrowDown") ? 1 : 0),
-        roll: (keys.has("KeyD") ? 1 : 0) - (keys.has("KeyA") ? 1 : 0),
+        throttle: (keys.has("KeyE") ? 1 : 0) - (keys.has("KeyQ") ? 1 : 0),
+        yaw:
+          (keys.has("ArrowRight") || keys.has("KeyD") ? 1 : 0) -
+          (keys.has("ArrowLeft") || keys.has("KeyA") ? 1 : 0),
+        pitch:
+          (keys.has("ArrowUp") || keys.has("KeyW") ? 1 : 0) -
+          (keys.has("ArrowDown") || keys.has("KeyS") ? 1 : 0),
       };
       const surface = frame?.surface ?? FLAT_SURFACE;
       const sceneBounds = frame?.bounds ?? 60;
@@ -912,7 +945,67 @@ export function CameraRig() {
       }
     }
 
-    if (!flying && keys.size > 0) {
+    // ── the car drives ─────────────────────────────────────────────────────
+    // The same shape as the flight branch: one law steps the body, this loop
+    // puts the camera behind it. It has to come BEFORE the walk and silence it —
+    // otherwise WASD would drive the car and fly the free camera at once.
+    const driving = modeRef.current === "drive";
+    if (driving) {
+      if (!driveStarted()) {
+        // Where the reader's eye already stands: the near edge of the level on
+        // the arrival azimuth, nose toward the centre, so the first thing seen
+        // from the seat is the city rather than the haze behind it.
+        const r = Math.max(6, (frame?.bounds ?? 60) * 0.9);
+        const sx = centre.x + Math.sin(STANDARD_AZIMUTH) * r;
+        const sz = centre.z + Math.cos(STANDARD_AZIMUTH) * r;
+        startDrive(sx, sz, Math.atan2(centre.x - sx, centre.z - sz));
+      }
+      const st = driveState();
+      // One intention per direction, both hands, and the same reading the flight
+      // seat uses for its left and right.
+      const input = {
+        ...DRIVE_INPUT_IDLE,
+        throttle:
+          (keys.has("KeyW") || keys.has("ArrowUp") ? 1 : 0) -
+          (keys.has("KeyS") || keys.has("ArrowDown") ? 1 : 0),
+        steer:
+          (keys.has("ArrowRight") || keys.has("KeyD") ? 1 : 0) -
+          (keys.has("ArrowLeft") || keys.has("KeyA") ? 1 : 0),
+      };
+      const sceneBounds = frame?.bounds ?? 60;
+      stepDrive(st, input, delta, {
+        wall: driveWall(cityClampRadius(sceneBounds), farLodExitDistance(sceneBounds)),
+        centreX: centre.x,
+        centreZ: centre.z,
+      });
+      if (frame?.layout) {
+        if (!towers.current || towers.current.layout !== frame.layout) {
+          towers.current = { layout: frame.layout, list: dataPlots(frame.layout) };
+        }
+        pushCarOutOfTowers(st, towers.current.list);
+      }
+      const groundY = surfaceHeight(frame?.surface ?? FLAT_SURFACE, st.x, st.z);
+      camera.position.set(
+        st.x - Math.sin(st.heading) * DRIVE_CAM_BACK,
+        groundY + DRIVE_CAM_UP,
+        st.z - Math.cos(st.heading) * DRIVE_CAM_BACK,
+      );
+      _look.set(
+        st.x + Math.sin(st.heading) * DRIVE_CAM_LOOK_AHEAD,
+        groundY + DRIVE_CAM_LOOK_UP,
+        st.z + Math.cos(st.heading) * DRIVE_CAM_LOOK_AHEAD,
+      );
+      camera.lookAt(_look);
+      if (keys.size > 0) useStore.getState().noteCameraManual();
+      // The header's one number, on the same half-second beat as the flight's.
+      readoutAt.current += delta;
+      if (readoutAt.current >= 0.5) {
+        readoutAt.current = 0;
+        useStore.getState().setDriveSpeed(driveReadout(st).spd);
+      }
+    }
+
+    if (!flying && !driving && keys.size > 0) {
       // Re-check the guard per frame: a dialog may have opened (or focus
       // moved into an input, or the tour started) while a key was held down.
       if (

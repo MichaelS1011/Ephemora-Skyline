@@ -19,6 +19,7 @@ import {
 } from "../city/layout";
 import { worldTargetForFinding } from "../city/waypoint";
 import { pilotRefusal, setFlying } from "../city/pilotMotion";
+import { driveRefusal, setDriving } from "../city/driveMotion";
 import { defaultOverviewPath } from "../city/overview";
 import type { ResidentOffer } from "../city/residentGreeting";
 import type { EpheRole, GuideRequest } from "../city/epheRoles";
@@ -112,7 +113,7 @@ export interface PoseRequest {
 
 /** The three ways the reader can be holding the camera. `pilot` is the only
  *  one where somebody else is flying the thing the camera looks at. */
-export type CameraMode = "free" | "orbit" | "pilot";
+export type CameraMode = "free" | "orbit" | "pilot" | "drive";
 
 export interface CameraInfo {
   x: number;
@@ -299,6 +300,13 @@ interface AppState {
   /** The two numbers the header carries while a person flies, or null. */
   flightReadout: { alt: number; spd: number } | null;
   setFlightReadout: (next: { alt: number; spd: number } | null) => void;
+
+  /** Take the car that stands at the level's edge (C), and hand it back. */
+  enterDrive: () => void;
+  exitDrive: () => void;
+  /** Whole units per second while a person drives, or null. */
+  driveSpeed: number | null;
+  setDriveSpeed: (next: number | null) => void;
 
   // ── Camera command channel ─────────────────────────────────────────────
   flyRequest: FlyRequest | null;
@@ -1295,7 +1303,8 @@ export const useStore = create<AppState>((set, get) => {
         })
       )
         return;
-      set({ cameraMode: "pilot", pilotView: "chase" });
+      setDriving(false);
+      set({ cameraMode: "pilot", pilotView: "chase", driveSpeed: null });
       // The flag the two frame loops read without a store write per frame.
       setFlying(true);
     },
@@ -1303,6 +1312,33 @@ export const useStore = create<AppState>((set, get) => {
       if (get().cameraMode !== "pilot") return;
       setFlying(false);
       set({ cameraMode: "free", flightReadout: null });
+    },
+    enterDrive: () => {
+      const s = get();
+      if (s.cameraMode === "drive") return;
+      if (
+        driveRefusal({
+          hasCity: !!s.cityData,
+          building: s.buildPhase === "constructing",
+          tour: s.tourActive,
+        })
+      )
+        return;
+      // Two seats, one body at a time: taking the car lets go of the aircraft
+      // and clears its readout, so no stale altitude rides in the header.
+      setFlying(false);
+      set({ cameraMode: "drive", flightReadout: null });
+      setDriving(true);
+    },
+    exitDrive: () => {
+      if (get().cameraMode !== "drive") return;
+      setDriving(false);
+      set({ cameraMode: "free", driveSpeed: null });
+    },
+    driveSpeed: null,
+    setDriveSpeed: (next) => {
+      if (get().driveSpeed === next) return;
+      set({ driveSpeed: next });
     },
     togglePilotView: () =>
       set((s) => ({ pilotView: s.pilotView === "chase" ? "cockpit" : "chase" })),

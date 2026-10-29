@@ -14,11 +14,26 @@ import { ramp } from "../city/epheGait";
 import {
   FLEET_ACCEL,
   FLEET_BRAKE,
-  FLEET_LOOK,
+  FLEET_CORNER_YAW,
+  FLEET_GAP,
+  FLEET_HOLD_LIMIT,
+  FLEET_LANE_OFFSET,
   chooseContinuation,
+  cornerCurve,
+  cornerLook,
+  curveAt,
+  curvatureSpeed,
+  followLook,
   followSpeed,
+  isDrivable,
+  isStraightOn,
+  nodeCorner,
+  slewYaw,
   streetContinuations,
-  turnDuration,
+  turnAroundLength,
+  turnAroundSpeed,
+  type FleetContinuation,
+  type FleetCurve,
 } from "../city/fleetMotion";
 
 export { wheelRoll };
@@ -45,24 +60,20 @@ const AXIS_Y = new THREE.Vector3(0, 1, 0);
 const AXIS_Z = new THREE.Vector3(0, 0, 1);
 const rollQ = new THREE.Quaternion();
 
-const LANE_OFFSET = 0.95; // car center offset from the street centerline
 /** How close a car must be to a junction before the right-of-way check. */
 const JUNCTION_LOOK = 3.2;
 const CROSSWALK_BARS = [-1.65, -1.1, -0.55, 0, 0.55, 1.1, 1.65];
 
-/** A smooth corner: a quadratic curve from the outgoing end of one street,
- *  through the junction, to the entry lane of the next. */
+/** A corner through a intersection: a cubic that leaves one street's outgoing
+ *  lane tangentially and arrives in the next one's incoming lane the same way. */
 interface FleetBend {
   kind: "bend";
   k: number;
-  dur: number;
+  curve: FleetCurve;
+  /** The curve's own length — the turn is advanced by distance, not by clock. */
+  length: number;
+  /** The speed this corner allows; the car ramps toward it, never jumps to it. */
   speed: number;
-  fromX: number;
-  fromZ: number;
-  controlX: number;
-  controlZ: number;
-  toX: number;
-  toZ: number;
   nextSeg: number;
   nextT: number;
   nextDir: 1 | -1;
@@ -76,10 +87,8 @@ interface FleetBend {
 interface FleetArc {
   kind: "arc";
   k: number;
-  dur: number;
+  length: number;
   speed: number;
-  centerX: number;
-  centerZ: number;
   ux: number;
   uz: number;
   dir: 1 | -1;
@@ -88,6 +97,14 @@ interface FleetArc {
 }
 
 type FleetTurn = FleetBend | FleetArc;
+
+/** What a car will do at the node it is driving toward. Decided early, so the
+ *  brake belongs to the corner and not to the turn itself. */
+interface FleetPlan {
+  pick: FleetContinuation | null;
+  speed: number;
+  curve: FleetCurve | null;
+}
 
 interface FleetCar {
   lane: number;
@@ -101,10 +118,86 @@ interface FleetCar {
   /** Metres driven — what turns the wheels, so they spin with the car. */
   odometer: number;
   turn: FleetTurn | null;
+  plan: FleetPlan | null;
+  /** How long this car has been waiting at a junction mouth it cannot land in. */
+  hold: number;
+  /**
+   * Set when a corner or a handover has just put this car at the entry of a
+   * street, and cleared once it has driven a bumper's length into it. A car that
+   * arrives where another one stands must be the one that gives way: measured on
+   * the live fleet, 83 frames had two cars on the same spot, and the old
+   * index-order tie-break let the lower-indexed arrival drive through.
+   */
+  arrived: boolean;
+  /**
+   * The heading the body is DRAWN with. It follows the pose it is on, but only
+   * at a rate a car can turn (`FLEET_CORNER_YAW`): the corner that has to keep
+   * the old shape leaves the street pointing at the node, and without this the
+   * body snapped a full 90° in one frame — measured as the fleet's worst yaw
+   * step, 1,57 rad. Limited, the same corner reads as a skid rather than a cut.
+   */
+  yaw: number;
 }
 
 const laneLength = (lane: StreetLine): number =>
   Math.max(Math.hypot(lane.x2 - lane.x1, lane.z2 - lane.z1), 0.001);
+
+/**
+ * What leaving `lane` at this node means: which street the car takes, how fast
+ * that corner allows, and the curve it drives. A dead end plans no street and no
+ * curve — the caller turns the car around on a half circle instead.
+ *
+ * The plan is asked for twice by design and cached the first time: once a
+ * street-width before the node, so the braking happens on the straight, and once
+ * at the node for a car that arrived there in a single long frame.
+ */
+function planCorner(
+  lanes: StreetLine[],
+  lengths: number[],
+  lane: StreetLine,
+  seg: number,
+  nodeX: number,
+  nodeZ: number,
+  dir: 1 | -1,
+  seed: number,
+): FleetPlan {
+  const len = lengths[seg]!;
+  const ux = (lane.x2 - lane.x1) / len;
+  const uz = (lane.z2 - lane.z1) / len;
+  const fromX = nodeX + uz * FLEET_LANE_OFFSET * dir;
+  const fromZ = nodeZ - ux * FLEET_LANE_OFFSET * dir;
+  const pick = chooseContinuation(streetContinuations(lanes, seg, nodeX, nodeZ), seed);
+  if (!pick) {
+    // Nowhere to go: the half circle around the node, at the speed a circle of
+    // one lane offset allows.
+    return { pick: null, speed: turnAroundSpeed(), curve: null };
+  }
+  const next = lanes[pick.seg]!;
+  const nlen = lengths[pick.seg]!;
+  const nux = (next.x2 - next.x1) / nlen;
+  const nuz = (next.z2 - next.z1) / nlen;
+  const toX = next.x1 + (next.x2 - next.x1) * pick.entryT + nuz * FLEET_LANE_OFFSET * pick.dir;
+  const toZ = next.z1 + (next.z2 - next.z1) * pick.entryT - nux * FLEET_LANE_OFFSET * pick.dir;
+  if (isStraightOn(pick.angle)) {
+    // No curve, no corner pace: the street goes on and the car keeps its speed.
+    return { pick, speed: Infinity, curve: null };
+  }
+  const curve = cornerCurve(
+    fromX,
+    fromZ,
+    ux * dir,
+    uz * dir,
+    toX,
+    toZ,
+    nux * pick.dir,
+    nuz * pick.dir,
+  );
+  // A corner the two lane ends cannot be swept through without doubling back
+  // keeps the shape that does not loop. This is the fleet's known gap: a proper
+  // fix starts the turn before the node, which needs a junction model.
+  const path = isDrivable(curve) ? curve : nodeCorner(fromX, fromZ, nodeX, nodeZ, toX, toZ);
+  return { pick, speed: curvatureSpeed(path.curvature), curve: path };
+}
 
 /** Top of the measuring mast — the saturated end of the mapping height rail. */
 const MAST_TOP = heightForComplexity(1);
@@ -573,6 +666,9 @@ export function RoadSystem({
     const items: FleetCar[] = [];
     for (let i = 0; i < Math.min(24, drivable.length * 2); i++) {
       const cruise = 3.5 + ((i * 13) % 40) / 10;
+      const first = drivable[i % Math.max(1, drivable.length)]!;
+      const flen = Math.max(Math.hypot(first.x2 - first.x1, first.z2 - first.z1), 0.001);
+      const fdir = i % 2 === 0 ? 1 : -1;
       items.push({
         lane: i % Math.max(1, drivable.length),
         t: (i * 0.37) % 1,
@@ -583,6 +679,13 @@ export function RoadSystem({
         scale: 0.92 + ((i * 7) % 17) / 100,
         odometer: 0,
         turn: null,
+        plan: null,
+        hold: 0,
+        arrived: false,
+        yaw: -Math.atan2(
+          ((first.z2 - first.z1) / flen) * fdir,
+          ((first.x2 - first.x1) / flen) * fdir,
+        ),
       });
     }
     return { lanes: drivable, lengths: drivable.map(laneLength), items };
@@ -626,6 +729,34 @@ export function RoadSystem({
     const lanes = carData.lanes;
     const lengths = carData.lengths;
 
+    /** Where a car stands the moment its corner is over — for a car that is not
+     *  in one, where it stands now. */
+    const landingOf = (o: FleetCar): { lane: number; dir: 1 | -1; t: number } => {
+      const turn = o.turn;
+      if (turn && turn.kind === "bend")
+        return { lane: turn.nextSeg, dir: turn.nextDir, t: turn.nextT };
+      if (turn) return { lane: o.lane, dir: o.dir > 0 ? -1 : 1, t: o.dir > 0 ? 1 : 0 };
+      return { lane: o.lane, dir: o.dir, t: o.t };
+    };
+
+    /**
+     * Is there room at the far end of this manoeuvre? A car that starts a corner
+     * it cannot land in arrives inside the queue waiting there — the live fleet
+     * measured 250 frames of cars standing 1,2 units apart on one lane after the
+     * corners got longer. Drivers do not enter a junction they cannot clear.
+     */
+    const entryFree = (lane: number, dir: 1 | -1, t: number, self: FleetCar): boolean => {
+      const len = lengths[lane]!;
+      for (const o of cars) {
+        if (o === self) continue;
+        const l = landingOf(o);
+        if (l.lane !== lane || l.dir !== dir) continue;
+        const g = (l.t - t) * len * dir;
+        if (g > -0.6 && g < FLEET_GAP) return false;
+      }
+      return true;
+    };
+
     for (let i = 0; i < cars.length; i++) {
       const c = cars[i]!;
       const lane = lanes[c.lane];
@@ -633,23 +764,37 @@ export function RoadSystem({
       const len = lengths[c.lane]!;
 
       // A corner is a scripted pose: no following, no new decisions until done.
+      // It is advanced by DISTANCE — the car's own ramped speed over the curve's
+      // length. The clock-driven version that shipped ran a smoothstep over a
+      // fixed duration, which stopped the car at both ends of every corner and
+      // let it dash through the middle: measured on the live fleet, ground speed
+      // fell to 0,02× and rose to 1,75× inside one corner, and the nose snapped
+      // 90° in a single frame because the curve's first tangent pointed at the
+      // node instead of along the road.
       if (c.turn) {
         const turn = c.turn;
-        turn.k = Math.min(1, turn.k + dt / turn.dur);
-        c.odometer += turn.speed * dt;
+        c.v = ramp(c.v, turn.speed, turn.speed < c.v ? FLEET_BRAKE : FLEET_ACCEL, dt);
+        const move = c.v * dt;
+        c.odometer += move;
+        turn.k = Math.min(1, turn.k + move / turn.length);
         if (turn.k >= 1) {
           if (turn.kind === "bend") {
             c.lane = turn.nextSeg;
             c.t = turn.nextT;
             c.dir = turn.nextDir;
+            c.arrived = true;
           } else {
             c.dir = turn.dir > 0 ? -1 : 1;
             c.t = turn.dir > 0 ? 1 : 0;
+            c.arrived = true;
           }
           c.turn = null;
+          c.plan = null;
         }
         continue;
       }
+
+      if (c.arrived && (c.dir > 0 ? c.t : 1 - c.t) * len > FLEET_GAP) c.arrived = false;
 
       // The nearest car on this side of the street: keep a real gap.
       let gap = Infinity;
@@ -662,35 +807,56 @@ export function RoadSystem({
         if (g > 0.01 && g < gap) {
           gap = g;
           aheadSpeed = o.turn ? 0 : o.v;
+        } else if (Math.abs(g) <= 0.01) {
+          // Two cars on the same spot. Whoever got there later gives way — the
+          // arrival from a corner if there is one, otherwise the higher fleet
+          // index — so exactly one of them moves and neither drives through.
+          const yields = c.arrived !== o.arrived ? c.arrived : j < i;
+          if (yields) {
+            gap = 0;
+            aheadSpeed = 0;
+          }
         }
       }
-      let target = gap < FLEET_LOOK ? followSpeed(c.cruise, gap, aheadSpeed) : c.cruise;
+      let target = gap < followLook(c.cruise) ? followSpeed(c.cruise, gap, aheadSpeed) : c.cruise;
+
+      // The corner is chosen one braking distance before the node and cached on
+      // the car, so the brake belongs to the turn while the car is still on the
+      // straight. The band is solved for the tightest corner the network has —
+      // the turnaround — so whichever corner this is, the speed is already down
+      // when the nose swings. Deciding AT the node and stepping the speed there
+      // is what made the fleet lurch: up to 473 units/s² in one frame.
+      const distToNode = (c.dir > 0 ? 1 - c.t : c.t) * len;
+      const nodeX = c.dir > 0 ? lane.x2 : lane.x1;
+      const nodeZ = c.dir > 0 ? lane.z2 : lane.z1;
+      if (distToNode < cornerLook(c.cruise, turnAroundSpeed())) {
+        c.plan ??= planCorner(lanes, lengths, lane, c.lane, nodeX, nodeZ, c.dir, c.odometer);
+        const limit = Math.min(c.cruise, c.plan.speed);
+        if (limit < target) target = limit;
+      } else {
+        c.plan = null;
+      }
 
       // Right of way at a junction: when two cars arrive at the same node, the
       // closer one goes first, and equal distances are broken by fleet index.
       // The rule is a strict order, so two cars can never wait for each other.
-      if (target > 0) {
-        const distToNode = (c.dir > 0 ? 1 - c.t : c.t) * len;
-        if (distToNode < JUNCTION_LOOK) {
-          const nodeX = c.dir > 0 ? lane.x2 : lane.x1;
-          const nodeZ = c.dir > 0 ? lane.z2 : lane.z1;
-          for (let j = 0; j < cars.length; j++) {
-            if (j === i) continue;
-            const o = cars[j]!;
-            const ol = lanes[o.lane];
-            if (!ol) continue;
-            const otherX = o.turn ? o.turn.nodeX : o.dir > 0 ? ol.x2 : ol.x1;
-            const otherZ = o.turn ? o.turn.nodeZ : o.dir > 0 ? ol.z2 : ol.z1;
-            if (Math.hypot(otherX - nodeX, otherZ - nodeZ) > 0.9) continue;
-            const otherDist = o.turn ? 0 : (o.dir > 0 ? 1 - o.t : o.t) * lengths[o.lane]!;
-            if (o.turn || otherDist < distToNode - 0.3) {
-              target = 0;
-              break;
-            }
-            if (Math.abs(otherDist - distToNode) <= 0.3 && j < i) {
-              target = 0;
-              break;
-            }
+      if (target > 0 && distToNode < JUNCTION_LOOK) {
+        for (let j = 0; j < cars.length; j++) {
+          if (j === i) continue;
+          const o = cars[j]!;
+          const ol = lanes[o.lane];
+          if (!ol) continue;
+          const otherX = o.turn ? o.turn.nodeX : o.dir > 0 ? ol.x2 : ol.x1;
+          const otherZ = o.turn ? o.turn.nodeZ : o.dir > 0 ? ol.z2 : ol.z1;
+          if (Math.hypot(otherX - nodeX, otherZ - nodeZ) > 0.9) continue;
+          const otherDist = o.turn ? 0 : (o.dir > 0 ? 1 - o.t : o.t) * lengths[o.lane]!;
+          if (o.turn || otherDist < distToNode - 0.3) {
+            target = 0;
+            break;
+          }
+          if (Math.abs(otherDist - distToNode) <= 0.3 && j < i) {
+            target = 0;
+            break;
           }
         }
       }
@@ -703,58 +869,63 @@ export function RoadSystem({
       }
       if (c.t > 0 && c.t < 1) continue;
 
-      // End of the segment: follow the network where it continues, and turn
-      // around on a half circle where it does not. Never flip direction in
-      // place — that was the one motion that made the fleet read as a toy.
+      // End of the segment: drive the corner planned a street-width back, and
+      // turn around on a half circle where the network offers nothing. Never flip
+      // direction in place — that was the one motion that made the fleet read as
+      // a toy.
       const atEnd = c.t >= 1;
       c.t = atEnd ? 1 : 0;
-      const nodeX = atEnd ? lane.x2 : lane.x1;
-      const nodeZ = atEnd ? lane.z2 : lane.z1;
-      const ux = (lane.x2 - lane.x1) / len;
-      const uz = (lane.z2 - lane.z1) / len;
-      const fromX = lane.x1 + (lane.x2 - lane.x1) * c.t + uz * LANE_OFFSET * c.dir;
-      const fromZ = lane.z1 + (lane.z2 - lane.z1) * c.t - ux * LANE_OFFSET * c.dir;
-      const pick = chooseContinuation(streetContinuations(lanes, c.lane, nodeX, nodeZ), c.odometer);
-      if (pick) {
-        const next = lanes[pick.seg]!;
-        const nlen = lengths[pick.seg]!;
-        const nux = (next.x2 - next.x1) / nlen;
-        const nuz = (next.z2 - next.z1) / nlen;
-        const toX = next.x1 + (next.x2 - next.x1) * pick.entryT + nuz * LANE_OFFSET * pick.dir;
-        const toZ = next.z1 + (next.z2 - next.z1) * pick.entryT - nux * LANE_OFFSET * pick.dir;
+      const plan =
+        c.plan ?? planCorner(lanes, lengths, lane, c.lane, nodeX, nodeZ, c.dir, c.odometer);
+      c.plan = null;
+      const land = plan.pick
+        ? { lane: plan.pick.seg, dir: plan.pick.dir, t: plan.pick.entryT }
+        : { lane: c.lane, dir: (c.dir > 0 ? -1 : 1) as 1 | -1, t: c.dir > 0 ? 1 : 0 };
+      if (!entryFree(land.lane, land.dir, land.t, c) && c.hold < FLEET_HOLD_LIMIT) {
+        // Nowhere to land: hold at the mouth of the junction, brake modulated,
+        // and take the corner the frame the room appears — or the frame the wait
+        // runs out, because four cars each waiting for the next is a frozen city.
+        c.hold += dt;
+        c.v = ramp(c.v, 0, FLEET_BRAKE, dt);
+        continue;
+      }
+      c.hold = 0;
+      const cornerSpeedOf = Math.min(c.cruise, plan.speed);
+      if (plan.pick && plan.curve) {
+        const pick = plan.pick;
         c.turn = {
           kind: "bend",
           k: 0,
-          dur: turnDuration(Math.hypot(toX - fromX, toZ - fromZ)),
-          speed: Math.min(c.v, 4.2),
-          fromX,
-          fromZ,
-          controlX: nodeX,
-          controlZ: nodeZ,
-          toX,
-          toZ,
+          curve: plan.curve,
+          length: plan.curve.length,
+          speed: cornerSpeedOf,
           nextSeg: pick.seg,
           nextT: pick.entryT,
           nextDir: pick.dir,
           nodeX,
           nodeZ,
         };
-        c.v = Math.min(c.v, 4.2);
+      } else if (plan.pick) {
+        // Straight on: the next street begins where this one ends, so the car
+        // simply moves onto it — no corner, no pace to give up.
+        c.lane = plan.pick.seg;
+        c.t = plan.pick.entryT;
+        c.dir = plan.pick.dir;
+        c.arrived = true;
       } else {
+        const ux = (lane.x2 - lane.x1) / len;
+        const uz = (lane.z2 - lane.z1) / len;
         c.turn = {
           kind: "arc",
           k: 0,
-          dur: Math.max(0.55, (Math.PI * LANE_OFFSET) / Math.max(2, c.v)),
-          speed: Math.min(c.v, 3.2),
-          centerX: nodeX,
-          centerZ: nodeZ,
+          length: turnAroundLength(),
+          speed: cornerSpeedOf,
           ux,
           uz,
           dir: c.dir,
           nodeX,
           nodeZ,
         };
-        c.v = Math.min(c.v, 3.2);
       }
     }
 
@@ -766,26 +937,23 @@ export function RoadSystem({
       let rotY: number;
       const turn = c.turn;
       if (turn) {
-        const k = turn.k * turn.k * (3 - 2 * turn.k);
+        // `turn.k` already advances by distance, so the pose is read at k
+        // directly. The smoothstep that used to sit here is what emptied the
+        // corners: its derivative is zero at both ends, so every car stopped at
+        // the corner mouth and dashed through the middle.
         if (turn.kind === "bend") {
-          const a = (1 - k) * (1 - k);
-          const b = 2 * (1 - k) * k;
-          const d = k * k;
-          x = a * turn.fromX + b * turn.controlX + d * turn.toX;
-          z = a * turn.fromZ + b * turn.controlZ + d * turn.toZ;
-          const dx =
-            2 * (1 - k) * (turn.controlX - turn.fromX) + 2 * k * (turn.toX - turn.controlX);
-          const dz =
-            2 * (1 - k) * (turn.controlZ - turn.fromZ) + 2 * k * (turn.toZ - turn.controlZ);
-          rotY = -Math.atan2(dz, dx);
+          const p = curveAt(turn.curve, turn.k);
+          x = p.x;
+          z = p.z;
+          rotY = -Math.atan2(p.tz, p.tx);
         } else {
-          const theta = k * Math.PI;
+          const theta = turn.k * Math.PI;
           const cos = Math.cos(theta);
           const sin = Math.sin(theta);
           const rx = turn.uz * turn.dir;
           const rz = -turn.ux * turn.dir;
-          x = turn.centerX + LANE_OFFSET * (cos * rx + sin * turn.ux * turn.dir);
-          z = turn.centerZ + LANE_OFFSET * (cos * rz + sin * turn.uz * turn.dir);
+          x = turn.nodeX + FLEET_LANE_OFFSET * (cos * rx + sin * turn.ux * turn.dir);
+          z = turn.nodeZ + FLEET_LANE_OFFSET * (cos * rz + sin * turn.uz * turn.dir);
           const tx = -sin * rx + cos * turn.ux * turn.dir;
           const tz = -sin * rz + cos * turn.uz * turn.dir;
           rotY = -Math.atan2(tz, tx);
@@ -794,13 +962,16 @@ export function RoadSystem({
         const len = lengths[c.lane] ?? laneLength(lane);
         const ux = (lane.x2 - lane.x1) / len;
         const uz = (lane.z2 - lane.z1) / len;
-        x = lane.x1 + (lane.x2 - lane.x1) * c.t + uz * LANE_OFFSET * c.dir;
-        z = lane.z1 + (lane.z2 - lane.z1) * c.t - ux * LANE_OFFSET * c.dir;
+        x = lane.x1 + (lane.x2 - lane.x1) * c.t + uz * FLEET_LANE_OFFSET * c.dir;
+        z = lane.z1 + (lane.z2 - lane.z1) * c.t - ux * FLEET_LANE_OFFSET * c.dir;
         rotY = -Math.atan2(uz * c.dir, ux * c.dir);
       }
       const bodyScale = c.scale;
+      // The body's own nose points where it is going, but only as fast as a car
+      // turns; the pose it rides can change heading faster than that.
+      c.yaw = slewYaw(c.yaw, rotY, FLEET_CORNER_YAW * dt);
       dummy.position.set(x, CAR_SHAPE.body.y * bodyScale, z);
-      dummy.rotation.set(0, rotY, 0);
+      dummy.rotation.set(0, c.yaw, 0);
       dummy.scale.setScalar(bodyScale);
       dummy.updateMatrix();
       mesh.setMatrixAt(i, surfaceMatrix(surface, dummy.matrix));
@@ -812,8 +983,8 @@ export function RoadSystem({
         // the car share a yaw, so forward roll is always the same local sign —
         // passing `dir` here spun them backwards on every return trip.
         const roll = wheelRoll(c.odometer, 1, CAR_SHAPE.wheel.r * bodyScale);
-        const cos = Math.cos(rotY);
-        const sin = Math.sin(rotY);
+        const cos = Math.cos(c.yaw);
+        const sin = Math.sin(c.yaw);
         for (let w = 0; w < 4; w++) {
           const along = w < 2 ? CAR_SHAPE.wheel.x : -CAR_SHAPE.wheel.x;
           const across = w % 2 === 0 ? CAR_SHAPE.wheel.z : -CAR_SHAPE.wheel.z;
@@ -824,7 +995,7 @@ export function RoadSystem({
           );
           dummy.rotation.set(0, 0, 0);
           dummy.quaternion
-            .setFromAxisAngle(AXIS_Y, rotY)
+            .setFromAxisAngle(AXIS_Y, c.yaw)
             .multiply(rollQ.setFromAxisAngle(AXIS_Z, roll));
           dummy.scale.setScalar(bodyScale);
           dummy.updateMatrix();
@@ -946,6 +1117,7 @@ export function RoadSystem({
         args={[carBodyGeo, undefined, Math.max(1, carCount)]}
         frustumCulled={false}
         visible={active}
+        name="fleet-body"
       >
         <meshStandardMaterial roughness={0.42} metalness={0.16} vertexColors />
       </instancedMesh>

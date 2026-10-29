@@ -44,11 +44,23 @@ export const PILOT_SPEED_START = SPEED;
 export const PILOT_THROTTLE_RATE = 12;
 
 /** Full stick rates, per second. Yaw is deliberately slower than a first-person
- *  shooter's turn: 0,9 rad/s is a wide, readable bank around a district. */
+ *  shooter's turn: 0,7 rad/s — 40° a second — is a wide, readable circuit around
+ *  a district, and it is the number `PILOT_TURN_ACCEL` is solved from. */
 export const PILOT_YAW_RATE = 0.7;
 export const PILOT_CLIMB_RATE = 8;
-/** How quickly the wings follow the stick (bank), per second. */
-export const PILOT_ROLL_RATE = 2.4;
+/** How quickly the wings follow the stick (bank), per second. 6 reaches 95 % of
+ *  the bank in half a second and the first held second already carries 33° of
+ *  turn; the 2,4 that shipped needed 1,26 s to settle the wing, and because the
+ *  turn now rides on the bank that lag read as mush rather than as gentleness. */
+export const PILOT_ROLL_RATE = 6;
+/** The lateral acceleration that makes a leaned aircraft turn, derived from the
+ *  one stated turn rate rather than written down again: at a settled full bank
+ *  and the show's speed it gives exactly `PILOT_YAW_RATE`. Measured over the
+ *  speed band at full bank: 0,70 rad/s (arc radius 11,4) at the show's 8, the
+ *  same 0,70 rad/s down to the slowest air because the divisor is floored — a
+ *  reader at idle must not spin like a top — and 0,40 rad/s at full throttle 14,
+ *  which is the same wing held over a wider arc (radius 35). */
+export const PILOT_TURN_ACCEL = (PILOT_YAW_RATE * PILOT_SPEED_START) / Math.tan(BANK_MAX);
 
 /** Half the wingspan (4,6) plus a margin, as one clearance figure. */
 export const PILOT_HULL_CLEAR = 2.6;
@@ -118,9 +130,12 @@ export interface PilotState {
 export interface PilotInput {
   /** -1 … 1 each; 0 means the key is not held. */
   throttle: number;
+  /** The ONE left/right intention: the arrow keys and A/D answer to the same
+   *  word. It leans the wings, and the leaned wings turn the nose — a bank that
+   *  did not turn was the defect this mode shipped with (a held D moved the
+   *  heading by 0,0° in a whole second). */
   yaw: number;
   pitch: number;
-  roll: number;
 }
 
 export interface PilotLimits {
@@ -134,7 +149,6 @@ export const PILOT_INPUT_IDLE: PilotInput = Object.freeze({
   throttle: 0,
   yaw: 0,
   pitch: 0,
-  roll: 0,
 });
 
 const clamp = (v: number, lo: number, hi: number): number => (v < lo ? lo : v > hi ? hi : v);
@@ -156,9 +170,9 @@ export function pilotStateAt(over: Partial<PilotState> = {}): PilotState {
 /**
  * One step of the flight law. Mutates `state` in place and returns it.
  *
- * Gentle by construction: nothing in here can end the flight. The stick moves
- * the nose, the throttle moves the airspeed, the bank follows the stick — and
- * the three hard numbers (floor, ceiling, wall) clamp instead of punishing.
+ * Gentle by construction: nothing in here can end the flight. The stick leans
+ * the wings, the leaned wings move the nose, the throttle moves the airspeed —
+ * and the three hard numbers (floor, ceiling, wall) clamp instead of punishing.
  * Whether the towers push is a separate call (`pushOutOfTowers`) because it
  * needs the level's boxes and this function needs none.
  */
@@ -175,14 +189,20 @@ export function stepPilot(
     PILOT_SPEED_MIN,
     PILOT_SPEED_MAX,
   );
-  // Faster air does not turn faster: the factor stops at the show's speed, or
-  // a pilot at full throttle would spin like a top.
-  state.heading += input.yaw * PILOT_YAW_RATE * step * Math.min(1, state.speed / PILOT_SPEED_START);
+  // The nose turns BECAUSE the wings are leaned, and the wings lean because the
+  // reader asked to go left or right — one intention, one verb, so the arrow
+  // keys and A/D answer to the same word. Before this, `input.yaw` moved the
+  // heading directly while a bank from a second axis moved nothing: a held D
+  // leaned the aircraft 23,6° in a second and turned it 0,0°. The same bank at
+  // full throttle sweeps a wider arc, which is why the speed is floored at the
+  // show's own — slow air must not spin like a top.
+  state.heading +=
+    ((PILOT_TURN_ACCEL * Math.tan(state.bank)) / Math.max(state.speed, PILOT_SPEED_START)) * step;
   state.agl = clamp(state.agl + input.pitch * PILOT_CLIMB_RATE * step, PILOT_FLOOR_AGL, PILOT_CEIL);
 
-  // The wings lean into a turn without being asked: a banked aircraft turns,
-  // and asking the reader for two axes to do one thing is not a game.
-  const wantBank = clamp(input.roll * BANK_MAX + input.yaw * BANK_MAX * 0.55, -BANK_MAX, BANK_MAX);
+  // The wings lean into the turn the reader asked for. Nothing else banks them:
+  // a second author of the same angle is how leaning and turning drifted apart.
+  const wantBank = clamp(input.yaw * BANK_MAX, -BANK_MAX, BANK_MAX);
   const follow = Math.min(1, PILOT_ROLL_RATE * step);
   state.bank += (wantBank - state.bank) * follow;
 

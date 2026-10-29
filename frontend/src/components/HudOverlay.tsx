@@ -91,6 +91,7 @@ export function HudOverlay({ apiStatus }: HudOverlayProps) {
   const cameraInfo = useStore((s) => s.cameraInfo);
   const cameraMode = useStore((s) => s.cameraMode);
   const flightReadout = useStore((s) => s.flightReadout);
+  const driveSpeed = useStore((s) => s.driveSpeed);
   const pilotView = useStore((s) => s.pilotView);
   const togglePilotView = useStore((s) => s.togglePilotView);
   // The height sentence follows the field that draws it (city/heightAxis):
@@ -296,6 +297,16 @@ export function HudOverlay({ apiStatus }: HudOverlayProps) {
                   control they need while doing it. They stand in the header
                   line, not on a new panel: the arrival budget counts standing
                   surfaces, and this one only exists while the aircraft moves. */}
+              {/* The car's one number, in the same header line and the same
+                  element as the flight's: one standing surface, whichever seat
+                  the reader is in — and none while nobody drives. */}
+              {cameraMode === "drive" && driveSpeed !== null && (
+                <span className="workspace-flight" data-testid="workspace-drive">
+                  <span className="workspace-flight-spd" title={t(lang, "hud.flightSpdTitle")}>
+                    {driveSpeed} <span>m/s</span>
+                  </span>
+                </span>
+              )}
               {cameraMode === "pilot" && flightReadout && (
                 <span className="workspace-flight" data-testid="workspace-flight">
                   <span className="workspace-flight-alt" title={t(lang, "hud.flightAltTitle")}>
