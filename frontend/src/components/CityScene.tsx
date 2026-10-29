@@ -43,6 +43,7 @@ import { CityTree } from "./CityTree";
 import { Pedestrians } from "./Pedestrians";
 import { BannerPlane } from "./BannerPlane";
 import { DriveCar } from "./DriveCar";
+import { TeachBoards } from "./TeachBoards";
 import "../design/world.css";
 
 /** How long a lost context gets to restore itself before the app offers a rebuild. */
@@ -473,6 +474,11 @@ export function CityScene() {
         lang={lang}
         active={buildPhase !== "constructing" || shareHero !== null}
       />
+
+      {/* The three teaching boards on the empty ground: what a house is, the
+          heaviest open finding, and what this scan never checked. Placement and
+          copy are measured in `city/teachBoards.ts`. */}
+      <TeachBoards />
 
       {/* The car the reader drives (C). One car, the fleet's own proportions,
           visible only in the drive seat. */}

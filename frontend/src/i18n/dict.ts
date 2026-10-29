@@ -4530,6 +4530,78 @@ export const DICT = {
     en: "Switch the flight view, currently {view}",
     de: "Flugansicht wechseln, gerade {view}",
   },
+  // ── The three teaching boards on the empty ground ─────────────────────────
+  // Read at the arrival from a plate in the world, never from a panel: short
+  // sentences, no clauses that need a second reading. Every count comes from
+  // the payload; the wording carries no number of its own.
+  "teach.file.title": { en: "A house is a file", de: "Ein Haus ist eine Datei" },
+  "teach.file.metaphor": {
+    en: "One box per file, one district per folder.",
+    de: "Ein Kasten je Datei, ein Bezirk je Ordner.",
+  },
+  "teach.file.files": { en: "Files read · {n}", de: "Dateien gelesen · {n}" },
+  "teach.file.findings": { en: "Findings · {n}", de: "Funde · {n}" },
+  "teach.finding.title": {
+    en: "The heaviest open finding",
+    de: "Der schwerste offene Fund",
+  },
+  "teach.finding.line": { en: "Line {line}", de: "Zeile {line}" },
+  /** No findings left open — a sentence, never an empty frame. */
+  "teach.finding.none": {
+    en: "Every finding carries a verdict by now.",
+    de: "Jeder Fund trägt inzwischen ein Urteil.",
+  },
+  "teach.finding.noneClean": {
+    en: "Nothing was found in the files that were read.",
+    de: "In den gelesenen Dateien wurde nichts gefunden.",
+  },
+  "teach.honesty.title": {
+    en: "What this scan did not check",
+    de: "Was dieser Scan nicht geprüft hat",
+  },
+  "teach.honesty.noProvenance": {
+    en: "The result does not say what ran.",
+    de: "Das Ergebnis sagt nicht, was gelaufen ist.",
+  },
+  "teach.honesty.noScanner": {
+    en: "No security scanner read these files.",
+    de: "Kein Sicherheitsprüfer las diese Dateien.",
+  },
+  "teach.honesty.missing": { en: "Did not run: {engines}", de: "Nicht gelaufen: {engines}" },
+  "teach.honesty.unverified": {
+    en: "{n} of {total} files unchecked",
+    de: "{n} von {total} Dateien ungeprüft",
+  },
+  "teach.honesty.churn": { en: "No git history read", de: "Keine Git-Historie gelesen" },
+  "teach.honesty.churnCut": {
+    en: "History arrived cut off",
+    de: "Die Historie kam abgeschnitten an",
+  },
+  "teach.honesty.coverage": { en: "No test coverage read", de: "Keine Testabdeckung gelesen" },
+  "teach.honesty.duplicates": { en: "No duplicate check", de: "Keine Duplikatprüfung" },
+  "teach.honesty.dropped": { en: "{n} files never read", de: "{n} Dateien nie gelesen" },
+  "teach.honesty.live": {
+    en: "Part of this city comes from the full scan.",
+    de: "Ein Teil dieser Stadt stammt aus dem vollen Scan.",
+  },
+  /** Everything this app can check ran — said out loud, so silence is never
+   *  mistaken for the same thing. */
+  "teach.honesty.complete": {
+    en: "Every check this app has ran.",
+    de: "Jede Prüfung, die diese App hat, lief.",
+  },
+  /** The honesty board's fourth line: the two causes the reader chose or the
+   *  git budget cut, each named with its own count, never merged into one
+   *  label. Singular and plural follow `setAsideTotal`, the one owner of the
+   *  summed number — the pattern `prov.skipFile`/`prov.skipFiles` sets. */
+  "teach.honesty.setAsideOne": {
+    en: "{n} path stayed out of the city: {excluded} you excluded yourself, {gitBudget} the git budget cut off.",
+    de: "{n} Pfad blieb draußen: {excluded} hast du selbst ausgenommen, {gitBudget} hat das Git-Budget abgeschnitten.",
+  },
+  "teach.honesty.setAsideMany": {
+    en: "{n} paths stayed out of the city: {excluded} you excluded yourself, {gitBudget} the git budget cut off.",
+    de: "{n} Pfade blieben draußen: {excluded} hast du selbst ausgenommen, {gitBudget} hat das Git-Budget abgeschnitten.",
+  },
 } satisfies Record<string, { en: string; de: string }>;
 
 export type DictKey = keyof typeof DICT;
