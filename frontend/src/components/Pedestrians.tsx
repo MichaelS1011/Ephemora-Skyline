@@ -19,6 +19,7 @@ import {
 import { planPolyline, stripeGeometry, type RoutePoint } from "../city/routeLine";
 import { approachNode, graphPath, nearestNode, type SidewalkNetwork } from "../city/sidewalks";
 import { epheKey, type EpheIdentity } from "../city/epheIdentity";
+import { boneGeometry } from "../city/epheBody";
 import { ephePresenceIdentity, plotOpenFindings, presenceSeats } from "../city/epheDuty";
 import { lookFor } from "../epheLook";
 import {
@@ -1311,10 +1312,14 @@ export function Pedestrians({
   const headGeo = useMemo(() => new THREE.SphereGeometry(FIGURE.headR, 12, 8), []);
   const faceGeo = useMemo(() => new THREE.SphereGeometry(1, 10, 6), []);
   const eyeGeo = useMemo(() => new THREE.SphereGeometry(0.032, 6, 4), []);
-  // Boots, thighs, shins, sleeves and hands share one unit sphere, coloured per
-  // instance — the legs are stretched spheres for the same reason the arms are:
-  // a figure costs one draw call for all ten of its limbs, not ten.
-  const limbGeo = useMemo(() => new THREE.SphereGeometry(1, 8, 6), []);
+  // Boots, thighs, shins, sleeves, hands and the hair cap share one unit tube,
+  // coloured per instance — the legs are the same shape as the arms for the
+  // same reason: a figure costs one draw call for all ten of its limbs, not
+  // ten. It is a tube with a bevelled end and not the sphere it used to be
+  // because at the size the city is looked at, a stretched sphere is a spindle
+  // with a point at every joint — see `city/epheBody.ts` for the measured gap
+  // under the sleeve and the pinch at the knee.
+  const limbGeo = useMemo(() => boneGeometry(), []);
   // The disc under a figure. Without it a body stands on the ground plane with a
   // hard contact edge and reads as floating; measured as `contactLumaDelta`, the
   // crowd sat at −2.8 to −3.6, i.e. the ground under a figure was BRIGHTER than
