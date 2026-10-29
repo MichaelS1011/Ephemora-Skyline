@@ -1,6 +1,6 @@
 {
   "name": "ephemora-skyline",
-  "version": "0.4.1",
+  "version": "0.4.2",
   "description": "Your local codebase as a 3D city — folders as districts, files as buildings, findings as beacons. Nothing leaves your machine.",
   "license": "Apache-2.0",
   "type": "module",

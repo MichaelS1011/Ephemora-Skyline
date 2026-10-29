@@ -21,13 +21,9 @@ Nothing is uploaded. No account, no login, no telemetry. It runs on your own mac
 
 ## What's new
 
-0.4.1 — 2026-10-29
+0.4.2 — 2026-10-29
 
-- **The arrival camera stopped looking at roofs.** — `CameraRig.approachFromCurrentDirection` carried a degenerate branch for the first flight of a freshly loaded city — `0,4 / 0,75 / 0,75` of the distance
-- **The towed banner is slow enough to read.** — The aircraft flew 34 world units per second
-- **The arrival plate's countdown is readable on the glass it sits on.** — `.start-summary-dwell` — the "9 s" that says when the announcement folds by itself — still carried the ink from the days the card sat on an almost opaque ground
-- **The fleet turns its nose instead of cutting it.** — The ambient cars were measured on the running city for the first time — 24 cars
-- **A car keeps a distance it can stop in.** — The look band was a fixed 7,2 units for every cruise
+- **A resident's limbs are bones, not spindles.** — Measured through the running app's own camera matrix on a real scan of this repository (1280×800
 
 More in [CHANGELOG.md](./CHANGELOG.md).
 
