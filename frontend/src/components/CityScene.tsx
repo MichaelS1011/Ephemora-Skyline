@@ -44,6 +44,7 @@ import { Pedestrians } from "./Pedestrians";
 import { BannerPlane } from "./BannerPlane";
 import { DriveCar } from "./DriveCar";
 import { TeachBoards } from "./TeachBoards";
+import { NeighbourTowns } from "./NeighbourTowns";
 import "../design/world.css";
 
 /** How long a lost context gets to restore itself before the app offers a rebuild. */
@@ -483,6 +484,11 @@ export function CityScene() {
       {/* The car the reader drives (C). One car, the fleet's own proportions,
           visible only in the drive seat. */}
       <DriveCar />
+
+      {/* The hamlets of the other folders this browser has scanned, on the open
+          land outside the belt: nameless towers on the city's own height rail,
+          so a reader with several projects can see where their mass sits. */}
+      <NeighbourTowns />
     </WorldSurfaceContext.Provider>
   );
 }
