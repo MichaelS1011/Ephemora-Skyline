@@ -59,6 +59,7 @@ vi.mock("../src/components/CityScene", () => ({ CityScene: () => null }));
 import { city, dir, file, finding } from "./helpers/cityFixture";
 import { useStore } from "../src/stores/useStore";
 import App from "../src/App";
+import censusJson from "./fixtures/arrival-census.json";
 
 /** One finding of each grade, in a district the reader can drill into. */
 const ARRIVAL_CITY = city({
@@ -107,7 +108,7 @@ const REGIONS: Record<string, string[]> = {
   search: [".workspace-search", ".search-control"],
   fileCard: [".panel-info"],
   findingsList: ["#findings-panel"],
-  announcement: [".start-summary", ".start-summary-strip"],
+  announcement: [".start-summary", ".start-summary-strip", ".start-summary-strip-slot"],
   tour: [".security-tour"],
   dock: [".action-dock"],
   projectCard: [".panel-context-card", ".context-reopen"],
@@ -118,6 +119,9 @@ const REGIONS: Record<string, string[]> = {
   crumbs: [".workspace-breadcrumbs"],
   shareNudge: [".share-hint"],
   studio: [".panel-share-studio"],
+  liveBand: [".live-band"],
+  buildBar: [".build-bar"],
+  moreMenu: ["#city-more-menu"],
 };
 
 /** The four surfaces allowed to stand, plus the timed announcement. */
@@ -701,5 +705,117 @@ describe("a called resident", () => {
       window.dispatchEvent(new KeyboardEvent("keydown", { key: "c", bubbles: true }));
     });
     expect(useStore.getState().residentCall).toBe(before + 1);
+  });
+});
+
+/**
+ * The harvest census (B1, 2026-10-29) and this guard name the same surfaces.
+ *
+ * The first-journey counter drifted from the DOM: its city-view list still
+ * named classes nothing renders (.context-card, .mode-bar, .info-panel), so
+ * s5/s6 reported "action-dock, 5 words" while the project panel stood on the
+ * screen carrying 138 of the 180 arrival words. The complete census is in
+ * `tests/fixtures/arrival-census.json`; these tests keep the two lists from
+ * drifting apart again — in BOTH directions: a surface the census names must
+ * be one this guard can see, and the arrival instant the census counted must
+ * be exactly the standing four plus the announcement this guard allows.
+ */
+
+/** Surfaces the census looks for that are not standing chrome: the key echo
+ *  (an aria-live status, always mounted, empty until a key has something to
+ *  say) and the waypoint pill (no class of its own — found via its aria). */
+const CENSUS_EXTRAS: Record<string, string> = {
+  ".key-echo": "KeyEcho.tsx renders it unconditionally as role=status",
+  "waypoint-pill": "HudOverlay matches it by aria-label, not by a class",
+};
+
+describe("the harvest census and this guard name the same surfaces", () => {
+  type Census = {
+    viewports: Record<string, { steps: Record<string, { surfaces: Record<string, unknown> }> }>;
+    meta: { surfacesAbsentEverywhere: string[] };
+  };
+  const census = censusJson as unknown as Census;
+
+  const regionFor = (surface: string): string | null => {
+    for (const [name, selectors] of Object.entries(REGIONS)) {
+      if (selectors.includes(surface)) return name;
+    }
+    return null;
+  };
+
+  const censusCitySurfaces = (): string[] => {
+    const names = new Set<string>();
+    for (const vp of Object.values(census.viewports)) {
+      for (const step of Object.values(vp.steps)) {
+        for (const surface of Object.keys(step.surfaces)) {
+          if (!surface.startsWith(".landing")) names.add(surface);
+        }
+      }
+    }
+    return [...names].sort();
+  };
+
+  it("every city surface the census counted is one this guard can see", () => {
+    const unseen: string[] = [];
+    for (const surface of censusCitySurfaces()) {
+      if (!regionFor(surface) && !CENSUS_EXTRAS[surface]) unseen.push(surface);
+    }
+    expect(
+      unseen,
+      "the counter names a surface the chrome guard has never heard of — add it to REGIONS or to CENSUS_EXTRAS, never to one list alone",
+    ).toEqual([]);
+  });
+
+  it("every surface the census says it looked for without finding is a real selector", () => {
+    const unknown: string[] = [];
+    for (const surface of census.meta.surfacesAbsentEverywhere) {
+      if (!regionFor(surface) && !CENSUS_EXTRAS[surface]) unknown.push(surface);
+    }
+    expect(unknown, "an absent-surface entry that matches nothing is a typo, not a proof").toEqual(
+      [],
+    );
+  });
+
+  it("the arrival instant the census counted is the standing four plus the announcement", () => {
+    for (const [vp, data] of Object.entries(census.viewports)) {
+      const step = data.steps["s5-karte-offen"];
+      expect(step, `${vp}: the card-open step is in the census`).toBeDefined();
+      const regions = new Set(
+        Object.keys(step!.surfaces)
+          .map((s) => regionFor(s))
+          .filter(Boolean) as string[],
+      );
+      expect([...regions].sort(), `${vp}: the arrival instant's surfaces`).toEqual(
+        [...AT_ARRIVAL].sort(),
+      );
+    }
+  });
+
+  it("the strip state is the same standing set — the strip is the announcement, not a fifth surface", () => {
+    for (const [vp, data] of Object.entries(census.viewports)) {
+      const step = data.steps["s6-streifen-steht"];
+      expect(step, `${vp}: the strip step is in the census`).toBeDefined();
+      const regions = new Set(
+        Object.keys(step!.surfaces)
+          .map((s) => regionFor(s))
+          .filter(Boolean) as string[],
+      );
+      expect([...regions].sort(), `${vp}: the strip state's surfaces`).toEqual(
+        [...AT_ARRIVAL].sort(),
+      );
+    }
+  });
+
+  it("the census's heaviest surface is the project card, and the guard keeps it on screen", () => {
+    // The number that started this round: 138 of 180 arrival words stood on a
+    // surface the counter could not see. The ratchet is the guard's own word
+    // budget above; what is pinned here is the ownership of the number.
+    const step = census.viewports["1440x900"]!.steps["s5-karte-offen"]!;
+    const heaviest = Object.entries(step.surfaces).sort(
+      (a, b) => (b[1] as { words: number }).words - (a[1] as { words: number }).words,
+    )[0]![0];
+    expect(heaviest).toBe(".panel-context-card");
+    expect(regionFor(heaviest)).toBe("projectCard");
+    expect(STANDING).toContain("projectCard");
   });
 });

@@ -1,0 +1,242 @@
+{
+  "meta": {
+    "what": "The arrival census, complete — the fixed number set per step of the first journey over the demo city, both viewports the product renders.",
+    "script": ".qoder-scratch/skyline-experience-shaper/2026-10-29-ernterunde/ernterunde-steps.mjs (the first-journey counter with the city-view selector list completed — its predecessor saw only .action-dock and .workspace-header in the city, which is how the project panel's 138 words went uncounted)",
+    "measured": "2026-10-29",
+    "app": "0.4.2 tree with the harvest-round WIP (teach boards mounted, neighbour towns mounted)",
+    "city": "demo (74 sample files, 8 sample findings), English interface",
+    "playwright": "chromium headless --use-angle=metal, device pixel ratio 1",
+    "reading": "A region's `words` is its own text content — the strip slot and the strip it holds both report, so the strip state counts the same band twice. Coverage is the sum of the counted boxes over the window, which is why the identical chrome covers more of a narrow window.",
+    "surfacesAbsentEverywhere": [
+      ".city-minimap",
+      ".city-legend",
+      ".live-band",
+      ".key-echo",
+      "waypoint-pill"
+    ],
+    "surfacesAbsentNote": "The minimap and the legend do not stand at the root level of the demo; the live band and the key echo had nothing to say in this run; the waypoint pill stayed silent because every finding was on screen. They are named here so the next census proves they were looked for, not forgotten."
+  },
+  "viewports": {
+    "1440x900": {
+      "steps": {
+        "s1-erster-besuch": {
+          "totalWords": 95,
+          "coveragePct": 38.7,
+          "surfaces": {
+            ".landing-header": {
+              "words": 3
+            },
+            ".landing-welcome": {
+              "words": 27
+            },
+            ".landing-visual": {
+              "words": 57
+            },
+            ".landing-footer": {
+              "words": 8
+            }
+          }
+        },
+        "s4-nach-demo-klick": {
+          "totalWords": 17,
+          "coveragePct": 8.7,
+          "surfaces": {
+            ".workspace-header": {
+              "words": 11
+            },
+            ".build-bar": {
+              "words": 6
+            }
+          }
+        },
+        "s5-karte-offen": {
+          "what": "The arrival instant: the announcement card stands, nothing has folded.",
+          "totalWords": 180,
+          "coveragePct": 28.1,
+          "surfaces": {
+            ".workspace-header": {
+              "words": 11
+            },
+            ".workspace-modes": {
+              "words": 1
+            },
+            ".start-summary": {
+              "words": 25
+            },
+            ".action-dock": {
+              "words": 5
+            },
+            ".panel-context-card": {
+              "words": 138
+            }
+          }
+        },
+        "s6-streifen-steht": {
+          "what": "The announcement's strip stands; the card is still open beside it.",
+          "totalWords": 189,
+          "coveragePct": 30.3,
+          "surfaces": {
+            ".workspace-header": {
+              "words": 11
+            },
+            ".workspace-modes": {
+              "words": 1
+            },
+            ".start-summary-strip": {
+              "words": 17
+            },
+            ".start-summary-strip-slot": {
+              "words": 17
+            },
+            ".action-dock": {
+              "words": 5
+            },
+            ".panel-context-card": {
+              "words": 138
+            }
+          }
+        },
+        "s7-dock-menue-offen": {
+          "totalWords": 254,
+          "coveragePct": 41.4,
+          "surfaces": {
+            ".workspace-header": {
+              "words": 11
+            },
+            ".workspace-modes": {
+              "words": 1
+            },
+            ".start-summary-strip": {
+              "words": 17
+            },
+            ".start-summary-strip-slot": {
+              "words": 17
+            },
+            ".action-dock": {
+              "words": 37
+            },
+            ".panel-context-card": {
+              "words": 138
+            },
+            "#city-more-menu": {
+              "words": 33
+            }
+          }
+        }
+      }
+    },
+    "1280x800": {
+      "steps": {
+        "s1-erster-besuch": {
+          "totalWords": 95,
+          "coveragePct": 43.6,
+          "surfaces": {
+            ".landing-header": {
+              "words": 3
+            },
+            ".landing-welcome": {
+              "words": 27
+            },
+            ".landing-visual": {
+              "words": 57
+            },
+            ".landing-footer": {
+              "words": 8
+            }
+          }
+        },
+        "s4-nach-demo-klick": {
+          "totalWords": 17,
+          "coveragePct": 10.0,
+          "surfaces": {
+            ".workspace-header": {
+              "words": 10
+            },
+            ".build-bar": {
+              "words": 7
+            }
+          }
+        },
+        "s5-karte-offen": {
+          "what": "The arrival instant: the announcement card stands, nothing has folded.",
+          "totalWords": 179,
+          "coveragePct": 31.9,
+          "surfaces": {
+            ".workspace-header": {
+              "words": 10
+            },
+            ".workspace-modes": {
+              "words": 1
+            },
+            ".start-summary": {
+              "words": 25
+            },
+            ".action-dock": {
+              "words": 5
+            },
+            ".panel-context-card": {
+              "words": 138
+            }
+          }
+        },
+        "s6-streifen-steht": {
+          "what": "The announcement's strip stands; the card is still open beside it.",
+          "totalWords": 189,
+          "coveragePct": 34.1,
+          "surfaces": {
+            ".workspace-header": {
+              "words": 11
+            },
+            ".workspace-modes": {
+              "words": 1
+            },
+            ".start-summary-strip": {
+              "words": 17
+            },
+            ".start-summary-strip-slot": {
+              "words": 17
+            },
+            ".action-dock": {
+              "words": 5
+            },
+            ".panel-context-card": {
+              "words": 138
+            }
+          }
+        },
+        "s7-dock-menue-offen": {
+          "totalWords": 254,
+          "coveragePct": 48.1,
+          "surfaces": {
+            ".workspace-header": {
+              "words": 11
+            },
+            ".workspace-modes": {
+              "words": 1
+            },
+            ".start-summary-strip": {
+              "words": 17
+            },
+            ".start-summary-strip-slot": {
+              "words": 17
+            },
+            ".action-dock": {
+              "words": 37
+            },
+            ".panel-context-card": {
+              "words": 138
+            },
+            "#city-more-menu": {
+              "words": 33
+            }
+          }
+        }
+      }
+    }
+  },
+  "headline": {
+    "arrivalInstant": "5 surfaces · 180 words (1440×900) · 179 words (1280×800) · 28.1 % / 31.9 % of the window",
+    "heaviestSurface": ".panel-context-card with 138 of the 180 arrival words — the surface the first-journey counter could not see",
+    "stripState": "5 distinct surfaces · 189 words · 30.3 % / 34.1 % (strip and its slot are the same band)"
+  }
+}
