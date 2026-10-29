@@ -69,7 +69,7 @@ describe("the API table (docs/API.md:7-33)", () => {
 
 describe("the two ports and the one origin list (docs/GETTING_STARTED.md:58-59, docs/ARCHITECTURE.md:101)", () => {
   it("serves the frontend on 3010 and the backend on 4000 by default", () => {
-    // GETTING_STARTED.md:58-59; README.md:82 says the same for `npm run dev`
+    // GETTING_STARTED.md:58-59; README.md:83 says the same for `npm run dev`
     expect(/port:\s*3010/.test(read("frontend/vite.config.ts"))).toBe(true);
     expect(/process\.env\.PORT \?\? "4000"/.test(serverSource)).toBe(true);
   });

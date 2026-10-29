@@ -150,7 +150,7 @@ describe("the two frames the caption compares", () => {
   });
 
   it("leave the picture the mode does not touch byte-identical", () => {
-    // README.md:134 names what changes between the frames and what stays. A blanket
+    // README.md:135 names what changes between the frames and what stays. A blanket
     // "over 98 % identical" was the old proxy for that and it measured the wrong
     // thing: how much city is on screen decides how many pixels the dimming can
     // reach, so a closer framing failed a claim that had not changed. The regions
@@ -182,7 +182,7 @@ describe("the two frames the caption compares", () => {
   });
 });
 
-describe("the measured numbers in the caption (README.md:134)", () => {
+describe("the measured numbers in the caption (README.md:135)", () => {
   const sums = (frame: "before" | "after"): number[] => {
     const { before: a, after: b, diff } = compare();
     const r = frame === "before" ? a : b;

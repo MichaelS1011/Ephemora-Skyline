@@ -38,7 +38,7 @@ function installedCopies(name: string): string[] {
     .map((dir) => json<{ version: string }>(`${dir}/${name}/package.json`).version);
 }
 
-describe("the runtime the documents ask for (README.md:35, docs/GETTING_STARTED.md:22-27)", () => {
+describe("the runtime the documents ask for (README.md:36, docs/GETTING_STARTED.md:22-27)", () => {
   const engines = json<{ engines: { node: string; npm: string } }>("package.json").engines;
 
   it("matches the Node versions required by the installed Vite runtime", () => {
@@ -48,7 +48,7 @@ describe("the runtime the documents ask for (README.md:35, docs/GETTING_STARTED.
   });
 
   it("asks for npm 10 or newer", () => {
-    // README.md:35 "and **npm >= 10**", GETTING_STARTED.md:25 "≥ 10.0.0"
+    // README.md:36 "and **npm >= 10**", GETTING_STARTED.md:25 "≥ 10.0.0"
     expect(engines.npm).toBe(">=10.0.0");
   });
 
@@ -145,7 +145,7 @@ describe("TypeScript: the one number the documents may not disagree about", () =
   });
 });
 
-describe("the gates the README tells a reader to run (README.md:89-101)", () => {
+describe("the gates the README tells a reader to run (README.md:90-102)", () => {
   const root = json<{ scripts: Record<string, string> }>("package.json");
   const gateCommands = ["lint", "type-check", "test", "build"];
 
@@ -164,7 +164,7 @@ describe("the gates the README tells a reader to run (README.md:89-101)", () => 
   });
 
   it("accepts exactly one advisory by name, the braces one it states", () => {
-    // README.md:167 names it: "the one remaining exception matches no finding" — ALLOWED carries GHSA-vfj7-8cjw-p6xm
+    // README.md:168 names it: "the one remaining exception matches no finding" — ALLOWED carries GHSA-vfj7-8cjw-p6xm
     const gate = read("scripts/audit-gate.mjs");
     const allowed = gate.slice(gate.indexOf("const ALLOWED"), gate.indexOf("function audit"));
     const accepted = [
@@ -173,7 +173,7 @@ describe("the gates the README tells a reader to run (README.md:89-101)", () => 
       ),
     ];
     expect(accepted).toEqual(["GHSA-vfj7-8cjw-p6xm"]);
-    // README.md:167 "accepted in `scripts/audit-gate.mjs` by name, with a reason and a re-check date"
+    // README.md:168 "accepted in `scripts/audit-gate.mjs` by name, with a reason and a re-check date"
     expect(allowed).toContain("why:");
     expect(allowed).toContain("recheck:");
     // …and the tree carries the fixed release the override asks for
@@ -195,7 +195,7 @@ describe("the names and cadences a reader can check (README.md:11, docs/GETTING_
     expect(new Set(intervals)).toEqual(new Set(["weekly"]));
   });
 
-  it("keeps the two workspaces the README's install line promises (README.md:81)", () => {
+  it("keeps the two workspaces the README's install line promises (README.md:82)", () => {
     expect(json<{ workspaces: string[] }>("package.json").workspaces).toEqual([
       "frontend",
       "backend",
