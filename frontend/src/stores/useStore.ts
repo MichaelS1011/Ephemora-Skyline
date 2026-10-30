@@ -466,6 +466,16 @@ interface AppState {
    * first reader.
    */
   firstRun: boolean;
+  /**
+   * Whether the arrival announcement's CARD is off the screen — folded by its
+   * own dwell, closed by hand, never opened (a narrow window or a carried file
+   * see the strip first). One writer (`ScanSummary`, in one effect), one
+   * reader (B2: the dock's first-step proposal waits for the fold, because at
+   * the card-open instant the resident's offer IS the proposal, and the
+   * arrival budget holds at one voice per offer).
+   */
+  arrivalFolded: boolean;
+  setArrivalFolded: (folded: boolean) => void;
   setPref: <K extends keyof Prefs>(key: K, value: Prefs[K]) => void;
   /**
    * Switch the passive release check on or off, and say what it is now.
@@ -873,6 +883,7 @@ export const useStore = create<AppState>((set, get) => {
     set({
       cityData: null,
       buildPhase: "empty",
+      arrivalFolded: false,
       analysisId: null,
       isLoading: false,
       analysisProgress: 0,
@@ -945,6 +956,7 @@ export const useStore = create<AppState>((set, get) => {
   return {
     cityData: null,
     buildPhase: "empty",
+    arrivalFolded: false,
     buildStartedAt: 0,
     buildDuration: 0,
     constructionTotal: 0,
@@ -1121,6 +1133,7 @@ export const useStore = create<AppState>((set, get) => {
     resetToLanding: () => teardownVisit(true),
     resetToLandingFromHistory: () => teardownVisit(false),
     setBuildPhase: (phase) => set({ buildPhase: phase }),
+    setArrivalFolded: (folded) => set({ arrivalFolded: folded }),
     replayConstruction: () => {
       if (!get().cityData || get().buildPhase !== "built") return;
       const path = defaultOverviewPath(get().cityData!);

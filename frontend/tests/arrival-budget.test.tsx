@@ -819,3 +819,76 @@ describe("the harvest census and this guard name the same surfaces", () => {
     expect(STANDING).toContain("projectCard");
   });
 });
+
+/**
+ * B2 — five entrances, none first. At the first arrival the dock names ONE
+ * handgrip: the security tour, with its one-sentence reason on the surface.
+ * The tour is the step that asks nothing of the reader (watch, not judge),
+ * and it is the same offer the announcement's resident already makes — the
+ * dock points, it does not add a second voice. The other four stay reachable;
+ * nothing here opens, moves or removes a surface.
+ */
+describe("the first arrival names one handgrip", () => {
+  const tourButton = (): HTMLElement | null =>
+    ([...(host?.querySelectorAll(".action-dock button") ?? [])].find((b) =>
+      /Security tour|Security-Tour/.test(b.getAttribute("aria-label") ?? ""),
+    ) as HTMLElement | undefined) ?? null;
+
+  it("the dock's tour carries the first-step sentence once the card has folded", () => {
+    act(() => useStore.setState({ firstRun: true }));
+    arrive();
+    // the fold arrives the way it does in the app: after the card's own state
+    // has settled (the writer effect ran on mount and said "card open")
+    act(() => useStore.setState({ arrivalFolded: true }));
+    expect(tourButton()?.textContent).toContain("start here");
+  });
+
+  it("at the card-open instant the dock proposes nothing — the resident card is the voice", () => {
+    act(() => useStore.setState({ firstRun: true, arrivalFolded: false }));
+    arrive();
+    const text = tourButton()?.textContent ?? "";
+    expect(text).not.toContain("start here");
+    expect(text).toContain("fly");
+  });
+
+  it("the sentence arrives in German when the reader reads German", () => {
+    act(() =>
+      useStore.setState({
+        firstRun: true,
+        prefs: { ...useStore.getInitialState().prefs, lang: "de" },
+      }),
+    );
+    arrive();
+    act(() => useStore.setState({ arrivalFolded: true }));
+    expect(tourButton()?.textContent).toContain("hier entlang");
+    expect(tourButton()?.textContent).not.toContain("start here");
+  });
+
+  it("once this browser has arrived before, the dock is quiet again", () => {
+    act(() => useStore.setState({ firstRun: false, arrivalFolded: true }));
+    arrive();
+    const text = tourButton()?.textContent ?? "";
+    expect(text).not.toContain("start here");
+    expect(text).toContain("fly");
+  });
+
+  it("a tour with nothing to fly proposes nothing", () => {
+    act(() => {
+      useStore.setState({
+        firstRun: true,
+        cityData: city({
+          totalFiles: 4,
+          findingsBySeverity: { P0: 0, P1: 0, P2: 0 },
+          languages: { TypeScript: 300 },
+          tree: dir({ path: "", detailFiles: [file("src/app.ts", "TypeScript", [])] }),
+        }),
+      });
+    });
+    arrive();
+    act(() => useStore.setState({ arrivalFolded: true }));
+    const b = tourButton();
+    expect(b, "a zero-finding city still offers the tour, struck").not.toBeNull();
+    expect(b?.getAttribute("disabled")).not.toBeNull();
+    expect(b?.textContent ?? "").not.toContain("start here");
+  });
+});

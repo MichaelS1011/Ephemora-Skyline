@@ -154,6 +154,7 @@ export function ScanSummary({ demo = false }: { demo?: boolean }) {
   const [held, setHeld] = useState(false);
   const [left, setLeft] = useState(0);
   const [collapsed, setCollapsed] = useState(false);
+  const setArrivalFolded = useStore((s) => s.setArrivalFolded);
   const triageActive = useStore((s) => s.triageActive);
   const tourActive = useStore((s) => s.tourActive);
   const showFindings = useStore((s) => s.showFindings);
@@ -228,6 +229,13 @@ export function ScanSummary({ demo = false }: { demo?: boolean }) {
     }, 500);
     return () => clearInterval(id);
   }, [open, pinned, held, collapsed]);
+
+  // B2's state side: whether the card is off the screen, wherever the fold
+  // came from (dwell, a guided flow, the × button, a narrow window). One
+  // writer, in one effect, so no collapse path can forget to say so.
+  useEffect(() => {
+    setArrivalFolded(!open || collapsed);
+  }, [open, collapsed, setArrivalFolded]);
 
   const hold = useCallback(() => setHeld(true), []);
   const release = useCallback(() => setHeld(false), []);

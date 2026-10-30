@@ -792,6 +792,16 @@ export const DICT = {
     en: "fly",
     de: "durchfliegen",
   },
+  /**
+   * B2 — the first handgrip, named only at the first arrival. The tour is the
+   * one dock verb that asks nothing of the reader (watch, not judge), it is
+   * the same offer the announcement's resident already makes, and it lands on
+   * the heaviest finding. After this visit the dock is quiet again.
+   */
+  "actions.tourFirstHint": {
+    en: "start here — it flies you to every finding, worst first",
+    de: "hier entlang — sie fliegt dich zu jedem Fund, den schwersten zuerst",
+  },
   "actions.tourShort": {
     en: "Tour",
     de: "Tour",

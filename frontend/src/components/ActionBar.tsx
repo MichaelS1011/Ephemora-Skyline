@@ -120,6 +120,15 @@ export function ActionBar() {
   const reviews = useStore((s) => s.reviews);
   const threatFilter = useStore((s) => s.threatFilter);
   const ruleFilter = useStore((s) => s.ruleFilter);
+  /** B2 — the first arrival names one handgrip. The store stamps the marker
+   *  when the first city lands and keeps it for the visit, so the proposal
+   *  costs its words once per browser, never per city. */
+  const firstRun = useStore((s) => s.firstRun);
+  /** The card's fold, said by the store (`ScanSummary` is the one writer):
+   *  while the card stands, its resident IS the proposal — one offer per
+   *  moment, and the arrival's word budget holds. From the fold the dock
+   *  carries the sentence for the rest of this first visit. */
+  const arrivalFolded = useStore((s) => s.arrivalFolded);
   // The arrival budget: these six surfaces no longer paint themselves when a
   // city arrives, and this menu is where each one is asked back by name.
   const showLegend = useStore((s) => s.showLegend);
@@ -246,6 +255,17 @@ export function ActionBar() {
   const findings = cityData.findingsBySeverity;
   const totalFindings = severityTotal(findings);
   const constructing = buildPhase === "constructing";
+  /**
+   * The first arrival's one named step: the security tour. The dock offers
+   * five verbs at equal weight, and the choice was landing on the first
+   * visitor whole. The tour is the step that asks nothing — watch, don't
+   * judge — and it is the same offer the announcement's resident makes, so
+   * the dock points at it only once the card has folded (the strip state,
+   * where the card's words have left the screen). A struck tour (no
+   * findings) proposes nothing, and it speaks only on this first visit.
+   */
+  const proposeTour =
+    firstRun && arrivalFolded && !constructing && totalFindings > 0 && !tourActive;
   const pct = constructionTotal > 0 ? Math.round((constructionDone / constructionTotal) * 100) : 0;
   const testing = testRun.status === "installing" || testRun.status === "running";
   /** The two kinds of "cannot run tests now" split by what they mean: while a
@@ -563,7 +583,13 @@ export function ActionBar() {
                     : t(lang, "actions.tour")
               }
               aria-label={tourActive ? t(lang, "actions.tourActive") : t(lang, "actions.tour")}
-              hint={compact ? undefined : t(lang, "actions.tourHint")}
+              hint={
+                compact
+                  ? undefined
+                  : proposeTour
+                    ? t(lang, "actions.tourFirstHint")
+                    : t(lang, "actions.tourHint")
+              }
             />
             <ActionButton
               onClick={handleFindings}
