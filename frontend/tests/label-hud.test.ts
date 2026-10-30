@@ -51,6 +51,16 @@ describe("the surfaces the import label keeps clear of", () => {
       expect(HUD_SURFACES, cls).toContain(`.${cls}`);
     }
   });
+
+  it("reserves the project card B3 measured a plaque under", () => {
+    // Re-measured 2026-10-29: the demo's infrastructure plaque lay 52.1 %
+    // (3,355 px) under the open card at 1440x900 and 65 % (4,180 px) at
+    // 1280x800. A plate the card may not cover is a plate the card must be
+    // reserved against — both of the card's shapes, like the announcement's.
+    for (const cls of ["panel-context-card", "context-reopen"]) {
+      expect(HUD_SURFACES, cls).toContain(`.${cls}`);
+    }
+  });
 });
 
 describe("the plate is placed by the rule, not by the camera", () => {
@@ -142,5 +152,27 @@ describe("Z-02 — the neighbour plates", () => {
       expect(zweig, `${key} ohne englische Zeile`).toContain("en:");
       expect(zweig, `${key} ohne deutsche Zeile`).toContain("de:");
     }
+  });
+});
+
+describe("B3 — the district plaque obeys the same rule", () => {
+  const district = readFileSync(path.resolve(SRC, "components/District.tsx"), "utf-8");
+
+  it("hands drei its own position rule, built on placeLabel", () => {
+    expect(district).toContain("calculatePosition={plakettePosition}");
+    expect(district).toContain("placeLabel(");
+    expect(district).toContain("hudBoxes(canvas, HUD_SURFACES)");
+  });
+
+  it("sets no second HUD read of its own rhythm", () => {
+    // The plaque shares the import plate's 250 ms census — one interval, not
+    // one per plot, or six districts would query the HUD six times over.
+    expect(district).toContain("const HUD_REFRESH_MS = 250;");
+    expect((district.match(/HUD_REFRESH_MS/g) ?? []).length).toBe(2);
+  });
+
+  it("says where its plot went when the rule had to move it", () => {
+    expect(district).toContain("plate.dataset.toward");
+    expect(district).toContain("plate.dataset.detached");
   });
 });

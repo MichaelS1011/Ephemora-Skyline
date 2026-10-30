@@ -58,6 +58,15 @@ export const HUD_SURFACES = [
   ".action-dock",
   ".panel-info",
   ".search-control",
+  // The project's own card and the chip that brings it back. B3's finding,
+  // re-measured 2026-10-29 on the current tree: the demo's infrastructure
+  // plaque lay 52.1 % (3,355 px) under the open card at 1440×900 and 65 %
+  // (4,180 px) at 1280×800 — the card's own column does not overlap the
+  // canvas, but a plaque anchored near the level's left edge crosses the
+  // picture's boundary to reach its plot. A plate the card may not cover is
+  // a plate the card must be reserved against.
+  ".panel-context-card",
+  ".context-reopen",
 ] as const;
 
 export const overlaps = (a: Box, b: Box): boolean =>

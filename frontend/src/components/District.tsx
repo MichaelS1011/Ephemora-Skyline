@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 import { Html } from "@react-three/drei";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
@@ -18,6 +18,7 @@ import {
 import { districtBandGeometry } from "../city/districtBand";
 import { seatGeometry, seatPlacement } from "../city/seatSurface";
 import { bankUnterPlakette } from "../city/seatVisibility";
+import { HUD_SURFACES, TOWARD_GLYPH, hudBoxes, placeLabel, type Box } from "../city/labelPlacement";
 import { complexityForHeight } from "../city/mapping";
 import { reducedSettle } from "../city/motion";
 import { formatDecimal, t } from "../i18n";
@@ -27,6 +28,11 @@ import { useStore } from "../stores/useStore";
 import type { Severity } from "../city/types";
 import { Building } from "./Building";
 import "../design/city-funktion.css";
+
+/** Same rhythm as the import plate's HUD read (CityConnections): one DOM
+ *  census per interval, shared by every district's plaque. */
+const HUD_REFRESH_MS = 250;
+const _plakettePunkt = new THREE.Vector3();
 
 /**
  * A district — a BUILT plot: curb, nameplate and a skyline of up to six
@@ -210,6 +216,54 @@ export function District({ placement, appearAt, skylineAt, constructing }: Distr
   const inkRef = useRef<THREE.LineSegments>(null);
   const sitzRef = useRef<THREE.Mesh>(null);
   const plaketteRef = useRef<HTMLDivElement>(null);
+  /** The plaque's placement cache, shared by every district's plaque: one
+   *  HUD read per refresh interval, not one per plot. B3 — the plaque is
+   *  placed by the same rule the import plate already obeys (`placeLabel`),
+   *  because the demo's infrastructure plaque lay 52.1 % (3,355 px) under the
+   *  open context card at 1440×900 and 65 % (4,180 px) at 1280×800: the
+   *  project card's column does not overlap the canvas, but a plaque anchored
+   *  near the level's left edge crosses the picture's boundary to reach its
+   *  plot. The card is reserved against now (it joined `HUD_SURFACES`), so
+   *  the plaque stands beside it, as close to its plot as the HUD allows. */
+  const plaketteHud = useRef<{ at: number; canvas: DOMRect | null; boxes: Box[] }>({
+    at: -Infinity,
+    canvas: null,
+    boxes: [],
+  });
+  const plakettePosition = useCallback(
+    (
+      object: THREE.Object3D,
+      camera: THREE.Camera,
+      size: { width: number; height: number },
+    ): number[] => {
+      _plakettePunkt.setFromMatrixPosition(object.matrixWorld).project(camera);
+      const anchor = {
+        x: (_plakettePunkt.x * size.width) / 2 + size.width / 2,
+        y: -((_plakettePunkt.y * size.height) / 2) + size.height / 2,
+      };
+      const now = Date.now();
+      if (now - plaketteHud.current.at > HUD_REFRESH_MS) {
+        const canvas = document.querySelector("canvas")?.getBoundingClientRect() ?? null;
+        plaketteHud.current = { at: now, canvas, boxes: hudBoxes(canvas, HUD_SURFACES) };
+      }
+      const plate = plaketteRef.current;
+      const box = { w: plate?.offsetWidth || 96, h: plate?.offsetHeight || 40 };
+      const placed = placeLabel(anchor, box, { w: size.width, h: size.height }, [
+        ...plaketteHud.current.boxes,
+      ]);
+      if (plate) {
+        const glyph = placed.toward ? TOWARD_GLYPH[placed.toward] : "";
+        if (plate.dataset.toward !== glyph) plate.dataset.toward = glyph;
+        const detached = placed.clamped ? "1" : null;
+        if (detached === null) {
+          if ("detached" in plate.dataset) delete plate.dataset.detached;
+        } else if (plate.dataset.detached !== detached) plate.dataset.detached = detached;
+      }
+      // drei centres a `center` Html on the returned point.
+      return [placed.x + box.w / 2, placed.y + box.h / 2];
+    },
+    [],
+  );
   /** Last camera the seat was measured against — see the check in the frame. */
   const sitzKamera = useRef<{ x: number; y: number; z: number; breite: number } | null>(null);
 
@@ -416,7 +470,12 @@ export function District({ placement, appearAt, skylineAt, constructing }: Distr
       {/* The ONE bundled street sign for this plot: name + risk, the
           underground tally (865 of 900 files — no longer hover-only), and
           the tallest file's complexity, in the measuring mast's coordinates. */}
-      <Html center position={[0, 0.6, d / 2 + 2.2]} zIndexRange={[8, 0]}>
+      <Html
+        center
+        position={[0, 0.6, d / 2 + 2.2]}
+        zIndexRange={[8, 0]}
+        calculatePosition={plakettePosition}
+      >
         <div
           ref={plaketteRef}
           className={`cf-plate${hasP0 ? " cf-plate-alarm" : ""}`}

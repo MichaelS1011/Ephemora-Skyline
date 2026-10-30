@@ -274,3 +274,13 @@
   align-items: flex-end;
   gap: 2px;
 }
+
+/* B3 — the same rule the import plate carries: a district plaque that had to
+   leave its anchor to stay clear of the HUD says which way its plot went, so
+   a plaque beside the project card is never read as the card's own label. */
+.cf-plate[data-detached]:not(.cf-plate-import)::after {
+  content: attr(data-toward);
+  display: inline-block;
+  margin-left: 6px;
+  color: var(--meta-strong, #9aa7bd);
+}
