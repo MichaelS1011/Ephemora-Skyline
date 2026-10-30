@@ -95,8 +95,8 @@ The publishable package is assembled from `package.publish.json`; it carries
 the launcher, both built workspaces, the licences and the README, and nothing
 else. `npm run pack:check` builds, packs, installs the tarball into an empty
 folder, starts the installed `ephemora-skyline` bin, asks `/api/health` and
-`/` and prints the exact counts and sizes on every run; on 2026-10-20 the run
-ended **health ok, app served, version 0.2.0 matches the package** — 254 files, 3.11 MB unpacked, 0.97 MB packed.
+`/` and prints the exact counts and sizes on every run; on 2026-10-30 the run
+ended **health ok, app served, version 0.4.2 matches the package** — 258 files, 3.24 MB unpacked, 1.00 MB packed.
 
 ```bash
 npm run package:build   # writes dist-package/
