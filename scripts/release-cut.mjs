@@ -63,7 +63,7 @@ function run(cmd, args, opts = {}) {
 const read = (p) => readFileSync(path.join(REPO, p), "utf8");
 const write = (p, s) => {
   if (!DRY) writeFileSync(path.join(REPO, p), s);
-  console.log(`  wrote ${p}`);
+  console.log(`  ${DRY ? "would write" : "wrote"} ${p}`);
 };
 
 /** Three numbers, nothing else. */
