@@ -21,9 +21,13 @@ Nothing is uploaded. No account, no login, no telemetry. It runs on your own mac
 
 ## What's new
 
-0.4.2 — 2026-10-29
+0.4.3 — 2026-11-01
 
-- **A resident's limbs are bones, not spindles.** — Measured through the running app's own camera matrix on a real scan of this repository (1280×800, `--use-angle=metal`, the same written camera distance in both runs, only the geometry swapped): the sleeve's outer edge stood **1,66 px clear of the coat it hangs from**, so the arm read as a light blob beside the body.
+- **A stored finding no longer carries the path of the copy on disk.** — Five scans of real foreign repositories answered `GET /api/result/:id` with the absolute staging directory of the user's source copy inside 56 of 573 and 3 of 107 findings
+- **A Python file has functions again.** — A scan of MoneyPrinterTurbo named a function in 0 of its 94 Python files
+- **The function list stopped counting every declaration twice.** — `frontend/src/city/layout.ts` answered with 59 entries for 33 functions
+- **Files in tool folders are counted instead of swallowed.** — MoneyPrinterTurbo offered 19 262 files and the card accounted for 204 of them (1,06 %)
+- **The three teaching boards reach a screen reader.** — Measured in the running app: 1 painted board equals 1 spoken on this repository, 3 equals 3 and 2 equals 2 on a foreign Python project at two viewports, 0 equals 0 inside a district
 
 More in [CHANGELOG.md](./CHANGELOG.md).
 
