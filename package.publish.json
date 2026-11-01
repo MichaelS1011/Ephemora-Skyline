@@ -12,12 +12,26 @@
     "backend/dist",
     "frontend/dist",
     "README.md",
+    "CHANGELOG.md",
+    "SECURITY.md",
+    "CONTRIBUTING.md",
+    "CODE_OF_CONDUCT.md",
+    "docs/*.md",
     "LICENSE",
     "NOTICE"
   ],
   "engines": {
-    "node": "^20.19.0 || >=22.12.0"
+    "node": "^20.19.0 || >=22.12.0",
+    "npm": ">=10.0.0"
   },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/MichaelS1011/Ephemora-Skyline.git"
+  },
+  "bugs": {
+    "url": "https://github.com/MichaelS1011/Ephemora-Skyline/issues"
+  },
+  "homepage": "https://github.com/MichaelS1011/Ephemora-Skyline#readme",
   "dependencies": {
     "cors": "^2.8.6",
     "dotenv": "^16.6.1",

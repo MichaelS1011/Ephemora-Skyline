@@ -427,6 +427,13 @@ export class SecurityScanner {
     for (const issue of batchIssues) {
       const fp = (issue as BatchIssue)._filePath;
       if (!fp) continue;
+      // Read once, then gone: `_filePath` is the absolute staging path, and this
+      // merge is its only consumer. A finding that keeps it travels into
+      // `FileAnalysis.vulnerabilities`, which `GET /api/result/:id` answers with
+      // verbatim — so the user's on-disk copy location would leave through that
+      // one door even though `/handoff`, `/city` and `/sarif` rebuild from
+      // known fields and stay clean.
+      delete (issue as BatchIssue)._filePath;
       // normalize to repo-relative path
       const rel = fp.startsWith(clonePath + "/") ? fp.slice(clonePath.length + 1) : fp;
       const list = byFile.get(rel) ?? byFile.get(fp) ?? [];

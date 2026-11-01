@@ -23,7 +23,7 @@ Nothing is uploaded. No account, no login, no telemetry. It runs on your own mac
 
 0.4.2 — 2026-10-29
 
-- **A resident's limbs are bones, not spindles.** — Measured through the running app's own camera matrix on a real scan of this repository (1280×800
+- **A resident's limbs are bones, not spindles.** — Measured through the running app's own camera matrix on a real scan of this repository (1280×800, `--use-angle=metal`, the same written camera distance in both runs, only the geometry swapped): the sleeve's outer edge stood **1,66 px clear of the coat it hangs from**, so the arm read as a light blob beside the body.
 
 More in [CHANGELOG.md](./CHANGELOG.md).
 
@@ -38,7 +38,7 @@ npm install
 npm start              # builds once, then app + API on :4173, and opens the browser
 ```
 
-Open **http://127.0.0.1:4173** and press **Choose project folder**. Or press **Explore demo** first — that city is sample files with sample findings, and no scanner ran on it. `npm run dev` is the coding loop (Vite on :3010, API on :4000). Every screen, switch and shortcut is walked through in [`docs/GETTING_STARTED.md`](./docs/GETTING_STARTED.md).
+Open **http://127.0.0.1:4173** and press **Choose project folder**. Or press **Explore demo** first — that city is sample files with sample findings, and no scanner ran on it. `npm run dev` is the coding loop (Vite on :3010, API on :4000). Every screen, switch and shortcut is walked through in [`docs/GETTING_STARTED.md`](./docs/GETTING_STARTED.md). No clone, no build, one shorter way: since v0.3.0 every release ships its built package as the asset `ephemora-skyline-<version>.tgz` on [the releases page](https://github.com/MichaelS1011/Ephemora-Skyline/releases) — download it, run `npm install ./ephemora-skyline-<version>.tgz` in an empty folder, then start `node_modules/.bin/ephemora-skyline` (`--port <n>` and `--no-open` work as flags). `npm run pack:check` walked exactly this path on 2026-10-31 and printed: 274 files, 3.49 MB unpacked, 1.10 MB packed, health ok, app served, version matching the package.
 
 Optional: `gitleaks`, `semgrep`, `osv-scanner` and `ruff` on your `PATH`. Without them the city says which checks did not run, instead of pretending.
 
@@ -65,7 +65,7 @@ Optional: `gitleaks`, `semgrep`, `osv-scanner` and `ruff` on your `PATH`. Withou
 - **Judge, not just read.** Every finding carries its file, its line, the matched line with two lines either side from your own copy, the rule behind it and a fingerprint. Your verdict survives the next scan, and a coding agent can be pointed at the same finding.
 - **Hold `X` over a tower** and it shows the raw numbers behind its shape. Press `/` or Cmd/Ctrl+K to search. One control hides every panel and gives the city the whole window; `Esc` brings them back.
 - **Share it if you want.** The built-in studio renders MP4/H.264 1080p video and PNG locally. You get the file — no suggested caption, no platform row. SARIF 2.1.0 carries the scan id and the fingerprints.
-- **Ask whether a newer version exists.** One row in the ••• menu queries the published releases once and answers in words, in all four cases: a newer version with a link, "you are on the newest published version", "nothing published to compare with yet" — which is the honest answer while no release is tagged — or "could not check" when your machine says no. The hourly background check stays off until you turn it on.
+- **Ask whether a newer version exists.** One row in the ••• menu queries the published releases once and answers in words, in all four cases: a newer version with a link, "you are on the newest published version", "nothing published to compare with yet" — an answer this repository can no longer give: measured 2026-10-31, `gh release list` shows five tagged releases, and every release since v0.3.0 carries its built package as the asset `ephemora-skyline-<version>.tgz` — or "could not check" when your machine says no. The hourly background check stays off until you turn it on.
 - **Come back to it.** Reload, and the district, the selection and the camera are where you left them.
 
 ## What it will not tell you
@@ -102,7 +102,7 @@ The backend binds to `127.0.0.1` by default, and the fifteen routes that carry t
 
 The entry screen renders this same list from the same declaration the backend obeys, and a test fails if the two ever name different hosts. `SKYLINE_OFFLINE=1` switches off the update check, the OSV and dependency checks, and Semgrep unless a local rule pack is on disk; it also closes pip-audit, the Docker pull and any `npm ci` the runner would attempt. With it set, nothing above is reached.
 
-Limits are numbers too: local analysis is capped at **10,000 files / 150 MB / 2 MB per file**, a larger folder opens as a preview sample of up to 2,000 files with the full count named, and your own `.gitignore` sets paths aside before the cap applies. Over this checkout, the browser reader's own decision counts **637** files the project calls source and admits them to the read, and the scan's own single decision, `isScanCandidate`, then reads **614** of those. Two sets, two names, and `backend/tests/claims-counts.test.ts` calls both shipped functions over this tree and fails, printing both numbers, the moment this sentence drifts.
+Limits are numbers too: local analysis is capped at **10,000 files / 150 MB / 2 MB per file**, a larger folder opens as a preview sample of up to 2,000 files with the full count named, and your own `.gitignore` sets paths aside before the cap applies. Over this checkout, the browser reader's own decision counts **642** files the project calls source and admits them to the read, and the scan's own single decision, `isScanCandidate`, then reads **619** of those. Two sets, two names, and `backend/tests/claims-counts.test.ts` calls both shipped functions over this tree and fails, printing both numbers, the moment this sentence drifts.
 
 **Telemetry: none.** The only request the app makes for itself is the anonymous release check above — no code, no path, no machine identity, once an hour, and one click in a city's More menu ends it permanently. Maintainers read adoption through [GitHub's traffic and clone statistics](https://docs.github.com/en/rest/metrics/traffic) (`GH_TOKEN=*** node scripts/clone-stats.mjs`), which count clones without identifying anyone; those endpoints need a token with write access to this repository and report 14 days. The UI typeface ships inside the app, and a test fails if the entry document ever references a third-party host. More in [`docs/PRIVACY.md`](./docs/PRIVACY.md); reporting a vulnerability follows [SECURITY.md](./SECURITY.md).
 
@@ -156,11 +156,11 @@ First look in one screen — what you see, what you can do, what you cannot: [`d
 ```bash
 npm run lint                  # ESLint, zero warnings
 npm run type-check            # tsc --noEmit, both packages
-npm run test                  # Vitest — 309 test files: 221 frontend, 88 backend (2026-10-29)
+npm run test                  # Vitest — 313 test files: 223 frontend, 90 backend (2026-10-31)
 npm run build                 # production build, both packages
 node scripts/audit-gate.mjs   # dependency audit
 ```
 
-3,632 cases measured 2026-10-29 — 2,710 frontend, 922 backend. The audit gate fails on every high or critical finding **except** those accepted in `scripts/audit-gate.mjs` by name with a dated re-check; on this lockfile `npm audit` reported `0 vulnerabilities` on 2026-10-26, so it passes on the fix and prints that the one remaining exception matches no finding. Gates, conventions and the PR checklist: **[CONTRIBUTING.md](./CONTRIBUTING.md)**. Small, reviewable changes land fastest. Interface strings need an English and a German entry, and anything that changes the 3D render needs a real-GPU screenshot — headless CI cannot judge a WebGL scene.
+3,658 cases measured 2026-10-31 — 2,731 frontend, 927 backend. The audit gate fails on every high or critical finding **except** those accepted in `scripts/audit-gate.mjs` by name with a dated re-check. Measured 2026-10-31, `npm audit` on this lockfile prints nine findings — all moderate, none high, none critical, all in the development chain (`eslint`, `@eslint/config-array`, `@eslint/eslintrc`, `@typescript-eslint/*`, `minimatch`; the fix npm offers swaps `eslint` to 4.0.0) — and `node scripts/audit-gate.mjs` still exits 0 the same day, because a moderate finding never drops the gate; it prints that its one named exception (`GHSA-vfj7-8cjw-p6xm`, re-check 2026-12-01) matches no finding. Gates, conventions and the PR checklist: **[CONTRIBUTING.md](./CONTRIBUTING.md)**. Small, reviewable changes land fastest. Interface strings need an English and a German entry, and anything that changes the 3D render needs a real-GPU screenshot — headless CI cannot judge a WebGL scene.
 
 Skyline is the piece of this work meant to be read and argued with, not the piece meant to earn. What changed since the last line of the story, each entry measured before it was written, is in [CHANGELOG.md](./CHANGELOG.md).

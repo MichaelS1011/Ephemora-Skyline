@@ -4545,9 +4545,14 @@ export const DICT = {
   // sentences, no clauses that need a second reading. Every count comes from
   // the payload; the wording carries no number of its own.
   "teach.file.title": { en: "A house is a file", de: "Ein Haus ist eine Datei" },
+  /** The layout caps what one plot paints (`skylineTowers`,
+   *  `buildingsPerDirectory`), so the metaphor must not read as a box count —
+   *  three first-visit sessions could not reconcile "one box per file" with
+   *  the panel's own "6 towers per plot". The cap rides inside the sentence;
+   *  the held guard is `tests/teachBoards.test.ts` (a′). */
   "teach.file.metaphor": {
-    en: "One box per file, one district per folder.",
-    de: "Ein Kasten je Datei, ein Bezirk je Ordner.",
+    en: "Every file a house, every folder a district — until a plot is full.",
+    de: "Jede Datei ein Haus, jeder Ordner ein Bezirk — bis ein Platz voll ist.",
   },
   "teach.file.files": { en: "Files read · {n}", de: "Dateien gelesen · {n}" },
   "teach.file.findings": { en: "Findings · {n}", de: "Funde · {n}" },

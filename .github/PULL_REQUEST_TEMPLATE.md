@@ -23,7 +23,7 @@ Run these locally and confirm each exits 0 before requesting review (this is exa
 ## Notes for the reviewer
 
 - [ ] I did **not** add telemetry or send locally-analyzed file content off the machine.
-- [ ] UI strings are English.
+- [ ] Every new or changed UI string carries an English **and** a German entry in `frontend/src/i18n/dict.ts` — a key in one language only prints its own name, which the project counts as a visible bug.
 - [ ] If I touched a 3D / render-critical file, I attached a real-GPU screenshot (headless CI cannot render WebGL).
 
 Closes #(issue)

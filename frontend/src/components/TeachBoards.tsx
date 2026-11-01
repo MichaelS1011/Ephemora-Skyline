@@ -16,6 +16,7 @@ import {
   boardCopy,
   planBoardPlacements,
   wrapPlate,
+  type BoardId,
   type BoardPlacement,
   type BoardText,
 } from "../city/teachBoards";
@@ -200,6 +201,24 @@ export function TeachBoards() {
       reviews[reviewKeyFor(file, index, finding)] !== undefined;
     return boardCopy(cityData, lang, answered);
   }, [cityData, lang, reviews]);
+
+  /**
+   * Which boards the picture actually carries. `planBoardPlacements` hands out
+   * a subset — on a real project the honesty board is the one that finds no
+   * ground — and the plates are paired with their copy by index below. The
+   * screen-reader mirror reads this list, so it can never name a board that
+   * was never painted.
+   */
+  const painted = useMemo<BoardId[]>(() => {
+    if (!plan || !copy || buildPhase !== "built" || focusPath.length > 0) return [];
+    return copy.filter((_, i) => plan.boards[i]).map((b) => b.id);
+  }, [plan, copy, buildPhase, focusPath]);
+
+  useEffect(() => {
+    useStore.setState({ taughtBoards: painted });
+  }, [painted]);
+
+  useEffect(() => () => useStore.setState({ taughtBoards: [] }), []);
 
   if (!plan || !copy || plan.boards.length === 0) return null;
   if (buildPhase !== "built") return null;

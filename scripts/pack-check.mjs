@@ -8,15 +8,16 @@
  * tried: the launcher died on a missing `backend/package.json` that the
  * checkout always had — a defect that no test of the source could see.
  *
- * Steps: clean build → assemble a package-only folder → `npm pack` →
- * install into an empty temp dir → start the launcher → ask `/api/health` and
- * the page → stop. Exit 1 on any failure, printing the line that failed.
+ * Steps: clean build → assemble a package-only folder → read the markdown it
+ * ships for links that go nowhere → `npm pack` → install into an empty temp dir
+ * → start the launcher → ask `/api/health` and the page → stop. Exit 1 on any
+ * failure, printing the line that failed.
  */
 import { execFileSync, spawn } from "node:child_process";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { stagePackage } from "./package-stage.mjs";
+import { stagePackage, findDeadDocLinks } from "./package-stage.mjs";
 
 const repo = path.resolve(import.meta.dirname, "..");
 const step = (msg) => console.log(`  · ${msg}`);
@@ -47,6 +48,22 @@ try {
   mkdirSync(consumer);
   execFileSync("npm", ["init", "-y"], { cwd: consumer, stdio: "ignore" });
   execFileSync("npm", ["install", "--no-audit", "--no-fund", tarball], { cwd: consumer, stdio: "ignore" });
+
+  step("read the installed package's markdown for document links that go nowhere");
+  // Measured against the bytes a reader holds, not the folder they were built
+  // from: `npm pack` obeys the manifest's own `files` list, so a document the
+  // stage copied and the manifest dropped would otherwise pass unnoticed.
+  const installed = path.join(consumer, "node_modules", "ephemora-skyline");
+  if (!existsSync(installed)) fail(`the install left no ${installed}`);
+  const links = findDeadDocLinks(installed);
+  if (links.dead.length > 0) {
+    fail(
+      `${links.dead.length} dead document link(s) in the installed package:\n  ${links.dead.join("\n  ")}`,
+    );
+  }
+  step(
+    `${links.documents} markdown files, 0 dead document links, ${links.mediaLinks} media links left in the repository`,
+  );
 
   step("start the launcher through the installed bin");
   const port = String(4200 + Math.floor(Math.random() * 300));

@@ -29,6 +29,16 @@ BACKEND_PORT=4100 npm run dev --workspace frontend -- --port 3011
 
 `FRONTEND_ORIGIN` is what the write guard reads: without it, every upload from the moved page is refused, because the guard only admits the origins it was told to serve. `BACKEND_PORT` is what the dev proxy reads: without it, the second frontend keeps talking to the **first** checkout's backend and your server-side edits appear to do nothing.
 
+## Where to start
+
+You do not need the 3D city, a GPU screenshot or a scanner to make a first contribution. Three kinds of change land without any of them — measured 2026-10-31 against this tree:
+
+- **Interface text.** Every UI string lives with both languages in `frontend/src/i18n/dict.ts` (the loader is `frontend/src/i18n.ts`). A key in one language only prints its own name — a visible bug, and one of the smallest fixes in the repository.
+- **A document whose number no command reproduces.** README.md and docs/ are laid out in plain language: if a sentence's figure does not come out of the command it names, that is a defect like any other. Put the command you ran into the report. Two issue forms exist in `.github/ISSUE_TEMPLATE` — bug and feature; blank issues are switched off in `config.yml` on purpose.
+- **A test for behavior that already works.** `frontend/tests/` guards the interface, `backend/tests/` guards the scan, the routes and the public claims (including the document numbers themselves). Pick behavior that ships and stands unguarded, write the guard, change nothing else.
+
+Whichever you pick, the gates below are the ones your pull request has to pass — CI runs the same five, and the template lists them as a checklist.
+
 ## Before you open a PR — the five gates
 
 These are exactly what CI enforces: the steps in `.github/workflows/ci.yml`, which triggers on pushes to `main` and on pull requests against it. Run them clean first:
@@ -36,7 +46,7 @@ These are exactly what CI enforces: the steps in `.github/workflows/ci.yml`, whi
 ```bash
 npm run lint          # ESLint, zero warnings
 npm run type-check    # tsc --noEmit across both packages
-npm run test          # Vitest — 309 test files: 221 frontend, 88 backend (2026-10-29)
+npm run test          # Vitest — 313 test files: 223 frontend, 90 backend (2026-10-31)
 npm run build         # production build, both packages
 ```
 

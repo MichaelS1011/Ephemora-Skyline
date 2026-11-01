@@ -37,6 +37,7 @@ const planOf = (candidates: Candidate[], found: number, bytes: number): FolderPl
   },
   overCap: false,
   setAside: new Set(),
+  prunedToolFolders: new Set(),
 });
 
 describe("the large-folder preview", () => {

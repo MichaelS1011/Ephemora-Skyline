@@ -207,6 +207,13 @@ export interface FolderPlan {
    * pickers arrive at the same count on the same rule.
    */
   setAside: Set<string>;
+  /**
+   * Every tool folder the directory walk cut off whole, held by its path.
+   * Same set-foolproofing as `setAside`: one pruned folder is one number in
+   * `dropped.toolFolders`, and the path is what names it — a folder is never
+   * paid for by descending into it, which is the whole reason the prune exists.
+   */
+  prunedToolFolders: Set<string>;
 }
 
 function emptyDropped(): DroppedFiles {
@@ -220,7 +227,21 @@ function emptyDropped(): DroppedFiles {
     gitBudget: 0,
     unsupportedFormat: 0,
     preview: 0,
+    toolFolderFiles: 0,
+    toolFolders: 0,
   };
+}
+
+/**
+ * One tool folder the directory walk cut off whole, owed to the card as one
+ * number and named by its path — the same rule `setAside` applies to
+ * `.gitignore`. The files inside are never listed, so no file-level counter
+ * could ever name them; the folder is what the reader can see and exclude.
+ */
+export function notePrunedToolFolder(plan: FolderPlan, rel: string): void {
+  if (plan.prunedToolFolders.has(rel)) return;
+  plan.prunedToolFolders.add(rel);
+  plan.dropped.toolFolders = plan.prunedToolFolders.size;
 }
 
 function addDropped(dropped: DroppedFiles, key: keyof DroppedFiles, by = 1): DroppedFiles {
@@ -301,7 +322,13 @@ export function classifyCandidate(
   ignores: IgnoreMatcher | null,
 ): void {
   const git = isGitPath(rel);
-  if (rel.split("/").some((segment) => SKIP_DIRS.test(segment))) return;
+  if (rel.split("/").some((segment) => SKIP_DIRS.test(segment))) {
+    // A path the flat file-list picker handed over and the reader let go.
+    // The walk prunes these folders before any file inside is listed — those
+    // arrive in `toolFolders` instead; a path never enters two rows.
+    plan.dropped.toolFolderFiles = (plan.dropped.toolFolderFiles ?? 0) + 1;
+    return;
+  }
   if (!git && ignores) {
     const aside = firstIgnoredAncestor(ignores, rel);
     if (aside !== null) {
@@ -346,6 +373,7 @@ export function emptyPlan(): FolderPlan {
     dropped: emptyDropped(),
     overCap: false,
     setAside: new Set<string>(),
+    prunedToolFolders: new Set<string>(),
   };
 }
 
@@ -846,10 +874,14 @@ export function useLocalAnalysis() {
           if (cancelledRef.current || runRef.current !== run) return;
           const rel = `${prefix}${entry.name}`;
           if (entry.kind === "directory") {
-            if (SKIP_DIRS.test(entry.name)) continue;
-            // Pruned as a folder, so nothing inside it is listed, read, or
-            // counted against the cap — this is what 14,037 tooling files used
-            // to cost.
+            if (SKIP_DIRS.test(entry.name)) {
+              // Pruned as a folder, so nothing inside it is listed, read, or
+              // counted against the cap — this is what 14,037 tooling files used
+              // to cost. The folder itself is still owed to the card: it leaves
+              // the read with a name and a count, not in silence.
+              notePrunedToolFolder(plan, rel);
+              continue;
+            }
             if (ignores.isIgnored(rel, "dir")) {
               if (!plan.setAside.has(rel)) {
                 plan.setAside.add(rel);

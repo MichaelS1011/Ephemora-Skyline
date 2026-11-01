@@ -292,7 +292,7 @@ export interface CityData {
   dropped?: DroppedFiles;
 }
 
-/** The nine ways a path in the picked folder can end up unread. */
+/** The ways a path in the picked folder can end up unread. */
 export interface DroppedFiles {
   /** Path longer than the upload's character bound */
   pathTooLong: number;
@@ -324,6 +324,21 @@ export interface DroppedFiles {
    * the second number being reachable.
    */
   preview?: number;
+  /**
+   * Files the reader LISTED inside a tool folder (`node_modules`, `.venv`,
+   * `dist`, …) before it let them go. One per path — the picker that hands
+   * over a flat file list sees every file, so every file owes a count.
+   * Absent for results scanned before the counter existed.
+   */
+  toolFolderFiles?: number;
+  /**
+   * Tool folders the directory walk cut off WHOLE, counted at the folder and
+   * named by its path — one folder is one number, exactly the way `gitIgnored`
+   * counts the first ignored ancestor. Their files were never listed, so no
+   * file-level counter could ever know them; the folder itself is the truth
+   * the card can show. Absent for results scanned before the counter existed.
+   */
+  toolFolders?: number;
 }
 
 /** Which unit is currently selected (a rendered file building or a block). */

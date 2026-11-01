@@ -38,6 +38,7 @@ const emptyPlan = (): FolderPlan => ({
   },
   overCap: false,
   setAside: new Set<string>(),
+  prunedToolFolders: new Set<string>(),
 });
 
 const file = (name: string, bytes: number): File =>

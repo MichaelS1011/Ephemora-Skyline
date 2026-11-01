@@ -121,6 +121,28 @@ function dropRows(
         n: nf(dropped.gitIgnored),
       }),
     });
+  // Tool folders are the one cause the card used to swallow: a folder cut off
+  // whole names itself and its folder count (the files inside were never
+  // listed), a file the flat list handed over names itself and its file count.
+  // Only one of the two can be non-zero on a given picker.
+  if ((dropped.toolFolders ?? 0) > 0)
+    rows.push({
+      key: "toolFolders",
+      text: tsCount(lang, "drop.toolFolders", "drop.toolFoldersOne", dropped.toolFolders ?? 0, {
+        n: nf(dropped.toolFolders ?? 0),
+      }),
+    });
+  if ((dropped.toolFolderFiles ?? 0) > 0)
+    rows.push({
+      key: "toolFolderFiles",
+      text: tsCount(
+        lang,
+        "drop.toolFolderFiles",
+        "drop.toolFolderFilesOne",
+        dropped.toolFolderFiles ?? 0,
+        { n: nf(dropped.toolFolderFiles ?? 0) },
+      ),
+    });
   if (dropped.unsupportedFormat > 0)
     rows.push({
       key: "unsupportedFormat",
@@ -261,9 +283,16 @@ export function ScanSummary({ demo = false }: { demo?: boolean }) {
   );
   // one number for the strip: how many files in the folder were never read.
   // Summed over the record's own fields, so an eighth reason cannot join the
-  // counts and stay out of the strip the way the first five hand-list did.
+  // counts and stay out of the strip the way the first five hand-list did —
+  // except `toolFolders`, which counts folders: its files were never listed,
+  // so adding "1" here would claim one unread file and hide the folder's own
+  // row. The folder count is spoken by `drop.toolFolders`, in folders.
   const unread = cityData.dropped
-    ? Object.values(cityData.dropped).reduce((sum, n) => sum + (Number.isFinite(n) ? n : 0), 0)
+    ? Object.entries(cityData.dropped).reduce(
+        (sum, [key, n]) =>
+          key === "toolFolders" || !Number.isFinite(n) ? sum : sum + (n as number),
+        0,
+      )
     : 0;
   const verdict = scanVerdict(cityData.scanProvenance, total, cityData.languages);
   // A live state is a qualifier on the scan itself, not a footnote under a

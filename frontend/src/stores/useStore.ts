@@ -6,6 +6,7 @@ import type {
   SelectedUnit,
   Severity,
 } from "../city/types";
+import type { BoardId } from "../city/teachBoards";
 import {
   allFiles,
   byRisk,
@@ -248,6 +249,14 @@ interface AppState {
 
   // ── Semantic zoom navigation ───────────────────────────────────────────
   focusPath: string[]; // directory names from the root, [] = overview
+  /**
+   * The teaching boards that actually stand in the picture, in painted order.
+   * `planBoardPlacements` gives every city its own subset — on a real project
+   * the honesty board is the one that regularly finds no ground — so anything
+   * that has to speak the boards' words reads this list rather than walking
+   * `boardCopy()` and naming a board nobody can see.
+   */
+  taughtBoards: BoardId[];
   selectedUnit: SelectedUnit;
   hoveredId: string | null;
   setHoveredId: (id: string | null) => void;
@@ -1204,6 +1213,7 @@ export const useStore = create<AppState>((set, get) => {
     },
 
     focusPath: [],
+    taughtBoards: [],
     selectedUnit: null,
     hoveredId: null,
     setHoveredId: (id) => set({ hoveredId: id }),

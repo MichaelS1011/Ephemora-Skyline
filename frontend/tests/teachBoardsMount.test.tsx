@@ -36,6 +36,7 @@ vi.mock("@react-three/fiber", async () => {
 });
 
 import { city, dir, file, finding } from "./helpers/cityFixture";
+import { boardCopy } from "../src/city/teachBoards";
 import { useStore } from "../src/stores/useStore";
 import { TeachBoards } from "../src/components/TeachBoards";
 
@@ -83,11 +84,12 @@ beforeEach(() => {
   act(() => {
     store.setCityData(DEMO_CITY);
     store.setBuildPhase("built");
+    useStore.setState({ taughtBoards: [] });
   });
 });
 
 afterEach(() => {
-  act(() => root!.unmount());
+  act(() => root?.unmount());
   host?.remove();
   host = undefined;
   root = undefined;
@@ -128,5 +130,41 @@ describe("the boards stand only where they were measured", () => {
     mount();
     expect(useStore.getState().focusPath).toEqual([]);
     expect(boards()).toBe(3);
+  });
+
+  /**
+   * The wire to the screen-reader mirror (`TeachBoardsReading`), held here
+   * rather than there: the mirror reads `taughtBoards`, and its own tests set
+   * that field by hand. Nothing downstream noticed that the painting component
+   * stopped writing it — a refactor of these gates would have silenced every
+   * board for a blind reader while the whole suite stayed green.
+   */
+  it("hands the mirror exactly the boards the picture carries", () => {
+    mount();
+    const painted = useStore.getState().taughtBoards;
+    expect(painted).toHaveLength(boards());
+    expect(painted).toEqual(boardCopy(DEMO_CITY, "en").map((b) => b.id));
+  });
+
+  it("writes nothing where nothing is painted", () => {
+    act(() => useStore.getState().drillIn("frontend"));
+    mount();
+    expect(boards()).toBe(0);
+    expect(useStore.getState().taughtBoards).toEqual([]);
+  });
+
+  it("takes the boards back out of the mirror when they come down", () => {
+    // Its own root: the shared afterEach must not unmount this one twice.
+    const host = document.createElement("div");
+    document.body.append(host);
+    const root = createRoot(host);
+    act(() => root.render(createElement(TeachBoards)));
+    expect(useStore.getState().taughtBoards).toHaveLength(3);
+    act(() => root.unmount());
+    expect(
+      useStore.getState().taughtBoards,
+      "a stale list would keep speaking boards nobody sees",
+    ).toEqual([]);
+    host.remove();
   });
 });

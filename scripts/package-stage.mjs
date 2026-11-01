@@ -6,7 +6,7 @@
  * disagree about what a package contains.
  */
 import { execFileSync } from "node:child_process";
-import { cpSync, existsSync, mkdirSync, readdirSync, rmSync, statSync } from "node:fs";
+import { cpSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
@@ -15,6 +15,13 @@ const HERE = import.meta.dirname;
 const REPO = path.resolve(HERE, "..");
 const COPY_DIRS = ["backend/dist", "frontend/dist"];
 const COPY_FILES = ["README.md", "LICENSE", "NOTICE"];
+/**
+ * The documents a reader needs after an install, and the ones the README links
+ * to by name. Media stays out of the package on purpose: the screenshots and
+ * the one clip the start page carries are 13 MB of bytes nobody reads offline,
+ * and they stay reachable in the repository.
+ */
+const COPY_MD = ["CHANGELOG.md", "SECURITY.md", "CONTRIBUTING.md", "CODE_OF_CONDUCT.md"];
 
 function countFiles(dir) {
   let files = 0;
@@ -63,9 +70,22 @@ export function stagePackage(out, { build = true } = {}) {
   for (const dir of COPY_DIRS) {
     cpSync(path.join(REPO, dir), path.join(target, dir), { recursive: true });
   }
-  for (const file of COPY_FILES) {
+  for (const file of [...COPY_FILES, ...COPY_MD]) {
     const from = path.join(REPO, file);
     if (existsSync(from)) cpSync(from, path.join(target, file));
+  }
+  // The guides sit one level deep in `docs/`, and only those markdown files
+  // travel: `docs/reviews/` and `docs/development/` are the workshop, not the
+  // product, and `docs/assets/` is the media the line above keeps out.
+  const docsDir = path.join(REPO, "docs");
+  const docsMd = existsSync(docsDir)
+    ? readdirSync(docsDir).filter((name) => name.endsWith(".md"))
+    : [];
+  if (docsMd.length > 0) {
+    mkdirSync(path.join(target, "docs"), { recursive: true });
+    for (const name of docsMd) {
+      cpSync(path.join(docsDir, name), path.join(target, "docs", name));
+    }
   }
   const census = countFiles(target);
   return {
@@ -74,6 +94,53 @@ export function stagePackage(out, { build = true } = {}) {
     bytes: census.bytes,
     mb: Math.round((census.bytes / 1024 / 1024) * 100) / 100,
   };
+}
+
+/**
+ * Every relative link to a markdown document inside a staged package, and the
+ * ones that go nowhere.
+ *
+ * A package is a different artefact from a checkout: `files` drops what it does
+ * not name, and a reader who installs it reads the README offline, where a link
+ * to a document that was never shipped is a dead end they cannot fix. Measured
+ * on 2026-10-31: the stage carried `README.md` and its 13 documentation links
+ * pointed at documents that were not in the box.
+ *
+ * Media links (`docs/assets/*.png`, the clip) are counted, not failed: they
+ * stay in the repository by the decision above, and a reader without them sees
+ * the alt text.
+ */
+export function findDeadDocLinks(rootDir) {
+  const mdFiles = [];
+  const walk = (dir) => {
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      const full = path.join(dir, entry.name);
+      if (entry.isDirectory()) walk(full);
+      else if (entry.isFile() && entry.name.endsWith(".md")) mdFiles.push(full);
+    }
+  };
+  walk(rootDir);
+
+  const link = /!?\[[^\]]*\]\(([^)\s]+)\)/g;
+  const dead = [];
+  const media = new Set();
+  for (const file of mdFiles) {
+    const text = readFileSync(file, "utf-8");
+    for (const match of text.matchAll(link)) {
+      const target = match[1].split("#")[0];
+      if (!target || /^[a-z]+:\/\//i.test(target) || target.startsWith("mailto:") || target.startsWith("/")) {
+        continue;
+      }
+      if (!target.endsWith(".md")) {
+        if (/\.(?:png|jpe?g|gif|mp4|webm|svg)$/i.test(target)) media.add(target);
+        continue;
+      }
+      if (!existsSync(path.resolve(path.dirname(file), target))) {
+        dead.push(`${path.relative(rootDir, file)} → ${target}`);
+      }
+    }
+  }
+  return { documents: mdFiles.length, dead, mediaLinks: media.size };
 }
 
 if (import.meta.url === pathToFileURL(process.argv[1]).href) {

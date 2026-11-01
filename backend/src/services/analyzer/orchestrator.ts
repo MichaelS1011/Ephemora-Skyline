@@ -566,8 +566,10 @@ export class AnalysisOrchestrator {
       : this.scanner.scanFileStructure(relativePath, content);
     const imports = rawImports.map((imp) => ({ ...imp, line: 0 }));
 
-    // Extract functions (simple regex-based)
-    const functions = dataFile ? [] : extractFunctions(content);
+    // Extract functions (simple regex-based) — the language decides which
+    // declaration shapes exist at all, so a TypeScript file quoting a Python
+    // sample stays a TypeScript file.
+    const functions = dataFile ? [] : extractFunctions(content, language);
     const classes = dataFile ? [] : extractClasses(content);
     // Voxel sections (CodeBlocks): blocks from the found structure
     const sections = dataFile ? [] : extractSections(relativePath, content, { functions, classes });

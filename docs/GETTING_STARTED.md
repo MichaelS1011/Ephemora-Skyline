@@ -53,7 +53,7 @@ npm install
 
 This installs all workspaces (root, frontend, backend) via npm workspaces. For a deterministic install from the lockfile (e.g. in CI), use `npm ci` instead.
 
-Two facts the install itself does not say: the repo ships an `.npmrc` with `legacy-peer-deps=true`, so every `npm install` and `npm ci` here resolves peer dependencies in npm 6's relaxed mode — nothing in the command output hints that this file is the reason. And the advisory picture moves: up to 21 October `npm audit` on this lockfile printed `7 vulnerabilities (2 moderate, 5 high)` while the gate stayed green, because all five high findings traced to one advisory the gate accepts by name (`GHSA-vfj7-8cjw-p6xm`, braces, then with no fixed release upstream) reached through five build-time package paths — braces, chokidar, fast-glob, micromatch, tailwindcss. Measured 2026-10-26, after the dependency update, the same command prints `0 vulnerabilities` and the gate passes on the fix. `node scripts/audit-gate.mjs` prints that arithmetic whenever a finding fires, names any accepted exception that no finding still carries, retries a broken audit call instead of reading it as a clean sheet, and fails on anything else.
+Two facts the install itself does not say: the repo ships an `.npmrc` with `legacy-peer-deps=true`, so every `npm install` and `npm ci` here resolves peer dependencies in npm 6's relaxed mode — nothing in the command output hints that this file is the reason. And the advisory picture moves: up to 21 October `npm audit` on this lockfile printed `7 vulnerabilities (2 moderate, 5 high)` while the gate stayed green, because all five high findings traced to one advisory the gate accepts by name (`GHSA-vfj7-8cjw-p6xm`, braces, then with no fixed release upstream) reached through five build-time package paths — braces, chokidar, fast-glob, micromatch, tailwindcss. That exception has since gone quiet: measured 2026-10-31, the same command prints nine findings, all moderate, none high or critical, all in the development chain (`eslint`, `@eslint/config-array`, `@eslint/eslintrc`, `@typescript-eslint/*`, `minimatch` — the fix npm offers swaps `eslint` to 4.0.0), and `node scripts/audit-gate.mjs` exits 0 the same day, printing that the one accepted exception matches no finding. Only an unaccepted high or critical finding drops the gate; a moderate never does. The gate prints that arithmetic whenever a finding fires, names any accepted exception that no finding still carries, retries a broken audit call instead of reading it as a clean sheet, and fails on anything else.
 
 ### 3. Start
 
@@ -96,7 +96,7 @@ the launcher, both built workspaces, the licences and the README, and nothing
 else. `npm run pack:check` builds, packs, installs the tarball into an empty
 folder, starts the installed `ephemora-skyline` bin, asks `/api/health` and
 `/` and prints the exact counts and sizes on every run; on 2026-10-30 the run
-ended **health ok, app served, version 0.4.2 matches the package** — 258 files, 3.24 MB unpacked, 1.00 MB packed.
+ended **health ok, app served, version 0.4.2 matches the package** — 274 files, 3.49 MB unpacked, 1.10 MB packed.
 
 ```bash
 npm run package:build   # writes dist-package/
@@ -116,7 +116,7 @@ npx ephemora-skyline
 npx ephemora-skyline --port 4200 --no-open   # another address, no browser
 ```
 
-Until then, `npm start` is the one-command path from this checkout.
+Until then, `npm start` is the one-command path from this checkout — and the release page already carries the built package for anyone who wants to run it without cloning: since v0.3.0 every release ships `ephemora-skyline-<version>.tgz` as its asset (measured 2026-10-31, `gh release view v0.4.2`). In an empty folder, `curl -LO https://github.com/MichaelS1011/Ephemora-Skyline/releases/download/v0.4.2/ephemora-skyline-0.4.2.tgz`, then `npm install ./ephemora-skyline-0.4.2.tgz`, then `node_modules/.bin/ephemora-skyline` (`:4173`; `--port <n>` and `--no-open` as flags). `npm run pack:check` installs a freshly packed tarball into an empty folder and boots it the same way; its run on 2026-10-31 printed **274 files, 3.49 MB unpacked, 1.10 MB packed, health ok, app served, version 0.4.2 matches the package**.
 
 ## Configuration
 

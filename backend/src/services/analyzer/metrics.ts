@@ -460,7 +460,10 @@ export function countLines(content: string): {
 }
 
 /** Extract function signatures from source code (regex-based) */
-export function extractFunctions(content: string): Array<{
+export function extractFunctions(
+  content: string,
+  language?: string,
+): Array<{
   name: string;
   line: number;
   parameters: number;
@@ -477,13 +480,27 @@ export function extractFunctions(content: string): Array<{
   const lines = content.split("\n");
 
   // Match: function name(params), const name = (params) =>, export const name = async (params)
+  // Group 1 is always the name and group 2 always the parameter list, so one
+  // loop reads every shape; `isAsync` comes from the line itself, which is how
+  // `async def` already arrives here. The `def` shape is added only where `def`
+  // is a keyword: measured on this checkout, four TypeScript test files carry
+  // Python samples, and a pattern that ignores the language handed those files
+  // phantom functions (`speak()`, `outer()`) in the payload.
   const patterns = [
     /(?:export\s+)?(?:async\s+)?function\s+(\w+)\s*\(([^)]*)\)/g,
     /(?:export\s+)?(?:const|let|var)\s+(\w+)\s*=\s*(?:async\s+)?\(([^)]*)\)\s*=>/g,
     /(\w+)\s*\(([^)]*)\)\s*(?::\s*\w[\w<>,\s?|&\n]*?)?\s*\{(?!\s*\/\*)/g,
   ];
+  if (isHashCommentLanguage(language)) patterns.push(/\bdef\s+(\w+)\s*\(([^)]*)\)/g);
 
-  for (let i = 0; i < lines.length; i++) {
+  // One match per line, which the break below has always promised and never
+  // delivered: it left only the inner loop, so a declaration the first pattern
+  // matched was matched again by the catch-all and pushed a second time.
+  // Measured on this checkout 2026-10-31: `frontend/src/city/layout.ts` answered
+  // with 59 entries for 33 functions and `orchestrator.ts` with 18 for 10 — and
+  // the first copy of each pair got a zero-line span below, reporting complexity
+  // 1 next to the real number.
+  line: for (let i = 0; i < lines.length; i++) {
     for (const pattern of patterns) {
       pattern.lastIndex = 0;
       let match: RegExpExecArray | null;
@@ -506,7 +523,7 @@ export function extractFunctions(content: string): Array<{
           complexity: 1, // replaced below with the real span
           isAsync: (lines[i] || "").includes("async"),
         });
-        break; // One match per line
+        continue line; // the one match this line is allowed to have
       }
     }
   }
@@ -520,6 +537,7 @@ export function extractFunctions(content: string): Array<{
     const end = functions[i + 1]?.line ?? lines.length + 1;
     functions[i]!.complexity = estimateCyclomaticComplexity(
       lines.slice(start - 1, end - 1).join("\n"),
+      language,
     );
   }
 

@@ -68,7 +68,7 @@ import {
   type BoardCopy,
   type CanvasMeasure,
 } from "../src/city/teachBoards";
-import { getDirLayout } from "../src/city/layout";
+import { districtDraw, getDirLayout } from "../src/city/layout";
 import { surfaceForLayout, surfaceHeight } from "../src/city/worldSurface";
 import { city, dir, file, finding, provenance } from "./helpers/cityFixture";
 import { formatCount, type Lang } from "../src/i18n";
@@ -335,6 +335,69 @@ describe("a board says only what the payload says", () => {
   });
 });
 
+// ── (a′) the metaphor sentence against the boxes the layout actually paints ─
+
+/**
+ * Three first-visit sessions (2026-10-30) read the file board's first line as
+ * a count and were wrong: "One box per file" stands while the layout caps what
+ * a plot paints (`skylineTowers`, `buildingsPerDirectory` — `districtDraw`
+ * folds 7 files in a sub-folder into 6 towers and says so one panel over:
+ * "6 towers per plot"). s1: "one of the two lines lies, and I can't say
+ * which." The board may teach the metaphor; it may not promise a one-to-one
+ * box count the same city's floor plan breaks. These cases hold the first
+ * line to the arithmetic: no box count claimed, the file→house / folder→
+ * district metaphor still taught in one breath, and the cap admitted in words.
+ */
+
+/** The sessions' city at guard size: 8 files, 7 below one folder, and the
+ *  shipped cap painting that plot as 6 towers. */
+const CAPPED: CityData = city({
+  languages: { TypeScript: 800 },
+  scanProvenance: provenance({ churn: true, duplicates: true, coverage: true }),
+  limits: { skylineTowers: 6, buildingsPerDirectory: 6 },
+  tree: dir({
+    path: "",
+    detailFiles: [file("README.md", "Markdown", [])],
+    children: [
+      dir({
+        path: "server/routes",
+        fileCount: 7,
+        districtFiles: Array.from({ length: 7 }, (_, i) =>
+          file(`server/routes/route-${i}.ts`, "TypeScript", []),
+        ),
+      }),
+    ],
+  }),
+});
+
+describe("the file board's metaphor matches the boxes the layout paints", () => {
+  it("the cap bites on this city: fewer boxes painted than files", () => {
+    const draw = districtDraw(CAPPED.tree, CAPPED.limits);
+    expect(CAPPED.totalFiles).toBe(8);
+    const painted = draw.drawnHere + draw.towers;
+    expect(
+      painted,
+      `${CAPPED.totalFiles} files vs ${painted} boxes (${draw.drawnHere} plaza + ${draw.towers} towers) — the fold is real`,
+    ).toBeLessThan(CAPPED.totalFiles);
+  });
+
+  for (const lang of ["en", "de"] as const) {
+    it(`${lang}: no box count promised, the metaphor taught, the cap admitted`, () => {
+      const line = copyOf(CAPPED, lang, false)[0]!.text.lines[0]!;
+      expect(line, `${lang}: the board counts boxes again — "${line}"`).not.toMatch(
+        /\bbox(es)?\b|kasten/i,
+      );
+      expect(line, `${lang}: file→house is no longer taught`).toMatch(/file|datei/i);
+      expect(line, `${lang}: the house is no longer named`).toMatch(/haus|house/i);
+      expect(line, `${lang}: folder→district is no longer taught`).toMatch(/folder|ordner/i);
+      expect(line, `${lang}: the district is no longer named`).toMatch(/district|bezirk/i);
+      expect(line, `${lang}: an uncapped one-to-one paint is promised — "${line}"`).toMatch(
+        /full|voll|\buntil\b|\bbis\b|podium|sockel|at most|höchstens/i,
+      );
+    });
+  }
+});
+
 // ── (b′) the fourth line: what this scan set aside on purpose ──────────────
 
 describe("the honesty board's set-aside line", () => {
@@ -580,10 +643,11 @@ describe("a word wider than the plate is broken, not cut", () => {
   });
 
   it("keeps ordinary sentences at the word breaks it had before", () => {
-    const sentence = "One box per file, one district per folder.";
+    const sentence = "Every file a house, every folder a district — until a plot is full.";
     expect(wrapPlate(sentence, INNER, mono(BOARD_TYPE.body))).toEqual([
-      "One box per file, one",
-      "district per folder.",
+      "Every file a house, every",
+      "folder a district — until a",
+      "plot is full.",
     ]);
   });
 

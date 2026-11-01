@@ -111,6 +111,30 @@ const BRIDGE: Record<string, { en: string; de: string }> = {
     de: "{n} Pfad, den deine eigene .gitignore ausnimmt",
   },
   /**
+   * Measured on four foreign repositories 2026-10-31: on MoneyPrinterTurbo the
+   * card named 119 read files over a folder the Finder shows as 19 259, because
+   * 18 968 of them sat in one `.venv` that the walk cut off before listing a
+   * single file. The folder is the one truth the card can show, and naming the
+   * class is what lets the reader act — the exclude field on the entry screen
+   * takes a folder path.
+   */
+  "drop.toolFolders": {
+    en: "{n} tool folders were left out whole (node_modules, .venv, dist, …) — their contents are not in the count",
+    de: "{n} Werkzeug-Ordner blieben ganz ausgelassen (node_modules, .venv, dist, …) — ihr Inhalt steckt nicht in der Zählung",
+  },
+  "drop.toolFoldersOne": {
+    en: "{n} tool folder was left out whole (node_modules, .venv, dist, …) — its contents are not in the count",
+    de: "{n} Werkzeug-Ordner blieb ganz ausgelassen (node_modules, .venv, dist, …) — sein Inhalt steckt nicht in der Zählung",
+  },
+  "drop.toolFolderFiles": {
+    en: "{n} files inside tool folders were not read (node_modules, .venv, dist, …)",
+    de: "{n} Dateien in Werkzeug-Ordnern wurden nicht gelesen (node_modules, .venv, dist, …)",
+  },
+  "drop.toolFolderFilesOne": {
+    en: "{n} file inside a tool folder was not read (node_modules, .venv, dist, …)",
+    de: "{n} Datei in einem Werkzeug-Ordner wurde nicht gelesen (node_modules, .venv, dist, …)",
+  },
+  /**
    * Named apart from "too large": these files are ordinary loose git objects,
    * and what stopped them is the tool's own 15 MB history budget — measured on
    * this repository, 1,470 of its 3,266 .git files. The churn tail is only added

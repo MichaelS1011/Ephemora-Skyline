@@ -19,6 +19,7 @@ import { HudOverlay } from "./components/HudOverlay";
 import { Breadcrumbs } from "./components/Breadcrumbs";
 import { SecurityTour } from "./components/SecurityTour";
 import { TriageAnnouncer } from "./components/TriageAnnouncer";
+import { TeachBoardsReading } from "./components/TeachBoardsReading";
 import { CoachMarks } from "./components/CoachMarks";
 import { ActionBar } from "./components/ActionBar";
 import { ResidentCard } from "./components/ResidentCard";
@@ -734,6 +735,7 @@ export default function App() {
               <ScanSummary demo={apiStatus === "demo"} />
               <SecurityTour />
               <TriageAnnouncer />
+              <TeachBoardsReading />
               <ActionBar />
               {selectedResident !== null && <ResidentCard />}
               {showEpheVitrine && (
