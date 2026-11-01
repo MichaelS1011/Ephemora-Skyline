@@ -411,14 +411,38 @@ describe("the surface a stranger reads", () => {
 
   it("uses one repository address, the one the metadata carries", () => {
     const slug = repoSlug();
+    // The comparison table README prints names three other projects and links
+    // to them, so a reader can check the sentence (added 2026-11-01, stars and
+    // licences measured that day). Those are the OTHER project's addresses, not
+    // a second address for this one: they are allowed here by name, and any
+    // owner/repo address that is neither this repository nor one of these three
+    // still fails. An entry no public document names any more is a stale
+    // exception, so the list is read back out of the same walk.
+    const otherProjects = new Set([
+      "acaudwell/Gource",
+      "srizzon/git-city",
+      "MaibornWolff/codecharta",
+    ]);
     const offenders: string[] = [];
+    const named: string[] = [];
     for (const rel of SURFACES) {
       for (const match of read(rel).matchAll(
         /https:\/\/github\.com\/([A-Za-z0-9_.-]+)\/([A-Za-z0-9_.-]+)/g,
       )) {
         const found = `${match[1]}/${match[2]}`.replace(/\.git$/, "");
-        if (found !== slug) offenders.push(`${rel}: ${match[0]}`);
+        if (found === slug) continue;
+        if (otherProjects.has(found)) {
+          named.push(found);
+          continue;
+        }
+        offenders.push(`${rel}: ${match[0]}`);
       }
+    }
+    for (const project of otherProjects) {
+      expect(
+        named,
+        `${project} is allowed by this check but no public document names it — delete the entry or write the sentence that needs it`,
+      ).toContain(project);
     }
     expect(
       offenders,

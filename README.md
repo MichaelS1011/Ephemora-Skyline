@@ -38,7 +38,7 @@ npm install
 npm start              # builds once, then app + API on :4173, and opens the browser
 ```
 
-Open **http://127.0.0.1:4173** and press **Choose project folder**. Or press **Explore demo** first — that city is sample files with sample findings, and no scanner ran on it. `npm run dev` is the coding loop (Vite on :3010, API on :4000). Every screen, switch and shortcut is walked through in [`docs/GETTING_STARTED.md`](./docs/GETTING_STARTED.md). No clone, no build, one shorter way: since v0.3.0 every release ships its built package as the asset `ephemora-skyline-<version>.tgz` on [the releases page](https://github.com/MichaelS1011/Ephemora-Skyline/releases) — download it, run `npm install ./ephemora-skyline-<version>.tgz` in an empty folder, then start `node_modules/.bin/ephemora-skyline` (`--port <n>` and `--no-open` work as flags). `npm run pack:check` walked exactly this path on 2026-10-31 and printed: 274 files, 3.49 MB unpacked, 1.10 MB packed, health ok, app served, version matching the package.
+Open **http://127.0.0.1:4173** and press **Choose project folder**. Or press **Explore demo** first — that city is sample files with sample findings, and no scanner ran on it. `npm run dev` is the coding loop (Vite on :3010, API on :4000). Every screen, switch and shortcut is walked through in [`docs/GETTING_STARTED.md`](./docs/GETTING_STARTED.md). No clone, no build, one shorter way: since v0.3.0 every release ships its built package as the asset `ephemora-skyline-<version>.tgz` on [the releases page](https://github.com/MichaelS1011/Ephemora-Skyline/releases) — download it, run `npm install ./ephemora-skyline-<version>.tgz` in an empty folder, then start `node_modules/.bin/ephemora-skyline` (`--port <n>` and `--no-open` work as flags). `npm run pack:check` walked exactly this path on 2026-10-31 and printed: 274 files, 3.5 MB unpacked, 1.10 MB packed, health ok, app served, version matching the package.
 
 Optional: `gitleaks`, `semgrep`, `osv-scanner` and `ruff` on your `PATH`. Without them the city says which checks did not run, instead of pretending.
 
@@ -67,6 +67,25 @@ Optional: `gitleaks`, `semgrep`, `osv-scanner` and `ruff` on your `PATH`. Withou
 - **Share it if you want.** The built-in studio renders MP4/H.264 1080p video and PNG locally. You get the file — no suggested caption, no platform row. SARIF 2.1.0 carries the scan id and the fingerprints.
 - **Ask whether a newer version exists.** One row in the ••• menu queries the published releases once and answers in words, in all four cases: a newer version with a link, "you are on the newest published version", "nothing published to compare with yet" — an answer this repository can no longer give: measured 2026-10-31, `gh release list` shows five tagged releases, and every release since v0.3.0 carries its built package as the asset `ephemora-skyline-<version>.tgz` — or "could not check" when your machine says no. The hourly background check stays off until you turn it on.
 - **Come back to it.** Reload, and the district, the selection and the camera are where you left them.
+
+## Four questions, four cities
+
+Other projects draw cities from code too, and we like them. They answer
+questions Skyline does not, so here is the honest map — stars, licences and
+last movement checked 2026-11-01.
+
+| You want to know                      | Go with                                                                       | What it does                                          |
+| ------------------------------------- | ----------------------------------------------------------------------------- | ----------------------------------------------------- |
+| how the history moved                 | [Gource](https://github.com/acaudwell/Gource) (13,182★, GPL-3.0)              | your commits as a film of growing branches            |
+| how your profile looks                | [git-city](https://github.com/srizzon/git-city) (5,958★, AGPL-3.0)            | a pixel building per GitHub account, shared as a link |
+| how the architecture is shaped        | [CodeCharta](https://github.com/MaibornWolff/codecharta) (567★, BSD-3-Clause) | metrics of your structure, district by district       |
+| what your files hold, on your machine | **Skyline**                                                                   | the code itself, with the risky lines lit             |
+
+One difference decides the rest: Skyline reads file contents, not the commit
+graph. That is why it needs no GitHub token, no account and no hosted service —
+it binds to `127.0.0.1`, and your source never leaves the desk it sits on.
+The other three are better at being seen: a film, a shareable profile, a large
+metric set. A city of your own files, unread by anyone else, is a quieter thing.
 
 ## What it will not tell you
 

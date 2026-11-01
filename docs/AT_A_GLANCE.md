@@ -19,6 +19,13 @@ looked there — which is deliberately not a claim of clean.
 Click a building and you get the file, the line, the matched text with its
 surrounding lines, the rule that fired and the steps to fix it.
 
+Other projects draw cities from code too, and answer other questions: Gource
+grows your commit history into a film (13,182★), git-city builds a pixel
+building per GitHub profile (5,958★), CodeCharta charts architecture metrics
+(567★) — stars checked 2026-11-01. Skyline reads the files themselves, on the
+machine they lie on; that is why no token, no account and no server appear
+anywhere in it.
+
 ## What can I do with it?
 
 - **Run it locally.** Four commands, no account, no token, no upload:
