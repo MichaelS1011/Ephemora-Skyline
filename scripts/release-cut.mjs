@@ -184,10 +184,10 @@ write("CHANGELOG.md", withRelease);
 function note(bullet) {
   const lead = /^\*\*(.+?)\*\*/.exec(bullet)?.[1];
   if (!lead) die(`the note "${bullet.slice(0, 48)}…" has no bold lead sentence to advertise`);
-  const body = bullet.slice(bullet.indexOf("**", 2) + 2).replace(/^[:.]\s*/, "");
+  const body = bullet.slice(bullet.indexOf("**", 2) + 2).replace(/^[:.\s]+/, "");
   const sentence = body.split(/(?<=[.])\s+/).find((s) => /\d/.test(s)) ?? "";
-  let tail = sentence.replace(/\s+$/, "").replace(/\.+$/, "");
-  if (tail.length > 200) tail = tail.split(/,\s+/).find((c) => /\d/.test(c)) ?? "";
+  let tail = sentence.trim().replace(/\.+$/, "");
+  if (tail.length > 200) tail = (tail.split(/,\s+/).find((c) => /\d/.test(c)) ?? "").trim();
   return tail ? `- **${lead}** — ${tail}` : `- **${lead}**`;
 }
 const advertised = lines.slice(0, 5).map((l) => l.trim().replace(/^-\s*/, "")).map(note);
