@@ -47,6 +47,21 @@ describe("the network disclosure", () => {
   });
 });
 
+describe("the code the app may run", () => {
+  it("names the test runner as unsandboxed code with the user's rights", () => {
+    for (const lang of ["en", "de"] as const) {
+      const copy = t(lang, "test.snapshot");
+      expect(copy, `${lang} copy must say the runner is not a sandbox`).toMatch(/sandbox/i);
+      expect(copy, `${lang} copy must say whose rights the test code runs with`).toMatch(
+        lang === "en" ? /your user rights/i : /Rechten deines Benutzers/i,
+      );
+      expect(copy, `${lang} copy must name the network the test code may use`).toMatch(
+        lang === "en" ? /use the network/i : /Netzwerk nutzen/i,
+      );
+    }
+  });
+});
+
 describe("the canvas announcement", () => {
   it("keeps camera instructions out of the screen that has no camera", () => {
     const empty = t("en", "city.canvasEmptyAria");

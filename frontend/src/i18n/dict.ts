@@ -1252,8 +1252,8 @@ export const DICT = {
     de: "{passed} bestanden · {failed} fehlgeschlagen · {skipped} übersprungen",
   },
   "test.snapshot": {
-    en: "Runs this test file in the scanned copy. Scan again after edits. First run may download locked npm dependencies. Vitest and Jest are supported.",
-    de: "Führt diese Testdatei in der gescannten Kopie aus. Scanne nach Änderungen erneut. Beim ersten Lauf können fixierte npm-Abhängigkeiten heruntergeladen werden. Unterstützt werden Vitest und Jest.",
+    en: "Runs this test file in the scanned copy. Scan again after edits. First run may download locked npm dependencies. Vitest and Jest are supported. The project's own test code runs with your user rights — not in a sandbox — so it can read what you can read and use the network.",
+    de: "Führt diese Testdatei in der gescannten Kopie aus. Scanne nach Änderungen erneut. Beim ersten Lauf können fixierte npm-Abhängigkeiten heruntergeladen werden. Unterstützt werden Vitest und Jest. Der Testcode des Projekts läuft mit den Rechten deines Benutzers — nicht in einer Sandbox — kann also lesen, was du lesen kannst, und das Netzwerk nutzen.",
   },
   "test.skipped": { en: "Tests skipped", de: "Tests übersprungen" },
   "test.fileSkipped": { en: "{count} skipped", de: "{count} übersprungen" },

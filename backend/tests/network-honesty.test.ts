@@ -148,6 +148,21 @@ describe("the documented network surface", () => {
   });
 
   /**
+   * The one route that runs code is the test runner, and the reader has to be
+   * able to see the boundary before pressing it: no sandbox, the user's own
+   * rights, the network the suite asks for. Both public documents say so.
+   */
+  it("states the test runner's boundary in the public documents", () => {
+    for (const rel of ["README.md", "SECURITY.md"]) {
+      const text = read(rel);
+      expect(text, `${rel} must say the tests run with the reader's user rights`).toMatch(
+        /user rights/i,
+      );
+      expect(text, `${rel} must say the runner is not a sandbox`).toMatch(/sandbox/i);
+    }
+  });
+
+  /**
    * The literal-URL scan above cannot see the one fetch whose address comes from
    * the environment. That is the fetch a user configures, and its promise is not
    * "this host is declared" but "this host is this machine" — so the rule is
