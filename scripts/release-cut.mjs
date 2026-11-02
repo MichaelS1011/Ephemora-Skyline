@@ -86,7 +86,10 @@ if (branch !== "main") die(`a release is cut from main, this is "${branch}"`);
 run("git", ["fetch", "--quiet", "origin", "main"]);
 const head = run("git", ["rev-parse", "HEAD"]);
 const remote = run("git", ["rev-parse", "origin/main"]);
-if (head !== remote) die(`HEAD ${head.slice(0, 7)} is not what origin/main holds (${remote.slice(0, 7)}) — push first`);
+if (head !== remote)
+  die(
+    `HEAD ${head.slice(0, 7)} is not what origin/main holds (${remote.slice(0, 7)}) — push first`,
+  );
 
 // ── 2. version ─────────────────────────────────────────────────────────────
 const current = JSON.parse(read("package.json")).version;
@@ -101,9 +104,15 @@ const changelog = read("CHANGELOG.md");
 // regex let `\s*$` end the lazy group on the heading's own newline, so a section of
 // five written notes read as none — caught by a dry run, not by a release.
 const unreleased = /^## \[Unreleased\]\n([\s\S]*?)(?=^## \[|(?![\s\S]))/m.exec(changelog);
-if (!unreleased) die('CHANGELOG.md has no "## [Unreleased]" section — every pushed improvement gets a line there first');
+if (!unreleased)
+  die(
+    'CHANGELOG.md has no "## [Unreleased]" section — every pushed improvement gets a line there first',
+  );
 const lines = unreleased[1].split("\n").filter((l) => l.trim().startsWith("- "));
-if (lines.length === 0) die("the Unreleased section holds no bullet — a release without notes is a version number nobody can use");
+if (lines.length === 0)
+  die(
+    "the Unreleased section holds no bullet — a release without notes is a version number nobody can use",
+  );
 console.log(`  ${lines.length} note line(s) since the last cut`);
 
 // ── 4. gates, before anything is written that could break them ─────────────
@@ -143,7 +152,8 @@ for (const [file] of names) {
   const json = JSON.parse(raw);
   const out = raw.replace(/("version":\s*")([^"]+)(")/, `$1${next}$3`);
   if (out === raw) die(`${file} carries no version string to rewrite`);
-  if (json.version !== current) die(`${file} says ${json.version}, root says ${current} — fix the manifests first`);
+  if (json.version !== current)
+    die(`${file} says ${json.version}, root says ${current} — fix the manifests first`);
   write(file, out);
 }
 {
@@ -161,9 +171,11 @@ for (const [file] of names) {
     },
   );
   const check = JSON.parse(patched);
-  if (check.version !== next || check.packages[""].version !== next) die("the lockfile root was not rewritten");
+  if (check.version !== next || check.packages[""].version !== next)
+    die("the lockfile root was not rewritten");
   for (const key of ["frontend", "backend"]) {
-    if (check.packages[key]?.version !== next) die(`lockfile packages.${key} still holds an old version`);
+    if (check.packages[key]?.version !== next)
+      die(`lockfile packages.${key} still holds an old version`);
   }
   if (hits !== 4) die(`expected 4 version fields in package-lock.json, rewrote ${hits}`);
   write("package-lock.json", patched);
@@ -190,14 +202,18 @@ function note(bullet) {
   if (tail.length > 200) tail = (tail.split(/,\s+/).find((c) => /\d/.test(c)) ?? "").trim();
   return tail ? `- **${lead}** — ${tail}` : `- **${lead}**`;
 }
-const advertised = lines.slice(0, 5).map((l) => l.trim().replace(/^-\s*/, "")).map(note);
+const advertised = lines
+  .slice(0, 5)
+  .map((l) => l.trim().replace(/^-\s*/, ""))
+  .map(note);
 
 const readmeOld = read("README.md");
 const blockFrom = readmeOld.indexOf("## What's new");
-if (blockFrom === -1) die("README.md has no \"## What's new\" block to refresh");
+if (blockFrom === -1) die('README.md has no "## What\'s new" block to refresh');
 const blockRest = readmeOld.slice(blockFrom + "## What's new".length);
 const nextHeading = blockRest.search(/^## /m);
-const blockTo = blockFrom + "## What's new".length + (nextHeading === -1 ? blockRest.length : nextHeading);
+const blockTo =
+  blockFrom + "## What's new".length + (nextHeading === -1 ? blockRest.length : nextHeading);
 const blockOld = readmeOld.slice(blockFrom, blockTo);
 const blockNew = `## What's new\n\n${next} — ${today}\n\n${advertised.join("\n")}\n\nMore in [CHANGELOG.md](./CHANGELOG.md).\n\n`;
 write("README.md", readmeOld.slice(0, blockFrom) + blockNew + readmeOld.slice(blockTo));
@@ -209,7 +225,15 @@ const delta = blockNew.split("\n").length - blockOld.split("\n").length;
 const pastBlock = readmeOld.slice(0, blockTo).split("\n").length; // first line after the old block
 const touched = [];
 if (delta !== 0) {
-  const files = run("git", ["grep", "-l", "-E", "README\\.md:[0-9]", "--", "backend/tests", "frontend/tests"])
+  const files = run("git", [
+    "grep",
+    "-l",
+    "-E",
+    "README\\.md:[0-9]",
+    "--",
+    "backend/tests",
+    "frontend/tests",
+  ])
     .split("\n")
     .filter(Boolean);
   for (const rel of files) {
@@ -223,14 +247,16 @@ if (delta !== 0) {
       touched.push(rel);
     }
   }
-  console.log(`  What's new block ${blockOld.split("\n").length} -> ${blockNew.split("\n").length} lines, ${touched.length} test file(s) re-pointed`);
+  console.log(
+    `  What's new block ${blockOld.split("\n").length} -> ${blockNew.split("\n").length} lines, ${touched.length} test file(s) re-pointed`,
+  );
 }
 if (DRY) {
   console.log(
     blockNew
       .split("\n")
       .map((l) => "  | " + l)
-      .join("\n")
+      .join("\n"),
   );
 }
 
@@ -252,7 +278,9 @@ const written = ["CHANGELOG.md", "README.md", ...touched];
   } catch {
     run("git", ["checkout", "--", ...written, ...MANIFESTS, "package-lock.json"]);
     console.log("");
-    die("the released tree does not pass its own guards — the rewritten files are restored, nothing committed");
+    die(
+      "the released tree does not pass its own guards — the rewritten files are restored, nothing committed",
+    );
   }
 }
 
@@ -290,13 +318,21 @@ npm install ${asset}
 npx ephemora-skyline
 \`\`\`
 
-then open http://127.0.0.1:4000. It binds to your own machine only; your source never leaves it.
+then open http://127.0.0.1:4173. It binds to your own machine only; your source never leaves it.
 SHA-256 \`${tarballSha}\`.
 The same code, readable: [source at v${next}](https://github.com/${OWNER}/tree/v${next}).
 
 `;
 writeFileSync(notesFile, download + unreleased[1].trim() + "\n");
-const url = run("gh", ["release", "create", `v${next}`, "--title", `Ephemora Skyline ${next}`, "--notes-file", notesFile]).trim();
+const url = run("gh", [
+  "release",
+  "create",
+  `v${next}`,
+  "--title",
+  `Ephemora Skyline ${next}`,
+  "--notes-file",
+  notesFile,
+]).trim();
 run("gh", ["release", "upload", `v${next}`, tarball]);
 
 // ── 8. the identity of what was published ──────────────────────────────────

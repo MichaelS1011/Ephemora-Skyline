@@ -65,6 +65,17 @@ describe("one version, everywhere it is written", () => {
   });
 });
 
+describe("the download note opens the address the launcher opens", () => {
+  it("names the launcher's default port, not the dev server's", () => {
+    const launcher = read("scripts/ephemora-skyline.mjs");
+    const port = /let port = process\.env\.PORT \?\? "(\d+)"/.exec(launcher)?.[1];
+    expect(port, "the launcher must state its default port").toBeTruthy();
+    const cut = read("scripts/release-cut.mjs");
+    expect(cut).toContain(`then open http://127.0.0.1:${port}.`);
+    expect(cut).not.toContain("127.0.0.1:4000");
+  });
+});
+
 describe("the changelog keeps an inbox for the next cut", () => {
   it("has an Unreleased section to collect pushed improvements in", () => {
     expect(read("CHANGELOG.md"), "release-cut refuses without it — keep the heading").toMatch(
