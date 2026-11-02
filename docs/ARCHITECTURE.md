@@ -100,7 +100,7 @@ Progress events go to the job-progress map; the frontend polls GET /api/status/:
 - **Asynchronous**: `POST /api/analyze-local` stages the picked folder, answers `202 { id, statusUrl }` immediately, and runs the analysis in the background
 - **Polling**: `GET /api/status/:id` for progress, `GET /api/result/:id/city` for the finished city — there is no socket, the frontend polls
 - **One orchestrator per request**: the scanner holds the resolved config and per-run adapter state, so two analyses running at once cannot answer with each other's profile
-- **In-memory results**: the last 20 cities for 24 hours. A `?city=<id>` link is a pointer into the running process, not an archive — PNG and SARIF export are the artefacts that outlive it
+- **Results, in memory and on disk**: the RAM cache holds the last 20 cities for 24 hours; every completed run is also archived owner-only in `~/.ephemora-skyline/runs` (newest 20), and `GET /api/result/:id` rehydrates from it after a restart or a RAM eviction. A `?city=<id>` link therefore outlives the process until 20 newer scans replace it; PNG and SARIF export remain the artefacts that outlive the archive
 
 ### Security Middleware
 

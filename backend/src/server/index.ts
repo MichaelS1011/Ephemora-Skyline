@@ -17,6 +17,7 @@ import pino from "pino";
 
 import type { ResolvedScanConfig } from "../services/security/scan-config.js";
 import { AnalysisStore } from "./analysis-store.js";
+import { RunArchive } from "./run-archive.js";
 import { AnalysisOrchestrator } from "../services/analyzer/orchestrator.js";
 import { corsOptionsFor, localOnlyRoute, uploadLimitAwareErrorHandler } from "./local-only.js";
 import { defaultFrontendDir, notFoundHandler, serveFrontend } from "./static-site.js";
@@ -64,7 +65,11 @@ const app = express();
 const server = http.createServer(app);
 
 // ── Single source of truth for all analysis results ───────────────────────
-const analysisStore = new AnalysisStore();
+// Completed runs are mirrored to an owner-only archive so `?city=` survives a
+// restart; the prune at boot keeps the newest 20 and sweeps a crashed tmp file.
+const runArchive = new RunArchive();
+runArchive.prune();
+const analysisStore = new AnalysisStore(runArchive);
 
 // ── Optional local model ───────────────────────────────────────────────────
 // Read once at boot, never per click. A URL that is not loopback is refused

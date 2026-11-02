@@ -15,15 +15,7 @@ import {
   type CameraPose,
 } from "../src/urlState";
 import { useStore } from "../src/stores/useStore";
-import {
-  CITY_STORE_MAX,
-  CITY_TTL_MS,
-  cityAvailability,
-  cityGoneForSure,
-  hasCityVisit,
-  recentCities,
-  recordCityVisit,
-} from "../src/recentCities";
+import { CITY_STORE_MAX, hasCityVisit, recentCities, recordCityVisit } from "../src/recentCities";
 import type { CityData, CityFile } from "../src/city/types";
 
 /**
@@ -372,16 +364,6 @@ describe("the index of cities this machine has opened", () => {
     recordCityVisit(data);
     expect(recentCities()[0]?.id).toBe("visit-1");
     expect(recentCities().filter((e) => e.id === "visit-1").length).toBe(1);
-  });
-
-  it("claims a city is gone only when its own clock says so", () => {
-    const fresh = { id: "x", folder: "repo", openedAt: Date.now(), findings: 0, files: 1 };
-    expect(cityGoneForSure(fresh)).toBe(false);
-    expect(cityAvailability(fresh)).toBe("unknown");
-
-    const stale = { ...fresh, openedAt: Date.now() - CITY_TTL_MS - 1000 };
-    expect(cityGoneForSure(stale)).toBe(true);
-    expect(cityAvailability(stale)).toBe("certain");
   });
 
   it("survives a storage that is not there without inventing a city", () => {

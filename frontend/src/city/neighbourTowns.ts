@@ -22,9 +22,10 @@
  *    ink is then stepped toward the horizon haze (`NEIGHBOUR_RECEDE`), which
  *    recedes a neighbour WITHOUT touching its height.
  *
- * A town exists exactly while its scan does. The backend keeps twenty cities
- * for twenty-four hours in memory (`analysis-store.ts`), so a neighbour whose
- * id no longer answers simply has no towers — never a half-drawn village.
+ * A town exists exactly while its scan does. The backend keeps the newest
+ * twenty completed cities in memory and on disk (`run-archive.ts`), so a
+ * neighbour whose id no longer answers simply has no towers — never a
+ * half-drawn village.
  */
 import * as THREE from "three";
 import { complexityColor, ENV } from "./palette";

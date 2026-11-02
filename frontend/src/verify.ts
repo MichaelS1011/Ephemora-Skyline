@@ -1,8 +1,8 @@
 /**
  * The anchor for "what changed since I was last here".
  *
- * The server compares two scans it still holds in RAM; this module is the
- * browser's side of that comparison. It remembers, per scan, the earlier scan
+ * The server compares two scans it still holds in RAM or the run archive; this
+ * module is the browser's side of that comparison. It remembers, per scan, the earlier scan
  * of the SAME folder shape that this browser showed — so the answer is about
  * this project's last visit, not about any scan that happened to run near it.
  *
@@ -12,9 +12,9 @@
  * wants after a pull. The hash is order-independent and capped, so a huge tree
  * costs the same as a small one.
  *
- * What this cannot know: whether the earlier scan is still in the server's
- * memory (20 results, 24 h). The UI asks and says "aged out" when the answer
- * is a 404, instead of pretending nothing changed.
+ * What this cannot know: whether the earlier scan is still among the newest 20
+ * completed runs. The UI asks and says "aged out" when the answer is a 404,
+ * instead of pretending nothing changed.
  */
 import type { CityData } from "./city/types";
 import { readStoredJson, type StoredRead } from "./storageRead";

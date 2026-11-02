@@ -295,7 +295,7 @@ export default function App() {
       } catch {
         // The id resolved to nothing. Say what is true rather than guessing:
         // it may never have existed (a mistyped or stale link) or its scan may
-        // have been dropped — the store is in-memory with a 24 h ceiling.
+        // have been pushed out of the last 20 completed runs.
         setApiStatus("demo");
         setPermalinkFailed(true);
       } finally {

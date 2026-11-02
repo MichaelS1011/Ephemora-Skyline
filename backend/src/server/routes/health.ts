@@ -1,6 +1,7 @@
 import type { Request, Response } from "express";
 import { APP_VERSION } from "../../version.js";
 import type { LlmConfig } from "../../services/security/llm-explain.js";
+import { RUN_ARCHIVE_MAX } from "../run-archive.js";
 
 export interface HealthResponse {
   status: "ok";
@@ -22,9 +23,10 @@ export async function getHealth(): Promise<HealthResponse> {
  * GET /api/health — the liveness answer the frontend and a reverse proxy read.
  *
  * The city link's lifetime is a fact about this process, not about the defaults
- * in the text: ANALYSIS_MAX_ENTRIES / ANALYSIS_TTL_MS can move, and the screen
- * has to say the value that is actually in force — so it is read from the store
- * the process built, never restated.
+ * in the text: the memory cap can move, and the screen has to say the value that
+ * is actually in force — so it is read from the store the process built, never
+ * restated. `runArchive` is the bound that now answers "how long does the link
+ * live": the newest completed runs kept on disk, which survive a restart.
  *
  * `localModel` says the same about `EPHEMORA_LLM_URL`. The card would otherwise
  * offer an "ask the model" button that answers 501 after a click, which reads as
@@ -41,6 +43,7 @@ export async function handleHealth(
   res.json({
     ...health,
     cityStore: { maxEntries: analysisStore.maxEntries, ttlMs: analysisStore.ttlMs },
+    runArchive: { maxEntries: RUN_ARCHIVE_MAX },
     localModel: localModel
       ? // The name stays empty when the operator set no `EPHEMORA_LLM_MODEL`: the
         // UI is the one that knows whether it is speaking English or German, and

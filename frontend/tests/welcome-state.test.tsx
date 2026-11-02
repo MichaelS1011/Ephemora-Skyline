@@ -306,9 +306,9 @@ describe("a read left running is offered once it finished (§03.09)", () => {
  * Measured before building (`zuletzt-messung.json`): at 1280×800 the
  * "recently opened" row starts 814 px down — below the fold — and nothing above
  * it names the reader's own project (`mentionsAbove: 0`). One click works; being
- * seen is the gap. The offer therefore shares the §03.09 slot, and a city past
- * the server's keep time is left in the history list instead of offered as a way
- * back in.
+ * seen is the gap. The offer therefore shares the §03.09 slot. The run archive
+ * keeps the newest 20 completed cities, so an older visit is still offered: if
+ * 20 newer scans pushed it out, the click lands on the honest dead-link notice.
  */
 describe("the last opened city is offered at the decision point (§03.10)", () => {
   const RECENT_KEY = "ephemora-skyline-recent:v1";
@@ -356,15 +356,15 @@ describe("the last opened city is offered at the decision point (§03.10)", () =
     expect(offer?.querySelector("a")?.getAttribute("href")).toBe("?city=scan-2");
   });
 
-  it("leaves a city past the server's keep time in the history list", async () => {
-    // 25 h old: the backend has certainly dropped it, so the line above the
-    // actions would be a promise to a dead link.
+  it("offers a visit from yesterday, because the archive may still hold it", async () => {
+    // 25 h old: the RAM cache has dropped it, but the newest 20 completed runs
+    // are archived, so the link can still answer after the night.
     localStorage.setItem(
       RECENT_KEY,
       JSON.stringify([
         {
           id: "scan-old",
-          folder: "stale-app",
+          folder: "yesterday-app",
           openedAt: Date.now() - 25 * 60 * 60 * 1000,
           files: 9,
           findings: 0,
@@ -372,9 +372,10 @@ describe("the last opened city is offered at the decision point (§03.10)", () =
       ]),
     );
     await mountLanding();
-    expect(host.querySelector(".landing-resume")).toBeNull();
-    // it is still readable as history below
-    expect(host.querySelector(".start-recent")).not.toBeNull();
+    const offer = host.querySelector(".landing-resume");
+    expect(offer).not.toBeNull();
+    expect(offer?.textContent).toContain("yesterday-app");
+    expect(offer?.querySelector("a")?.getAttribute("href")).toBe("?city=scan-old");
   });
 
   it("gives the slot to the read that just finished", async () => {

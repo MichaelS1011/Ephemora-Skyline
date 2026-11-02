@@ -4,15 +4,16 @@ import { readStoredJson, type StoredRead } from "./storageRead";
 /**
  * The cities this machine has opened.
  *
- * The backend holds a city in RAM only: 20 at a time, least-recently-used
- * first out, and 24 h without a read ends it (`backend/src/server/index.ts:54-104`).
- * The address carries one city, but nothing carried the LIST — so every visit
- * started at the folder picker again, even the tenth one that day.
+ * The backend keeps the newest 20 completed cities in memory and mirrors them
+ * to an owner-only archive, so a visit from yesterday can still answer after a
+ * restart (`backend/src/server/run-archive.ts`). The address carries one city,
+ * but nothing carried the LIST — so every visit started at the folder picker
+ * again, even the tenth one that day.
  *
  * This is a local index of what was opened here, in this browser. It is not a
  * catalogue of scan results: it names the folder, the time and what the scan
- * measured. Whether the city is still in the server's memory is a fact about
- * the server, and the index only claims what it can prove (see `cityGoneForSure`).
+ * measured. Whether the city still answers is a fact about the server and its
+ * archive, so the index never claims to know.
  */
 
 export interface RecentCity {
@@ -28,8 +29,7 @@ export interface RecentCity {
   files: number;
 }
 
-/** The backend's own bounds, quoted so the index can say what it does not know. */
-export const CITY_TTL_MS = 24 * 60 * 60 * 1000;
+/** The browser's own list bound, kept equal to the server's archive. */
 export const CITY_STORE_MAX = 20;
 
 const KEY = "ephemora-skyline-recent:v1";
@@ -121,23 +121,6 @@ export function recordCityVisit(city: CityData | null): void {
   };
   const rest = read().filter((e) => e.id !== entry.id);
   write([...rest, entry].slice(-CITY_STORE_MAX));
-}
-
-/**
- * Whether the city behind an entry is certainly gone.
- *
- * The server refreshes a result's clock on every read, so the clock that
- * matters is when THIS browser last opened it. Past the TTL the answer is
- * certain; inside it the entry may still have been pushed out by 20 later
- * scans or by a server restart, and the index does not claim to know.
- */
-export function cityGoneForSure(entry: RecentCity, now = Date.now()): boolean {
-  return now - entry.openedAt > CITY_TTL_MS;
-}
-
-/** What the entry can promise, in one word, without guessing about the server. */
-export function cityAvailability(entry: RecentCity, now = Date.now()): "certain" | "unknown" {
-  return cityGoneForSure(entry, now) ? "certain" : "unknown";
 }
 
 /** Drop one entry — for a link the user deletes, not for a city that expired. */

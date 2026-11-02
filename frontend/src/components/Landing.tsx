@@ -7,7 +7,7 @@ import { OUTBOUND_CALLS } from "../config/networkSurface";
 import { formatCount, formatDecimal, t, type Lang } from "../i18n";
 import { ts, tsCount } from "./startCopy";
 import type { CityData } from "../city/types";
-import { recentCities, recentCitiesRead, cityGoneForSure, type RecentCity } from "../recentCities";
+import { recentCities, recentCitiesRead, type RecentCity } from "../recentCities";
 import {
   arrivalBeat,
   readArrivalStageRead,
@@ -675,13 +675,10 @@ export function Landing() {
   // 1280×800 the "recently opened" row sits 814 px down, below the fold
   // (`zuletzt-messung.json`), so a returning reader reached the generic landing
   // first and their own project only by scrolling. This brings the newest one up
-  // to the actions — and only while the server can still be holding it: past its
-  // keep time the offer would be a link to a dead link notice, so it stays in
-  // the list below, where it reads as history rather than as a way back in.
-  const [lastCity] = useState<RecentCity | null>(() => {
-    const newest = recentCities()[0];
-    return newest && !cityGoneForSure(newest) ? newest : null;
-  });
+  // to the actions. The run archive keeps the newest 20 completed cities, so the
+  // offer is no longer a 24 h guess; if 20 newer scans pushed it out, the click
+  // lands on the honest dead-link notice instead of a silent empty screen.
+  const [lastCity] = useState<RecentCity | null>(() => recentCities()[0] ?? null);
   const prefs = useStore((s) => s.prefs);
   // Passive update note: the BACKEND queries public GitHub releases (cached,
   // anonymous) — the client sends nothing about itself. Dismissal is per

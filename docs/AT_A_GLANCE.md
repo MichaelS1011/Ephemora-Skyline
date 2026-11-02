@@ -55,8 +55,9 @@ anywhere in it.
 - **It does not run your code** (the one exception is named on screen: **Run
   test file**, only after you press it), and **it does not write to your
   project** — the explanation layer has a voice and no pen.
-- **A city is not an archive.** Results live in the local process for a short
-  window; export SARIF or a picture if a finding has to outlive it.
+- **A city outlives the process, not a backup.** The newest 20 completed runs
+  are kept on disk (owner-only) and survive a restart; export SARIF or a
+  picture for a lasting record.
 - **It takes a folder, not a repository URL.** There is no remote-repository
   path to authorise — the only input is a folder you pick and whose contents
   cross the loopback interface and stop there

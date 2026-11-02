@@ -492,8 +492,8 @@ export const DICT = {
     de: "Die Demo konnte nicht geladen werden. Prüfe, ob der lokale Server läuft, und versuche es erneut.",
   },
   "app.permalinkError": {
-    en: "The local server has no city under this link. Scans live in memory and are gone after a restart — open the folder again to rebuild the city.",
-    de: "Der lokale Server kennt keine Stadt unter diesem Link. Scans liegen im Speicher und sind nach einem Neustart weg — Ordner erneut öffnen, um die Stadt neu zu bauen.",
+    en: "The local server has no city under this link. It may have been pushed out by newer scans — open the folder again to rebuild the city.",
+    de: "Der lokale Server kennt keine Stadt unter diesem Link. Möglicherweise wurde sie von neueren Scans verdrängt — Ordner erneut öffnen, um die Stadt neu zu bauen.",
   },
   "landing.progressCollecting": {
     en: "Reading your folder · {count} files",
@@ -1335,17 +1335,17 @@ export const DICT = {
     de: "Meldung schließen",
   },
   /**
-   * The link is a pointer into the backend's in-RAM result store: 24 hours and
-   * at most 20 analyses (ANALYSIS_TTL_MS / ANALYSIS_MAX_ENTRIES). Saying only
-   * "while the server runs" promised more lifetime than the store has.
+   * The link now outlives the process: the newest completed runs are archived
+   * on disk, so the sentence names the archive's bound and no TTL (the RAM
+   * cache's 24 h is not the lifetime of the address any more).
    */
   "actions.linkCopied": {
-    en: "City link copied. It opens on this machine only, while the server runs — about {lifetime} or the next {max} scans, whichever comes first.",
-    de: "Stadt-Link kopiert. Er öffnet nur auf diesem Rechner, solange der Server läuft — etwa {lifetime} oder bis zu den nächsten {max} Scans, je nachdem was zuerst eintritt.",
+    en: "City link copied. It opens on this machine only — also after a restart, until {max} newer completed scans push it out.",
+    de: "Stadt-Link kopiert. Er öffnet nur auf diesem Rechner — auch nach einem Neustart, bis {max} neuere abgeschlossene Scans ihn verdrängen.",
   },
   "actions.linkCopiedUnknown": {
-    en: "City link copied. It opens on this machine only, while the server runs — the server did not answer, so how long it holds this city is unknown.",
-    de: "Stadt-Link kopiert. Er öffnet nur auf diesem Rechner, solange der Server läuft — der Server antwortete nicht, also ist unbekannt, wie lange er diese Stadt hält.",
+    en: "City link copied. It opens on this machine only — the server did not answer, so how many completed scans it keeps is unknown.",
+    de: "Stadt-Link kopiert. Er öffnet nur auf diesem Rechner — der Server antwortete nicht, also ist unbekannt, wie viele abgeschlossene Scans er behält.",
   },
   "actions.linkCopyFailed": {
     en: "The link could not be copied. Copy the address from your browser instead.",
@@ -3416,8 +3416,8 @@ export const DICT = {
     de: "Nichts Früheres mit dieser Dateiliste auf diesem Rechner zum Vergleichen.",
   },
   "ctx.sinceAgedOut": {
-    en: "The earlier scan is gone (the server keeps 20 results for 24 hours) — a fresh scan will compare again.",
-    de: "Der frühere Scan ist weg (der Server behält 20 Ergebnisse für 24 Stunden) — ein neuer Scan vergleicht wieder.",
+    en: "The earlier scan is gone (only the newest 20 completed runs are kept) — a fresh scan will compare again.",
+    de: "Der frühere Scan ist weg (nur die neuesten 20 abgeschlossenen Scans bleiben) — ein neuer Scan vergleicht wieder.",
   },
   // "No longer detected", not "fixed": a renamed file and a silenced finding
   // both leave this count, and the docs say so. The loosened severity is part
