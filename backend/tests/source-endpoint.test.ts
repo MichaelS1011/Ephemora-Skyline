@@ -105,6 +105,22 @@ describe("handleSource", () => {
     expect((res.body as { error: string }).error).toContain("not available");
   });
 
+  it("refuses a symlink whose target sits outside the staged copy", async () => {
+    const outside = await fs.mkdtemp(path.join(os.tmpdir(), "codecity-outside-"));
+    const secret = path.join(outside, "secret.ts");
+    await fs.writeFile(secret, 'const secret = "outside";\n', "utf-8");
+    const linked = new Map<string, AnalysisResult>();
+    linked.set("src-link", makeResult([makeFile({ path: "src/link.ts", language: "TypeScript" })]));
+    registerUploadDir("src-link", stagedDir);
+    await fs.symlink(secret, path.join(stagedDir, "src", "link.ts"));
+
+    const res = await callSource(linked, "src-link", "f-0");
+    expect(res.statusCode).toBe(404);
+    expect((res.body as { error: string }).error).toContain("not available");
+
+    await fs.rm(outside, { recursive: true, force: true });
+  });
+
   it("404s when the staged file has vanished from disk", async () => {
     await fs.rm(path.join(stagedDir, "src", "index.ts"), { force: true });
     const res = await callSource(store, "src-1", "f-0");

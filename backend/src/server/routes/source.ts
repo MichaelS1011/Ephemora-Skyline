@@ -75,17 +75,25 @@ export async function handleSource(
     return;
   }
 
-  // Belt and braces: analysis paths are relative, but never leave the copy
-  const fullPath = path.resolve(stagedDir, entry.path);
-  if (!fullPath.startsWith(stagedDir + path.sep)) {
-    res.status(404).json({ error: "Source not available" });
-    return;
-  }
-
+  // Belt and braces: analysis paths are relative, but never leave the copy —
+  // and a symlink whose target sits outside it is not "inside" either. Both
+  // ends are resolved because on macOS `/var` is itself a link to `/private/var`,
+  // so a comparison of the unresolved strings would refuse every file there.
+  const requested = path.resolve(stagedDir, entry.path);
   try {
-    const content = await fs.readFile(fullPath, "utf-8");
+    const [realStaged, realRequested] = await Promise.all([
+      fs.realpath(stagedDir),
+      fs.realpath(requested),
+    ]);
+    if (!realRequested.startsWith(realStaged + path.sep)) {
+      res.status(404).json({ error: "Source not available" });
+      return;
+    }
+    const content = await fs.readFile(realRequested, "utf-8");
     res.json({ path: entry.path, language: entry.language, lines: toLines(content) });
   } catch {
+    // A vanished file and a link that leaves the copy answer the same way: the
+    // reader sees no bytes rather than a path outside the scan.
     res.status(404).json({ error: "Source not available" });
   }
 }
