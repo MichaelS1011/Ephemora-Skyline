@@ -303,7 +303,7 @@ docker build -f docker/Dockerfile.frontend -t ephemora-skyline-frontend .
 
 The repository carries no platform manifest on purpose. Until 5 October 2026 it held a
 `render.yaml` and a `vercel.json` that pointed `/api/*` at a public URL — an unauthenticated
-endpoint that accepts `POST /api/analyze-local` (up to 200 MB of someone's source) and can run the
+endpoint that accepts `POST /api/analyze-local` (up to 150 MB of someone's source, 400 MB per request) and can run the
 test suite of whatever folder it is handed. That contradicts the one claim the entry screen leads
 with, so both files are gone and no documentation section replaces them.
 

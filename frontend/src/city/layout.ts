@@ -203,6 +203,31 @@ export function undergroundPlateLine(lang: Lang, hidden: number, total: number):
     : `${total} ${t(lang, "hud.filesUnit")}`;
 }
 
+/**
+ * The plate's name, as a screen reader and a hovering reader hear it.
+ *
+ * The visible plate carries a bare `●4` beside the folder name. Nothing on the
+ * plate says the dot counts findings, so the dot alone reads as decoration —
+ * and the aria-label used to stop after the file count, leaving the risk glyph
+ * unspoken for exactly the reader who cannot see it. Findings are named only
+ * when there are any, so a clean district adds no noise.
+ */
+export function districtPlateLabel(
+  lang: Lang,
+  name: string,
+  totalFiles: number,
+  findings: number,
+): string {
+  const files = `${name} — ${totalFiles} ${t(
+    lang,
+    totalFiles === 1 ? "hud.fileUnit" : "hud.filesUnit",
+  )}`;
+  if (findings <= 0) return files;
+  return `${files} · ${t(lang, findings === 1 ? "ctx.findingsOne" : "ctx.findingsMany", {
+    count: findings,
+  })}`;
+}
+
 export interface BlockPlacement {
   dir: CityDir;
   x: number;

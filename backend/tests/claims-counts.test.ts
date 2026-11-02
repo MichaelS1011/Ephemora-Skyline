@@ -49,7 +49,7 @@ import {
  * The enumeration prunes an ignored folder whole and counts it once, as the
  * directory walk does. `.git` is walked — the picker's history branch is a real
  * branch of the shipped classifier — but never read: its bytes belong to a
- * separate 15 MB budget, and the scan's own decision refuses every `.git` path
+ * separate 96 MB budget, and the scan's own decision refuses every `.git` path
  * through `ARTIFACT_SEGMENT`, so it is in neither number. Both of those claims
  * are asserted in the check below, so the cheapness stays faithful.
  */

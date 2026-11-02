@@ -162,8 +162,25 @@ export const MAX_PATH_LEN = 512;
  * history — churn hotspots, author districts, history secrets — from a
  * purely local scan. Separate budget: git metadata must never crowd out
  * source files.
+ *
+ * Why 96 MB: the old 15 MB budget was smaller than one pack file of an
+ * ordinary repository, so `git log` died on `bad object HEAD` and the churn
+ * axis stayed empty on every real probe (docs/reviews/2026-10-31-fremde-repos.md).
+ * Measured on this repository 2026-11-01: `.git` is 62,167,759 bytes across
+ * 2,418 files (`du -sh` prints 66M — blocks, not bytes) and its largest single
+ * file is a 50,264,193-byte pack, so the whole history clears this budget and
+ * the 64 MB per-file wall with nothing dropped, and a staged copy of exactly
+ * that set reads 318 non-merge commits of the 322 the repo holds.
+ *
+ * The receiving route carries the same two ceilings
+ * (`backend/src/server/routes/local-analyze.ts`), so a history this side ships
+ * whole is not cut on arrival. They moved together on 2026-11-01 because the
+ * route used to stop at 20 MB / 8 MB: it dropped the pack while keeping its
+ * `.idx`, and the churn pass died after 4 of 318 commits with
+ * `unable to read tree`. A repo past 96 MB still arrives cut off and says so
+ * (`drop.churnInterrupted`); this repository does not.
  */
-export const GIT_MAX_TOTAL_BYTES = 15 * 1024 * 1024;
+export const GIT_MAX_TOTAL_BYTES = 96 * 1024 * 1024;
 
 export interface LocalFile {
   path: string;

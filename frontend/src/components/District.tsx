@@ -5,7 +5,12 @@ import { Html } from "@react-three/drei";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import type { BlockPlacement, StripBar } from "../city/layout";
-import { districtUnderground, stripRowZ, undergroundPlateLine } from "../city/layout";
+import {
+  districtPlateLabel,
+  districtUnderground,
+  stripRowZ,
+  undergroundPlateLine,
+} from "../city/layout";
 import { severityTotal } from "../city/facts";
 import {
   ENV,
@@ -21,7 +26,7 @@ import { bankUnterPlakette } from "../city/seatVisibility";
 import { HUD_SURFACES, TOWARD_GLYPH, hudBoxes, placeLabel, type Box } from "../city/labelPlacement";
 import { complexityForHeight } from "../city/mapping";
 import { reducedSettle } from "../city/motion";
-import { formatDecimal, t } from "../i18n";
+import { formatDecimal } from "../i18n";
 import { claimHover, easeGlow, inkOpacity, releaseHover } from "../interaction/hover";
 import { FOOTPRINT_EDGES, makeInkMaterial } from "../interaction/hoverInk";
 import { useStore } from "../stores/useStore";
@@ -480,7 +485,8 @@ export function District({ placement, appearAt, skylineAt, constructing }: Distr
           ref={plaketteRef}
           className={`cf-plate${hasP0 ? " cf-plate-alarm" : ""}`}
           style={{ background: "#121210" }}
-          aria-label={`${dir.name} — ${underground.total} ${t(lang, "hud.filesUnit")}`}
+          aria-label={districtPlateLabel(lang, dir.name, underground.total, totalFindings)}
+          title={districtPlateLabel(lang, dir.name, underground.total, totalFindings)}
         >
           <div className="cf-plate-name">
             {dir.name}

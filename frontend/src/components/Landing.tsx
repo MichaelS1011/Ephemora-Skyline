@@ -1341,6 +1341,9 @@ export function Landing() {
                 <summary>
                   <span>
                     {t(lang, "landing.scanSettings")} <strong>{profileName}</strong>
+                    <span className="scan-settings-default">
+                      {t(lang, "landing.scanSettingsDefault")}
+                    </span>
                     <span className="sr-only"> {t(lang, "landing.scanSettingsHint")}</span>
                   </span>
                   <span className="settings-chevron" aria-hidden="true">

@@ -4,6 +4,7 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ScanSummary } from "../src/components/ScanSummary";
 import { HudOverlay } from "../src/components/HudOverlay";
+import { GIT_MAX_TOTAL_BYTES } from "../src/hooks/useLocalAnalysis";
 import { useStore } from "../src/stores/useStore";
 import type { CityData, CityDir, DroppedFiles } from "../src/city/types";
 
@@ -306,16 +307,25 @@ describe("the sentence the first drive reads", () => {
   });
 
   /**
-   * Measured on this repository's own folder: 1,470 of its 3,266 .git files did
-   * not fit the 15 MB history budget. They are not oversized and the row must
-   * not say they are — and it must not talk about churn on a scan where churn
-   * never ran, which is exactly what this repository's scan reported.
+   * The 15 MB-era measurement, replayed as a fixture: 1,470 of this repository's
+   * then-3,266 `.git` files did not fit the history budget. They are not
+   * oversized and the row must not say they are — and it must not talk about
+   * churn on a scan where churn never ran, which is exactly what this
+   * repository's scan reported.
+   *
+   * The MB the row prints is not typed here: it is read off the same constant
+   * `ScanSummary` interpolates (`GIT_MAX_TOTAL_BYTES`, raised to 96 MB on
+   * 2026-11-01 because one ordinary pack file already beat 15 MB). A test that
+   * recites the limit would go stale on the next raise; a test that shares the
+   * constant cannot.
    */
   it("names the history budget as its own reason, and ties it to churn only when churn ran", () => {
     const drops: DroppedFiles = { ...DRIVE_DROPS, unsupportedFormat: 0, gitBudget: 1470 };
+    const budgetMb = Math.round(GIT_MAX_TOTAL_BYTES / 1024 / 1024);
+    expect(budgetMb, "the history budget must be a real MB number").toBeGreaterThan(0);
     useCity(city({ dropped: drops, scanProvenance: { churn: false } as never }));
     render(<ScanSummary />);
-    expect(seen()).toContain("1,470 .git files went past the 15 MB history budget");
+    expect(seen()).toContain(`1,470 .git files went past the ${budgetMb} MB history budget`);
     expect(seen()).not.toContain("churn rests");
     expect(seen()).not.toMatch(/too large or unreadable/);
     collapse();
@@ -325,5 +335,97 @@ describe("the sentence the first drive reads", () => {
     useCity(city({ dropped: drops, scanProvenance: { churn: true } as never }));
     render(<ScanSummary />);
     expect(seen()).toContain("churn rests on the history that arrived");
+  });
+
+  /**
+   * A tool folder is counted in folders, a tool folder's file in files — and
+   * the "not read" line counts neither as the other. The classifier had its own
+   * test (`fremde-repos-toolzahlen.test.ts`); the surface a person reads did
+   * not, which is how the strip could add "1" for one folder and claim one
+   * unread file. Both halves are now read off the rendered sentence.
+   */
+  const noDrops: DroppedFiles = {
+    pathTooLong: 0,
+    unsafePath: 0,
+    tooLarge: 0,
+    unreadable: 0,
+    excluded: 0,
+    gitIgnored: 0,
+    gitBudget: 0,
+    unsupportedFormat: 0,
+  };
+
+  it("names whole tool folders in folders and keeps them out of the unread files", () => {
+    useCity(city({ dropped: { ...noDrops, toolFolders: 3 } }));
+    render(<ScanSummary />);
+    expect(seen()).toContain("3 tool folders were left out whole");
+    expect(seen()).not.toContain("files were not read");
+    collapse();
+    const line = strip();
+    expect(numberBefore(line, "files were not read"), "one folder is not one file").toBeNull();
+    expect(line).toContain("8 files analyzed");
+  });
+
+  it("counts files inside tool folders as unread files", () => {
+    useCity(city({ dropped: { ...noDrops, toolFolderFiles: 12 } }));
+    render(<ScanSummary />);
+    expect(seen()).toContain("12 files inside tool folders were not read");
+    collapse();
+    expect(numberBefore(strip(), "files were not read")).toBe(12);
+    expect(strip()).toContain("12 files were not read");
+  });
+
+  it("says the same folder count in German, in folders", () => {
+    useCity(city({ dropped: { ...noDrops, toolFolders: 1 } }), "de");
+    render(<ScanSummary />);
+    expect(seen()).toContain("1 Werkzeug-Ordner blieb ganz ausgelassen");
+    collapse();
+    expect(numberBefore(strip(), "Dateien wurden nicht gelesen")).toBeNull();
+  });
+
+  /**
+   * A reader's own folder, as it was measured on 2026-11-01: 35,211 paths on
+   * disk, 34,927 of them inside `node_modules`, 7 set aside by the project's own
+   * `.gitignore`, 45 in a shape the scan does not read, 272 handed to the
+   * backend — of which it read 232. The city carries `toolFolderFiles` (that is
+   * the backend's half, pinned by
+   * `backend/tests/local-analyze.test.ts`); this is the card's half: the row is
+   * there, and the two numbers the person reads add up to the folder.
+   *
+   * Before the counters arrived, this same card said "52 files were not read"
+   * over 35,211 paths — the 34,927 left no trace at all, and the promise that
+   * every unread file is a number the user can see was false for 99,2 % of the
+   * folder.
+   */
+  it("accounts for a folder of 35,211 paths on the card a person reads", () => {
+    const PATHS_ON_DISK = 35_211;
+    const mimiforge: DroppedFiles = {
+      pathTooLong: 0,
+      unsafePath: 0,
+      tooLarge: 0,
+      unreadable: 0,
+      excluded: 0,
+      gitIgnored: 7,
+      gitBudget: 0,
+      unsupportedFormat: 45,
+      preview: 0,
+      toolFolderFiles: 34_927,
+      toolFolders: 0,
+    };
+    useCity(city({ totalFiles: 232, renderedFiles: 232, dropped: mimiforge }));
+    render(<ScanSummary />);
+    expect(seen()).toContain("232 files analyzed");
+    expect(seen(), "the row exists in the UI already and simply never fired").toContain(
+      "34,927 files inside tool folders were not read",
+    );
+    collapse();
+    const line = strip();
+    expect(numberBefore(line, "files analyzed")).toBe(232);
+    expect(numberBefore(line, "files were not read")).toBe(34_979);
+    expect(
+      (numberBefore(line, "files analyzed") ?? 0) +
+        (numberBefore(line, "files were not read") ?? 0),
+      "explained paths must be the paths on disk",
+    ).toBe(PATHS_ON_DISK);
   });
 });

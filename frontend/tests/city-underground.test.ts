@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   STRIP_BARS,
+  districtPlateLabel,
   districtUnderground,
   groupStrip,
   knownSubtreeFiles,
@@ -92,6 +93,22 @@ describe("districtUnderground — the number on the street sign", () => {
     expect(undergroundPlateLine("de", 865, 900)).toBe("⌄ 865/900 Dateien im Untergrund");
     expect(undergroundPlateLine("en", 865, 900)).toBe("⌄ 865/900 files underground");
     expect(undergroundPlateLine("de", 0, 42)).toBe("42 Dateien");
+  });
+
+  /**
+   * The bare `●4` beside the name is the only sign that a district carries
+   * findings, and it says nothing on its own. The spoken/hovered label names
+   * them — and a clean district must not grow a "0 findings" tail.
+   */
+  it("names the finding count the ● glyph only implies, and stays silent at zero", () => {
+    expect(districtPlateLabel("en", "backend", 21, 4)).toBe(
+      "backend — 21 files · 4 findings to review",
+    );
+    expect(districtPlateLabel("en", "api", 1, 1)).toBe("api — 1 file · 1 finding to review");
+    expect(districtPlateLabel("de", "backend", 21, 4)).toBe(
+      "backend — 21 Dateien · 4 Funde zur Prüfung",
+    );
+    expect(districtPlateLabel("en", "docs", 7, 0)).toBe("docs — 7 files");
   });
 });
 

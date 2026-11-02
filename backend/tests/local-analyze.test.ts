@@ -7,6 +7,7 @@ import {
   handleLocalAnalyze,
   footprintSnapshot,
 } from "../src/server/routes/local-analyze.js";
+import { handleResultCity } from "../src/server/routes/result.js";
 import {
   AnalysisOrchestrator,
   SUPPORTED_EXTENSIONS,
@@ -296,6 +297,105 @@ describe("handleLocalAnalyze", () => {
     }
     expect(given.map((g) => g.profile).sort()).toEqual(["deep", "quick"]);
     expect(new Set(given.map((g) => g.instance)).size).toBe(2);
+  });
+
+  /**
+   * The reader's tool-folder counts reach the city. Measured on a person's own
+   * project on 2026-11-01: 35,211 paths on disk, 34,927 of them inside
+   * `node_modules`, and the browser posted them in `dropped.toolFolderFiles` —
+   * the one key that knows those paths exist, because the server never walks
+   * `node_modules` and the reader never uploaded a byte of it. The city answered
+   * with nine keys without it, so the card printed "52 files were not read" over
+   * a folder of 35,211 and 34,927 paths left no trace.
+   *
+   * This is the round trip the promise needs: a count the reader names arrives
+   * in the stored result AND in `GET /api/result/:id/city`, which is the only
+   * surface the card reads. Asserted on both ends, because the record can be
+   * right in memory and still be dropped by the projection.
+   */
+  it("carries the reader's tool-folder counts into the stored result and into the city", async () => {
+    const real = new AnalysisOrchestrator(quietScanner({ regex: true }));
+    const store = new Map<string, AnalysisResult>();
+    const res = makeRes();
+    /** The intercepted body of that scan, key for key */
+    const clientDropped = {
+      pathTooLong: 0,
+      unsafePath: 0,
+      tooLarge: 0,
+      unreadable: 0,
+      excluded: 0,
+      gitIgnored: 7,
+      gitBudget: 0,
+      unsupportedFormat: 5,
+      preview: 0,
+      toolFolderFiles: 34_927,
+      toolFolders: 0,
+    };
+    await handleLocalAnalyze(
+      makeReq({
+        name: "mimiforge",
+        dropped: clientDropped,
+        files: [{ path: "src/app.ts", content: "export const app = 1;\n" }],
+      }),
+      res as never,
+      () => real,
+      store,
+    );
+    expect(res.statusCode).toBe(202);
+    const id = (res.body as { id: string }).id;
+    for (let i = 0; i < 100 && store.get(id)?.status === "analyzing"; i++) {
+      await new Promise((r) => setTimeout(r, 500));
+    }
+    const result = store.get(id);
+    expect(result?.status).toBe("complete");
+    expect(result?.summary.totalFiles).toBe(1);
+    expect(
+      result?.summary.dropped?.toolFolderFiles,
+      "34,927 unread paths are not a rounding error",
+    ).toBe(34_927);
+    expect(result?.summary.dropped?.gitIgnored).toBe(7);
+    expect(result?.summary.dropped?.unsupportedFormat).toBe(5);
+
+    // The same scan read the way the card reads it: the city route's payload.
+    const cityRes = makeRes();
+    handleResultCity({ params: { id }, body: {} } as never, cityRes as never, store);
+    const city = cityRes.body as {
+      totalFiles: number;
+      dropped?: Record<string, number | undefined>;
+    };
+    expect(city.dropped?.toolFolderFiles).toBe(34_927);
+    // The strip's own arithmetic (`ScanSummary`): every counted path that left,
+    // folders excluded because they count folders and not files. Before the fix
+    // this was 12; the folder on disk holds 34,940 paths either way.
+    const unread = Object.entries(city.dropped ?? {}).reduce(
+      (sum, [key, n]) => (key === "toolFolders" || !Number.isFinite(n) ? sum : sum + (n as number)),
+      0,
+    );
+    expect(unread).toBe(34_939);
+    expect(city.totalFiles + unread).toBe(34_940);
+  }, 90_000);
+
+  /**
+   * A count the reader cannot state is not a number the city may quote. The
+   * tool keys ride the same clamp as the other nine: garbage degrades to
+   * nothing rather than to an invented count.
+   */
+  it("refuses a tool-folder count it cannot read", async () => {
+    const { orchestrator } = stubOrchestrator();
+    const res = makeRes();
+    await handleLocalAnalyze(
+      makeReq({
+        name: "garbage",
+        dropped: { toolFolderFiles: "thirty four thousand", toolFolders: -3 },
+        files: [{ path: "src/app.ts", content: "export const app = 1;\n" }],
+      }),
+      res as never,
+      () => orchestrator,
+      new Map<string, AnalysisResult>(),
+    );
+    const dropped = (res.body as { dropped?: Record<string, number | undefined> }).dropped;
+    expect(dropped?.toolFolderFiles ?? 0).toBe(0);
+    expect(dropped?.toolFolders ?? 0).toBe(0);
   });
 });
 

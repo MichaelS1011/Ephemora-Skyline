@@ -211,8 +211,12 @@ app.use(
 );
 app.use(cors(corsOptionsFor()));
 // Large-body parser must run BEFORE the global one: the global 10mb parser
-// would otherwise reject big local-folder uploads with 413 first
-app.use("/api/analyze-local", express.json({ limit: "200mb" }));
+// would otherwise reject big local-folder uploads with 413 first. The ceiling
+// is source + git metadata, not source alone: 150 MB of source plus the
+// browser's 96 MB `.git` budget arrives base64-inflated to ~128 MB, so the old
+// 200mb ceiling rejected a folder that was inside every per-file and per-branch
+// limit.
+app.use("/api/analyze-local", express.json({ limit: "400mb" }));
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true }));
 app.use("/api", readLimiter);

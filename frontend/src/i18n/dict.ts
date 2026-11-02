@@ -523,6 +523,13 @@ export const DICT = {
     en: "— choose the scan profile and depth here",
     de: "— hier Profil und Scan-Tiefe wählen",
   },
+  // The collapsed row names a profile, not an obligation. This clause answers
+  // the question a first-time reader actually has — "do I have to change
+  // this?" — without opening the row or adding a third action.
+  "landing.scanSettingsDefault": {
+    en: "the default for a first scan",
+    de: "der Standard für den ersten Scan",
+  },
   "landing.scanDepth": {
     en: "Choose the depth of your scan.",
     de: "Wähle, wie tief gescannt wird.",
@@ -631,6 +638,10 @@ export const DICT = {
   "hud.filesUnit": {
     en: "files",
     de: "Dateien",
+  },
+  "hud.fileUnit": {
+    en: "file",
+    de: "Datei",
   },
   "hud.fpsUnit": {
     en: "fps",

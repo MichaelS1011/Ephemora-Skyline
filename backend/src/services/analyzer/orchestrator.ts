@@ -45,13 +45,19 @@ interface ProgressCallback {
 
 /**
  * The three git-history states, decided in one place (Auftrag #25, the
- * Git-Mauer finding). A folder whose `.git` arrived CUT OFF — one pack over
- * the upload's 8 MB per-file wall, its `.idx` still shipped — makes
- * `git log --numstat` die with `unable to read tree`; measured on this
- * repository, 2 of 254 commits come out before the fatal. That is a
- * different fact than "no history here" or "history too shallow", and the
- * city must be able to tell the three apart: only the middle one means the
- * scanner looked at everything and found nothing worth dating.
+ * Git-Mauer finding). A folder whose `.git` arrived CUT OFF — one pack the
+ * per-file wall left behind, its `.idx` still shipped — makes
+ * `git log --numstat` die with `unable to read tree`. The browser and the
+ * receiving route share the walls since 2026-11-01 — 96 MB together, 64 MB per
+ * file (`frontend/src/hooks/useLocalAnalysis/upload.ts`,
+ * `server/routes/local-analyze.ts`) — so this repository's 62 MB object store
+ * arrives whole. Before that the route stopped at 20 MB / 8 MB, dropped the
+ * pack while keeping its `.idx`, and only 4 of 318 commits came out before the
+ * fatal. A history past 96 MB still arrives cut off, and this state names it.
+ * That is a different fact than "no history here" or
+ * "history too shallow", and the city must be able to tell the three apart:
+ * only the middle one means the scanner looked at everything and found nothing
+ * worth dating.
  */
 export interface ChurnPhaseOutcome {
   churnRan: boolean;
@@ -168,29 +174,54 @@ export function isExcludedPath(relativePath: string, needles: string[]): boolean
   return needles.some((needle) => needle.length > 0 && relativePath.includes(needle));
 }
 
-/** The eight counters, all at zero. */
+/**
+ * The nine causes this pipeline can meet itself, as their own record so the
+ * counting loops below read one key list. The reader's two tool-folder counters
+ * are deliberately NOT here: nothing on this side can produce them
+ * (`walkDirectory` refuses an artifact segment before it lists a single file
+ * inside it), so a server-side record that carried a zero would state a cause it
+ * never looked for. They ride the record only when the browser named one — see
+ * `sanitizeDropped` and `sumDroppedFiles`.
+ */
+const CORE_DROPS: Record<keyof Omit<DroppedFiles, "toolFolderFiles" | "toolFolders">, number> = {
+  pathTooLong: 0,
+  unsafePath: 0,
+  tooLarge: 0,
+  unreadable: 0,
+  excluded: 0,
+  gitIgnored: 0,
+  gitBudget: 0,
+  unsupportedFormat: 0,
+  preview: 0,
+};
+
+/** The causes this side counts, all at zero. */
 export function emptyDroppedFiles(): DroppedFiles {
-  return {
-    pathTooLong: 0,
-    unsafePath: 0,
-    tooLarge: 0,
-    unreadable: 0,
-    excluded: 0,
-    gitIgnored: 0,
-    gitBudget: 0,
-    unsupportedFormat: 0,
-    preview: 0,
-  };
+  return { ...CORE_DROPS };
 }
+
+/** The two counters only the reader can state, carried by sum and by the clamp. */
+export const READER_ONLY_DROPS = ["toolFolderFiles", "toolFolders"] as const;
 
 /** Sum of two accounting records — the upload side and the read side. */
 export function sumDroppedFiles(...records: Array<DroppedFiles | undefined>): DroppedFiles {
   const total = emptyDroppedFiles();
   for (const record of records) {
     if (!record) continue;
-    for (const key of Object.keys(total) as Array<keyof DroppedFiles>) {
+    for (const key of Object.keys(CORE_DROPS) as Array<keyof typeof CORE_DROPS>) {
       const value = record[key];
       total[key] += Number.isFinite(value) && value > 0 ? Math.floor(value) : 0;
+    }
+    // The reader's halves of the folder have no server-side twin to add to, so
+    // the loop over the core record cannot reach them. Carried apart, and only
+    // when some record actually named one: 34,927 paths inside `node_modules`
+    // are owed to the card, and an all-zero upload must not grow a cause that
+    // nobody counted.
+    for (const key of READER_ONLY_DROPS) {
+      const value = record[key];
+      if (value !== undefined && Number.isFinite(value) && value > 0) {
+        total[key] = (total[key] ?? 0) + Math.floor(value);
+      }
     }
   }
   return total;

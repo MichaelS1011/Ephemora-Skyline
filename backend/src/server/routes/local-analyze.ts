@@ -5,6 +5,7 @@ import {
   emptyDroppedFiles,
   isExcludedPath,
   sumDroppedFiles,
+  READER_ONLY_DROPS,
   ScanCancelledError,
 } from "../../services/analyzer/orchestrator.js";
 import type { AnalysisResult, DroppedFiles, GitHubRepo } from "../../models/index.js";
@@ -41,9 +42,18 @@ export const MAX_PATH_LEN = 512;
  * The .git folder rides along so the scanner can read real git history
  * (churn, author districts). Binary payloads arrive base64-encoded and live
  * in their own budget — git metadata must never crowd out source files.
+ *
+ * These must match the browser's copy (`GIT_MAX_TOTAL_BYTES` in
+ * `frontend/src/hooks/useLocalAnalysis.ts`, `GIT_MAX_FILE_BYTES` in
+ * `frontend/src/hooks/useLocalAnalysis/upload.ts`). The old 20 MB / 8 MB walls
+ * were smaller than one pack file of an ordinary repository: the browser
+ * shipped the `.idx`, this route dropped the pack, and `git log` died with
+ * `unable to read tree` — measured on this repository 2026-11-01, 4 of 318
+ * commits. 96 MB / 64 MB clears the measured 50,264,193-byte pack and the
+ * whole 62 MB object store, so churn has real history to read.
  */
-const GIT_MAX_TOTAL_BYTES = 20 * 1024 * 1024;
-const GIT_MAX_FILE_BYTES = 8 * 1024 * 1024;
+const GIT_MAX_TOTAL_BYTES = 96 * 1024 * 1024;
+const GIT_MAX_FILE_BYTES = 64 * 1024 * 1024;
 const isGitPath = (rel: string): boolean => rel === ".git" || rel.startsWith(".git/");
 
 // ── Staged-directory registry ──────────────────────────────────────────────
@@ -313,6 +323,15 @@ export interface UploadedFile {
  * a file the browser never opened is invisible to the server: only the reader
  * knows how many paths it skipped. Garbage in the field degrades to zero rather
  * than to a number the UI would then quote.
+ *
+ * The clamp therefore has to know the reader's WHOLE record, not only the nine
+ * causes this process can meet itself. `toolFolderFiles` is the one number that
+ * knows about `node_modules` — measured on a reader's own project 2026-11-01:
+ * 34,927 of its 35,211 paths, in a folder the server never walks and the reader
+ * never uploaded a byte of. Copying only `emptyDroppedFiles()`'s keys discarded
+ * exactly the counts that made the folder add up, so the two reader-only
+ * counters pass through here on the same terms as the rest, and stay absent
+ * rather than becoming an invented zero.
  */
 export function sanitizeDropped(value: unknown): DroppedFiles {
   const out = emptyDroppedFiles();
@@ -321,6 +340,12 @@ export function sanitizeDropped(value: unknown): DroppedFiles {
   for (const key of Object.keys(out) as Array<keyof DroppedFiles>) {
     const n = raw[key];
     if (typeof n === "number" && Number.isFinite(n) && n >= 0) {
+      out[key] = Math.min(1_000_000, Math.floor(n));
+    }
+  }
+  for (const key of READER_ONLY_DROPS) {
+    const n = raw[key];
+    if (typeof n === "number" && Number.isFinite(n) && n > 0) {
       out[key] = Math.min(1_000_000, Math.floor(n));
     }
   }

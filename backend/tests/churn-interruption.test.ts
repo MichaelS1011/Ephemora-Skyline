@@ -2,9 +2,9 @@
  * churn-interruption — the git history that arrives CUT OFF is a state of its
  * own, not "no history" (Auftrag #25, the Git-Mauer finding).
  *
- * Measured on this repository: `.git` carries one 50,264,193-byte pack over the
- * upload's 8 MB per-file wall. The collector skips the pack but ships its
- * .idx/.rev — the staged repo is a split object store, and
+ * Reproduced synthetically: one pack removed from a packed repo while its
+ * .idx/.rev stay behind — the shape a history past the upload walls still
+ * leaves. The staged repo is a split object store, and
  * `git log --numstat` dies with `fatal: unable to read tree 4e0dde60…`
  * (exit 128) after emitting only the commits whose trees are still loose
  * (2 of 254 here). Until now that outcome collapsed into `churn: false` and a
@@ -73,8 +73,8 @@ describe("the split object store — measured failure, not a stubbed one", () =>
         new Date(base + i * 60_000).toISOString(),
       );
     }
-    // Pack everything, then remove ONLY the .pack — the exact shape the upload
-    // leaves behind when a pack is skipped by the 8 MB per-file wall while its
+    // Pack everything, then remove ONLY the .pack — the shape the upload
+    // leaves behind when a pack is past the per-file wall while its
     // .idx/.rev (both small) arrive.
     execFileSync("git", ["-C", dir, "gc", "-q", "--prune=now"], { stdio: "pipe" });
     const packDir = path.join(dir, ".git", "objects", "pack");

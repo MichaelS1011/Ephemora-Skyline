@@ -274,6 +274,17 @@ describe("the surface a stranger reads", () => {
         expect(read("frontend/src/prefs.ts")).toMatch(
           /updateCheck:\s*parsed\.updateCheck !== false/,
         );
+        // The entry document's own sentence must not disagree with that
+        // default: measured 2026-11-01, README.md:72 said the hourly check
+        // "stays off until you turn it on" while prefs.ts started it true and
+        // the landing page already asked — the same claim, two answers.
+        const readme = read("README.md");
+        expect(readme, "the README says the release check starts off").not.toMatch(
+          /stays off until you turn it on/i,
+        );
+        expect(readme, "the README stops naming the release check's default").toMatch(
+          /on from the first run/i,
+        );
       },
       gates: () => {
         const words = badgeByLabel("gates")

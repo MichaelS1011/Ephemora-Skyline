@@ -199,11 +199,15 @@ export interface DirectorySummary {
 }
 
 /**
- * The nine ways a file that exists in the picked folder can end up unread.
- * Every field is a count of real paths, and every one of them is produced where
- * the path actually left: `pathTooLong`/`unsafePath`/`tooLarge`/`excluded` at the
- * upload boundary, `unreadable`/`tooLarge` while the pipeline reads, and
+ * The ways a file that exists in the picked folder can end up unread. The nine
+ * core fields are causes BOTH sides can meet, and every one of them is produced
+ * where the path actually left: `pathTooLong`/`unsafePath`/`tooLarge`/`excluded`
+ * at the upload boundary, `unreadable`/`tooLarge` while the pipeline reads, and
  * `unsupportedFormat` where the scan decides which extensions it reads at all.
+ * The two tool-folder counters at the bottom have no server-side producer — the
+ * walk never descends into `node_modules`, so only the reader can state them,
+ * and they are optional because a result scanned before that counter existed
+ * simply does not carry them.
  */
 export interface DroppedFiles {
   /** Path longer than the upload's character bound */
@@ -228,7 +232,16 @@ export interface DroppedFiles {
    * of the history that arrived.
    */
   gitBudget: number;
-  /** Shape the scan does not read: pictures, text without a known extension */
+  /**
+   * Shape the scan does not read. Two producers, one number, and the sets they
+   * count cannot overlap: the reader counts a path whose shape it declined
+   * before staging it (`isSourceShaped`, frontend/src/hooks/useLocalAnalysis.ts),
+   * so the server never sees that path again; the server counts a path that
+   * DID arrive and then failed `isScanCandidate` — docs, fixtures, lockfiles,
+   * a Dockerfile: staged for the test runner, not for a scanner. A path
+   * therefore enters at most one of the two, and `sumDroppedFiles` prints the
+   * total, which is the only reading under which the folder still adds up.
+   */
   unsupportedFormat: number;
   /**
    * Source files a large folder offered but the preview sample left out. Not a
@@ -236,6 +249,25 @@ export interface DroppedFiles {
    * its 2,000 files off as the whole folder.
    */
   preview: number;
+  /**
+   * Files the reader LISTED inside a tool folder (`node_modules`, `.venv`,
+   * `dist`, …) before letting them go — one per path, because the flat-file
+   * picker hands over the whole tree and every file in it is a path the scan
+   * did not open. Measured on one reader's own project on 2026-11-01: 34,927 of
+   * 35,211 paths sat in that one key. Nothing on the server can produce it — the
+   * walk refuses an artifact segment before listing it — so a city that loses
+   * the key loses those paths from the product's one promise.
+   */
+  toolFolderFiles?: number;
+  /**
+   * Tool folders the directory walk cut off WHOLE, counted at the folder and
+   * named by its path, exactly the way `gitIgnored` counts the first ignored
+   * ancestor. Their files were never listed, so no file-level counter could
+   * know them; one folder is one number. Only one of the two tool counters is
+   * ever non-zero, because only one picker can see which side of the prune a
+   * path was on.
+   */
+  toolFolders?: number;
 }
 
 export interface ProjectSummary {

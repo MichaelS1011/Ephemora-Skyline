@@ -228,4 +228,40 @@ describe("the reader's count and the scanner's count are summed, not chosen", ()
     const junk = { ...emptyDroppedFiles(), unreadable: Number.NaN } as unknown as DroppedFiles;
     expect(unreadOf(sumDroppedFiles(junk, emptyDroppedFiles()))).toBe(0);
   });
+
+  /**
+   * The reader record intercepted on a person's own project on 2026-11-01,
+   * merged with what the server counted over the paths that did arrive. The
+   * folder only adds up when the tool counters cross the boundary: 35,211 paths
+   * on disk, 34,927 of them inside `node_modules` (which the server never walks
+   * and the reader never uploaded), 7 set aside by the project's own .gitignore,
+   * 5 in a shape the reader declined, 272 handed over — 232 read, 40 declined by
+   * the scan's own shape rule. `unsupportedFormat` is one word over two disjoint
+   * halves, and the sum is the only reading under which the folder closes.
+   */
+  it("does not lose the 34,927 paths that never left the reader", () => {
+    const reader: DroppedFiles = {
+      ...emptyDroppedFiles(),
+      gitIgnored: 7,
+      unsupportedFormat: 5,
+      toolFolderFiles: 34_927,
+      toolFolders: 0,
+    };
+    const server: DroppedFiles = { ...emptyDroppedFiles(), unsupportedFormat: 40 };
+    const merged = sumDroppedFiles(reader, server);
+    expect(merged.toolFolderFiles).toBe(34_927);
+    expect(merged.toolFolders, "a folder count of zero named no cause").toBeUndefined();
+    expect(merged.unsupportedFormat).toBe(45);
+    // the strip's own rule: folders count folders, not files
+    const unread = Object.entries(merged).reduce(
+      (sum, [key, n]) => (key === "toolFolders" || !Number.isFinite(n) ? sum : sum + (n as number)),
+      0,
+    );
+    expect(unread).toBe(34_979);
+    expect(232 + unread, "analysed paths + counted departures = the folder").toBe(35_211);
+    // and a scan that met no tool folder keeps the nine causes it can state
+    expect(sumDroppedFiles(emptyDroppedFiles(), emptyDroppedFiles())).not.toHaveProperty(
+      "toolFolderFiles",
+    );
+  });
 });

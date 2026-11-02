@@ -136,11 +136,14 @@ const BRIDGE: Record<string, { en: string; de: string }> = {
   },
   /**
    * Named apart from "too large": these files are ordinary loose git objects,
-   * and what stopped them is the tool's own 15 MB history budget — measured on
-   * this repository, 1,470 of its 3,266 .git files. The churn tail is only added
-   * when churn actually ran: on that same scan `scanProvenance.churn` was false,
-   * so the plain row was the whole truth and a clause about churn would have
-   * described a score nobody computed.
+   * and what stopped them is the tool's own history budget — 96 MB since
+   * 2026-11-01, and the row interpolates `GIT_MAX_TOTAL_BYTES` rather than
+   * reciting a number, so the sentence and the budget cannot drift apart. The
+   * "1,470 of 3,266 .git files" this row was written against is this
+   * repository's measurement under the old 15 MB budget. The churn tail is only
+   * added when churn actually ran: on that same scan `scanProvenance.churn` was
+   * false, so the plain row was the whole truth and a clause about churn would
+   * have described a score nobody computed.
    */
   "drop.gitBudget": {
     en: "{n} .git files went past the {mb} MB history budget",
@@ -155,14 +158,19 @@ const BRIDGE: Record<string, { en: string; de: string }> = {
     de: " — Churn beruht auf dem Teil der Geschichte, der angekommen ist",
   },
   /**
-   * The Git-Mauer state (Auftrag #25): `.git` arrived, but a pack over the
-   * upload's 8 MB per-file wall left the object store split — the measured
-   * `git log --numstat` on this repository's own staged copy dies after 2 of
-   * 254 commits with `unable to read tree 4e0dde60`. The drop list must say
-   * THAT, not "no .git folder": the folder's history exists, the upload cut
-   * it off. Hand-off row for the text lane — dict.ts is claimed elsewhere
-   * today, so the sentence rides the bridge until `drop.*` moves with the
-   * gitBudget keys.
+   * The Git-Mauer state (Auftrag #25): `.git` arrived, but a pack the per-file
+   * wall left behind — its `.idx` still shipped — splits the object store, and
+   * the churn pass dies on the missing tree. The browser and the receiving
+   * route share the walls since 2026-11-01 (96 MB together, 64 MB per file,
+   * `frontend/src/hooks/useLocalAnalysis/upload.ts` and
+   * `backend/src/server/routes/local-analyze.ts`), so this repository's 62 MB
+   * store now arrives whole and the sentence is only for a history past those
+   * walls. Before that, the route's 8 MB dropped the 47.9 MiB pack and
+   * `git log --numstat` died after 4 of 318 commits with
+   * `unable to read tree 5a48d5a4`. The drop list must say THAT, not "no .git
+   * folder": the folder's history exists, the upload cut it off. Hand-off row
+   * for the text lane — dict.ts is claimed elsewhere today, so the sentence
+   * rides the bridge until `drop.*` moves with the gitBudget keys.
    */
   "drop.churnInterrupted": {
     en: "the git history arrived cut off — reading it stopped on missing objects, so this city carries no dates although the folder has history",

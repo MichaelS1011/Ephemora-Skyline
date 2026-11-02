@@ -263,6 +263,34 @@ describe("drop accounting", () => {
     expect(sanitizeDropped(undefined).unreadable).toBe(0);
   });
 
+  /**
+   * The reader's two tool-folder counters ride the same clamp, and they are the
+   * counts the clamp was never allowed to lose: measured on a reader's own
+   * project 2026-11-01, 34,927 of its 35,211 paths sat in `dropped.toolFolderFiles`
+   * and the copy of `emptyDroppedFiles()`'s keys deleted them. A cause nobody
+   * named stays absent rather than becoming a stated zero — the record keeps the
+   * nine keys the README enumerates and grows the two only when the browser
+   * actually counted a tool folder.
+   */
+  it("keeps the reader's tool-folder counts and refuses an unread one", () => {
+    const stated = sanitizeDropped({ toolFolderFiles: 34_927.7, toolFolders: 2 });
+    expect(stated.toolFolderFiles).toBe(34_927);
+    expect(stated.toolFolders).toBe(2);
+    expect(sanitizeDropped({ toolFolderFiles: Number.MAX_VALUE }).toolFolderFiles).toBe(1_000_000);
+    for (const junk of [
+      { toolFolderFiles: "thirty four thousand" },
+      { toolFolderFiles: -1 },
+      { toolFolderFiles: Number.NaN },
+      { toolFolders: 0 },
+    ]) {
+      expect(sanitizeDropped(junk), `${JSON.stringify(junk)} is not a count`).not.toHaveProperty(
+        "toolFolderFiles",
+      );
+      expect(sanitizeDropped(junk)).not.toHaveProperty("toolFolders");
+    }
+    expect(Object.keys(sanitizeDropped({ toolFolderFiles: 34_927 })).length).toBe(10);
+  });
+
   it("names the found count and the limit when the folder is over the cap", async () => {
     const { orchestrator } = stubOrchestrator();
     const res = makeRes();

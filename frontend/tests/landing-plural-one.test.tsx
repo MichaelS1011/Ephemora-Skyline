@@ -198,3 +198,22 @@ describe("one verdict bucket reads as one", () => {
     expect(footNote(PURGE_NOTE)).toBe("1 Kopie gelöscht, 2 KB frei geworden");
   });
 });
+
+/**
+ * The collapsed settings row named a profile and nothing else. A first-time
+ * reader had to open it to learn whether "Standard" was a decision they had to
+ * make. One clause now answers that before the click, in both languages — and
+ * it is the only place that does, so it must not go missing.
+ */
+describe("the settings row says the default needs no decision", () => {
+  for (const lang of ["en", "de"] as const) {
+    it(`names the default in ${lang} before the row is opened`, async () => {
+      stubRoutes({ status: 200, body: { project: "p-1", reviews: {} } });
+      await mountLanding(lang);
+      const note = host.querySelector(".scan-settings-default");
+      expect(note, "the default clause is on the entry screen").not.toBeNull();
+      expect(note?.textContent?.trim()).toBe(t(lang, "landing.scanSettingsDefault"));
+      expect(t(lang, "landing.scanSettingsDefault")).not.toBe("");
+    });
+  }
+});

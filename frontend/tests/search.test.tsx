@@ -146,12 +146,17 @@ describe("SearchBar keyboard and screen-reader navigation", () => {
     press(input, "Escape");
     window.removeEventListener("keydown", globalKey);
     expect(globalKey).not.toHaveBeenCalled();
-    expect(input.value).toBe(".ts");
+    // The query leaves with the list (finding 3, 2026-11-01): this line used to
+    // assert `".ts"`, which was the residue that made the next `/` type into it.
+    expect(input.value).toBe("");
     expect(input.getAttribute("aria-expanded")).toBe("false");
     expect(document.activeElement).toBe(input);
     press(input, "Enter");
     expect(useStore.getState().selectedUnit).toBeNull();
-    press(input, "ArrowUp");
+    // With the query gone there is nothing to walk, so the walk is a new search:
+    // refine, arrow, Enter — the reopening the row title promises.
+    typeQuery(input, ".ts");
+    press(input, "ArrowDown");
     press(input, "Enter");
     expect(useStore.getState().selectedUnit).toEqual({ kind: "file", id: "file:src/beta.ts" });
   });

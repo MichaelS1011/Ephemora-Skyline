@@ -2,8 +2,8 @@
 /**
  * The Git-Mauer as a state on the surfaces (Auftrag #25).
  *
- * When `.git` arrives CUT OFF (a pack over the 8 MB upload wall, the log dies
- * on `unable to read tree`), the city must not claim "No .git folder in this
+ * When `.git` arrives CUT OFF (a pack the upload's per-file wall left behind,
+ * the log dies on `unable to read tree`), the city must not claim "No .git folder in this
  * upload" — the folder's .git DID arrive. The ScanSummary drop list names the
  * interruption, and the heat toggle's disabled CHURN/TIME tips name it too.
  * Nothing here changes the old sentences: with an absent .git the surfaces say
@@ -27,7 +27,7 @@ import { city, file } from "./helpers/cityFixture";
 const DROP_ALL: DroppedFiles = {
   pathTooLong: 0,
   unsafePath: 0,
-  tooLarge: 1, // the skipped 48 MB pack is honestly "too large"
+  tooLarge: 1, // a pack the upload left behind is honestly "too large"
   unreadable: 0,
   excluded: 0,
   gitIgnored: 0,

@@ -768,10 +768,21 @@
 .landing-shell.start-v2 .scan-settings summary > span:first-child {
   display: flex;
   align-items: baseline;
+  flex-wrap: wrap;
   gap: 10px;
+  row-gap: 4px;
   font: 500 11px/1 var(--font-mono);
   letter-spacing: 0.14em;
   text-transform: uppercase;
+  color: var(--meta-faint);
+}
+/* The collapsed row answers "do I have to change this?" before it is opened:
+   one quiet clause under the profile name, never a second control. */
+.landing-shell.start-v2 .scan-settings-default {
+  flex-basis: 100%;
+  font: 400 11px/1.35 var(--font-ui);
+  letter-spacing: 0;
+  text-transform: none;
   color: var(--meta-faint);
 }
 .landing-shell.start-v2 .scan-settings strong {

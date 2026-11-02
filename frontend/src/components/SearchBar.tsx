@@ -77,14 +77,32 @@ export function SearchBar() {
   const activeHit = open ? flatHits[activeIdx] : undefined;
   const activeOptionId = activeHit?.optionId;
 
-  /* Close on outside click */
+  /**
+   * The one closing path. The list goes away AND the query with it, so no door
+   * can leave a question behind for the next `/` or Cmd/Ctrl+K to type into —
+   * measured in 0.4.3, where `README` → Escape → `/` → `src` read "README/src".
+   *
+   * `keepFocus` is the only difference between the doors: Escape and a chosen
+   * result leave the keyboard in the field (throwing it out of the tab order
+   * would make the next Tab restart at the top of the page), while a click
+   * elsewhere or a focus move has already taken the keyboard away by itself.
+   */
+  const closeAndReset = useCallback((keepFocus = true): void => {
+    setOpen(false);
+    setValue("");
+    if (keepFocus) inputRef.current?.focus();
+  }, []);
+
+  /* Close on outside click — the same close, so the same empty field after it */
   useEffect(() => {
     const onDocClick = (e: MouseEvent): void => {
-      if (wrapperRef.current && !wrapperRef.current.contains(e.target as Node)) setOpen(false);
+      if (wrapperRef.current && !wrapperRef.current.contains(e.target as Node)) {
+        closeAndReset(false);
+      }
     };
     document.addEventListener("pointerdown", onDocClick);
     return () => document.removeEventListener("pointerdown", onDocClick);
-  }, []);
+  }, [closeAndReset]);
 
   /* Reset active index on new results */
   useEffect(() => {
@@ -96,12 +114,6 @@ export function SearchBar() {
       document.getElementById(activeOptionId)?.scrollIntoView?.({ block: "nearest" });
     }
   }, [activeOptionId]);
-
-  const closeAndReset = useCallback((): void => {
-    inputRef.current?.focus();
-    setOpen(false);
-    setValue("");
-  }, []);
 
   const handleSelect = useCallback(
     (fileId: string): void => {
@@ -144,7 +156,23 @@ export function SearchBar() {
     } else if (e.key === "Escape") {
       e.preventDefault();
       e.stopPropagation();
-      setOpen(false);
+      // The single closing path — not a second one that only hides the list and
+      // leaves the query behind for `/` to append to.
+      closeAndReset();
+    } else if (e.key === "/" && !open) {
+      // `/` is the documented search shortcut. With the list closed the field
+      // holds the keyboard but shows no results, so the key means "search" and
+      // answers by reopening the list — it is cancelled, never typed. While the
+      // list is OPEN the same key is an ordinary character, because a path
+      // separator is how a query like `frontend/src` gets typed.
+      //
+      // Chosen over blurring the field: `closeAndReset` gives the field back on
+      // Escape, and throwing the focus to `body` would restart the Tab order at
+      // the top of the page for a keyboard reader (WAI-ARIA's discard pattern
+      // keeps focus in the combobox).
+      e.preventDefault();
+      e.stopPropagation();
+      setOpen(true);
     }
   };
 
@@ -185,7 +213,7 @@ export function SearchBar() {
       ref={wrapperRef}
       className="search-control relative w-80 max-w-full"
       onBlur={(e) => {
-        if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setOpen(false);
+        if (!e.currentTarget.contains(e.relatedTarget as Node | null)) closeAndReset(false);
       }}
     >
       {/* Input */}

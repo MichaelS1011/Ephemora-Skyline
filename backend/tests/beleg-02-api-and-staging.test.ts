@@ -170,19 +170,26 @@ describe("what the staging route really keeps (docs/PRIVACY.md:5)", () => {
     );
   });
 
-  it("gives the git history its own 20 MB budget", () => {
-    // docs/PRIVACY.md:5 "The folder picker sends .git too — up to 20 MB of it, in its own budget"
+  it("gives the git history its own 96 MB budget", () => {
+    // docs/PRIVACY.md "The folder picker sends .git too — up to 96 MB of it, in its own budget"
+    // Measured on this repository 2026-11-01: 62 MB of .git, one 50 MB pack.
+    // A smaller ceiling cut the pack while shipping its .idx, and `git log`
+    // then died with `unable to read tree` — the churn axis stayed empty.
     const route = read("backend/src/server/routes/local-analyze.ts");
-    expect(route).toMatch(/const GIT_MAX_TOTAL_BYTES = 20 \* 1024 \* 1024;/);
+    expect(route).toMatch(/const GIT_MAX_TOTAL_BYTES = 96 \* 1024 \* 1024;/);
+    expect(route).toMatch(/const GIT_MAX_FILE_BYTES = 64 \* 1024 \* 1024;/);
   });
 
   it("parses a body larger than the analysis cap, as the hosted-deploy note claims", () => {
     // docs/GETTING_STARTED.md "an unauthenticated endpoint that accepts
-    // POST /api/analyze-local (up to 200 MB of someone's source)"
+    // POST /api/analyze-local (up to 150 MB of someone's source, 400 MB per
+    // request)". The parser must also carry the browser's 96 MB `.git` budget
+    // base64-encoded (~128 MB) in the same request, so the body ceiling is
+    // larger than the source cap.
     const limit =
       /app\.use\("\/api\/analyze-local", express\.json\(\{ limit: "(\d+)mb" \}\)\)/.exec(
         serverSource,
       )?.[1];
-    expect(Number(limit)).toBe(200);
+    expect(Number(limit)).toBe(400);
   });
 });

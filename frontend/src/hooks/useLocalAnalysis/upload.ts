@@ -14,8 +14,13 @@ import { notePendingRun } from "../../pendingRun";
  * `deps`; nothing here holds state of its own.
  */
 
-/** The per-file wall of the history branch — a 9 MB pack file is too large. */
-const GIT_MAX_FILE_BYTES = 8 * 1024 * 1024;
+/**
+ * The per-file wall of the history branch. It used to be 8 MB, which read as
+ * "a 9 MB pack file is too large" — but a pack file is the whole object store,
+ * not one oversized artifact, so the wall cut real histories at the door. 64 MB
+ * clears this repository's 50 MB pack and still bounds one file's memory.
+ */
+const GIT_MAX_FILE_BYTES = 64 * 1024 * 1024;
 
 /** Files between two counter updates while reading */
 export const COUNTER_EVERY = 25;
@@ -96,11 +101,12 @@ export async function readAndUpload(
     if (deps.cancelledRef.current || deps.runRef.current !== run) return null;
     if (git) {
       /**
-       * Two different reasons, two different numbers. A 9 MB pack file is
-       * genuinely too large; the 1,470th loose object is not — the history
-       * budget of 15 MB merely filled up. Reporting the second case as
-       * "too large or unreadable" tells the user their repository is
-       * unusual when it is the tool that stopped reading.
+       * Two different reasons, two different numbers. A pack over the 64 MB
+       * per-file wall is genuinely too large; the loose object that lost out
+       * once the 96 MB history budget had filled is not — the budget merely
+       * ran out. Reporting the second case as "too large or unreadable" tells
+       * the user their repository is unusual when it is the tool that stopped
+       * reading.
        */
       if (file.size > GIT_MAX_FILE_BYTES) {
         accounting = deps.addDropped(accounting, "tooLarge");
