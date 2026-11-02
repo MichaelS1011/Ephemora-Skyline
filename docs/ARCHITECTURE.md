@@ -141,7 +141,7 @@ frontend/src/
 | **React Three Fiber**    | Declarative Three.js — better for React integration          |
 | **React Three Drei**     | Helper components (OrbitControls, Text, etc.)                |
 | **Zustand**              | Minimal state manager — no Redux-style boilerplate           |
-| **TailwindCSS**          | Utility-first CSS — fast styling without CSS files           |
+| **TailwindCSS 4**        | Utility-first CSS — CSS-first theme, no JS config file       |
 | **Vite**                 | Blazing-fast HMR — better than Create React App              |
 | **react-three-fiber v9** | Building-entry kinematics via useFrame, CSS keyframes for UI |
 
@@ -193,7 +193,7 @@ removed `render.yaml` / `vercel.json` and what replaces them is written out in
 - **@react-three/postprocessing 3** — bloom
 - **Zustand 5** — state management
 - **Vite 8** — build tool (Rolldown)
-- **TailwindCSS** — CSS framework
+- **TailwindCSS 4** — CSS framework
 
 ### Backend
 

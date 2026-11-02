@@ -27,7 +27,7 @@ import "../design/griff.css";
 function Keycap({ label }: { label: string }): React.ReactElement {
   return (
     <kbd
-      className="font-jetbrains text-[length:var(--fs-meta)] px-2 py-1 rounded"
+      className="font-jetbrains text-[length:var(--fs-meta)] px-2 py-1 rounded-sm"
       style={{
         background: "rgba(232,178,60,0.08)",
         border: "1px solid rgba(232,178,60,0.22)",

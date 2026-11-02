@@ -28,7 +28,7 @@ function ProgressBar({ progress, stage }: { progress: number; stage: string }) {
           {progress}%
         </span>
       </div>
-      <div className="w-full h-[3px] bg-[#1c1c1a] border border-[#1a2a3a] rounded-sm overflow-hidden">
+      <div className="w-full h-[3px] bg-[#1c1c1a] border border-[#1a2a3a] rounded-xs overflow-hidden">
         <div
           className="h-full bg-[#e8503c] transition-all duration-300 ease-out relative"
           style={{ width: `${progress}%` }}
@@ -174,7 +174,7 @@ export function AnalyzePanel({ className = "" }: { className?: string }) {
             disabled={isAnalyzing}
             aria-busy={isAnalyzing}
             aria-label={isAnalyzing ? t(lang, "analyze.pickAriaBusy") : t(lang, "analyze.pickAria")}
-            className="w-full mt-2 py-2 font-mono text-xs tracking-widest rounded-sm border transition-all duration-150
+            className="w-full mt-2 py-2 font-mono text-xs tracking-widest rounded-xs border transition-all duration-150
                        disabled:cursor-not-allowed"
             style={{
               background: isAnalyzing ? "rgba(232,80,60,0.05)" : "rgba(232,80,60,0.1)",
@@ -224,7 +224,7 @@ export function AnalyzePanel({ className = "" }: { className?: string }) {
                   type="button"
                   onClick={openAlternativePicker}
                   aria-describedby="analyze-picker-status"
-                  className="w-full mt-2 py-1 rounded-sm font-mono text-[length:var(--fs-meta)] tracking-widest border border-[var(--glass-chrome-border)]
+                  className="w-full mt-2 py-1 rounded-xs font-mono text-[length:var(--fs-meta)] tracking-widest border border-[var(--glass-chrome-border)]
                              text-[color:var(--meta-strong)] bg-transparent hover:text-[color:var(--brand-ink)] hover:border-[var(--brand-ink)] transition-all duration-150"
                 >
                   {t(lang, "picker.alternative")}
@@ -247,7 +247,7 @@ export function AnalyzePanel({ className = "" }: { className?: string }) {
               id="analyze-error"
               role="alert"
               aria-live="assertive"
-              className="mt-3 px-2 py-1.5 border border-[#ff0044] rounded font-mono text-[length:var(--fs-meta)] text-[#ff6688]"
+              className="mt-3 px-2 py-1.5 border border-[#ff0044] rounded-sm font-mono text-[length:var(--fs-meta)] text-[#ff6688]"
               style={{ background: "rgba(255,0,68,0.08)" }}
             >
               ⚠ {errorMessage}
@@ -260,7 +260,7 @@ export function AnalyzePanel({ className = "" }: { className?: string }) {
             <div
               role="status"
               aria-live="polite"
-              className="mt-3 px-2 py-1.5 border border-[#e8503c] rounded font-mono text-[length:var(--fs-meta)] text-[color:var(--brand-red)]"
+              className="mt-3 px-2 py-1.5 border border-[#e8503c] rounded-sm font-mono text-[length:var(--fs-meta)] text-[color:var(--brand-red)]"
               style={{ background: "rgba(232,80,60,0.08)" }}
             >
               {t(lang, "analyze.success")}
@@ -269,7 +269,7 @@ export function AnalyzePanel({ className = "" }: { className?: string }) {
           {isAnalyzing && (
             <button
               onClick={cancel}
-              className="w-full mt-2 py-1 rounded-sm font-mono text-[length:var(--fs-meta)] tracking-widest border border-[#ff0044]
+              className="w-full mt-2 py-1 rounded-xs font-mono text-[length:var(--fs-meta)] tracking-widest border border-[#ff0044]
                          text-[#ff0044] bg-transparent hover:bg-[rgba(255,0,68,0.08)]
                          transition-all duration-150"
               aria-label={t(lang, "landing.cancel")}

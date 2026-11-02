@@ -6,9 +6,8 @@ import { spawnSync } from "node:child_process";
 
 const GATE = path.resolve(import.meta.dirname, "../../scripts/audit-gate.mjs");
 
-/** The two date literals the shipped ALLOWED entry carries in the gate source. */
-const SHIPPED_ADDED = 'added: "2026-10-04"';
-const SHIPPED_RECHECK = 'recheck: "2026-12-01"';
+/** The marker in the shipped gate that a test copy replaces with a fixture. */
+const EMPTY_ALLOWED = "const ALLOWED = new Map();";
 
 /**
  * The subject is the shipped `scripts/audit-gate.mjs` gate itself: each case
@@ -16,7 +15,7 @@ const SHIPPED_RECHECK = 'recheck: "2026-12-01"';
  * the real npm-audit network call is never made. The forked process is the
  * thing under test, not a scanner engine — this stays real on purpose.
  *
- * `gateSource` replaces the gate file for one case; see `gateWithDates`.
+ * `gateSource` replaces the gate file for one case; see `gateWithEntry`.
  */
 function runAudit(report: unknown, status: number, gateSource?: string) {
   const dir = mkdtempSync(path.join(tmpdir(), "skyline-audit-test-"));
@@ -47,23 +46,19 @@ function runAudit(report: unknown, status: number, gateSource?: string) {
 }
 
 /**
- * A recheck case cannot use the shipped dates: they are fixed in the gate and
- * would silently change meaning as time passes. So each case spawns a copy with
- * those two literals swapped. The assertions here are the proof that the
- * substitution really happened — a no-op swap would make the case green for the
- * wrong reason. The child output is asserted against the swapped dates too.
+ * A recheck case cannot use the shipped dates: the shipped list carries no
+ * entry today. So each case spawns a copy with one fixture advisory and its own
+ * dates. The assertions here are the proof that the substitution really
+ * happened — a no-op swap would make the case green for the wrong reason.
  */
-function gateWithDates(added: string, recheck: string) {
+function gateWithEntry(added: string, recheck: string) {
   const src = readFileSync(GATE, "utf8");
-  expect(src.split(SHIPPED_ADDED).length - 1).toBe(1);
-  expect(src.split(SHIPPED_RECHECK).length - 1).toBe(1);
-  const patched = src
-    .replace(SHIPPED_ADDED, `added: ${JSON.stringify(added)}`)
-    .replace(SHIPPED_RECHECK, `recheck: ${JSON.stringify(recheck)}`);
+  expect(src.split(EMPTY_ALLOWED).length - 1).toBe(1);
+  const entry = `const ALLOWED = new Map([["GHSA-vfj7-8cjw-p6xm", { title: "braces", why: "test fixture", added: ${JSON.stringify(added)}, recheck: ${JSON.stringify(recheck)}, ref: "https://github.com/advisories/GHSA-vfj7-8cjw-p6xm" }]]);`;
+  const patched = src.replace(EMPTY_ALLOWED, entry);
   expect(patched).not.toBe(src);
   expect(patched).toContain(`added: ${JSON.stringify(added)}`);
   expect(patched).toContain(`recheck: ${JSON.stringify(recheck)}`);
-  expect(patched).not.toContain(SHIPPED_RECHECK);
   return patched;
 }
 
@@ -135,11 +130,14 @@ describe("dependency audit release gate", () => {
       "retrying the audit",
     );
   });
-  it("accepts a complete clean report", () => {
-    expect(
-      runAudit({ vulnerabilities: {}, metadata: { vulnerabilities: { high: 0, critical: 0 } } }, 0)
-        .status,
-    ).toBe(0);
+  it("accepts a complete clean report, and ships no waiver to explain", () => {
+    const result = runAudit(
+      { vulnerabilities: {}, metadata: { vulnerabilities: { high: 0, critical: 0 } } },
+      0,
+    );
+    expect(result.status).toBe(0);
+    expect(result.stdout).toContain("PASS");
+    expect(result.stderr).not.toContain("listed in ALLOWED");
   });
   it("still rejects an unaccepted high advisory from npm's nonzero result", () => {
     const result = runAudit(
@@ -166,7 +164,7 @@ describe("dependency audit release gate", () => {
 
   it("fails when an accepted advisory's recheck date is past due", () => {
     const todayUtc = new Date().toISOString().slice(0, 10);
-    const result = runAudit(bracesOnlyReport(), 1, gateWithDates("2026-10-04", "2000-01-01"));
+    const result = runAudit(bracesOnlyReport(), 1, gateWithEntry("2026-10-04", "2000-01-01"));
     expect(result.status).toBe(1);
     expect(result.stderr).toContain("GHSA-vfj7-8cjw-p6xm");
     expect(result.stderr).toContain("2000-01-01");
@@ -176,7 +174,7 @@ describe("dependency audit release gate", () => {
   });
 
   it("fails when a recheck date is not a real UTC calendar date", () => {
-    const result = runAudit(bracesOnlyReport(), 1, gateWithDates("2026-10-04", "2026-13-45"));
+    const result = runAudit(bracesOnlyReport(), 1, gateWithEntry("2026-10-04", "2026-13-45"));
     expect(result.status).toBe(1);
     expect(result.stderr).toContain("GHSA-vfj7-8cjw-p6xm");
     expect(result.stderr).toContain("2026-13-45");
@@ -184,7 +182,7 @@ describe("dependency audit release gate", () => {
   });
 
   it("accepts a future recheck inside the 180-day cap, with the substituted dates", () => {
-    const result = runAudit(bracesOnlyReport(), 1, gateWithDates("2098-01-01", "2098-04-01"));
+    const result = runAudit(bracesOnlyReport(), 1, gateWithEntry("2098-01-01", "2098-04-01"));
     expect(result.status).toBe(0);
     expect(result.stdout).toContain("added 2098-01-01, re-check 2098-04-01");
     expect(result.stdout).toContain("· braces");
@@ -194,7 +192,7 @@ describe("dependency audit release gate", () => {
 
   it("fails one calendar day past the 180-day cap: added 2098-01-01, recheck 2098-07-01", () => {
     // 2098 is not a leap year, so 2098-07-01 sits 181 days after 2098-01-01.
-    const result = runAudit(bracesOnlyReport(), 1, gateWithDates("2098-01-01", "2098-07-01"));
+    const result = runAudit(bracesOnlyReport(), 1, gateWithEntry("2098-01-01", "2098-07-01"));
     expect(result.status).toBe(1);
     expect(result.stderr).toContain("GHSA-vfj7-8cjw-p6xm");
     expect(result.stderr).toContain("more than 180 days");
@@ -205,7 +203,7 @@ describe("dependency audit release gate", () => {
 
   it("accepts a recheck on exactly the 180th day: added 2098-01-01, recheck 2098-06-30", () => {
     // 2098-06-30 is the last calendar day inside the cap; one day more fails.
-    const result = runAudit(bracesOnlyReport(), 1, gateWithDates("2098-01-01", "2098-06-30"));
+    const result = runAudit(bracesOnlyReport(), 1, gateWithEntry("2098-01-01", "2098-06-30"));
     expect(result.status).toBe(0);
     expect(result.stdout).toContain("added 2098-01-01, re-check 2098-06-30");
     expect(result.stdout).toContain("· braces");
@@ -214,12 +212,13 @@ describe("dependency audit release gate", () => {
   });
 
   it("says out loud when a waiver matches no finding today", () => {
-    // The shipped ALLOWED list carries one entry. On a report with nothing in
-    // it, that entry explains nothing — and a silent exception list is how a
-    // gate accumulates waivers nobody can still check against reality.
+    // A silent exception list is how a gate accumulates waivers nobody can
+    // still check against reality. The shipped list is empty today, so this
+    // case injects one fixture entry and hands it a clean report.
     const result = runAudit(
       { vulnerabilities: {}, metadata: { vulnerabilities: { high: 0, critical: 0 } } },
       0,
+      gateWithEntry("2026-10-04", "2026-12-01"),
     );
     expect(result.status).toBe(0);
     expect(result.stdout).toContain("PASS");
@@ -229,7 +228,7 @@ describe("dependency audit release gate", () => {
   });
 
   it("stays quiet about the waiver while a finding still carries it", () => {
-    const result = runAudit(bracesOnlyReport(), 1);
+    const result = runAudit(bracesOnlyReport(), 1, gateWithEntry("2026-10-04", "2026-12-01"));
     expect(result.status).toBe(0);
     expect(result.stdout).toContain("· braces");
     expect(result.stderr).not.toContain("no finding carried it today");

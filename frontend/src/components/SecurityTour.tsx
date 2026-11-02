@@ -147,7 +147,7 @@ export function SecurityTour() {
           {/* Fix preview */}
           {worst?.fix && (
             <div
-              className="font-jetbrains text-[length:var(--fs-meta)] mt-1.5 px-2 py-1 rounded-sm"
+              className="font-jetbrains text-[length:var(--fs-meta)] mt-1.5 px-2 py-1 rounded-xs"
               style={{
                 color: "#29d398",
                 background: "rgba(41,211,152,0.07)",
@@ -164,7 +164,7 @@ export function SecurityTour() {
           <button
             onClick={prevTour}
             disabled={idx === 0}
-            className="font-jetbrains text-[length:var(--fs-meta)] w-7 h-7 flex items-center justify-center rounded-sm transition-all duration-150 disabled:opacity-25"
+            className="font-jetbrains text-[length:var(--fs-meta)] w-7 h-7 flex items-center justify-center rounded-xs transition-all duration-150 disabled:opacity-25"
             style={{ border: "1px solid rgba(150,142,128,0.4)", color: "var(--meta-strong)" }}
             aria-label={t(lang, "tour.prevAria")}
           >
@@ -173,7 +173,7 @@ export function SecurityTour() {
           <button
             onClick={nextTour}
             disabled={idx >= stops.length - 1}
-            className="font-jetbrains text-[length:var(--fs-meta)] px-3 py-1 rounded-sm transition-all duration-150 disabled:opacity-25"
+            className="font-jetbrains text-[length:var(--fs-meta)] px-3 py-1 rounded-xs transition-all duration-150 disabled:opacity-25"
             style={{ border: `1px solid ${color}`, color, background: `${color}14` }}
             aria-label={t(lang, "tour.nextAria")}
           >
@@ -181,7 +181,7 @@ export function SecurityTour() {
           </button>
           <button
             onClick={endTour}
-            className="btn-danger font-jetbrains text-[length:var(--fs-meta)] px-2 py-1 rounded-sm"
+            className="btn-danger font-jetbrains text-[length:var(--fs-meta)] px-2 py-1 rounded-xs"
             aria-label={t(lang, "tour.exitAria")}
           >
             {t(lang, "tour.exit")}

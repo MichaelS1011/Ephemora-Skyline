@@ -1,6 +1,16 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "tailwindcss";
+
+/* Tailwind v4 changed the default border colour to currentColor; v3 used
+   gray-200. This restores the v3 default for the borders that rely on it. */
+@layer base {
+  *,
+  ::after,
+  ::before,
+  ::backdrop,
+  ::file-selector-button {
+    border-color: var(--color-gray-200, currentcolor);
+  }
+}
 
 /* ── JetBrains Mono — self-hosted via @fontsource (latin 400/500/600/700, imported in main.tsx).
      Nothing here reaches a third-party host: the font used to come from Google Fonts

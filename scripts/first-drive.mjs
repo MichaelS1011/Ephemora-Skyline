@@ -633,6 +633,14 @@ async function drive() {
       log("  the folder was handed to the page through its own request");
     });
 
+    // A fresh profile opens on the two-step introduction; a returning one does
+    // not. Skip it when it is there, then hold the landing to the same claim.
+    const skip = "Skip the introduction";
+    if ((await page.$$(`text=${skip}`)).length > 0) {
+      await clickButton(page, skip);
+      log(`  skipped the introduction`);
+    }
+
     const label = "Choose project folder";
     await waitFor(`the landing screen offers "${label}"`, async () => (await page.$$(`text=${label}`)).length > 0, 90000, 500);
     await page.screenshot({ path: path.join(OUT, "01-landing.png"), animations: "disabled" });

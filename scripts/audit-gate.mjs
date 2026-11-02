@@ -5,8 +5,9 @@
  * `npm audit --audit-level=high` is a blunt object: it fails on every high
  * finding, including one that has no fix anywhere upstream. A gate that cannot
  * pass gets weakened by hand eventually, which is how an audit step stops
- * meaning anything. So this script keeps the rule strict and makes the single
- * exception explicit, dated and reviewable.
+ * meaning anything. So this script keeps the rule strict and makes any exception
+ * explicit, dated and reviewable. The list is empty today: the last waiver (braces) went
+ * away when Tailwind 4 dropped the path that carried it.
  *
  * Rule: every high or critical finding must trace back to an advisory listed
  * below with a reason, a dated entry and a re-check date that has not run out.
@@ -25,18 +26,7 @@ const RECHECK_CAP_DAYS = 180;
  * Findings that are accepted, with why. Removing an entry the moment upstream
  * ships a fix is the point of the recheck date.
  */
-const ALLOWED = new Map([
-  [
-    "GHSA-vfj7-8cjw-p6xm",
-    {
-      title: "braces: stack exhaustion through deeply nested patterns",
-      why: "No fixed release exists — braces 3.0.3 is both the latest and the last affected. Reached only through tailwindcss 3.4.x (chokidar, fast-glob → micromatch), which is a build-time file watcher and not part of anything the tool serves. Tailwind 4 would drop the path but is a real migration: 231 utility-class call sites and a CSS-first config.",
-      added: "2026-10-04",
-      recheck: "2026-12-01",
-      ref: "https://github.com/advisories/GHSA-vfj7-8cjw-p6xm",
-    },
-  ],
-]);
+const ALLOWED = new Map();
 
 /**
  * Today, UTC calendar day. Read from the system clock once and nowhere else:

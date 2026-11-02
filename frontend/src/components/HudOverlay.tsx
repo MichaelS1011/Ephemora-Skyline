@@ -480,8 +480,8 @@ export function HudOverlay({ apiStatus }: HudOverlayProps) {
           <button
             onClick={requestBuildSkip}
             aria-label={t(lang, "hud.skipAria")}
-            className="shrink-0 rounded px-3 min-h-9 flex items-center font-mono text-[length:var(--fs-meta)] text-[color:var(--meta-strong)]
-                       transition-colors hover:text-[color:var(--brand-ink)] focus:outline-none focus:ring-1 focus:ring-[var(--focus-ring)]"
+            className="shrink-0 rounded-sm px-3 min-h-9 flex items-center font-mono text-[length:var(--fs-meta)] text-[color:var(--meta-strong)]
+                       transition-colors hover:text-[color:var(--brand-ink)] focus:outline-hidden focus:ring-1 focus:ring-[var(--focus-ring)]"
           >
             {t(lang, "hud.skip")} ⏭
           </button>
@@ -499,7 +499,7 @@ export function HudOverlay({ apiStatus }: HudOverlayProps) {
           title={t(lang, "hud.wpTitle")}
           className={`pointer-events-auto absolute z-40 flex items-center gap-2 rounded-lg px-3 min-h-9
                      font-mono text-[length:var(--fs-meta)] text-[color:var(--meta-strong)]
-                     focus:outline-none focus:ring-1 focus:ring-[var(--focus-ring)] ${WAYPOINT_EDGE[waypoint.side].pos}`}
+                     focus:outline-hidden focus:ring-1 focus:ring-[var(--focus-ring)] ${WAYPOINT_EDGE[waypoint.side].pos}`}
           style={{ background: "var(--glass-bg)", border: "1px solid var(--glass-border)" }}
         >
           <span aria-hidden="true">{WAYPOINT_EDGE[waypoint.side].arrow}</span>

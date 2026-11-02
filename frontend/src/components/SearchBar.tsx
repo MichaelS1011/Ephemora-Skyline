@@ -247,7 +247,7 @@ export function SearchBar() {
           aria-autocomplete="list"
           aria-activedescendant={activeOptionId}
           aria-describedby={open ? statusId : undefined}
-          className="w-full font-jetbrains text-xs pl-10 pr-10 py-3 rounded-lg outline-none transition-colors duration-150"
+          className="w-full font-jetbrains text-xs pl-10 pr-10 py-3 rounded-lg outline-hidden transition-colors duration-150"
           style={{
             background: "rgba(18, 18, 16, 0.88)",
             /* `open` ⇄ focused here (onFocus opens, onBlur closes, outline is
@@ -266,7 +266,7 @@ export function SearchBar() {
               setOpen(true);
               inputRef.current?.focus();
             }}
-            className="absolute right-1 top-1/2 -translate-y-1/2 w-9 h-9 rounded font-jetbrains text-xs transition-colors"
+            className="absolute right-1 top-1/2 -translate-y-1/2 w-9 h-9 rounded-sm font-jetbrains text-xs transition-colors"
             style={{ color: "var(--meta)" }}
             aria-label={t(lang, "search.clearAria")}
             onMouseEnter={(e) => (e.currentTarget.style.color = "#ff6477")}
@@ -380,7 +380,7 @@ export function SearchBar() {
 
                   {file.findings.length > 0 && (
                     <span
-                      className="font-jetbrains text-[length:var(--fs-meta)] px-2 py-1 rounded shrink-0"
+                      className="font-jetbrains text-[length:var(--fs-meta)] px-2 py-1 rounded-sm shrink-0"
                       style={{
                         color: dotColor,
                         border: `1px solid ${dotColor}55`,

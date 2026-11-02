@@ -72,7 +72,7 @@ export function SevChip({ severity }: { severity: "P0" | "P1" | "P2" }) {
   const colorblind = useStore((s) => s.prefs.colorblind);
   return (
     <span
-      className="severity-chip font-jetbrains text-[length:var(--fs-meta)] px-1.5 py-px rounded-sm font-semibold"
+      className="severity-chip font-jetbrains text-[length:var(--fs-meta)] px-1.5 py-px rounded-xs font-semibold"
       data-severity={severity}
       style={{ color: severityColor(severity, colorblind) }}
       title={severity}
@@ -170,7 +170,7 @@ function ProvenanceTag({ prov }: { prov?: string }) {
   const color = isAst ? "#d8c9a3" : isSecret ? "#ff6464" : "var(--meta-strong)";
   return (
     <span
-      className="font-jetbrains text-[length:var(--fs-meta)] px-1.5 py-px rounded-sm"
+      className="font-jetbrains text-[length:var(--fs-meta)] px-1.5 py-px rounded-xs"
       style={{
         color,
         border: `1px solid ${color}44`,
@@ -190,7 +190,7 @@ function CodeFrame({ snippet }: { snippet: NonNullable<CityFinding["snippet"]> }
   const gutter = (n: number): string => String(n).padStart(lineNoWidth, " ");
   return (
     <div
-      className="font-jetbrains text-[length:var(--fs-meta)] leading-[1.5] rounded-sm overflow-x-auto mt-2"
+      className="font-jetbrains text-[length:var(--fs-meta)] leading-[1.5] rounded-xs overflow-x-auto mt-2"
       style={{ background: "rgba(0,0,0,0.45)", border: "1px solid rgba(150,142,128,0.18)" }}
       aria-label={t(lang, "panel.codeAroundAria", { line: snippet.number })}
     >
@@ -262,7 +262,7 @@ function SuggestedFixBlock({
 
   return (
     <div
-      className="font-jetbrains text-[length:var(--fs-meta)] leading-relaxed rounded-sm px-2 py-1.5"
+      className="font-jetbrains text-[length:var(--fs-meta)] leading-relaxed rounded-xs px-2 py-1.5"
       style={{
         color: "#29d398",
         background: "rgba(41,211,152,0.07)",
@@ -277,7 +277,7 @@ function SuggestedFixBlock({
           onClick={() => void copy()}
           title={t(lang, "panel.copyFixTitle")}
           aria-label={t(lang, "panel.copyFixTitle")}
-          className="shrink-0 font-jetbrains text-[length:var(--fs-meta)] w-5 h-5 flex items-center justify-center rounded-sm transition-colors"
+          className="shrink-0 font-jetbrains text-[length:var(--fs-meta)] w-5 h-5 flex items-center justify-center rounded-xs transition-colors"
           style={{ color: copied ? "#29d398" : "#6688aa", background: "rgba(100,130,170,0.1)" }}
         >
           {copied ? "✓" : "⎘"}
@@ -298,7 +298,7 @@ function SuggestedFixBlock({
       </ol>
       {suggestion?.code && (
         <pre
-          className="mt-1.5 overflow-x-auto whitespace-pre-wrap rounded-sm p-1.5 text-[length:var(--fs-meta)] leading-snug"
+          className="mt-1.5 overflow-x-auto whitespace-pre-wrap rounded-xs p-1.5 text-[length:var(--fs-meta)] leading-snug"
           style={{
             background: "rgba(0,0,0,0.45)",
             border: "1px solid rgba(150,142,128,0.18)",
@@ -400,8 +400,8 @@ export function FindingRow({
       ref={rowRef}
       className={
         focused
-          ? "rounded-sm transition-colors duration-150 animate-fade-up finding-focused"
-          : "rounded-sm transition-colors duration-150 animate-fade-up"
+          ? "rounded-xs transition-colors duration-150 animate-fade-up finding-focused"
+          : "rounded-xs transition-colors duration-150 animate-fade-up"
       }
       style={{
         borderLeft: `2px solid ${leftColor}`,
@@ -423,7 +423,7 @@ export function FindingRow({
           </span>
           {finding.cwe && (
             <span
-              className="font-jetbrains text-[length:var(--fs-meta)] px-1 rounded-sm"
+              className="font-jetbrains text-[length:var(--fs-meta)] px-1 rounded-xs"
               style={{ color: "#c8a2ff", border: "1px solid rgba(200,162,255,0.3)" }}
               title={t(lang, "panel.cweTitle")}
             >
@@ -445,7 +445,7 @@ export function FindingRow({
               type="button"
               onClick={() => onOpenLine(finding.line)}
               title={t(lang, "panel.openLine", { line: finding.line })}
-              className="font-jetbrains text-[length:var(--fs-meta)] rounded-sm px-1 hover:underline"
+              className="font-jetbrains text-[length:var(--fs-meta)] rounded-xs px-1 hover:underline"
               style={{ color: "var(--accent-gold)" }}
             >
               :{finding.line}
@@ -463,7 +463,7 @@ export function FindingRow({
             title={
               expanded ? t(lang, "panel.detailsCollapseTitle") : t(lang, "panel.detailsExpandTitle")
             }
-            className="font-jetbrains text-[length:var(--fs-meta)] w-5 h-5 flex items-center justify-center rounded-sm transition-colors"
+            className="font-jetbrains text-[length:var(--fs-meta)] w-5 h-5 flex items-center justify-center rounded-xs transition-colors"
             style={{ color: "#6688aa", background: "rgba(100,130,170,0.1)" }}
             aria-label={
               expanded ? t(lang, "panel.detailsCollapseAria") : t(lang, "panel.detailsExpandAria")
@@ -476,7 +476,7 @@ export function FindingRow({
           <button
             onClick={copy}
             title={t(lang, "panel.copyFindingTitle")}
-            className="font-jetbrains text-[length:var(--fs-meta)] w-5 h-5 flex items-center justify-center rounded-sm transition-colors"
+            className="font-jetbrains text-[length:var(--fs-meta)] w-5 h-5 flex items-center justify-center rounded-xs transition-colors"
             style={{ color: copied ? "#29d398" : "#6688aa", background: "rgba(100,130,170,0.1)" }}
             aria-label={t(lang, "panel.copyFindingAria")}
           >
@@ -506,7 +506,7 @@ export function FindingRow({
 
       {/* Review control — clicking the active segment again clears the status */}
       <div
-        className="mt-1.5 inline-flex overflow-hidden rounded-sm"
+        className="mt-1.5 inline-flex overflow-hidden rounded-xs"
         role="group"
         aria-label={t(lang, "panel.reviewGroupAria")}
         style={{ border: "1px solid rgba(150,142,128,0.25)" }}
@@ -574,7 +574,7 @@ export function FindingRow({
         >
           {explanation && (
             <div
-              className="font-jetbrains text-[length:var(--fs-meta)] leading-relaxed px-2 py-1.5 rounded-sm"
+              className="font-jetbrains text-[length:var(--fs-meta)] leading-relaxed px-2 py-1.5 rounded-xs"
               style={{
                 color: "#d8e4f8",
                 background: "rgba(232,178,60,0.06)",

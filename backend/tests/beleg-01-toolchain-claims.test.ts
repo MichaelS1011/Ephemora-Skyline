@@ -84,7 +84,7 @@ describe("the versions the badges and the stack tables name", () => {
     expect(resolvedVersion("@react-three/postprocessing").split(".")[0]).toBe("3");
     expect(resolvedVersion("zustand").split(".")[0]).toBe("5");
     expect(resolvedVersion("vite").split(".")[0]).toBe("8");
-    expect(resolvedVersion("tailwindcss").split(".")[0]).toBe("3");
+    expect(resolvedVersion("tailwindcss").split(".")[0]).toBe("4");
   });
 
   it("builds with Rolldown, as the stack table claims (docs/ARCHITECTURE.md:186)", () => {
@@ -163,23 +163,18 @@ describe("the gates the README tells a reader to run (README.md:109-121)", () =>
     expect(existsSync(path.join(REPO, "scripts/audit-gate.mjs"))).toBe(true);
   });
 
-  it("accepts exactly one advisory by name, the braces one it states", () => {
-    // README.md:187 names it: "the one remaining exception matches no finding" — ALLOWED carries GHSA-vfj7-8cjw-p6xm
+  it("ships no advisory waiver now that Tailwind 4 dropped the braces path", () => {
+    // README.md:187 says the audit gate accepts high findings only when an
+    // entry names them. The braces entry went away with Tailwind 4: the lockfile
+    // no longer resolves braces at all, so neither the waiver nor the override
+    // that pinned it has a subject.
     const gate = read("scripts/audit-gate.mjs");
     const allowed = gate.slice(gate.indexOf("const ALLOWED"), gate.indexOf("function audit"));
-    const accepted = [
-      ...new Set(
-        [...allowed.matchAll(/GHSA-[a-z0-9]{4}-[a-z0-9]{4}-[a-z0-9]{4}/g)].map((m) => m[0]),
-      ),
-    ];
-    expect(accepted).toEqual(["GHSA-vfj7-8cjw-p6xm"]);
-    // README.md:187 "accepted in `scripts/audit-gate.mjs` by name, with a reason and a re-check date"
-    expect(allowed).toContain("why:");
-    expect(allowed).toContain("recheck:");
-    // …and the tree carries the fixed release the override asks for
-    expect(json<{ overrides: Record<string, string> }>("package.json").overrides.braces).toBe(
-      "^3.0.3",
-    );
+    expect([...allowed.matchAll(/GHSA-[a-z0-9]{4}-[a-z0-9]{4}-[a-z0-9]{4}/g)]).toEqual([]);
+    expect(gate).not.toContain("GHSA-vfj7-8cjw-p6xm");
+    expect(
+      json<{ overrides?: Record<string, string> }>("package.json").overrides?.braces,
+    ).toBeUndefined();
   });
 });
 

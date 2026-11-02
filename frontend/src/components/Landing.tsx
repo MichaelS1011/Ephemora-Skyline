@@ -59,7 +59,7 @@ function LangSwitch({ lang, onPick }: { lang: Lang; onPick: (lang: Lang) => void
             type="button"
             onClick={() => onPick(code)}
             aria-pressed={lang === code}
-            className="rounded px-1.5 py-0.5 transition-colors hover:text-[#f2efe8] focus:outline-none focus:ring-1 focus:ring-[var(--accent-gold)]"
+            className="rounded-sm px-1.5 py-0.5 transition-colors hover:text-[#f2efe8] focus:outline-hidden focus:ring-1 focus:ring-[var(--accent-gold)]"
             style={{ color: lang === code ? BRAND.ink : "var(--meta-strong)" }}
           >
             {code.toUpperCase()}

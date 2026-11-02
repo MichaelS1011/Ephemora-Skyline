@@ -121,7 +121,7 @@ describe("the ring in the JSX comes from the token", () => {
       }
       // and the shell ring must not be switched off again by hand
       expect(src, `${rel}: focus outline suppressed`).not.toMatch(
-        /focus(?:-visible)?:outline-none/,
+        /focus(?:-visible)?:outline-(?:none|hidden)/,
       );
     });
   }

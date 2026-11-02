@@ -572,10 +572,10 @@ export default function App() {
       <a
         href="#main-content"
         className="skip-link sr-only focus:not-sr-only focus:absolute focus:top-3 focus:left-3
-                   focus:z-[100] focus:rounded focus:px-4 focus:py-2.5 focus:font-jetbrains
+                   focus:z-[100] focus:rounded-sm focus:px-4 focus:py-2.5 focus:font-jetbrains
                    focus:text-sm focus:bg-[#161614] focus:text-[#f2efe8]
                    focus:shadow-[0_2px_14px_rgba(0,0,0,0.65)]
-                   focus:outline focus:outline-2 focus:outline-[var(--accent-gold)] focus:outline-offset-2"
+                   focus:outline-solid focus:outline-2 focus:outline-[var(--accent-gold)] focus:outline-offset-2"
       >
         {t(lang, "a11y.skipLink")}
       </a>
@@ -654,7 +654,7 @@ export default function App() {
             <div
               role="alert"
               className="absolute top-20 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3
-                         font-jetbrains text-[length:var(--fs-meta)] px-4 py-2.5 rounded"
+                         font-jetbrains text-[length:var(--fs-meta)] px-4 py-2.5 rounded-sm"
               style={{
                 background: "rgba(32, 16, 12, 0.92)",
                 border: "1px solid rgba(255, 107, 107, 0.45)",
@@ -679,9 +679,9 @@ export default function App() {
           {/* The skip link's landing target: a plain wrapper (no box, so the
               absolutely positioned landing shell inside keeps .app-shell as
               its containing block) that can take focus and hold the content.
-              focus-visible:outline-none beats the global ring — the next tab
+              focus-visible:outline-hidden beats the global ring — the next tab
               stop draws it where the content actually is. */}
-          <div id="main-content" tabIndex={-1} className="focus-visible:outline-none">
+          <div id="main-content" tabIndex={-1} className="focus-visible:outline-hidden">
             <Landing />
           </div>
         </>
@@ -704,7 +704,7 @@ export default function App() {
               id="main-content"
               tabIndex={-1}
               role="main"
-              className={`absolute inset-0 pointer-events-none construction-ui focus-visible:outline-none ${
+              className={`absolute inset-0 pointer-events-none construction-ui focus-visible:outline-hidden ${
                 buildPhase === "constructing" ? "construction-dim" : ""
               }`}
             >

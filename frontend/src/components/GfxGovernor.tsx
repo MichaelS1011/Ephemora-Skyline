@@ -37,7 +37,7 @@ export function GfxGovernor() {
     buf.push(ms);
     if (buf.length > WINDOW) buf.shift();
     // The header's number is this window, not a second measurement. Published
-    // at most twice a second and only once the rounded rate has moved: a
+    // at most twice a second and only once the rounded-sm rate has moved: a
     // readout that ticks at 60 Hz is a re-render at 60 Hz. The renderer's own
     // clock is the timebase, so the gate stops with the frames.
     const hz = frameHz(buf);

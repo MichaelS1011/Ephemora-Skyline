@@ -31,7 +31,7 @@ export function ModeBar() {
 
   return (
     <div
-      className="glass flex items-center gap-1 rounded px-2 py-1.5 pointer-events-auto"
+      className="glass flex items-center gap-1 rounded-sm px-2 py-1.5 pointer-events-auto"
       role="radiogroup"
       aria-label={t(lang, "mode.aria")}
     >
@@ -59,7 +59,7 @@ export function ModeBar() {
             // One ring for the whole shell: no local focus style here — the
             // global `:focus-visible { outline: … var(--focus-ring) }` in
             // design/globals.css draws it, in the same weight as everywhere.
-            className="font-mono text-[12px] px-1.5 py-0.5 rounded transition-all duration-150
+            className="font-mono text-[12px] px-1.5 py-0.5 rounded-sm transition-all duration-150
                        cursor-pointer
                        hover:brightness-125 active:scale-[0.96]"
             style={{

@@ -33,7 +33,7 @@ export function PrefsNote() {
       role="alert"
       data-prefs-unreadable="true"
       className="panel-note absolute top-20 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3
-                 font-jetbrains text-[length:var(--fs-meta)] px-4 py-2.5 rounded"
+                 font-jetbrains text-[length:var(--fs-meta)] px-4 py-2.5 rounded-sm"
       style={{
         background: "rgba(32, 16, 12, 0.92)",
         border: "1px solid rgba(255, 107, 107, 0.45)",

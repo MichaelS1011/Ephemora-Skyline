@@ -213,7 +213,7 @@ export function InfoPanel() {
           {/* Language + stats row */}
           <div className="panel-metrics flex items-center gap-1.5 mb-2 flex-wrap">
             <span
-              className="w-2.5 h-2.5 rounded-sm inline-block shrink-0"
+              className="w-2.5 h-2.5 rounded-xs inline-block shrink-0"
               style={{ background: accent, boxShadow: `0 0 6px ${accent}` }}
             />
             <span
@@ -368,7 +368,7 @@ export function InfoPanel() {
            is an unprovable claim, not a result. Green here would contradict
            two other surfaces that are already right. */
         <div
-          className="file-verdict file-verdict-unchecked flex items-start gap-2 px-3 py-2.5 rounded-sm"
+          className="file-verdict file-verdict-unchecked flex items-start gap-2 px-3 py-2.5 rounded-xs"
           data-file-verdict="unchecked"
           style={{
             color: UNCHECKED_COLOR,
@@ -397,7 +397,7 @@ export function InfoPanel() {
         </div>
       ) : (
         <div
-          className="file-verdict file-verdict-checked flex items-center gap-2 px-3 py-2.5 rounded-sm"
+          className="file-verdict file-verdict-checked flex items-center gap-2 px-3 py-2.5 rounded-xs"
           data-file-verdict="checked"
           style={{ background: "rgba(41,211,152,0.07)", border: "1px solid rgba(41,211,152,0.2)" }}
         >
@@ -442,7 +442,7 @@ export function InfoPanel() {
       {inOtherDistrict && (
         <button
           onClick={() => setFocusPath(hit.chain, { keepSelection: true })}
-          className="w-full mb-3 py-1.5 font-jetbrains text-[length:var(--fs-meta)] tracking-widest rounded-sm transition-all duration-150 hover:opacity-90"
+          className="w-full mb-3 py-1.5 font-jetbrains text-[length:var(--fs-meta)] tracking-widest rounded-xs transition-all duration-150 hover:opacity-90"
           style={{
             border: "1px solid rgba(242,239,232,0.14)",
             color: "var(--brand-ink)",
@@ -456,7 +456,7 @@ export function InfoPanel() {
       {/* Threat + provenance badges */}
       <div className="flex gap-1.5 flex-wrap mb-3">
         <span
-          className="font-jetbrains text-[length:var(--fs-meta)] px-1.5 py-px rounded-sm uppercase tracking-wide"
+          className="font-jetbrains text-[length:var(--fs-meta)] px-1.5 py-px rounded-xs uppercase tracking-wide"
           style={{
             color: "var(--meta-strong)",
             border: "1px solid rgba(100,130,170,0.3)",
@@ -481,7 +481,7 @@ export function InfoPanel() {
             const churn = churnColor(file.churnScore ?? 0, colorblind);
             return (
               <span
-                className="font-jetbrains text-[length:var(--fs-meta)] px-1.5 py-px rounded-sm"
+                className="font-jetbrains text-[length:var(--fs-meta)] px-1.5 py-px rounded-xs"
                 style={{
                   color: churn,
                   border: `1px solid ${churn}4d`,
@@ -498,7 +498,7 @@ export function InfoPanel() {
           })()}
         {file.exportedSymbols !== undefined && (
           <span
-            className="font-jetbrains text-[length:var(--fs-meta)] px-1.5 py-px rounded-sm"
+            className="font-jetbrains text-[length:var(--fs-meta)] px-1.5 py-px rounded-xs"
             style={{
               color: "#a78bfa",
               border: "1px solid rgba(167,139,250,0.3)",
@@ -511,7 +511,7 @@ export function InfoPanel() {
         )}
         {file.deadCodeCandidate && (
           <span
-            className="font-jetbrains text-[length:var(--fs-meta)] px-1.5 py-px rounded-sm"
+            className="font-jetbrains text-[length:var(--fs-meta)] px-1.5 py-px rounded-xs"
             style={{
               color: "#d8cdb4",
               border: "1px solid rgba(210,200,180,0.35)",
@@ -524,7 +524,7 @@ export function InfoPanel() {
         )}
         {file.bytes !== undefined && file.bytes >= 150_000 && (
           <span
-            className="font-jetbrains text-[length:var(--fs-meta)] px-1.5 py-px rounded-sm"
+            className="font-jetbrains text-[length:var(--fs-meta)] px-1.5 py-px rounded-xs"
             style={{
               color: "#9aa7b8",
               border: "1px solid rgba(154,167,184,0.4)",
@@ -537,7 +537,7 @@ export function InfoPanel() {
         )}
         {file.inCycle && (
           <span
-            className="font-jetbrains text-[length:var(--fs-meta)] px-1.5 py-px rounded-sm"
+            className="font-jetbrains text-[length:var(--fs-meta)] px-1.5 py-px rounded-xs"
             style={{
               color: severityColor("P0", colorblind),
               border: `1px solid ${severityColor("P0", colorblind)}59`,
@@ -550,7 +550,7 @@ export function InfoPanel() {
         )}
         {file.coveragePct !== undefined && (
           <span
-            className="font-jetbrains text-[length:var(--fs-meta)] px-1.5 py-px rounded-sm"
+            className="font-jetbrains text-[length:var(--fs-meta)] px-1.5 py-px rounded-xs"
             style={{
               color: file.coveragePct >= 80 ? "#d8c9a3" : "#ffd23f",
               border: `1px solid ${file.coveragePct >= 80 ? "rgba(232,178,60,0.35)" : "rgba(255,210,63,0.35)"}`,
@@ -564,7 +564,7 @@ export function InfoPanel() {
         )}
         {file.clonePartners && file.clonePartners.length > 0 && (
           <span
-            className="font-jetbrains text-[length:var(--fs-meta)] px-1.5 py-px rounded-sm"
+            className="font-jetbrains text-[length:var(--fs-meta)] px-1.5 py-px rounded-xs"
             style={{
               color: "#ffe14d",
               border: "1px solid rgba(255,225,77,0.4)",
@@ -579,7 +579,7 @@ export function InfoPanel() {
         )}
         {file.topAuthor && (
           <span
-            className="font-jetbrains text-[length:var(--fs-meta)] px-1.5 py-px rounded-sm"
+            className="font-jetbrains text-[length:var(--fs-meta)] px-1.5 py-px rounded-xs"
             style={{
               color: authorColor(file.topAuthor),
               border: `1px solid ${authorColor(file.topAuthor)}55`,
@@ -592,7 +592,7 @@ export function InfoPanel() {
         )}
         {hasAst && (
           <span
-            className="font-jetbrains text-[length:var(--fs-meta)] px-1.5 py-px rounded-sm"
+            className="font-jetbrains text-[length:var(--fs-meta)] px-1.5 py-px rounded-xs"
             style={{
               color: "#d8c9a3",
               border: "1px solid rgba(232,178,60,0.3)",
@@ -605,7 +605,7 @@ export function InfoPanel() {
         )}
         {hasSecrets && (
           <span
-            className="font-jetbrains text-[length:var(--fs-meta)] px-1.5 py-px rounded-sm"
+            className="font-jetbrains text-[length:var(--fs-meta)] px-1.5 py-px rounded-xs"
             style={{
               color: "#ff6464",
               border: "1px solid rgba(255,100,100,0.3)",
@@ -698,7 +698,7 @@ function TestResultsBlock({ filePath }: { filePath: string }) {
   if (!result) return null;
   return (
     <div
-      className="mb-3 rounded-sm overflow-hidden"
+      className="mb-3 rounded-xs overflow-hidden"
       style={{
         border: `1px solid ${result.status === "failed" ? `${severityColor("P0", colorblind)}66` : result.status === "skipped" ? "var(--meta)" : "rgba(41,211,152,0.35)"}`,
         background:

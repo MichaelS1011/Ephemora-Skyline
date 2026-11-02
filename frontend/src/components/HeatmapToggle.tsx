@@ -110,7 +110,7 @@ export function HeatmapToggle() {
 
   return (
     <div
-      className="glass flex flex-wrap items-center gap-1 rounded px-2 py-1.5"
+      className="glass flex flex-wrap items-center gap-1 rounded-sm px-2 py-1.5"
       role="radiogroup"
       aria-label={t(lang, "heat.groupAria")}
       data-tip={t(lang, "heat.groupTip")}
@@ -139,7 +139,7 @@ export function HeatmapToggle() {
             // One ring for the whole shell: no local focus style here — the
             // global `:focus-visible { outline: … var(--focus-ring) }` in
             // design/globals.css draws it, in the same weight as everywhere.
-            className="font-mono text-[length:var(--fs-small)] tracking-wider px-1.5 py-0.5 rounded transition-all duration-150
+            className="font-mono text-[length:var(--fs-small)] tracking-wider px-1.5 py-0.5 rounded-sm transition-all duration-150
                        cursor-pointer
                        hover:brightness-125 active:scale-[0.96]"
             style={{

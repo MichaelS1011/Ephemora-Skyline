@@ -116,7 +116,7 @@ export function VoxelStructureBlock({ file }: { file: CityFile }) {
                   <span className="truncate min-w-0 flex-1">{s.name}</span>
                   {sectionFindings.length > 0 && (
                     <span
-                      className="shrink-0 font-jetbrains text-[length:var(--fs-meta)] px-1 rounded-sm severity-count"
+                      className="shrink-0 font-jetbrains text-[length:var(--fs-meta)] px-1 rounded-xs severity-count"
                       data-severity={sectionFindings[0]!.severity}
                       style={{
                         color: severityColor(sectionFindings[0]!.severity, colorblind),
@@ -132,7 +132,7 @@ export function VoxelStructureBlock({ file }: { file: CityFile }) {
                   {s.codeLines} LOC
                 </span>
                 <span
-                  className="shrink-0 inline-block rounded-sm"
+                  className="shrink-0 inline-block rounded-xs"
                   style={{
                     width: 34,
                     height: 4,
@@ -296,7 +296,7 @@ export function SourceBlock({
 
   const unavailable = (
     <div
-      className="font-jetbrains text-[length:var(--fs-meta)] px-2 py-1.5 rounded-sm"
+      className="font-jetbrains text-[length:var(--fs-meta)] px-2 py-1.5 rounded-xs"
       style={{
         color: "#8f8b82",
         background: "rgba(150,142,128,0.08)",
@@ -331,7 +331,7 @@ export function SourceBlock({
         </button>
         {status === "ready" && scrollToLine != null && (
           <span
-            className="font-jetbrains text-[length:var(--fs-meta)] px-1.5 py-px rounded-sm shrink-0"
+            className="font-jetbrains text-[length:var(--fs-meta)] px-1.5 py-px rounded-xs shrink-0"
             style={{ color: "var(--accent-gold)", border: "1px solid rgba(232,178,60,0.4)" }}
             title={t(lang, "panel.sourceLine", { line: scrollToLine })}
           >
@@ -353,7 +353,7 @@ export function SourceBlock({
             <button
               type="button"
               onClick={() => void load()}
-              className="w-full py-1.5 font-jetbrains text-[length:var(--fs-meta)] tracking-widest rounded-sm transition-all duration-150 hover:opacity-90"
+              className="w-full py-1.5 font-jetbrains text-[length:var(--fs-meta)] tracking-widest rounded-xs transition-all duration-150 hover:opacity-90"
               style={{
                 border: "1px solid rgba(232,178,60,0.4)",
                 color: "#f2d5a0",
@@ -450,7 +450,7 @@ function SourceView({
         role="region"
         aria-label={t(lang, "panel.sourceAria")}
         data-source-scroll=""
-        className="overflow-y-auto overflow-x-auto rounded-sm"
+        className="overflow-y-auto overflow-x-auto rounded-xs"
         style={{
           maxHeight: 260,
           background: "rgba(0,0,0,0.45)",
@@ -513,7 +513,7 @@ export function RunTestsButton({
         // The button may wear its test-green body, but the keyboard ring is
         // the shell's one ring: the global `:focus-visible` rule in
         // design/globals.css draws it from --focus-ring, not a local colour.
-        className="w-full mb-3 py-1.5 font-jetbrains text-[length:var(--fs-meta)] tracking-widest rounded-sm
+        className="w-full mb-3 py-1.5 font-jetbrains text-[length:var(--fs-meta)] tracking-widest rounded-xs
                  transition-all duration-150 hover:brightness-110
                  disabled:opacity-40 cursor-pointer"
         style={{

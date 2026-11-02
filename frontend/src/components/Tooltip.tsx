@@ -267,7 +267,7 @@ export function Tooltip() {
       {/* Type indicator */}
       <div className="flex items-center gap-1.5 mb-1">
         <span
-          className="font-jetbrains text-[length:var(--fs-meta)] px-1 py-px rounded-sm uppercase tracking-wide"
+          className="font-jetbrains text-[length:var(--fs-meta)] px-1 py-px rounded-xs uppercase tracking-wide"
           style={{ color: accent, background: `${accent}18`, border: `1px solid ${accent}33` }}
         >
           {isBlock ? t(lang, "tooltip.typeDistrict") : t(lang, "tooltip.typeFile")}
@@ -295,7 +295,7 @@ export function Tooltip() {
       {/* Badge row */}
       <div className="flex items-center gap-1.5 mt-1.5">
         <span
-          className="font-jetbrains text-[length:var(--fs-meta)] px-1.5 py-px rounded-sm"
+          className="font-jetbrains text-[length:var(--fs-meta)] px-1.5 py-px rounded-xs"
           style={{
             color: badgeInk || badgeColor,
             background: `${badgeColor}15`,
