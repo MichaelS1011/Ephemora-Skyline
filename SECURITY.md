@@ -11,11 +11,28 @@ This document covers **how to report a vulnerability** in Ephemora Skyline itsel
 - **Bounded input.** Local analysis is capped at 10,000 files / 150 MB / 2 MB per file and skips `node_modules`, build output and other directories that hold no relevant source. `.git` is **not** skipped — it arrives within its own 96 MB browser budget, 64 MB per file (the server enforces the same ceilings) because churn, author districts and the deep profile's history scan need commit history. The staged copy is written owner-only (`0700`) under `$TMPDIR/codecity-uploads/<id>` and swept after a TTL. Verdicts live in browser storage mirrored to one machine-owned file, `~/.ephemora-skyline/verdicts.json` (`CODECITY_VERDICTS_FILE` overrides it); the entry screen's reset button clears both.
 - **Secret scanning.** Findings come from regex heuristics plus the optional engines you installed — `gitleaks` (secrets), `semgrep` (AST), `osv-scanner` (dependency advisories, falling back to `npm audit` and `pip-audit`) and `ruff` (Python lint) — surfaced as beacons, not silently.
 
+## Automated checks on this repository
+
+- **Dependabot** reads the lockfile weekly and opens a fix pull request for a
+  vulnerable dependency. The audit gate (`node scripts/audit-gate.mjs`) fails a
+  release on any high or critical advisory that is not named and dated in that
+  script; moderates are printed, never hidden.
+- **Secret scanning and push protection** are on, so a credential shape is
+  refused before a push lands. Alerts raised on the synthetic strings in the
+  scanner's own test fixtures are resolved as `used_in_tests` — each one lives
+  in a case that proves the scanner still sees the shape.
+- **CodeQL** (`.github/workflows/codeql.yml`) analyses JavaScript and TypeScript
+  on every push to `main`, on every pull request, and weekly; its results feed
+  the repository's code-scanning alerts.
+- **Five CI gates** — lint, the type check, the test suite, the build and the
+  audit — run from `.github/workflows/ci.yml` on pushes to `main` and on pull
+  requests.
+
 ## Reporting a vulnerability
 
 Please report suspected vulnerabilities in **Ephemora Skyline itself** privately, not in a public issue:
 
-- Open a private **security advisory**: GitHub → Security → _Report a vulnerability_ (https://github.com/MichaelS1011/Ephemora-Skyline/security/advisories/new)
+- Open a private **security advisory**: GitHub → Security → _Report a vulnerability_ (https://github.com/MichaelS1011/Ephemora-Skyline/security/advisories/new). Private vulnerability reporting is enabled on this repository, so the button opens a draft only the maintainers can see.
 
 Include: affected version/commit, a minimal reproduction, and the impact. You will get a response within 5 working days.
 
