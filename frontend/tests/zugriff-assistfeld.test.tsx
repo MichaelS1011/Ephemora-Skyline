@@ -41,7 +41,7 @@ import { ROWS } from "../src/interaction/shortcuts";
 import { loadPrefs, preservedUnreadablePrefs, savePrefs, systemAdoption } from "../src/prefs";
 import type { CityData } from "../src/city/types";
 
-const KEY = "codecity-prefs";
+const KEY = "ephemora-skyline-prefs";
 const CORRUPT = '{"lang":"de","colorblind":tru';
 
 const srcFile = (rel: string): string =>

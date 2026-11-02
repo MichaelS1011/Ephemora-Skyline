@@ -850,7 +850,9 @@ describe("the look controls stay one choice", () => {
         "true",
       ]);
     }
-    expect(localStorage.getItem("codecity-ephe-look:v1")).toBe('{"jacket":1,"mark":"diamond"}');
+    expect(localStorage.getItem("ephemora-skyline-ephe-look:v1")).toBe(
+      '{"jacket":1,"mark":"diamond"}',
+    );
     await act(async () => {
       ra.unmount();
       rb.unmount();

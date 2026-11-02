@@ -4,12 +4,11 @@ import path from "path";
 
 /**
  * The product answers to "Ephemora Skyline" in the README, the UI and the
- * licence, but eight of its refusal messages — the exact sentences a confused
- * or blocked reader sees — still said "CodeCity", and the analyzer header
- * described a clone step that has not existed for weeks. Internal identifiers
- * keep the old lower-case name on purpose (package names, the staging directory,
- * the localStorage prefixes); renaming those would break stored state and paths
- * for no reader's benefit. What has to be consistent is what a person reads.
+ * licence, and its internal identifiers answer to the same name since the
+ * 2026-11-02 rename: the packages, the staging root, the environment variables,
+ * the temp prefixes and the browser-storage keys all carry `ephemora-skyline`
+ * or `EPHEMORA_`. This guard keeps the old lower-case name from creeping back
+ * into either source tree, or into a package manifest.
  */
 const REPO = path.resolve(import.meta.dirname, "../..");
 
@@ -23,14 +22,29 @@ function sources(rel: string, extensions: string[]): Array<{ file: string; text:
 }
 
 describe("the name a reader is given", () => {
-  it("is the same in both source trees", () => {
+  it("is the same in both source trees, internal identifiers included", () => {
     const offenders = [
       ...sources("backend/src", [".ts"]),
       ...sources("frontend/src", [".ts", ".tsx"]),
     ]
-      .filter((f) => f.text.includes("CodeCity"))
+      .filter((f) => /codecity/i.test(f.text))
       .map((f) => f.file);
-    expect(offenders, `still calls the product CodeCity:\n${offenders.join("\n")}`).toEqual([]);
+    expect(offenders, `still carries the old name:\n${offenders.join("\n")}`).toEqual([]);
+  });
+
+  it("names each package after the product", () => {
+    for (const rel of ["package.json", "frontend/package.json", "backend/package.json"]) {
+      const pkg = JSON.parse(readFileSync(path.join(REPO, rel), "utf-8")) as { name: string };
+      expect(pkg.name, `${rel} kept an old package name`).toMatch(
+        /^ephemora-skyline(-frontend|-backend)?$/,
+      );
+    }
+    const root = JSON.parse(readFileSync(path.join(REPO, "package.json"), "utf-8")) as {
+      repository?: { url?: string };
+    };
+    expect(root.repository?.url ?? "", "the root package points elsewhere").toContain(
+      "Ephemora-Skyline",
+    );
   });
 
   it("names the product in the messages that refuse a request", () => {

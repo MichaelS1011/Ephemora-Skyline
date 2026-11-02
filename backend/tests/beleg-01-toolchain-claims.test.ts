@@ -183,12 +183,13 @@ describe("the gates the README tells a reader to run (README.md:109-121)", () =>
   });
 });
 
-describe("the names and cadences a reader can check (README.md:11, docs/GETTING_STARTED.md:40)", () => {
-  it("is called codecity-cyberdefense in the package manifest (GETTING_STARTED.md:40)", () => {
-    expect(json<{ name: string }>("package.json").name).toBe("codecity-cyberdefense");
+describe("the names and cadences a reader can check", () => {
+  it("is called ephemora-skyline in the package manifest", () => {
+    expect(json<{ name: string }>("package.json").name).toBe("ephemora-skyline");
   });
 
-  it("asks Dependabot weekly, as the badge claims (README.md:11)", () => {
+  // README.md:11 "Dependencies are checked for advisories weekly by Dependabot"
+  it("asks Dependabot weekly, as the badge claims", () => {
     const workflow = read(".github/dependabot.yml");
     const intervals = [...workflow.matchAll(/interval:\s*"?"?(\w+)/g)].map((m) => m[1]!);
     expect(intervals.length).toBeGreaterThan(0);

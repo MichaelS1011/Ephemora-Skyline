@@ -3,9 +3,9 @@
 // — the file-cap refusal says "exclude folders", and `saveExcludes` had no
 //   caller, so there was no field to say it in (measured: 0 writers of the
 //   exclude list, 4 readers of it, and `.scan-exclude` CSS with no markup);
-// — the "recently opened" row parsed `codecity-recent-cities` with a `name`
+// — the "recently opened" row parsed `ephemora-skyline-recent-cities` with a `name`
 //   field while the index that filled up all day lives under
-//   `codecity-recent:v1` with `folder` (measured: 0 writers of the key the
+//   `ephemora-skyline-recent:v1` with `folder` (measured: 0 writers of the key the
 //   screen read).
 import { readFileSync } from "fs";
 import path from "path";
@@ -144,9 +144,9 @@ describe("the recently opened row reads the list the app actually writes", () =>
       "frontend/src/stores/useStore.ts",
     ]) {
       expect(src(file), `${file} still parses its own recent list`).not.toContain(
-        "codecity-recent-cities",
+        "ephemora-skyline-recent-cities",
       );
     }
-    expect(src("frontend/src/recentCities.ts")).toContain("codecity-recent:v1");
+    expect(src("frontend/src/recentCities.ts")).toContain("ephemora-skyline-recent:v1");
   });
 });

@@ -3,7 +3,7 @@ services:
     build:
       context: ..
       dockerfile: docker/Dockerfile.backend
-    container_name: codecity-backend
+    container_name: ephemora-skyline-backend
     ports:
       # Loopback-only, but the host port is a variable: a machine that already
       # runs `npm run dev` holds 4000, and Docker's own collision message names
@@ -23,21 +23,21 @@ services:
       - TRUST_PROXY=1
     restart: unless-stopped
     networks:
-      - codecity-net
+      - ephemora-skyline-net
 
   frontend:
     build:
       context: ..
       dockerfile: docker/Dockerfile.frontend
-    container_name: codecity-frontend
+    container_name: ephemora-skyline-frontend
     ports:
       - "127.0.0.1:${FRONTEND_HOST_PORT:-3010}:80"
     depends_on:
       - backend
     restart: unless-stopped
     networks:
-      - codecity-net
+      - ephemora-skyline-net
 
 networks:
-  codecity-net:
+  ephemora-skyline-net:
     driver: bridge

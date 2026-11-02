@@ -110,7 +110,7 @@ describe("one verdict bucket reads as one", () => {
   it("english success sentence declines the single bucket", async () => {
     stubRoutes({ status: 200, body: { project: "p-1", reviews: {} } });
     expect((await fetchBackendReviews("a-1", "p-1")).state).toBe("read");
-    localStorage.setItem("codecity-reviews:p-one", JSON.stringify({ "f-1": "to-fix" }));
+    localStorage.setItem("ephemora-skyline-reviews:p-one", JSON.stringify({ "f-1": "to-fix" }));
     await mountLanding("en");
     await act(async () => {
       buttonLabelled("en", "landing.footprintReset").click();
@@ -121,7 +121,7 @@ describe("one verdict bucket reads as one", () => {
   it("german success sentence declines the single bucket", async () => {
     stubRoutes({ status: 200, body: { project: "p-1", reviews: {} } });
     expect((await fetchBackendReviews("a-1", "p-1")).state).toBe("read");
-    localStorage.setItem("codecity-reviews:p-one", JSON.stringify({ "f-1": "to-fix" }));
+    localStorage.setItem("ephemora-skyline-reviews:p-one", JSON.stringify({ "f-1": "to-fix" }));
     await mountLanding("de");
     await act(async () => {
       buttonLabelled("de", "landing.footprintReset").click();
@@ -132,7 +132,7 @@ describe("one verdict bucket reads as one", () => {
   it("english refusal declines the single bucket too", async () => {
     stubRoutes({ status: 503, body: unreadableBody });
     expect((await fetchBackendReviews("a-1", "p-1")).state).toBe("unreadable");
-    localStorage.setItem("codecity-reviews:p-one", JSON.stringify({ "f-1": "to-fix" }));
+    localStorage.setItem("ephemora-skyline-reviews:p-one", JSON.stringify({ "f-1": "to-fix" }));
     await mountLanding("en");
     await act(async () => {
       buttonLabelled("en", "landing.footprintReset").click();
@@ -146,7 +146,7 @@ describe("one verdict bucket reads as one", () => {
   it("german refusal declines the single bucket too", async () => {
     stubRoutes({ status: 503, body: unreadableBody });
     expect((await fetchBackendReviews("a-1", "p-1")).state).toBe("unreadable");
-    localStorage.setItem("codecity-reviews:p-one", JSON.stringify({ "f-1": "to-fix" }));
+    localStorage.setItem("ephemora-skyline-reviews:p-one", JSON.stringify({ "f-1": "to-fix" }));
     await mountLanding("de");
     await act(async () => {
       buttonLabelled("de", "landing.footprintReset").click();
@@ -160,8 +160,8 @@ describe("one verdict bucket reads as one", () => {
   it("keeps the plural at two and at zero — 0 stays plural, as plural() teaches", async () => {
     stubRoutes({ status: 200, body: { project: "p-1", reviews: {} } });
     expect((await fetchBackendReviews("a-1", "p-1")).state).toBe("read");
-    localStorage.setItem("codecity-reviews:p-one", JSON.stringify({ "f-1": "to-fix" }));
-    localStorage.setItem("codecity-reviews:p-two", JSON.stringify({ "f-2": "reviewed" }));
+    localStorage.setItem("ephemora-skyline-reviews:p-one", JSON.stringify({ "f-1": "to-fix" }));
+    localStorage.setItem("ephemora-skyline-reviews:p-two", JSON.stringify({ "f-2": "reviewed" }));
     await mountLanding("en");
     await act(async () => {
       buttonLabelled("en", "landing.footprintReset").click();

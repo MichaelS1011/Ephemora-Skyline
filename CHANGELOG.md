@@ -9,6 +9,8 @@ came from a run on this machine, with the file and the check that produced it.
 
 ## [Unreleased]
 
+- **The old internal name is gone.** The root and workspace packages, the `CODECITY_*` environment variables, the staging/runner/temp prefixes and the browser-storage keys have all been renamed to `ephemora-skyline` / `EPHEMORA_*`; the product has answered to **Ephemora Skyline** in the UI for months, and this is the identifier half. Breaking for a configured machine or a returning browser: rename `CODECITY_UPLOAD_DIR`, `CODECITY_UPLOAD_TTL_HOURS`, `CODECITY_VERDICTS_FILE`, `CODECITY_RULES_DIR` and `CODECITY_RULE_PACK_DIR` to their `EPHEMORA_*` forms, and expect the browser's preference/review/recent-city buckets to start empty once. The triage verdicts mirrored to `~/.ephemora-skyline/verdicts.json` are untouched.
+
 ## [0.4.3] - 2026-11-01
 
 - **A stored finding no longer carries the path of the copy on disk.** Five scans of real foreign repositories answered `GET /api/result/:id` with the absolute staging directory of the user's source copy inside 56 of 573 and 3 of 107 findings, because the batch merge keys its findings by an internal `_filePath` and read it without ever removing it; the merge is now the only consumer and deletes the key, and 0 findings carry a path. `/handoff`, `/city` and `/sarif` were already clean — they rebuild the finding from known fields — so the one door that shipped the raw object is the one that closed.

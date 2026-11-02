@@ -24,14 +24,14 @@
  * §19.05 puts the beat's read on the shared honest reader (`storageRead.ts`):
  * absent, read, and unreadable-kept are three different answers, and only the
  * first may look like the greeting without a word. The quarantine slot is
- * `codecity-arrival-stage:v1:unreadable` — one short word or a hand-edit, no
+ * `ephemora-skyline-arrival-stage:v1:unreadable` — one short word or a hand-edit, no
  * project path, same privacy promise as the key itself.
  */
 
 import { readStoredText, type StoredRead } from "./storageRead";
 
-const KEY = "codecity-first-arrival:v1";
-const STAGE_KEY = "codecity-arrival-stage:v1";
+const KEY = "ephemora-skyline-first-arrival:v1";
+const STAGE_KEY = "ephemora-skyline-arrival-stage:v1";
 
 /**
  * Whether this browser has shown a city before.

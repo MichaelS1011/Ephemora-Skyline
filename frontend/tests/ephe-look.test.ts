@@ -25,7 +25,7 @@ import { useStore } from "../src/stores/useStore";
  * and to no mark — rather than rendering a fourth chip or an invisible shape.
  */
 
-const KEY = "codecity-ephe-look:v1";
+const KEY = "ephemora-skyline-ephe-look:v1";
 
 const writeRaw = (value: string): void => {
   localStorage.setItem(KEY, value);

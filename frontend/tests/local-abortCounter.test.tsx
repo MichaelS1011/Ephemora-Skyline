@@ -334,7 +334,7 @@ describe("reading a folder counts", () => {
       return fakeResponse(202, { id: "job-2" });
     };
     responses["*"] = () => fakeResponse(200, {});
-    localStorage.setItem("codecity-scan-excludes", JSON.stringify(["generated"]));
+    localStorage.setItem("ephemora-skyline-scan-excludes", JSON.stringify(["generated"]));
 
     const deep = `${"x".repeat(520)}.ts`;
     await pick(
@@ -363,7 +363,7 @@ describe("reading a folder counts", () => {
       return fakeResponse(202, { id: "job-3" });
     };
     responses["*"] = () => fakeResponse(200, {});
-    localStorage.setItem("codecity-scan-excludes", JSON.stringify(["fixtures", "gen"]));
+    localStorage.setItem("ephemora-skyline-scan-excludes", JSON.stringify(["fixtures", "gen"]));
 
     await pick([withPath("a.ts")], 40);
 

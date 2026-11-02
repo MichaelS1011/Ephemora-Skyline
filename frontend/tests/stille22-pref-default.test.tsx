@@ -18,7 +18,7 @@ import { Landing } from "../src/components/Landing";
  * a reader who turned it on keeps it turned on.
  */
 
-const KEY = "codecity-prefs";
+const KEY = "ephemora-skyline-prefs";
 
 let host: HTMLDivElement;
 let root: Root;

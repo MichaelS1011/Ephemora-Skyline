@@ -9,7 +9,7 @@ import { readStoredJson, type StoredRead } from "./storageRead";
  * folder for as long as the browser keeps the storage.
  */
 
-const PREFIX = "codecity-reviews:";
+const PREFIX = "ephemora-skyline-reviews:";
 
 export type { ReviewStatus };
 

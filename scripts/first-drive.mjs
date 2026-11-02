@@ -499,7 +499,7 @@ function bootBackend() {
       PORT: String(BACKEND_PORT),
       HOST: "127.0.0.1",
       FRONTEND_ORIGIN: ORIGIN,
-      CODECITY_UPLOAD_DIR: path.join(SCRATCH, "staged"),
+      EPHEMORA_UPLOAD_DIR: path.join(SCRATCH, "staged"),
     },
   }, "backend");
 }

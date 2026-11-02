@@ -9,7 +9,7 @@
     "BACKEND_PORT",
     "TRUST_PROXY",
     "SKYLINE_OFFLINE",
-    "CODECITY_*",
+    "EPHEMORA_*",
     "ANALYSIS_*",
     "SEMGREP_*",
     "GITLEAKS_*",

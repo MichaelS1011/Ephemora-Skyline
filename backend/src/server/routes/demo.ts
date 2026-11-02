@@ -383,7 +383,7 @@ export function getDemoResult(): AnalysisResult {
   return {
     id: "demo-001",
     repo: {
-      owner: "codecity",
+      owner: "ephemora-skyline",
       name: "demo-city",
       branch: "main",
       cloneUrl: "",

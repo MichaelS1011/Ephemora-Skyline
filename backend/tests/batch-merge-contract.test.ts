@@ -23,7 +23,7 @@ describe("scanRepositoryBatch merge contract", () => {
   it(
     "merges gitleaks findings with code frame + explanation",
     async () => {
-      const dir = await fs.mkdtemp(path.join(os.tmpdir(), "codecity-batchtest-"));
+      const dir = await fs.mkdtemp(path.join(os.tmpdir(), "ephemora-skyline-batchtest-"));
       // app.ts contains what looks like a contiguous token the fallback would flag
       const fileContent = `const token = "ghp_" + "A1b2C3d4E5f6G7h8I9j0K1l2M3n4O5p6Q7r8";\nconsole.log("debug");\n`;
       await fs.writeFile(path.join(dir, "app.ts"), fileContent);

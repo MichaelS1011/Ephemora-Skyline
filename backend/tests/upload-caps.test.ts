@@ -103,11 +103,11 @@ let uploadDir = "";
 
 beforeAll(async () => {
   uploadDir = await fs.mkdtemp(path.join("/tmp", "skyline-caps-"));
-  process.env.CODECITY_UPLOAD_DIR = uploadDir;
+  process.env.EPHEMORA_UPLOAD_DIR = uploadDir;
 });
 
 afterAll(async () => {
-  delete process.env.CODECITY_UPLOAD_DIR;
+  delete process.env.EPHEMORA_UPLOAD_DIR;
   await fs.rm(uploadDir, { recursive: true, force: true }).catch(() => {});
 });
 

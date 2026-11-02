@@ -19,7 +19,7 @@ import { readStoredJson, type StoredRead } from "./storageRead";
  *   defect the verdict store already had to fix.
  */
 
-const PREFIX = "codecity-ephe-names:";
+const PREFIX = "ephemora-skyline-ephe-names:";
 
 /** What the card's field accepts, and what the reader keeps. */
 export const NAME_MAX = 24;

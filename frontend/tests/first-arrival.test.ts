@@ -20,7 +20,7 @@ import { city, dir, file } from "./helpers/cityFixture";
  * place a city arrives, and never written again.
  */
 
-const KEY = "codecity-first-arrival:v1";
+const KEY = "ephemora-skyline-first-arrival:v1";
 const ARRIVED = city({
   repo: { owner: "local", name: "auth-app", branch: "main" },
   analysisId: "scan-1",
@@ -134,7 +134,7 @@ describe("the app stamps the one place a city arrives", () => {
  * reader, and a refused write claims no progress.
  */
 describe("the setup progress is stored locally", () => {
-  const STAGE_KEY = "codecity-arrival-stage:v1";
+  const STAGE_KEY = "ephemora-skyline-arrival-stage:v1";
 
   it("opens on the greeting while the reader has done nothing", () => {
     expect(readArrivalStage()).toBe("welcome");

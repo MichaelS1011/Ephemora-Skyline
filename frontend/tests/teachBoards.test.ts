@@ -80,7 +80,7 @@ const SRC = path.resolve(import.meta.dirname, "../src");
 
 /** The demo the app opens: a scan that ran no security scanner at all. */
 const DEMO: CityData = city({
-  repo: { owner: "codecity", name: "demo-city", branch: "main" },
+  repo: { owner: "ephemora-skyline", name: "demo-city", branch: "main" },
   totalFiles: 74,
   renderedFiles: 74,
   findingsBySeverity: { P0: 3, P1: 2, P2: 3 },

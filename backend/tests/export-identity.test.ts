@@ -30,7 +30,7 @@ describe("the product's own identity", () => {
     const driver = resultToSarif(result).runs[0]!.tool.driver;
     expect(driver.name).toBe("Ephemora Skyline");
     expect(driver.informationUri).toBe("https://github.com/MichaelS1011/Ephemora-Skyline");
-    expect(driver.name).not.toMatch(/codecity/i);
+    expect(driver.name).not.toMatch(/ephemora-skyline/i);
   });
 
   it("reports one version, and it is the one the package declares", async () => {

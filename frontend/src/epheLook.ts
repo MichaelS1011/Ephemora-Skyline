@@ -30,7 +30,7 @@ import { readStoredJson, type StoredRead } from "./storageRead";
  *   quota error is the defect the verdict store already had to fix.
  */
 
-const KEY = "codecity-ephe-look:v1";
+const KEY = "ephemora-skyline-ephe-look:v1";
 
 export interface EpheLook {
   jacket: number;

@@ -32,7 +32,7 @@ export interface RecentCity {
 export const CITY_TTL_MS = 24 * 60 * 60 * 1000;
 export const CITY_STORE_MAX = 20;
 
-const KEY = "codecity-recent:v1";
+const KEY = "ephemora-skyline-recent:v1";
 
 function read(): RecentCity[] {
   const result = recentCitiesRead();
@@ -46,7 +46,7 @@ function read(): RecentCity[] {
  * it was a data-loss door with a timer on it: the next city anyone opened
  * ran `recordCityVisit`, whose read said empty, and the write that followed
  * stored that empty over the file. The unreadable bytes now stay verbatim
- * under `codecity-recent:v1:unreadable` before any write can reach the key,
+ * under `ephemora-skyline-recent:v1:unreadable` before any write can reach the key,
  * and the entry screen says the difference out loud (`landing.recentUnreadable`).
  */
 export function recentCitiesRead(): StoredRead<RecentCity[]> {

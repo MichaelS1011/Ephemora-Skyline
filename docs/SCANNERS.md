@@ -18,7 +18,7 @@ The deep AST scan needs rules, and where those rules come from is a decision wit
 | -------------------- | -------------------------------------------------------------------- | ---------------------------------------------------------------------- | ------------------------------------------------------- |
 | `ephemora-core`      | `backend/rules/ephemora-core/`                                       | 12                                                                     | Apache-2.0, same as the program — ours to ship and grow |
 | _(nothing selected)_ | `semgrep.dev`, during the scan                                       | not in this tree — the registry's own count, on the registry's own day | Semgrep Rules License v1.0 — not redistributable        |
-| your own             | `~/.ephemora-skyline/rule-packs/<id>/` (or `CODECITY_RULE_PACK_DIR`) | any                                                                    | yours                                                   |
+| your own             | `~/.ephemora-skyline/rule-packs/<id>/` (or `EPHEMORA_RULE_PACK_DIR`) | any                                                                    | yours                                                   |
 
 A pack is a directory with a `pack.json` manifest and rule YAML beside it. The manifest's `ruleCount` is checked against the files at load time, and a pack whose manifest lies is not offered at all. Scans select packs **by id**; a path is rejected, because a client-supplied directory would let the scanner read rules from anywhere on the machine.
 

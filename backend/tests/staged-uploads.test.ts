@@ -11,7 +11,7 @@ import type { AnalysisOrchestrator } from "../src/services/analyzer/orchestrator
  *
  * One: the TTL registry lived in RAM, so every restart forgot the folders it
  * had staged and left a copy of the user's source behind — 212 of them had
- * accumulated in /tmp/codecity-uploads on the development machine while the
+ * accumulated in /tmp/ephemora-skyline-uploads on the development machine while the
  * server "pruned stale uploads every 6 hours". The sweep now reads the staging
  * root itself, and only touches direct children whose name is the uuid this
  * route generates.

@@ -62,20 +62,20 @@ const isGitPath = (rel: string): boolean => rel === ".git" || rel.startsWith(".g
 // directories whose analysis is old — nothing accumulates forever.
 const STAGED_DIRS = new Map<string, { dir: string; lastUsed: number }>();
 const STAGED_TTL_MS =
-  Math.max(1, Number(process.env.CODECITY_UPLOAD_TTL_HOURS ?? 24)) * 60 * 60 * 1000;
+  Math.max(1, Number(process.env.EPHEMORA_UPLOAD_TTL_HOURS ?? 24)) * 60 * 60 * 1000;
 
 /** The one directory this app stages into; nothing outside it is ever removed. */
 export function uploadsRoot(): string {
   // An escape hatch for tests and for a machine whose /tmp is too small — the
   // sweeper only ever looks inside this root.
   //
-  // Blank means unset, not "here": `CODECITY_UPLOAD_DIR=` is the line the shipped
+  // Blank means unset, not "here": `EPHEMORA_UPLOAD_DIR=` is the line the shipped
   // template carries, and that template says the empty value means the system
   // temp folder. Read as a path, "" is the directory the server was started from,
   // so every staged copy of the user's source would land in the project tree and
   // the sweep would chase whatever the current folder happens to be.
-  const configured = process.env.CODECITY_UPLOAD_DIR?.trim();
-  return configured || path.join(os.tmpdir(), "codecity-uploads");
+  const configured = process.env.EPHEMORA_UPLOAD_DIR?.trim();
+  return configured || path.join(os.tmpdir(), "ephemora-skyline-uploads");
 }
 
 /** A staged dir is a direct child named by the id the route generated. */

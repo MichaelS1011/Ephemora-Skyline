@@ -19,7 +19,7 @@ import { city, dir, file } from "./helpers/cityFixture";
  * by nothing else), and it never holds a folder name or a path.
  */
 
-const KEY = "codecity-pending-run:v1";
+const KEY = "ephemora-skyline-pending-run:v1";
 const ID = "5edbe8b7-d4ee-4e3c-9a11-fc8352ee27a4";
 const OTHER = "00000000-0000-4000-8000-000000000000";
 

@@ -33,7 +33,7 @@ import { city, dir, file, finding } from "./helpers/cityFixture";
  *     first/again × motion/reduced, by driving `setCityData` itself.
  */
 
-const STAGE_KEY = "codecity-arrival-stage:v1";
+const STAGE_KEY = "ephemora-skyline-arrival-stage:v1";
 const QUARANTINE = `${STAGE_KEY}:unreadable`;
 
 const neu = (id: string) =>

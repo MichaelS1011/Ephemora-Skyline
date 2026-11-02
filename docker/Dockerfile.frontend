@@ -11,7 +11,7 @@ RUN npm ci --ignore-scripts
 COPY tsconfig.base.json ./
 COPY frontend/ ./frontend/
 
-RUN npm run build --workspace=codecity-frontend
+RUN npm run build --workspace=ephemora-skyline-frontend
 
 FROM nginx:alpine
 

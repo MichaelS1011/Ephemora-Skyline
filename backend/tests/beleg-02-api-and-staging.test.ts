@@ -130,28 +130,28 @@ describe("the task graph ARCHITECTURE describes (docs/ARCHITECTURE.md:29-33)", (
 });
 
 describe("what the staging route really keeps (docs/PRIVACY.md:5)", () => {
-  const previousRoot = process.env["CODECITY_UPLOAD_DIR"];
-  const previousTtl = process.env["CODECITY_UPLOAD_TTL_HOURS"];
+  const previousRoot = process.env["EPHEMORA_UPLOAD_DIR"];
+  const previousTtl = process.env["EPHEMORA_UPLOAD_TTL_HOURS"];
 
   afterEach(() => {
-    if (previousRoot === undefined) delete process.env["CODECITY_UPLOAD_DIR"];
-    else process.env["CODECITY_UPLOAD_DIR"] = previousRoot;
-    if (previousTtl === undefined) delete process.env["CODECITY_UPLOAD_TTL_HOURS"];
-    else process.env["CODECITY_UPLOAD_TTL_HOURS"] = previousTtl;
+    if (previousRoot === undefined) delete process.env["EPHEMORA_UPLOAD_DIR"];
+    else process.env["EPHEMORA_UPLOAD_DIR"] = previousRoot;
+    if (previousTtl === undefined) delete process.env["EPHEMORA_UPLOAD_TTL_HOURS"];
+    else process.env["EPHEMORA_UPLOAD_TTL_HOURS"] = previousTtl;
     vi.resetModules();
   });
 
-  it("stages under $TMPDIR/codecity-uploads when nothing overrides it", async () => {
-    delete process.env["CODECITY_UPLOAD_DIR"];
+  it("stages under $TMPDIR/ephemora-skyline-uploads when nothing overrides it", async () => {
+    delete process.env["EPHEMORA_UPLOAD_DIR"];
     const footprint = await footprintSnapshot();
-    expect(footprint.root).toBe(path.join(os.tmpdir(), "codecity-uploads"));
+    expect(footprint.root).toBe(path.join(os.tmpdir(), "ephemora-skyline-uploads"));
   });
 
   it("keeps a copy for 24 hours, and follows the hour setting", async () => {
     const asShipped = await footprintSnapshot();
     expect(asShipped.ttlHours).toBe(24);
 
-    process.env["CODECITY_UPLOAD_TTL_HOURS"] = "5";
+    process.env["EPHEMORA_UPLOAD_TTL_HOURS"] = "5";
     vi.resetModules();
     const reimported = await import("../src/server/routes/local-analyze.js");
     const asConfigured = await reimported.footprintSnapshot();

@@ -62,7 +62,7 @@ async function write(rel: string, content: string): Promise<void> {
 }
 
 beforeAll(async () => {
-  tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "codecity-churn-"));
+  tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "ephemora-skyline-churn-"));
   execFileSync("git", ["init", "-q", tmpDir]);
   git("config", "user.email", "test@example.com");
   git("config", "user.name", "Churn Test");
@@ -160,7 +160,7 @@ describe("collectGitChurn", () => {
   });
 
   it("flags single-commit history as not meaningful", async () => {
-    const shallow = await fs.mkdtemp(path.join(os.tmpdir(), "codecity-shallow-"));
+    const shallow = await fs.mkdtemp(path.join(os.tmpdir(), "ephemora-skyline-shallow-"));
     try {
       execFileSync("git", ["init", "-q", shallow]);
       const gitShallow = (...args: string[]) =>

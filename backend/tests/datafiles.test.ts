@@ -64,7 +64,7 @@ describe("the pipeline builds no structure out of data", () => {
   let dir = "";
 
   beforeAll(async () => {
-    dir = await mkdtemp(path.join(tmpdir(), "codecity-datafile-"));
+    dir = await mkdtemp(path.join(tmpdir(), "ephemora-skyline-datafile-"));
     await writeFile(
       path.join(dir, "catalog.json"),
       JSON.stringify(

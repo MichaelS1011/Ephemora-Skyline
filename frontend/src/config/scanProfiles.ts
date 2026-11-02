@@ -193,7 +193,7 @@ export const PROFILE_SCOPE: Record<ScanProfile, DictKey> = {
  * true without a stopwatch is said here: duration is a property of the folder
  * and the engines that ran, and the progress line counts the seconds live.
  */
-const STORAGE_KEY = "codecity-scan-profile";
+const STORAGE_KEY = "ephemora-skyline-scan-profile";
 
 /**
  * The ids the loader honours. "custom" is included on purpose: it is a value
@@ -214,7 +214,7 @@ const PROFILE_IDS: readonly string[] = ["quick", "standard", "deep", "custom"];
  * standard profile: a user who had chosen `deep` was told by the chip row
  * that they had never chosen anything, and the next chip click saved that
  * "never chosen" over the bytes the reader might still recover. The bytes now
- * stay under `codecity-scan-profile:unreadable` first-wins, and the screen
+ * stay under `ephemora-skyline-scan-profile:unreadable` first-wins, and the screen
  * says the difference in words where the chips already live (ProfileChips,
  * `profile.storedUnreadable`).
  */
@@ -290,7 +290,7 @@ export function configPayload(
  */
 export const MAX_EXCLUDE_PATHS = 50;
 const MAX_EXCLUDE_LEN = 120;
-const EXCLUDE_KEY = "codecity-scan-excludes";
+const EXCLUDE_KEY = "ephemora-skyline-scan-excludes";
 
 /** Split the free-text field into path needles: "generated, fixtures/build". */
 export function parseExcludes(raw: string): string[] {
@@ -337,7 +337,7 @@ export function loadExcludes(): string[] {
  * widened the scan radius — while the next `saveExcludes` from the field
  * wrote that widening over the bytes the reader might still recover. That
  * was the data-loss door; the bytes now stay under
- * `codecity-scan-excludes:unreadable` no matter what the field saves next.
+ * `ephemora-skyline-scan-excludes:unreadable` no matter what the field saves next.
  */
 export function loadExcludesRead(): StoredRead<string[]> {
   return readStoredJson(EXCLUDE_KEY, (parsed) =>

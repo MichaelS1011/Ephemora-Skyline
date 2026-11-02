@@ -19,7 +19,7 @@
 import type { CityData } from "./city/types";
 import { readStoredJson, type StoredRead } from "./storageRead";
 
-const KEY = "codecity-verify-anchor:v1";
+const KEY = "ephemora-skyline-verify-anchor:v1";
 /** Enough visits to cover a working day; the server forgets sooner than this. */
 const MAX_ENTRIES = 60;
 /** Past this many paths the fingerprint is of the first slice — still stable. */
@@ -123,7 +123,7 @@ export function folderShape(city: CityData): string {
   return `${list.length}:${hash.toString(16).padStart(8, "0")}`;
 }
 
-const TIMES_KEY = "codecity-verify-times:v1";
+const TIMES_KEY = "ephemora-skyline-verify-times:v1";
 const MAX_TIMES = 120;
 
 /** Remember a replaced scan's own time; the anchor no longer holds its record. */

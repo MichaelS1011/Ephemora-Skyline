@@ -75,7 +75,7 @@ describe("the pipeline walks artifacts out and real sources back in", () => {
   let dir = "";
 
   beforeAll(async () => {
-    dir = await mkdtemp(path.join(tmpdir(), "codecity-artifacts-"));
+    dir = await mkdtemp(path.join(tmpdir(), "ephemora-skyline-artifacts-"));
     const files: Record<string, string> = {
       "playwright-report/index.html": "<html><body>report</body></html>\n",
       "playwright-report/data/trace.json": '{"events": []}\n',

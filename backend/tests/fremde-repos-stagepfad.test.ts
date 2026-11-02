@@ -35,7 +35,7 @@ describe("a stored finding never carries the staging path", () => {
   it(
     "drops the internal _filePath before the finding joins the result",
     async () => {
-      const dir = await fs.mkdtemp(path.join(os.tmpdir(), "codecity-stagepath-"));
+      const dir = await fs.mkdtemp(path.join(os.tmpdir(), "ephemora-skyline-stagepath-"));
       const rel = "app/voice.py";
       await fs.mkdir(path.join(dir, "app"), { recursive: true });
       const content = `def speak(text):\n    print("token = abcdefghijklmnop")\n    return text\n`;

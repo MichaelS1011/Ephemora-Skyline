@@ -49,13 +49,13 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 
 /** Shipped packs live next to the built package, at the same relative depth in src and dist. */
 export function shippedPacksRoot(): string {
-  return process.env.CODECITY_RULES_DIR || path.resolve(here, "..", "..", "..", "rules");
+  return process.env.EPHEMORA_RULES_DIR || path.resolve(here, "..", "..", "..", "rules");
 }
 
 /** Where a user's own fetched packs go. Overridable so tests never touch the home dir. */
 export function fetchedPacksRoot(): string {
   return (
-    process.env.CODECITY_RULE_PACK_DIR || path.join(os.homedir(), ".ephemora-skyline", "rule-packs")
+    process.env.EPHEMORA_RULE_PACK_DIR || path.join(os.homedir(), ".ephemora-skyline", "rule-packs")
   );
 }
 

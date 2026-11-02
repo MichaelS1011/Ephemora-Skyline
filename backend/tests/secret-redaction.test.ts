@@ -134,7 +134,7 @@ FEATURE_FLAGS=beta
    * text is the moment the credential would enter the report.
    */
   it("finds the credential but reports it without its value", async () => {
-    const dir = await fs.mkdtemp(path.join(os.tmpdir(), "codecity-env-"));
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), "ephemora-skyline-env-"));
     await fs.mkdir(path.join(dir, "config"), { recursive: true });
     await fs.writeFile(path.join(dir, "config", ".env"), envBody, "utf-8");
 
@@ -613,7 +613,7 @@ describe("the 120-character display clip never cuts a credential in half", () =>
   });
 
   it("masks the gitleaks batch line before clipping it", async () => {
-    const dir = await fs.mkdtemp(path.join(os.tmpdir(), "codecity-clip-"));
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), "ephemora-skyline-clip-"));
     await fs.mkdir(path.join(dir, "src"), { recursive: true });
     await fs.writeFile(path.join(dir, "src", "keys.ts"), `${LONG_LINE}\nconst a = 1;\n`, "utf-8");
 

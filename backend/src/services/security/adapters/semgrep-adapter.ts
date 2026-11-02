@@ -64,7 +64,7 @@ export class SemgrepAdapter implements ScannerAdapter {
     const args: string[] = [];
     const mounts: string[] = [];
     for (const dir of this.ruleDirs) {
-      const target = `/codecity-rules/${path.basename(dir)}`;
+      const target = `/ephemora-skyline-rules/${path.basename(dir)}`;
       args.push("--config", target);
       mounts.push("-v", `${dir}:${target}:ro`);
     }
@@ -133,7 +133,7 @@ export class SemgrepAdapter implements ScannerAdapter {
         return null;
       }
       this.binaryAvailable = true;
-      outDir = await mkdtemp(path.join(tmpdir(), "codecity-semgrep-"));
+      outDir = await mkdtemp(path.join(tmpdir(), "ephemora-skyline-semgrep-"));
       const tmpOut = path.join(outDir, "run.sarif");
       const configArgs = this.configArgs();
       try {
@@ -239,7 +239,7 @@ export class SemgrepAdapter implements ScannerAdapter {
           return null;
         }
       }
-      outDir = await mkdtemp(path.join(tmpdir(), "codecity-semgrep-docker-"));
+      outDir = await mkdtemp(path.join(tmpdir(), "ephemora-skyline-semgrep-docker-"));
       const tmpOut = path.join(outDir, "run.sarif");
       const { args: configArgs, mounts } = this.dockerConfigArgs();
       // mount clonePath as /src
@@ -298,7 +298,7 @@ export class SemgrepAdapter implements ScannerAdapter {
     let tmpBase: string | null = null;
     try {
       if (this.binaryAvailable === false && this.dockerAvailable === false) return [];
-      tmpBase = await mkdtemp(path.join(tmpdir(), "codecity-semgrep-single-"));
+      tmpBase = await mkdtemp(path.join(tmpdir(), "ephemora-skyline-semgrep-single-"));
       const tmpFile = path.join(tmpBase, path.basename(filePath));
       await writeFile(tmpFile, content, "utf-8");
       const issues = await this.scanBatch(tmpBase, new Map([[path.basename(filePath), content]]));

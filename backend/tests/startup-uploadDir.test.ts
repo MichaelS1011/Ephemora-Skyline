@@ -16,7 +16,7 @@ import {
  * START-15 — the start that refuses its own staging folder.
  *
  * The scan reads the user's folder from the copy staged under
- * `CODECITY_UPLOAD_DIR`. The engines that walk a tree follow the repository's
+ * `EPHEMORA_UPLOAD_DIR`. The engines that walk a tree follow the repository's
  * ignore rules, and a staging root inside an ignored area is therefore never
  * opened: measured on two byte-identical trees in one repository, the ignored
  * root scans as 0 files and 0 findings while the unchecked one scans as 1 and 1.
@@ -205,22 +205,24 @@ describe("a staging folder no rule covers starts", () => {
       stdout: "",
       stderr: "fatal: not a git repository (or any of the parent directories): .git",
     });
-    const verdict = await inspectStagingRoot(path.join(os.tmpdir(), "codecity-uploads"), { run });
+    const verdict = await inspectStagingRoot(path.join(os.tmpdir(), "ephemora-skyline-uploads"), {
+      run,
+    });
     expect(verdict.state).toBe("clear");
   });
 });
 
 describe("the folder the question is asked about", () => {
   it("reads a blank value as the documented default, not as the launch folder", () => {
-    // `CODECITY_UPLOAD_DIR=` is the line the shipped template carries. Taken as a
+    // `EPHEMORA_UPLOAD_DIR=` is the line the shipped template carries. Taken as a
     // path it is the current working directory, which would stage copies of the
     // user's source inside the project tree and let the sweep chase the folder
     // the server happened to be started from. Measured before the fix: the
     // footprint of a start with the blank value reported its root as "".
     process.env[UPLOAD_DIR_ENV] = "";
-    expect(uploadsRoot()).toBe(path.join(os.tmpdir(), "codecity-uploads"));
+    expect(uploadsRoot()).toBe(path.join(os.tmpdir(), "ephemora-skyline-uploads"));
     process.env[UPLOAD_DIR_ENV] = "   ";
-    expect(uploadsRoot()).toBe(path.join(os.tmpdir(), "codecity-uploads"));
+    expect(uploadsRoot()).toBe(path.join(os.tmpdir(), "ephemora-skyline-uploads"));
   });
 
   it("keeps a folder the operator named, spaces around it aside", () => {

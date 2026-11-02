@@ -77,7 +77,7 @@ const body = (res: ReturnType<typeof makeRes>): StatusBody => res.body as Status
 let workDir = "";
 
 async function writeFixtureDir(): Promise<string> {
-  const dir = await fs.mkdtemp(path.join(os.tmpdir(), "codecity-progress-"));
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), "ephemora-skyline-progress-"));
   await fs.mkdir(path.join(dir, "src"), { recursive: true });
   await fs.writeFile(
     path.join(dir, "src", "app.ts"),

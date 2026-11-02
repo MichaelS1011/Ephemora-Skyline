@@ -28,7 +28,7 @@ describe("a file the scan's own format list excludes is counted, not assumed awa
   let dir = "";
 
   beforeAll(async () => {
-    dir = await mkdtemp(path.join(tmpdir(), "codecity-drop-formats-"));
+    dir = await mkdtemp(path.join(tmpdir(), "ephemora-skyline-drop-formats-"));
     const files: Record<string, string> = {
       "src/app.ts": "export function app(): number { return 3 }\n",
       "README.md": "# demo\n",

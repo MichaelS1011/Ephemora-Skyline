@@ -7,8 +7,8 @@
 
 export type EditorId = "vscode" | "cursor";
 
-const ROOT_KEY = "codecity.workspaceRoot";
-const EDITOR_KEY = "codecity.editor";
+const ROOT_KEY = "ephemora-skyline.workspaceRoot";
+const EDITOR_KEY = "ephemora-skyline.editor";
 
 export function getWorkspaceRoot(repoKey?: string): string {
   if (typeof window === "undefined") return "";

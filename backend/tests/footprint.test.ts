@@ -20,7 +20,7 @@ const UUID_RESISTING = "8c9d0e1f-2a3b-4c5d-8e6f-7a8b9c0d1e2f";
 const STRAY = "not-a-staged-copy";
 
 let root = "";
-const previous = process.env.CODECITY_UPLOAD_DIR;
+const previous = process.env.EPHEMORA_UPLOAD_DIR;
 
 const makeCopy = async (name: string, bytes: number, ageHours: number): Promise<string> => {
   const dir = path.join(root, name);
@@ -33,7 +33,7 @@ const makeCopy = async (name: string, bytes: number, ageHours: number): Promise<
 
 beforeAll(async () => {
   root = await fs.mkdtemp(path.join(os.tmpdir(), "footprint-test-"));
-  process.env.CODECITY_UPLOAD_DIR = root;
+  process.env.EPHEMORA_UPLOAD_DIR = root;
   await makeCopy(UUID, 2048, 1); // fresh
   await makeCopy(UUID_STALE, 4096, 48); // past a 24 h TTL
   await fs.mkdir(path.join(root, STRAY), { mode: 0o700 }); // a stranger's folder
@@ -45,8 +45,8 @@ afterAll(async () => {
     await fs.chmod(path.join(root, UUID_RESISTING), 0o700).catch(() => {});
     await fs.rm(root, { recursive: true, force: true }).catch(() => {});
   }
-  if (previous === undefined) delete process.env.CODECITY_UPLOAD_DIR;
-  else process.env.CODECITY_UPLOAD_DIR = previous;
+  if (previous === undefined) delete process.env.EPHEMORA_UPLOAD_DIR;
+  else process.env.EPHEMORA_UPLOAD_DIR = previous;
 });
 
 describe("the footprint", () => {

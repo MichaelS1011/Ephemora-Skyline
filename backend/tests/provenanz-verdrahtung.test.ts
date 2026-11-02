@@ -84,7 +84,7 @@ const FOLDER: Record<string, string> = {
 let project = "";
 
 beforeAll(async () => {
-  const root = await mkdtemp(path.join(tmpdir(), "codecity-provenanz-wire-"));
+  const root = await mkdtemp(path.join(tmpdir(), "ephemora-skyline-provenanz-wire-"));
   project = path.join(root, "project");
   for (const [rel, content] of Object.entries(FOLDER)) {
     const abs = path.join(project, rel);

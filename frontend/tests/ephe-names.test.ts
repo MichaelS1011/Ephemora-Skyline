@@ -38,7 +38,7 @@ const OTHER_CITY = city({
 });
 
 const ATLAS = "plot:f-src/db.ts#0";
-const KEY = (c: typeof BUCKET_CITY): string => `codecity-ephe-names:${bucketKeyFor(c)}`;
+const KEY = (c: typeof BUCKET_CITY): string => `ephemora-skyline-ephe-names:${bucketKeyFor(c)}`;
 
 /** Make the next write fail the way a full quota fails. */
 function refuseOneWrite(): () => void {

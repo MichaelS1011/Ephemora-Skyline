@@ -370,7 +370,7 @@ export async function executeTestRun(
   try {
     // One private HOME per run, so the install and the test process never read
     // the real one; removed again at the end of this function
-    runnerHome = path.join(os.tmpdir(), "codecity-runner", runId);
+    runnerHome = path.join(os.tmpdir(), "ephemora-skyline-runner", runId);
     await RUNNER_HOME.prepare(runnerHome);
     const env = runnerEnv(runnerHome);
     // Collect every directory with a supported runner: the project root or
@@ -440,7 +440,7 @@ export async function executeTestRun(
       state.status = "running";
       state.stage = `Running ${runner} (${target.wsName})…`;
 
-      const reportPath = path.join(target.dir, ".codecity-test-report.json");
+      const reportPath = path.join(target.dir, ".ephemora-skyline-test-report.json");
       // A workspace's runner is often hoisted to the repository root, so both
       // places are checked before the run is refused.
       const candidates = [path.join(target.dir, ...runnerBinaryPath(target.runner))];

@@ -468,7 +468,7 @@ describe("eine Maschinenkopie, die nicht zu lesen ist, sagt es", () => {
 
 describe("der Editor-Weg nennt sein Ziel und bleibt korrigierbar", () => {
   it("prints the absolute path the deep link will ask for", async () => {
-    localStorage.setItem("codecity.workspaceRoot:local/probe", "/Users/dev/probe");
+    localStorage.setItem("ephemora-skyline.workspaceRoot:local/probe", "/Users/dev/probe");
     const hit = file("src/config.js", [secret()]);
     await show(createElement(InfoPanel), city([hit]));
     await act(async () => useStore.getState().setSelectedUnit({ kind: "file", id: hit.id }));
@@ -493,7 +493,7 @@ describe("der Editor-Weg nennt sein Ziel und bleibt korrigierbar", () => {
   it("stays out of the panel for a city that was never on this disk", async () => {
     const hit = file("src/config.js", [secret()]);
     const demo = city([hit]);
-    demo.repo = { ...demo.repo, owner: "codecity" };
+    demo.repo = { ...demo.repo, owner: "ephemora-skyline" };
     await show(createElement(InfoPanel), demo);
     await act(async () => useStore.getState().setSelectedUnit({ kind: "file", id: hit.id }));
     expect(container.querySelector(".ide-path")).toBeNull();
@@ -713,7 +713,7 @@ describe("der erste Verdict bekommt sein ehrliches Versprechen", () => {
         createElement(InfoPanel),
         cityOf({
           analysisId: "demo-001",
-          repo: { owner: "codecity", name: "demo-city", branch: "main" },
+          repo: { owner: "ephemora-skyline", name: "demo-city", branch: "main" },
           languages: { JavaScript: 100 },
           scanProvenance: provenance({ gitleaks: true }),
           tree: dir({ path: "", detailFiles: [hit()] }),
@@ -807,7 +807,7 @@ describe("die Karte des ersten Funds nennt den ganzen Umfang (UX 6)", () => {
 
 /**
  * Task #8, storage-read class: the BROWSER bucket of the verdicts is the copy
- * this panel reads synchronously. Corrupt bytes under `codecity-reviews:<p>`
+ * this panel reads synchronously. Corrupt bytes under `ephemora-skyline-reviews:<p>`
  * must not wear the silence of "nothing judged yet" — the note takes the
  * verdicts-note family that `verdictsBlocked` and `verdictsUnreadable` (the
  * machine copy) already own, glyph and word, never colour alone.
@@ -817,7 +817,7 @@ describe("ein unlesbarer Browser-Eimer sagt es, statt 'nichts bewertet' zu schwe
     localStorage.clear();
     const hit = file("src/config.js", [secret()]);
     const data = city([hit]);
-    localStorage.setItem(`codecity-reviews:${bucketKeyFor(data)}`, '{"fp:1":"rev');
+    localStorage.setItem(`ephemora-skyline-reviews:${bucketKeyFor(data)}`, '{"fp:1":"rev');
     await show(createElement(InfoPanel), data);
     await act(async () => useStore.getState().setSelectedUnit({ kind: "file", id: hit.id }));
     const note = container.querySelector("[data-verdicts-storage-unreadable]");
@@ -825,7 +825,7 @@ describe("ein unlesbarer Browser-Eimer sagt es, statt 'nichts bewertet' zu schwe
     expect(note!.getAttribute("role")).toBe("alert");
     expect(note!.textContent).toContain("⚠");
     expect(text()).toContain(t("de", "panel.verdictsStorageUnreadable"));
-    expect(localStorage.getItem(`codecity-reviews:${bucketKeyFor(data)}:unreadable`)).toBe(
+    expect(localStorage.getItem(`ephemora-skyline-reviews:${bucketKeyFor(data)}:unreadable`)).toBe(
       '{"fp:1":"rev',
     );
   });
@@ -834,7 +834,7 @@ describe("ein unlesbarer Browser-Eimer sagt es, statt 'nichts bewertet' zu schwe
     localStorage.clear();
     const hit = file("src/config.js", [secret()]);
     const data = city([hit]);
-    localStorage.setItem(`codecity-reviews:${bucketKeyFor(data)}`, '"plain text"');
+    localStorage.setItem(`ephemora-skyline-reviews:${bucketKeyFor(data)}`, '"plain text"');
     await show(createElement(InfoPanel), data, "en");
     await act(async () => useStore.getState().setSelectedUnit({ kind: "file", id: hit.id }));
     expect(text()).toContain(t("en", "panel.verdictsStorageUnreadable"));

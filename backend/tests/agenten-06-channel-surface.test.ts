@@ -341,7 +341,7 @@ describe("the channel cannot write, and is guarded like the routes that can", ()
       path.join(REPO, "backend/src/server/routes/verdicts.ts"),
       "utf-8",
     );
-    expect(verdictsSource).toMatch(/CODECITY_VERDICTS_FILE/);
+    expect(verdictsSource).toMatch(/EPHEMORA_VERDICTS_FILE/);
     expect(verdictsSource).not.toMatch(/https?:\/\//);
   });
 
@@ -351,7 +351,7 @@ describe("the channel cannot write, and is guarded like the routes that can", ()
     expect(flat).toContain("Read the verdicts");
     expect(flat).toContain("this channel names only the read");
     expect(flat).toContain("one JSON file (`verdicts.json`)");
-    expect(flat).toContain("CODECITY_VERDICTS_FILE");
+    expect(flat).toContain("EPHEMORA_VERDICTS_FILE");
     expect(flat).toContain("they survive a backend restart and a re-scan");
     expect(flat).not.toContain("no route accepts them");
   });
@@ -577,7 +577,7 @@ describe("the result and verify routes answer their contract", () => {
  * bucket and renamed that over the file, so every other project's verdicts on
  * disk were gone — permanent data loss for a folder the browser is not showing.
  *
- * Driven through a temp `CODECITY_VERDICTS_FILE`, never the real home file.
+ * Driven through a temp `EPHEMORA_VERDICTS_FILE`, never the real home file.
  */
 describe("a verdict store that is still loading answers as one writer", () => {
   const BUCKET_A = "p-0000000000000001";
@@ -610,10 +610,10 @@ describe("a verdict store that is still loading answers as one writer", () => {
   }
 
   it("a get racing a set in the same tick keeps the other project's bucket on disk", async () => {
-    const dir = mkdtempSync(path.join(os.tmpdir(), "codecity-verdicts-race-"));
+    const dir = mkdtempSync(path.join(os.tmpdir(), "ephemora-skyline-verdicts-race-"));
     const file = path.join(dir, "verdicts.json");
-    const previous = process.env.CODECITY_VERDICTS_FILE;
-    process.env.CODECITY_VERDICTS_FILE = file;
+    const previous = process.env.EPHEMORA_VERDICTS_FILE;
+    process.env.EPHEMORA_VERDICTS_FILE = file;
     try {
       writeFileSync(
         file,
@@ -648,8 +648,8 @@ describe("a verdict store that is still loading answers as one writer", () => {
       expect(written.projects[BUCKET_A]?.reviews).toEqual({ [FP_A]: "reviewed" });
       expect(written.projects[BUCKET_B]?.reviews).toEqual({ [FP_B]: "to-fix" });
     } finally {
-      if (previous === undefined) delete process.env.CODECITY_VERDICTS_FILE;
-      else process.env.CODECITY_VERDICTS_FILE = previous;
+      if (previous === undefined) delete process.env.EPHEMORA_VERDICTS_FILE;
+      else process.env.EPHEMORA_VERDICTS_FILE = previous;
       rmSync(dir, { recursive: true, force: true });
     }
   });
@@ -671,7 +671,7 @@ describe("a verdict store that is still loading answers as one writer", () => {
  * list it is refused like every other write — the store will not report a
  * deletion it could not witness.
  *
- * Every case drives the exported handlers against a temp `CODECITY_VERDICTS_FILE`
+ * Every case drives the exported handlers against a temp `EPHEMORA_VERDICTS_FILE`
  * in `os.tmpdir()`, never the real home file, and each gets a fresh module so the
  * module-level store cannot carry a previous test's state into the next file.
  */
@@ -773,16 +773,16 @@ describe("an unreadable verdict file is answered 503, never written over", () =>
     seed: (dir: string, file: string) => void,
     run: (dir: string, file: string) => Promise<void>,
   ): Promise<void> {
-    const dir = mkdtempSync(path.join(os.tmpdir(), `codecity-verdicts-${name}-`));
+    const dir = mkdtempSync(path.join(os.tmpdir(), `ephemora-skyline-verdicts-${name}-`));
     const file = path.join(dir, "verdicts.json");
     seed(dir, file);
-    const previous = process.env.CODECITY_VERDICTS_FILE;
-    process.env.CODECITY_VERDICTS_FILE = file;
+    const previous = process.env.EPHEMORA_VERDICTS_FILE;
+    process.env.EPHEMORA_VERDICTS_FILE = file;
     try {
       await run(dir, file);
     } finally {
-      if (previous === undefined) delete process.env.CODECITY_VERDICTS_FILE;
-      else process.env.CODECITY_VERDICTS_FILE = previous;
+      if (previous === undefined) delete process.env.EPHEMORA_VERDICTS_FILE;
+      else process.env.EPHEMORA_VERDICTS_FILE = previous;
       rmSync(dir, { recursive: true, force: true });
     }
   }
@@ -1007,15 +1007,15 @@ describe("the memoized read poisons nothing and re-reads nothing", () => {
   const FP_A = "fp:aaaaaaaaaaaaaaaa";
 
   it("a failed read is retried once the file reads again, and a loaded read is never re-read", async () => {
-    const dir = mkdtempSync(path.join(os.tmpdir(), "codecity-verdicts-memo-"));
+    const dir = mkdtempSync(path.join(os.tmpdir(), "ephemora-skyline-verdicts-memo-"));
     const file = path.join(dir, "verdicts.json");
     const whole = JSON.stringify({
       version: 1,
       projects: { [BUCKET_A]: { at: 1, reviews: { [FP_A]: "reviewed" } } },
     });
     writeFileSync(file, whole.slice(0, whole.length - 12), "utf-8"); // truncated: unparsable
-    const previous = process.env.CODECITY_VERDICTS_FILE;
-    process.env.CODECITY_VERDICTS_FILE = file;
+    const previous = process.env.EPHEMORA_VERDICTS_FILE;
+    process.env.EPHEMORA_VERDICTS_FILE = file;
     try {
       const store = new VerdictStore();
       expect(await store.get(BUCKET_A), "a failed read answers `unreadable`, not empty").toBeNull();
@@ -1032,8 +1032,8 @@ describe("the memoized read poisons nothing and re-reads nothing", () => {
         "the loaded map is memoized: the disk is not re-read on every request",
       ).toEqual({ [FP_A]: "reviewed" });
     } finally {
-      if (previous === undefined) delete process.env.CODECITY_VERDICTS_FILE;
-      else process.env.CODECITY_VERDICTS_FILE = previous;
+      if (previous === undefined) delete process.env.EPHEMORA_VERDICTS_FILE;
+      else process.env.EPHEMORA_VERDICTS_FILE = previous;
       rmSync(dir, { recursive: true, force: true });
     }
   });

@@ -70,10 +70,10 @@ import { DICT } from "../src/i18n/dict";
 const tEn = (key: string) => tDict("en", key as never);
 const tDe = (key: string) => tDict("de", key as never);
 
-const EXCLUDE_KEY = "codecity-scan-excludes";
-const PACKS_KEY = "codecity-scan-packs";
-const RECENT_KEY = "codecity-recent:v1";
-const PROFILE_KEY = "codecity-scan-profile";
+const EXCLUDE_KEY = "ephemora-skyline-scan-excludes";
+const PACKS_KEY = "ephemora-skyline-scan-packs";
+const RECENT_KEY = "ephemora-skyline-recent:v1";
+const PROFILE_KEY = "ephemora-skyline-scan-profile";
 
 const ENTRY: RecentCity = {
   id: "a-1",
@@ -120,8 +120,8 @@ interface LoaderCase {
  * member: the id is stored bare, so its door reads through `readStoredText`
  * and refuses every text that is not one of the four known ids.
  */
-const LOOK_KEY = "codecity-ephe-look:v1";
-const ANCHOR_KEY = "codecity-verify-anchor:v1";
+const LOOK_KEY = "ephemora-skyline-ephe-look:v1";
+const ANCHOR_KEY = "ephemora-skyline-verify-anchor:v1";
 
 /** A fixture city whose bucket needs no configured workspace root. */
 const BUCKET_CITY = city({
@@ -130,8 +130,8 @@ const BUCKET_CITY = city({
   files: [file("src/db.ts", "TypeScript")],
   tree: dir({ path: "", detailFiles: [file("src/db.ts", "TypeScript")] }),
 });
-const NAMES_BUCKET = `codecity-ephe-names:${bucketKeyFor(BUCKET_CITY)}`;
-const REVIEWS_BUCKET = `codecity-reviews:${bucketKeyFor(BUCKET_CITY)}`;
+const NAMES_BUCKET = `ephemora-skyline-ephe-names:${bucketKeyFor(BUCKET_CITY)}`;
+const REVIEWS_BUCKET = `ephemora-skyline-reviews:${bucketKeyFor(BUCKET_CITY)}`;
 const ATLAS = "plot:f-src/db.ts#0";
 
 const LOADERS: LoaderCase[] = [
@@ -304,7 +304,7 @@ describe("prefs.ts — the pattern these loaders copy (counted, untouched)", () 
   it("corrupt prefs answer unreadable, defaults answer absent", () => {
     localStorage.clear();
     expect(loadPrefsRead()).toEqual({ state: "absent" });
-    localStorage.setItem("codecity-prefs", '{"lang":"de","colorblind":tru');
+    localStorage.setItem("ephemora-skyline-prefs", '{"lang":"de","colorblind":tru');
     expect(loadPrefsRead().state).toBe("unreadable");
     savePrefs({ lang: "en", gfxLite: false, colorblind: false, updateCheck: false });
     expect(preservedUnreadablePrefs()).toBe('{"lang":"de","colorblind":tru');
@@ -499,7 +499,7 @@ describe("the word where the look lives (Landing footprint block)", () => {
  * (unreadable), counting only what is countable and naming the rest. ──────── */
 
 describe("the word where the names count lives (Landing footprint block)", () => {
-  const SECOND_BUCKET = "codecity-ephe-names:p-second-bucket";
+  const SECOND_BUCKET = "ephemora-skyline-ephe-names:p-second-bucket";
 
   it("a corrupt names bucket is not 'no resident names saved yet' — in EN", async () => {
     localStorage.setItem(NAMES_BUCKET, '{"plot:f-a#0":"At');
@@ -548,7 +548,7 @@ describe("the word where the names count lives (Landing footprint block)", () =>
  * never a sum invented over bytes nobody can read. ──────────────────────── */
 
 describe("the names delete door opens over unreadable bytes, and the done line says so", () => {
-  const SECOND_BUCKET = "codecity-ephe-names:p-second-bucket";
+  const SECOND_BUCKET = "ephemora-skyline-ephe-names:p-second-bucket";
 
   function namesDoor(lang: Lang): HTMLButtonElement {
     const label = (lang === "de" ? tDe : tEn)("landing.footprintResetNames");
@@ -573,7 +573,7 @@ describe("the names delete door opens over unreadable bytes, and the done line s
     // corrupt names bucket is names bytes — the watch is the warn line BEFORE
     // the press; after the press the bytes are gone and the line must say so.
     expect(
-      Object.keys(localStorage).filter((k) => k.startsWith("codecity-ephe-names:")).length,
+      Object.keys(localStorage).filter((k) => k.startsWith("ephemora-skyline-ephe-names:")).length,
     ).toBe(0);
     expect(preservedUnreadableBytes(NAMES_BUCKET)).toBeNull();
     const text = host.textContent ?? "";

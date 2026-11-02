@@ -19,7 +19,7 @@
  * the server already produced.
  */
 
-const KEY = "codecity-pending-run:v1";
+const KEY = "ephemora-skyline-pending-run:v1";
 
 /** The shape `crypto.randomUUID()` makes on the server (`local-analyze.ts:483`). */
 const JOB_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;

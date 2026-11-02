@@ -106,11 +106,11 @@ describe("the comparison anchor", () => {
     // nothing was written at all; the record is what makes the next visit work
     expect(first?.scanId).toBe("scan-1");
     expect(
-      JSON.parse(window.localStorage.getItem("codecity-verify-anchor:v1") ?? "[]"),
+      JSON.parse(window.localStorage.getItem("ephemora-skyline-verify-anchor:v1") ?? "[]"),
     ).toHaveLength(1);
     expect(anchorFor(repoB)?.previousId).toBeNull();
     expect(
-      JSON.parse(window.localStorage.getItem("codecity-verify-anchor:v1") ?? "[]"),
+      JSON.parse(window.localStorage.getItem("ephemora-skyline-verify-anchor:v1") ?? "[]"),
     ).toHaveLength(2);
   });
 

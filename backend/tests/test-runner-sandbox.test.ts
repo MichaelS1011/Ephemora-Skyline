@@ -19,14 +19,14 @@ import {
  */
 describe("the test run gets an environment without the user's credentials", () => {
   it("carries no variable from the parent beyond what a node run needs", () => {
-    process.env["CODECITY_TEST_AWS_TOKEN"] = "should-never-be-passed-on";
-    process.env["CODECITY_TEST_DB_URL"] = "postgres://user:pw@host/db";
+    process.env["EPHEMORA_TEST_AWS_TOKEN"] = "should-never-be-passed-on";
+    process.env["EPHEMORA_TEST_DB_URL"] = "postgres://user:pw@host/db";
     const env = runnerEnv("/tmp/runner-home");
-    expect(env["CODECITY_TEST_AWS_TOKEN"]).toBeUndefined();
-    expect(env["CODECITY_TEST_DB_URL"]).toBeUndefined();
+    expect(env["EPHEMORA_TEST_AWS_TOKEN"]).toBeUndefined();
+    expect(env["EPHEMORA_TEST_DB_URL"]).toBeUndefined();
     expect(env["PATH"]).toBe(process.env["PATH"]);
-    delete process.env["CODECITY_TEST_AWS_TOKEN"];
-    delete process.env["CODECITY_TEST_DB_URL"];
+    delete process.env["EPHEMORA_TEST_AWS_TOKEN"];
+    delete process.env["EPHEMORA_TEST_DB_URL"];
   });
 
   /** An `.npmrc` in the real HOME can hold a registry token npm would send */
@@ -61,7 +61,7 @@ describe("the file selection cannot become a command line switch", () => {
 
 describe("the runner home is created without credentials in it", () => {
   it("writes an empty .npmrc rather than reusing the user's", async () => {
-    const dir = await fs.mkdtemp(path.join(os.tmpdir(), "codecity-runnerhome-"));
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), "ephemora-skyline-runnerhome-"));
     await RUNNER_HOME.prepare(dir);
     const npmrc = await fs.readFile(path.join(dir, ".npmrc"), "utf-8");
     expect(npmrc.trim()).toBe("");

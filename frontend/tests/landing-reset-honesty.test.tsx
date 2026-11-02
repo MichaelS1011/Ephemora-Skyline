@@ -98,8 +98,8 @@ describe("the delete on the entry screen tells what actually happened", () => {
     stubVerdictRoutes({ status: 503, body: unreadableBody });
     // The real latch: a read that answers unreadable closes the door.
     expect((await fetchBackendReviews("a-1", "p-1")).state).toBe("unreadable");
-    localStorage.setItem("codecity-reviews:p-one", JSON.stringify({ "f-1": "to-fix" }));
-    localStorage.setItem("codecity-reviews:p-two", JSON.stringify({ "f-2": "reviewed" }));
+    localStorage.setItem("ephemora-skyline-reviews:p-one", JSON.stringify({ "f-1": "to-fix" }));
+    localStorage.setItem("ephemora-skyline-reviews:p-two", JSON.stringify({ "f-2": "reviewed" }));
     await mountLanding("en");
     await act(async () => {
       resetButton("en").click();
@@ -111,14 +111,14 @@ describe("the delete on the entry screen tells what actually happened", () => {
     );
     expect(note).toContain(t("en", "landing.footprintResetRefused", { n: 2 }));
     // the browser half is still truly done, the machine half was never asked
-    expect(localStorage.getItem("codecity-reviews:p-one")).toBeNull();
+    expect(localStorage.getItem("ephemora-skyline-reviews:p-one")).toBeNull();
     expect(stubCallsContain("POST /api/verdicts/reset")).toBe(false);
   });
 
   it("refuses out loud in German, in words a non-developer reads", async () => {
     stubVerdictRoutes({ status: 503, body: unreadableBody });
     expect((await fetchBackendReviews("a-1", "p-1")).state).toBe("unreadable");
-    localStorage.setItem("codecity-reviews:p-one", JSON.stringify({ "f-1": "to-fix" }));
+    localStorage.setItem("ephemora-skyline-reviews:p-one", JSON.stringify({ "f-1": "to-fix" }));
     await mountLanding("de");
     await act(async () => {
       resetButton("de").click();
@@ -135,7 +135,7 @@ describe("the delete on the entry screen tells what actually happened", () => {
     stubVerdictRoutes({ status: 200, body: { project: "p-1", reviews: {} } });
     // The same read that returns the map clears the latch.
     expect((await fetchBackendReviews("a-1", "p-1")).state).toBe("read");
-    localStorage.setItem("codecity-reviews:p-one", JSON.stringify({ "f-1": "to-fix" }));
+    localStorage.setItem("ephemora-skyline-reviews:p-one", JSON.stringify({ "f-1": "to-fix" }));
     await mountLanding("en");
     await act(async () => {
       resetButton("en").click();
@@ -158,7 +158,7 @@ describe("the delete on the entry screen tells what actually happened", () => {
   it("a fresh session that never read believes the machine's answer, not its own optimism", async () => {
     stubVerdictRoutes({ status: 503, body: unreadableBody });
     // No fetchBackendReviews here: the session-level latch has never been armed.
-    localStorage.setItem("codecity-reviews:p-one", JSON.stringify({ "f-1": "to-fix" }));
+    localStorage.setItem("ephemora-skyline-reviews:p-one", JSON.stringify({ "f-1": "to-fix" }));
     await mountLanding("en");
     await act(async () => {
       resetButton("en").click();

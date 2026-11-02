@@ -42,7 +42,7 @@ describe("the update check has a state side", () => {
     expect(useStore.getState().toggleUpdateCheck()).toBe(false);
     expect(useStore.getState().prefs.updateCheck).toBe(false);
     // the landing page's gate reads the STORE, so the fetch is off from now on
-    expect(JSON.parse(localStorage.getItem("codecity-prefs") ?? "{}")).toEqual({
+    expect(JSON.parse(localStorage.getItem("ephemora-skyline-prefs") ?? "{}")).toEqual({
       lang: "en",
       gfxLite: false,
       colorblind: false,
@@ -70,10 +70,10 @@ describe("a verdict that cannot be written says so", () => {
     expect(useStore.getState().verdictsBlocked).toBe(false);
     // the bucket is keyed by the project, not by the scan — the same verdict
     // a re-scan of this folder reads back
-    const full = Object.keys(localStorage).find((k) => k.startsWith("codecity-reviews:p-"));
+    const full = Object.keys(localStorage).find((k) => k.startsWith("ephemora-skyline-reviews:p-"));
     expect(full).toBeTruthy();
     // loadReviews takes the bucket name and adds the prefix itself
-    expect(loadReviews(full!.replace("codecity-reviews:", ""))).toEqual({
+    expect(loadReviews(full!.replace("ephemora-skyline-reviews:", ""))).toEqual({
       "fp:abc123": "reviewed",
     });
   });

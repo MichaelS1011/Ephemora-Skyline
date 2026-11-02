@@ -14,7 +14,7 @@
  * blob is kept verbatim, and neither a later corruption nor any save of the
  * live key replaces it. Bytes the app did not write are not the app's to
  * trade away — the same rule the prefs round pinned with
- * `codecity-prefs:unreadable`.
+ * `ephemora-skyline-prefs:unreadable`.
  *
  * Local instances of this class closed so far: reviews.ts (machine copy, via
  * the route), rulePacks.ts (network path), prefs.ts, and — through this file —
@@ -86,7 +86,7 @@ export function readStoredJson<T>(
 
 /**
  * The raw-text sibling of `readStoredJson`, for the one stored value this app
- * keeps as bare text instead of JSON: `codecity-scan-profile`, whose shipped
+ * keeps as bare text instead of JSON: `ephemora-skyline-scan-profile`, whose shipped
  * writer saves the profile id itself (`saveProfile`). The states and the
  * quarantine are identical — only the parse step is replaced by the loader's
  * own text rule. Bytes the rule refuses are `unreadable` and parked, never

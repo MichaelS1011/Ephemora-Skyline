@@ -5,7 +5,7 @@ Ephemora Skyline is a **Turborepo monorepo** with two workspaces: `frontend` and
 ## Monorepo Structure
 
 ```
-codecity-cyberdefense/          # internal package name (owner-locked)
+ephemora-skyline/          # root package name
 ├── package.json            # Root: workspaces, devDeps, scripts
 ├── turbo.json              # Turborepo: task definitions
 ├── tsconfig.base.json      # Shared TypeScript config

@@ -25,8 +25,8 @@ import { t } from "../src/i18n";
  * never proved it could read.
  */
 
-const KEY = "codecity-prefs";
-const PRESERVED = "codecity-prefs:unreadable";
+const KEY = "ephemora-skyline-prefs";
+const PRESERVED = "ephemora-skyline-prefs:unreadable";
 
 const CORRUPT = '{"lang":"de","colorblind":tru';
 

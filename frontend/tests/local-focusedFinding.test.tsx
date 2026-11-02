@@ -142,9 +142,11 @@ describe("a verdict outlives the scan it was given in", () => {
     await act(async () => (toFix as HTMLButtonElement).click());
 
     const bucket = projectKey({ owner: "local", name: "plain" });
-    const stored = Object.keys(localStorage).find((k) => k.startsWith("codecity-reviews:"))!;
+    const stored = Object.keys(localStorage).find((k) =>
+      k.startsWith("ephemora-skyline-reviews:"),
+    )!;
     expect(JSON.parse(localStorage.getItem(stored)!)).toEqual({ "fp:aaaa1111": "to-fix" });
-    expect(stored.replace("codecity-reviews:", "").startsWith("p-")).toBe(true);
+    expect(stored.replace("ephemora-skyline-reviews:", "").startsWith("p-")).toBe(true);
     void bucket;
 
     // The same folder scanned again: new payload objects, same fingerprints.

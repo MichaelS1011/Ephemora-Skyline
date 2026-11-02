@@ -237,7 +237,7 @@ describe("handleLocalAnalyze", () => {
     expect(result?.summary.totalFiles).toBe(1);
     // New contract: the staged copy SURVIVES the run — the test runner
     // reuses it. It is swept later by the TTL (pruneStaleUploadDirs).
-    const uploadDir = path.join(process.env.CODECITY_UPLOAD_DIR!, id);
+    const uploadDir = path.join(process.env.EPHEMORA_UPLOAD_DIR!, id);
     const dirKept = await fs
       .access(uploadDir)
       .then(() => true)

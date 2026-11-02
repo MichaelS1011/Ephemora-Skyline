@@ -21,7 +21,7 @@ import { useStore } from "../src/stores/useStore";
  * this one. The bucket key has to tell them apart without putting either path in
  * the key in plain text.
  */
-const ROOT_KEY = "codecity.workspaceRoot";
+const ROOT_KEY = "ephemora-skyline.workspaceRoot";
 
 type City = Parameters<typeof bucketKeyFor>[0];
 const city = (name: string, children: string[]): City =>
@@ -73,7 +73,7 @@ describe("the project bucket", () => {
     const newKey = bucketKeyFor(city("backend", ["src", "db"]));
     expect(loadReviews(newKey)["fp:abe"]).toBe("to-fix");
     // the old bucket is left where it is: it may belong to the other `backend`
-    expect(localStorage.getItem(`codecity-reviews:${legacyKey}`)).not.toBeNull();
+    expect(localStorage.getItem(`ephemora-skyline-reviews:${legacyKey}`)).not.toBeNull();
   });
 
   it("knows when the identity is only inferred", () => {
@@ -164,11 +164,13 @@ describe("the store", () => {
     useStore.getState().setCityData(stadt("backend", ["src", "db"]));
     useStore.getState().setReview("fp:xyz", "false-positive");
     const key = bucketKeyFor(city("backend", ["src", "db"]));
-    const raw = localStorage.getItem(`codecity-reviews:${key}`);
+    const raw = localStorage.getItem(`ephemora-skyline-reviews:${key}`);
     expect(raw, "the shaped bucket was never written").toBeTruthy();
     expect(JSON.parse(raw!)["fp:xyz"]).toBe("false-positive");
     expect(
-      localStorage.getItem(`codecity-reviews:${projectKey({ owner: "local", name: "backend" })}`),
+      localStorage.getItem(
+        `ephemora-skyline-reviews:${projectKey({ owner: "local", name: "backend" })}`,
+      ),
       "the ambiguous bucket must stay empty",
     ).toBeNull();
   });

@@ -117,9 +117,9 @@ describe("the saved selection", () => {
   });
 
   it("refuses to restore a broken or empty list as no filter at all", () => {
-    storage.set("codecity-scan-categories", '["nonsense"]');
+    storage.set("ephemora-skyline-scan-categories", '["nonsense"]');
     expect(loadSavedCategories()).toEqual([...CATEGORY_IDS]);
-    storage.set("codecity-scan-categories", "not json");
+    storage.set("ephemora-skyline-scan-categories", "not json");
     expect(loadSavedCategories()).toEqual([...CATEGORY_IDS]);
   });
 });

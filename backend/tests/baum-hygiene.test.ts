@@ -247,8 +247,8 @@ describe("no machine-local trace in what a reader can search", () => {
    */
   it("keeps the staged copy where the engines can still see it", () => {
     const defaults = {
-      "backend/src/services/security/adapters/semgrep-adapter.ts": /codecity-semgrep-/,
-      "backend/src/server/routes/local-analyze.ts": /codecity-uploads|CODECITY_UPLOAD_DIR/,
+      "backend/src/services/security/adapters/semgrep-adapter.ts": /ephemora-skyline-semgrep-/,
+      "backend/src/server/routes/local-analyze.ts": /ephemora-skyline-uploads|EPHEMORA_UPLOAD_DIR/,
     };
     for (const [file, shape] of Object.entries(defaults)) {
       expect(read(file), `${file} lost the staging shape`).toMatch(shape);
@@ -257,7 +257,7 @@ describe("no machine-local trace in what a reader can search", () => {
     expect(
       moved,
       "the staging root no longer comes from an environment the operator controls",
-    ).toMatch(/CODECITY_UPLOAD_DIR/);
+    ).toMatch(/EPHEMORA_UPLOAD_DIR/);
   });
 
   it("ships no markdown that points at a folder nobody can see", () => {

@@ -38,7 +38,7 @@ export type VerdictMap = Record<string, VerdictStatus>;
 
 /** Where the verdicts live. Env-overridable so tests and drives own their copy. */
 export function verdictsFile(): string {
-  const configured = process.env.CODECITY_VERDICTS_FILE?.trim();
+  const configured = process.env.EPHEMORA_VERDICTS_FILE?.trim();
   return configured || path.join(os.homedir(), ".ephemora-skyline", "verdicts.json");
 }
 

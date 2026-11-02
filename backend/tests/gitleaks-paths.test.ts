@@ -70,7 +70,7 @@ describe("GitleaksAdapter.scanRepository keys", () => {
   it.skipIf(!bin)(
     "keys findings by repo-relative path, not by the absolute path gitleaks echoed",
     async () => {
-      const dir = await fs.mkdtemp(path.join(os.tmpdir(), "codecity-gitleaks-keys-"));
+      const dir = await fs.mkdtemp(path.join(os.tmpdir(), "ephemora-skyline-gitleaks-keys-"));
       try {
         await fs.mkdir(path.join(dir, "app"), { recursive: true });
         await fs.writeFile(
@@ -139,7 +139,7 @@ describe("a secret that only lives in git history", () => {
   it.skipIf(!bin || !gitAvailable)(
     "reaches the caller with gitHistory and is absent without it",
     async () => {
-      const dir = await fs.mkdtemp(path.join(os.tmpdir(), "codecity-gitleaks-history-"));
+      const dir = await fs.mkdtemp(path.join(os.tmpdir(), "ephemora-skyline-gitleaks-history-"));
       const clean = 'export const name = "app";\n';
       const committed =
         'export const name = "app";\nconst API_KEY = "aK9d2Fq7Xz4Lm8Nr1Bv5Cs3Ty6Uw0Pg2Hj4Kl";\n';

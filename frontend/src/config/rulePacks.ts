@@ -22,7 +22,7 @@ export interface RulePackInfo {
   note?: string;
 }
 
-const STORAGE_KEY = "codecity-scan-packs";
+const STORAGE_KEY = "ephemora-skyline-scan-packs";
 
 export function loadSavedPacks(): string[] {
   const read = loadSavedPacksRead();
@@ -37,7 +37,7 @@ export function loadSavedPacks(): string[] {
  * silently, the next scan ran under a different rule cover, and the
  * prune-on-set in the store (`useStore.ts:1590`, another lane) turned that
  * `[]` into a fresh `savePacks` — deleting the file. The unreadable bytes now
- * stay under `codecity-scan-packs:unreadable` whatever the store saves next;
+ * stay under `ephemora-skyline-scan-packs:unreadable` whatever the store saves next;
  * the surface says so (`profile.packsStorageUnreadable`, the pack-note slot).
  */
 export function loadSavedPacksRead(): StoredRead<string[]> {

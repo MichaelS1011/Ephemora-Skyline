@@ -538,7 +538,7 @@ function RecentCities({ lang }: { lang: Lang }) {
   // "I cannot read your history" must not render as "you have no history",
   // and the index used to answer a corrupt file with exactly that silence
   // while the next opened city overwrote it (recentCities.ts:26 — the bytes
-  // now stay quarantined under codecity-recent:v1:unreadable). The word goes
+  // now stay quarantined under ephemora-skyline-recent:v1:unreadable). The word goes
   // on this block's own kicker line; an honest empty list stays wordless.
   const [unreadable] = useState(() => recentCitiesRead().state === "unreadable");
   if (cities.length === 0 && !unreadable) return null;
@@ -695,7 +695,7 @@ export function Landing() {
         if (
           d.updateAvailable &&
           d.latest &&
-          d.latest !== localStorage.getItem("codecity-update-dismissed")
+          d.latest !== localStorage.getItem("ephemora-skyline-update-dismissed")
         ) {
           setUpdate({ latest: d.latest, url: d.releaseUrl ?? null });
         }
@@ -732,7 +732,7 @@ export function Landing() {
     let names = 0;
     let unreadable = false;
     for (const k of Object.keys(localStorage)) {
-      if (!k.startsWith("codecity-ephe-names:")) continue;
+      if (!k.startsWith("ephemora-skyline-ephe-names:")) continue;
       // The quarantine slot is not a bucket: its bytes are one corrupt
       // bucket's verbatim copy, and counting them again would double what
       // the live key beside it already answered `unreadable` for.
@@ -789,7 +789,7 @@ export function Landing() {
     }
   };
   const resetVerdicts = async (): Promise<void> => {
-    const keys = Object.keys(localStorage).filter((k) => k.startsWith("codecity-reviews:"));
+    const keys = Object.keys(localStorage).filter((k) => k.startsWith("ephemora-skyline-reviews:"));
     for (const k of keys) localStorage.removeItem(k);
     // The machine copy is the second home of the same verdicts: deleting only
     // the browser buckets would let the next scan resurrect what the person
@@ -829,7 +829,7 @@ export function Landing() {
     // law: unreadable is not the same as empty, and not the same as either).
     const names = countStoredNames();
     for (const k of Object.keys(localStorage)) {
-      if (k.startsWith("codecity-ephe-names:")) localStorage.removeItem(k);
+      if (k.startsWith("ephemora-skyline-ephe-names:")) localStorage.removeItem(k);
     }
     // The screen's copy goes too, so the number on the line and the map the
     // card reads agree the moment the button was pressed.
@@ -953,7 +953,7 @@ export function Landing() {
           )}
           <button
             onClick={() => {
-              localStorage.setItem("codecity-update-dismissed", update.latest);
+              localStorage.setItem("ephemora-skyline-update-dismissed", update.latest);
               setUpdate(null);
             }}
             aria-label={t(lang, "landing.dismissNoteAria")}

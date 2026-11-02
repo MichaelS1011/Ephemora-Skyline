@@ -12,7 +12,7 @@ RUN npm ci --ignore-scripts
 COPY tsconfig.base.json ./
 COPY backend/tsconfig*.json ./backend/
 COPY backend/src/ ./backend/src/
-RUN npm run build --workspace=codecity-backend
+RUN npm run build --workspace=ephemora-skyline-backend
 
 FROM node:20-alpine AS runner
 

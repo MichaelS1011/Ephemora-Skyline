@@ -33,7 +33,7 @@ import { makeFile, makeResult } from "./helpers/fixtures.js";
 const tmpDirs: string[] = [];
 
 async function freshRepo(): Promise<string> {
-  const dir = await fs.mkdtemp(path.join(os.tmpdir(), "codecity-mauer-"));
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), "ephemora-skyline-mauer-"));
   tmpDirs.push(dir);
   execFileSync("git", ["init", "-q", dir], { stdio: "pipe" });
   execFileSync("git", ["-C", dir, "config", "user.email", "mauer@test.example"], {
@@ -141,7 +141,7 @@ describe("runChurnPhase — the history states are apart", () => {
   });
 
   it("absent: no .git at all — the pass never starts and nothing is interrupted", async () => {
-    const dir = await fs.mkdtemp(path.join(os.tmpdir(), "codecity-mauer-nogit-"));
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), "ephemora-skyline-mauer-nogit-"));
     tmpDirs.push(dir);
     let started = 0;
     const outcome = await runChurnPhase(dir, [], {

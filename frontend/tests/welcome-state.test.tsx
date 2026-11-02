@@ -195,7 +195,7 @@ describe("the welcome stays closed for a reader who has been here", () => {
  */
 describe("a read left running is offered once it finished (§03.09)", () => {
   const ID = "5edbe8b7-d4ee-4e3c-9a11-fc8352ee27a4";
-  const KEY = "codecity-pending-run:v1";
+  const KEY = "ephemora-skyline-pending-run:v1";
 
   function stubStatus(answer: { ok: boolean; status: number; body: unknown }): void {
     vi.stubGlobal(
@@ -311,7 +311,7 @@ describe("a read left running is offered once it finished (§03.09)", () => {
  * back in.
  */
 describe("the last opened city is offered at the decision point (§03.10)", () => {
-  const RECENT_KEY = "codecity-recent:v1";
+  const RECENT_KEY = "ephemora-skyline-recent:v1";
 
   const visit = (name: string, id: string, files = 74) =>
     city({
@@ -381,7 +381,7 @@ describe("the last opened city is offered at the decision point (§03.10)", () =
     // Both exist: an older visit and a run that completed in the absence. The
     // fresher fact is the one offered, and only one line shows.
     recordRecent("auth-app", "scan-42");
-    localStorage.setItem("codecity-pending-run:v1", "5edbe8b7-d4ee-4e3c-9a11-fc8352ee27a4");
+    localStorage.setItem("ephemora-skyline-pending-run:v1", "5edbe8b7-d4ee-4e3c-9a11-fc8352ee27a4");
     vi.stubGlobal(
       "fetch",
       vi.fn(async (input: RequestInfo | URL) => {
@@ -485,7 +485,7 @@ describe("the arrival beat survives a reload (§03.08)", () => {
   it("lets the arrival stamp outrank a stored beat", async () => {
     // A machine that has shown a city is through the introduction whatever the
     // record says: a half-way value must not reopen the sequence.
-    localStorage.setItem("codecity-arrival-stage:v1", "intro");
+    localStorage.setItem("ephemora-skyline-arrival-stage:v1", "intro");
     useStore.setState({ ...useStore.getInitialState(), firstRun: false });
     await mountLanding();
     expect(host.querySelector(".landing-guide")).toBeNull();
@@ -495,7 +495,7 @@ describe("the arrival beat survives a reload (§03.08)", () => {
 
   it("writes nothing while the reader has done nothing", async () => {
     await mountLanding();
-    expect(localStorage.getItem("codecity-arrival-stage:v1")).toBeNull();
+    expect(localStorage.getItem("ephemora-skyline-arrival-stage:v1")).toBeNull();
     expect(host.querySelector(".landing-welcome")).not.toBeNull();
   });
 });
@@ -509,7 +509,7 @@ describe("the arrival beat survives a reload (§03.08)", () => {
  * off screen, and it never undoes that the machine has arrived.
  */
 describe("the introduction can be asked for again (§03.11)", () => {
-  const STAMP = "codecity-first-arrival:v1";
+  const STAMP = "ephemora-skyline-first-arrival:v1";
 
   it("offers the way back to a reader who has been here", async () => {
     useStore.setState({ ...useStore.getInitialState(), firstRun: false });

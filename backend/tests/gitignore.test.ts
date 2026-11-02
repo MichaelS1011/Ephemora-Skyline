@@ -73,7 +73,7 @@ describe("the pipeline leaves ignored files out of the city", () => {
   let dir = "";
 
   beforeAll(async () => {
-    dir = await mkdtemp(path.join(tmpdir(), "codecity-ignore-test-"));
+    dir = await mkdtemp(path.join(tmpdir(), "ephemora-skyline-ignore-test-"));
     await writeFile(
       path.join(dir, ".gitignore"),
       "generated/\n*.generated.json\n# keep this\n!keep.generated.json\n",

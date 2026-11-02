@@ -73,7 +73,7 @@ describe("the comparison's own state", () => {
     // the negative branch is only meaningful if the scan itself was recorded:
     // with no anchor written, "none" would be the answer for the wrong reason
     expect(
-      JSON.parse(window.localStorage.getItem("codecity-verify-anchor:v1") ?? "[]"),
+      JSON.parse(window.localStorage.getItem("ephemora-skyline-verify-anchor:v1") ?? "[]"),
     ).toHaveLength(1);
     const fetchSpy = vi.spyOn(globalThis, "fetch");
     await useStore.getState().runVerify();
@@ -103,14 +103,12 @@ describe("the comparison's own state", () => {
       moved: [],
       unknown: [],
     };
-    const fetchSpy = vi
-      .spyOn(globalThis, "fetch")
-      .mockResolvedValue(
-        new Response(JSON.stringify(report), {
-          status: 200,
-          headers: { "content-type": "application/json" },
-        }),
-      );
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(JSON.stringify(report), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      }),
+    );
     await useStore.getState().runVerify({ silent: true });
     expect(fetchSpy).toHaveBeenCalledTimes(1);
     expect(useStore.getState().verify.status).toBe("ran");

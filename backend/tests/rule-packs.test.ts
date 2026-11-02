@@ -123,7 +123,7 @@ describe("Regel-Pack ephemora-core (#41)", () => {
   });
 
   it("wirft ein Pack weg, dessen Manifest über der Regelzahl lügt", async () => {
-    const root = await mkdtemp(path.join(tmpdir(), "codecity-packs-"));
+    const root = await mkdtemp(path.join(tmpdir(), "ephemora-skyline-packs-"));
     const dir = path.join(root, "bluffer");
     mkdirSync(dir);
     writeFileSync(
@@ -131,8 +131,8 @@ describe("Regel-Pack ephemora-core (#41)", () => {
       JSON.stringify({ id: "bluffer", name: "x", ruleCount: 9, license: "MIT", source: "x" }),
     );
     writeFileSync(path.join(dir, "one.yaml"), "rules:\n  - id: only-one\n    message: m\n");
-    const before = process.env.CODECITY_RULES_DIR;
-    process.env.CODECITY_RULES_DIR = root;
+    const before = process.env.EPHEMORA_RULES_DIR;
+    process.env.EPHEMORA_RULES_DIR = root;
     try {
       expect(listPacks().map((p) => p.id)).toEqual([]);
       // dasselbe Manifest mit richtiger Zahl wird angenommen
@@ -142,8 +142,8 @@ describe("Regel-Pack ephemora-core (#41)", () => {
       );
       expect(listPacks().map((p) => p.id)).toEqual(["bluffer"]);
     } finally {
-      if (before === undefined) delete process.env.CODECITY_RULES_DIR;
-      else process.env.CODECITY_RULES_DIR = before;
+      if (before === undefined) delete process.env.EPHEMORA_RULES_DIR;
+      else process.env.EPHEMORA_RULES_DIR = before;
     }
   });
 
@@ -191,7 +191,7 @@ describe("der Scan läuft ohne Netz gegen das lokale Pack", () => {
   let packDir = "";
 
   beforeAll(async () => {
-    fixtureDir = await mkdtemp(path.join(tmpdir(), "codecity-packfix-"));
+    fixtureDir = await mkdtemp(path.join(tmpdir(), "ephemora-skyline-packfix-"));
     await writeFile(path.join(fixtureDir, "bad.ts"), NODE_FIXTURE, "utf-8");
     await writeFile(path.join(fixtureDir, "bad.py"), PYTHON_FIXTURE, "utf-8");
     packDir = semgrepRuleDirs(["ephemora-core"])[0] ?? "";
@@ -257,7 +257,7 @@ describe("der Scan läuft ohne Netz gegen das lokale Pack", () => {
   it.skipIf(!SEMGREP_BIN)(
     "zwei Läufe gleichzeitig verlieren keine Funde — der SARIF-Pfad ist pro Lauf einzigartig",
     async () => {
-      // Vor dem Fix hieß die Ausgabedatei `codecity-semgrep-<Date.now()>.sarif`;
+      // Vor dem Fix hieß die Ausgabedatei `ephemora-skyline-semgrep-<Date.now()>.sarif`;
       // zwei gleichzeitig gestartete Läufe trafen dieselbe Millisekunde und der
       // schnellere löschte den Bericht des langsameren. Zwei Läufe reichen als
       // Nachweis — mehr davon würden die übrige Suite aus dem Zeitfenster heben.
@@ -459,7 +459,7 @@ describe("der lokale Regelkanal feuert ohne jeden Download (#38)", () => {
   it.skipIf(!SEMGREP_BIN)(
     "End-zu-End: mit echter Engine erscheint keine Zeile zweimal",
     async () => {
-      const dir = await mkdtemp(path.join(tmpdir(), "codecity-dedup38-"));
+      const dir = await mkdtemp(path.join(tmpdir(), "ephemora-skyline-dedup38-"));
       await writeFile(path.join(dir, "bad.ts"), NODE_FIXTURE, "utf-8");
       const res = resolveConfig({ rulePacks: ["ephemora-core"] });
       const scanner = new SecurityScanner(undefined, res.config);

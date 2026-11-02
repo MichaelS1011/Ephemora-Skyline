@@ -43,8 +43,6 @@ git clone https://github.com/MichaelS1011/Ephemora-Skyline.git
 cd Ephemora-Skyline
 ```
 
-> Note: the internal package name in `package.json` is `codecity-cyberdefense` (owner-locked and cannot be changed). The product is **Ephemora Skyline** everywhere users see it.
-
 ### 2. Install dependencies
 
 ```bash

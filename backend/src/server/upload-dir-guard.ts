@@ -5,7 +5,7 @@ import path from "path";
 /**
  * START-15 — the staging folder is checked before the port is bound.
  *
- * A scan reads the user's code from the copy staged under `CODECITY_UPLOAD_DIR`.
+ * A scan reads the user's code from the copy staged under `EPHEMORA_UPLOAD_DIR`.
  * The engines that walk a tree follow the repository's ignore rules, so a
  * staging root an ignore rule covers is never opened: measured on two
  * byte-identical trees in one repository, the covered root scans as 0 files and
@@ -20,7 +20,7 @@ import path from "path";
  */
 
 /** The knob the operator sets; named in every sentence this module produces. */
-export const UPLOAD_DIR_ENV = "CODECITY_UPLOAD_DIR";
+export const UPLOAD_DIR_ENV = "EPHEMORA_UPLOAD_DIR";
 
 /**
  * A file name inside the staging root, asked about alongside the root itself.

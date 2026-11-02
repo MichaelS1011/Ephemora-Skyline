@@ -98,7 +98,7 @@ describe("the folder's account, as the drive reads it off the screen", () => {
   let staged = "";
 
   beforeAll(async () => {
-    root = await mkdtemp(path.join(tmpdir(), "codecity-fahrt-account-"));
+    root = await mkdtemp(path.join(tmpdir(), "ephemora-skyline-fahrt-account-"));
     folder = path.join(root, "folder");
     staged = path.join(root, "staged");
     await writeTree(folder, Object.keys(FOLDER));

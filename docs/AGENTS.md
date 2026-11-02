@@ -94,7 +94,7 @@ for that scan in the running process; a `?project=<bucket>` query reads a bucket
 directly, which is how a re-scan finds the verdicts a previous process wrote before
 anything was registered again. The verdicts live in one JSON file (`verdicts.json`)
 in `~/.ephemora-skyline` on this machine (`backend/src/server/routes/verdicts.ts`,
-override `CODECITY_VERDICTS_FILE`) — they survive a backend restart and a re-scan
+override `EPHEMORA_VERDICTS_FILE`) — they survive a backend restart and a re-scan
 of the same folder, and nothing about them leaves the machine.
 
 ## 4. What is not here yet, on purpose

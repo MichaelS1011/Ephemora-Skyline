@@ -90,9 +90,9 @@ describe("review storage", () => {
   });
 
   it("reads garbage in storage as nothing rather than throwing", () => {
-    localStorage.setItem("codecity-reviews:kaputt", "{not json");
+    localStorage.setItem("ephemora-skyline-reviews:kaputt", "{not json");
     expect(loadReviews("kaputt")).toEqual({});
-    expect(loadReviews("codecity-reviews:kaputt")).toEqual({});
+    expect(loadReviews("ephemora-skyline-reviews:kaputt")).toEqual({});
   });
 });
 
@@ -164,7 +164,7 @@ describe("the store reports stranded verdicts when a city loads", () => {
 describe("the browser bucket answers three states", () => {
   const city = { repo: { owner: "local", name: "ehrlich-projekt" }, tree: undefined };
   const bucket = bucketKeyFor(city);
-  const key = `codecity-reviews:${bucket}`;
+  const key = `ephemora-skyline-reviews:${bucket}`;
 
   beforeEach(() => localStorage.clear());
 

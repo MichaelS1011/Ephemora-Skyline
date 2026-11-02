@@ -5,7 +5,7 @@
 import { describe, expect, it } from "vitest";
 import { detectDuplicates } from "../src/services/analyzer/duplicates.js";
 
-const LICENSE = ["/**", " * Copyright 2027 CodeCity", " * All rights reserved.", " */", ""];
+const LICENSE = ["/**", " * Copyright 2027 Ephemora Skyline", " * All rights reserved.", " */", ""];
 
 describe("detectDuplicates", () => {
   it("pairs files sharing a large pasted block", () => {

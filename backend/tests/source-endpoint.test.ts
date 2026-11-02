@@ -58,7 +58,7 @@ describe("handleSource", () => {
   });
 
   it("serves staged source lines by cityMapper fileId (f-<index>)", async () => {
-    stagedDir = await fs.mkdtemp(path.join(os.tmpdir(), "codecity-source-"));
+    stagedDir = await fs.mkdtemp(path.join(os.tmpdir(), "ephemora-skyline-source-"));
     await fs.mkdir(path.join(stagedDir, "src"), { recursive: true });
     await fs.writeFile(path.join(stagedDir, "src", "index.ts"), TS_CONTENT, "utf-8");
     await fs.writeFile(path.join(stagedDir, "app.py"), PY_CONTENT, "utf-8");
@@ -106,7 +106,7 @@ describe("handleSource", () => {
   });
 
   it("refuses a symlink whose target sits outside the staged copy", async () => {
-    const outside = await fs.mkdtemp(path.join(os.tmpdir(), "codecity-outside-"));
+    const outside = await fs.mkdtemp(path.join(os.tmpdir(), "ephemora-skyline-outside-"));
     const secret = path.join(outside, "secret.ts");
     await fs.writeFile(secret, 'const secret = "outside";\n', "utf-8");
     const linked = new Map<string, AnalysisResult>();

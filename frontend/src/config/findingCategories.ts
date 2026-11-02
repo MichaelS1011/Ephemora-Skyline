@@ -136,7 +136,7 @@ export function enabledCategoriesPayload(selected: FindingCategory[]): FindingCa
   return CATEGORY_IDS.filter((id) => selected.includes(id));
 }
 
-const STORAGE_KEY = "codecity-scan-categories";
+const STORAGE_KEY = "ephemora-skyline-scan-categories";
 
 /**
  * What the user left switched on. An absent or broken entry means "everything"

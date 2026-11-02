@@ -1,4 +1,4 @@
-// ESLint root config (CodeCity CyberDefense) — Flat Config Format (ESLint 9.x)
+// ESLint root config (Ephemora Skyline CyberDefense) — Flat Config Format (ESLint 9.x)
 // Nutzt @typescript-eslint/parser + @typescript-eslint/eslint-plugin direkt
 
 import eslint from "@eslint/js";

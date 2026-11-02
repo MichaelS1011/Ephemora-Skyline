@@ -3898,7 +3898,7 @@ export const DICT = {
    * on. The sentence keeps the three facts apart: the read failed, the app
    * runs on defaults now (so palette and language may be wrong), and nothing
    * was deleted — the unreadable file is preserved (prefs.ts parks the bytes
-   * under codecity-prefs:unreadable before any later save can overwrite them).
+   * under ephemora-skyline-prefs:unreadable before any later save can overwrite them).
    * Name the action, not just the failure: the re-choices live on this screen
    * (language) and in the ••• More menu (palette, effects, update check).
    */

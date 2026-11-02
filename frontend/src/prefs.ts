@@ -35,7 +35,7 @@ export interface Prefs {
   updateCheck: boolean;
 }
 
-const KEY = "codecity-prefs";
+const KEY = "ephemora-skyline-prefs";
 /**
  * Where the unreadable bytes of `KEY` are parked when a read finds them
  * unreadable, so the next `savePrefs` — a click on ANY preference, most
@@ -43,7 +43,7 @@ const KEY = "codecity-prefs";
  * might still recover. The same door the rule-pack round closed on the
  * network path, closed here on the storage path.
  */
-const UNREADABLE_KEY = "codecity-prefs:unreadable";
+const UNREADABLE_KEY = "ephemora-skyline-prefs:unreadable";
 // Why `updateCheck` is the one default a reader never has to discover: see the
 // field's own doc above.
 const DEFAULTS: Prefs = { lang: "en", gfxLite: false, colorblind: false, updateCheck: true };

@@ -226,8 +226,8 @@ function bootBackend() {
         PORT: String(BACKEND_PORT),
         HOST: "127.0.0.1",
         FRONTEND_ORIGIN: ORIGIN,
-        CODECITY_UPLOAD_DIR: path.join(SCRATCH, "staged"),
-        CODECITY_VERDICTS_FILE: path.join(SCRATCH, "verdicts.json"),
+        EPHEMORA_UPLOAD_DIR: path.join(SCRATCH, "staged"),
+        EPHEMORA_VERDICTS_FILE: path.join(SCRATCH, "verdicts.json"),
       },
     },
     "backend",
@@ -560,8 +560,8 @@ async function drive() {
     obs.a1.pressedAfterSet = await pressedSegments(page);
     obs.a1.bucketKeys = await page.evaluate(() =>
       Object.keys(localStorage)
-        .filter((k) => k.startsWith("codecity-reviews:"))
-        .map((k) => k.slice("codecity-reviews:".length)),
+        .filter((k) => k.startsWith("ephemora-skyline-reviews:"))
+        .map((k) => k.slice("ephemora-skyline-reviews:".length)),
     );
     log(`  verdict set; bucket keys in the browser: ${obs.a1.bucketKeys.join(", ")}`);
     await page.screenshot({ path: path.join(OUT, "01-a1-verdict.png"), animations: "disabled" });
