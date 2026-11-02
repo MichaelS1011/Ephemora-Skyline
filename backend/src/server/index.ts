@@ -43,6 +43,7 @@ import { bindHost, isLoopbackHost, portInUseMessage } from "./bind-address.js";
 import {
   handleCancelLocalAnalyze,
   handleLocalAnalyze,
+  pruneLegacyStagingRoot,
   pruneStaleUploadDirs,
   uploadsRoot,
 } from "./routes/local-analyze.js";
@@ -500,7 +501,14 @@ const startBackend = async (): Promise<void> => {
     }
   });
 
-  // Prune stale staged uploads (test-runner copies) every 6 hours
+  // Prune stale staged uploads (test-runner copies) every 6 hours. The
+  // previous product name's root is unreachable by this version, so its copies
+  // are removed once, at boot, instead of ageing out under a name nothing reads.
+  void pruneLegacyStagingRoot().then((removed) => {
+    if (removed > 0) {
+      logger.info({ removed }, "removed staging copies left behind by the previous product name");
+    }
+  });
   void pruneStaleUploadDirs();
   setInterval(() => void pruneStaleUploadDirs(), 6 * 60 * 60 * 1000);
 };

@@ -166,6 +166,56 @@ export async function handleCancelLocalAnalyze(
   res.json({ cancelled: true, known, stagedRemoved: removedNow });
 }
 
+export interface PruneRootOptions {
+  now?: number;
+  ttlMs?: number;
+  /** Remove every uuid-named copy, fresh or stale — for the retired root only. */
+  all?: boolean;
+}
+
+/**
+ * Sweep one staging root by itself, without asking the RAM registry.
+ *
+ * The registry forgets every copy at a restart, which is how the source copies
+ * stayed behind (212 of them on this machine). This half only looks at direct
+ * children with the uuid name this route mints, never a symlink, and never a
+ * copy a registered or running job still owns — so a restart's leftovers go
+ * and a live scan's working copy stays.
+ */
+export async function pruneStagingRoot(
+  root: string,
+  options: PruneRootOptions = {},
+): Promise<number> {
+  const now = options.now ?? Date.now();
+  const ttlMs = options.ttlMs ?? STAGED_TTL_MS;
+  const entries = await fs.readdir(root, { withFileTypes: true }).catch((): Dirent[] => []);
+  let removed = 0;
+  await Promise.all(
+    entries.map(async (entry) => {
+      if (!entry.isDirectory() || entry.isSymbolicLink() || !STAGED_DIR_NAME.test(entry.name)) {
+        return;
+      }
+      const id = entry.name;
+      if (runningJobs.has(id) || STAGED_DIRS.has(id)) return;
+      const dir = path.join(root, id);
+      const stat = await fs.stat(dir).catch(() => null);
+      if (!stat || (!options.all && now - stat.mtimeMs <= ttlMs)) return;
+      deleteLiveSession(id);
+      const gone = await fs
+        .rm(dir, { recursive: true, force: true })
+        .then(() =>
+          fs
+            .stat(dir)
+            .then(() => false)
+            .catch(() => true),
+        )
+        .catch(() => false);
+      if (gone) removed += 1;
+    }),
+  );
+  return removed;
+}
+
 export function pruneStaleUploadDirs(now: number = Date.now()): Promise<void> {
   // `now` injectable so tests can fast-forward the clock — the SAME clock for
   // both halves below. The registry honoured it and the directory sweep read
@@ -174,36 +224,31 @@ export function pruneStaleUploadDirs(now: number = Date.now()): Promise<void> {
   // leftovers.
   const jobs: Array<Promise<unknown>> = [];
   for (const [id, entry] of STAGED_DIRS) {
+    if (runningJobs.has(id)) continue;
     if (now - entry.lastUsed > STAGED_TTL_MS) {
       STAGED_DIRS.delete(id);
       deleteLiveSession(id);
       jobs.push(fs.rm(entry.dir, { recursive: true, force: true }).catch(() => {}));
     }
   }
-  // The registry lives in RAM, so a restart forgets every folder it staged —
-  // and the copies of the user's source stayed behind (212 of them on this
-  // machine). Sweep the staging root itself: only direct children, only the
-  // uuid-shaped names this route makes, only real directories, only past TTL.
-  // A symlinked child is left alone rather than followed out of the root.
-  jobs.push(
-    fs
-      .readdir(uploadsRoot(), { withFileTypes: true })
-      .then((entries) =>
-        Promise.all(
-          entries
-            .filter((e) => e.isDirectory() && !e.isSymbolicLink() && STAGED_DIR_NAME.test(e.name))
-            .map(async (e) => {
-              const dir = path.join(uploadsRoot(), e.name);
-              const stat = await fs.stat(dir).catch(() => null);
-              if (!stat || now - stat.mtimeMs <= STAGED_TTL_MS) return;
-              deleteLiveSession(e.name);
-              return fs.rm(dir, { recursive: true, force: true }).catch(() => {});
-            }),
-        ),
-      )
-      .catch(() => undefined),
-  );
+  jobs.push(pruneStagingRoot(uploadsRoot(), { now, ttlMs: STAGED_TTL_MS }));
   return Promise.all(jobs).then(() => undefined);
+}
+
+/**
+ * The staging root of the previous product name. This version never reads it,
+ * so a copy there cannot be a live scan: the one-time boot sweep removes every
+ * uuid-named child, fresh or stale. The literal is marked for the name guard.
+ */
+const LEGACY_STAGING_ROOT = path.join(os.tmpdir(), "codecity-uploads"); // legacy-cleanup: old name
+
+/** Boot only: remove the copies the previous name left behind, and its root. */
+export async function pruneLegacyStagingRoot(now: number = Date.now()): Promise<number> {
+  const removed = await pruneStagingRoot(LEGACY_STAGING_ROOT, { now, all: true });
+  // An empty root is the point; `rmdir` refuses a non-empty one, so a copy that
+  // resisted deletion keeps its folder and stays visible for the next boot.
+  await fs.rmdir(LEGACY_STAGING_ROOT).catch(() => {});
+  return removed;
 }
 
 /**
@@ -289,6 +334,7 @@ export async function purgeStaleCopies(): Promise<{
   for (const c of await stagedCopyDirs()) {
     const stat = await fs.stat(c.dir).catch(() => null);
     if (!stat || Date.now() - stat.mtimeMs <= STAGED_TTL_MS) continue;
+    if (runningJobs.has(c.name)) continue;
     const registered = STAGED_DIRS.get(c.name);
     if (registered && Date.now() - registered.lastUsed <= STAGED_TTL_MS) continue;
     // Only count what actually went: a copy that resists deletion (permissions,

@@ -27,7 +27,13 @@ describe("the name a reader is given", () => {
       ...sources("backend/src", [".ts"]),
       ...sources("frontend/src", [".ts", ".tsx"]),
     ]
-      .filter((f) => /codecity/i.test(f.text))
+      // One intentional exception: the one-time staging cleanup must name the
+      // retired folder. It carries a `legacy-cleanup` marker on the same line.
+      .filter((f) =>
+        f.text
+          .split("\n")
+          .some((line) => /codecity/i.test(line) && !line.includes("legacy-cleanup")),
+      )
       .map((f) => f.file);
     expect(offenders, `still carries the old name:\n${offenders.join("\n")}`).toEqual([]);
   });
