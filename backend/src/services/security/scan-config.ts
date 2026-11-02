@@ -141,6 +141,9 @@ export function validateCustomPattern(p: CustomPattern): string | null {
     return `${p.id || "pattern"}: id must be A-Z, 0-9, _ (2-38 chars)`;
   const risk = redosRisk(p.regex ?? "");
   if (risk) return `${p.id}: ${risk}`;
+  // Flags are checked before the pattern is compiled, so a value that is not
+  // g/i never reaches `new RegExp` at all.
+  if (p.flags && !/^[gi]*$/.test(p.flags)) return `${p.id}: flags may only contain g and i`;
   let re: RegExp;
   try {
     re = new RegExp(p.regex, `${p.flags ?? "g"}`);
@@ -161,7 +164,6 @@ export function validateCustomPattern(p: CustomPattern): string | null {
   if (!p.message || p.message.length < 3) return `${p.id}: message is required`;
   if (p.message.length > MAX_MESSAGE_LEN) return `${p.id}: message too long (max 200 chars)`;
   if (p.cwe && !/^CWE-\d+$/.test(p.cwe)) return `${p.id}: cwe must look like CWE-79`;
-  if (p.flags && !/^[gi]*$/.test(p.flags)) return `${p.id}: flags may only contain g and i`;
   if (
     p.languages &&
     (p.languages.length > MAX_LANGUAGES || p.languages.some((l) => typeof l !== "string"))

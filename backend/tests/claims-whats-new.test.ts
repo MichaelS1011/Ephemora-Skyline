@@ -114,9 +114,8 @@ describe("the What's new block at the top of the README", () => {
     expect(dates[0], `the block's own date must be the release date: ${dates[0]}`).toContain(
       version!,
     );
-    const released = new RegExp(
-      `## \\[${version!.replace(/\./g, "\\.")}\\] - (\\d{4}-\\d{2}-\\d{2})`,
-    ).exec(changelog);
+    const escaped = version!.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const released = new RegExp(`## \\[${escaped}\\] - (\\d{4}-\\d{2}-\\d{2})`).exec(changelog);
     expect(dates[0]!, `the release ${version} is dated elsewhere: ${released?.[1]}`).toContain(
       released![1]!,
     );
