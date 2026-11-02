@@ -24,6 +24,15 @@ This document covers **how to report a vulnerability** in Ephemora Skyline itsel
 - **CodeQL** (`.github/workflows/codeql.yml`) analyses JavaScript and TypeScript
   on every push to `main`, on every pull request, and weekly; its results feed
   the repository's code-scanning alerts.
+- **The first CodeQL scan** (2026-11-02) raised 28 `js/path-injection` alerts in
+  the export writer. Each is dismissed as a false positive for the same reason:
+  the route reduces the analysis id to `[A-Za-z0-9-]` (40 characters) before
+  joining it under `~/Downloads`, so no separator or `..` can reach the
+  filesystem, and `exportCity` itself is a library that writes where its caller
+  names. The custom-rule compiler's `new RegExp` is a documented `won't fix`:
+  it compiles the local user's own pattern after a 512-character bound, a
+  ReDoS-shape check, a flags check and a 250 ms canary. Alerts on test fixtures
+  are dismissed as `used in tests`.
 - **Five CI gates** — lint, the type check, the test suite, the build and the
   audit — run from `.github/workflows/ci.yml` on pushes to `main` and on pull
   requests.
