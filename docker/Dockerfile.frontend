@@ -10,6 +10,10 @@ RUN npm ci --ignore-scripts
 
 COPY tsconfig.base.json ./
 COPY frontend/ ./frontend/
+# One frontend test reads the curated labels from the backend module itself
+# (`tests/rule-chip-labels.test.ts`), and `tsc -b` type-checks tests too.
+# Copying only frontend/ left that import unresolved in the image build.
+COPY backend/src/ ./backend/src/
 
 RUN npm run build --workspace=ephemora-skyline-frontend
 

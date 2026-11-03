@@ -32,6 +32,7 @@ import { exportCity } from "../src/services/export/export-city.js";
  */
 const REPO = path.resolve(import.meta.dirname, "../..");
 const dockerfile = readFileSync(path.join(REPO, "docker/Dockerfile.backend"), "utf-8");
+const frontendDockerfile = readFileSync(path.join(REPO, "docker/Dockerfile.frontend"), "utf-8");
 
 const stage = (name: string): string => {
   const froms = [...dockerfile.matchAll(/^FROM .*AS (\w+)$/gm)].map((m) => ({
@@ -42,6 +43,16 @@ const stage = (name: string): string => {
   const next = froms[froms.indexOf(here!) + 1];
   return dockerfile.slice(here!.at + 1, next ? next.at : dockerfile.length);
 };
+
+describe("the frontend image", () => {
+  it("carries the backend module its test type-checks", () => {
+    // `frontend/tests/rule-chip-labels.test.ts` imports the curated label table
+    // from `backend/src/...`, and `tsc -b` type-checks tests. Copying only
+    // frontend/ made the image build fail with TS2307 while the local build
+    // passed, because the checkout still had backend/ beside it.
+    expect(frontendDockerfile).toMatch(/^COPY backend\/src\/\s+\.\/backend\/src\/$/m);
+  });
+});
 
 describe("the backend image", () => {
   it("ships the bundled rule pack into the runner", () => {
