@@ -208,9 +208,9 @@ const EXPECT = {
   severities: { Critical: 2, High: 2, Medium: 0 },
   dropRows: ["5 files in a format the scanners do not read"],
   findingRows: [
-    { path: "src/api/routes.ts", line: 2, type: "SQL_INJECTION" },
-    { path: "src/components/Panel.tsx", line: 2, type: "XSS" },
-    { path: "src/config/keys.ts", line: 1, type: "HARDCODED_SECRET" },
+    { path: "src/api/routes.ts", line: 2, type: "SQL injection" },
+    { path: "src/components/Panel.tsx", line: 2, type: "Cross-site scripting" },
+    { path: "src/config/keys.ts", line: 1, type: "Hardcoded secret" },
     {
       // The canary among the rows. The fixture plants a
       // `dangerouslySetInnerHTML` that the rule pack answers to, so a run
@@ -699,7 +699,7 @@ async function drive() {
     });
     await page.screenshot({ path: path.join(OUT, "03-findings.png"), animations: "disabled" });
 
-    const secretIndex = (obs.findingRows ?? []).findIndex((r) => r.type === "HARDCODED_SECRET");
+    const secretIndex = (obs.findingRows ?? []).findIndex((r) => r.type === "Hardcoded secret");
     if (secretIndex >= 0) {
       const rows = await page.$$(".finding-row");
       await rows[secretIndex].click();
@@ -849,7 +849,7 @@ const FALSIFICATIONS = {
     return "the total on the line is not the total in the list";
   },
   "finding-line": (obs) => {
-    const hit = (obs.findingRows ?? []).find((r) => r.type === "SQL_INJECTION");
+    const hit = (obs.findingRows ?? []).find((r) => r.type === "SQL injection");
     if (hit) hit.line = 7;
     return "the finding is carried to a line that was not planted";
   },
