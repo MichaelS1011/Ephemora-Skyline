@@ -809,11 +809,16 @@ interface Hit {
   bindings: Map<string, ts.Node>;
 }
 
-/** `exec` matches the callee `exec` and also `child_process.exec` — name, not module. */
-function suffixMatches(pattern: string[], actual: string[]): boolean {
-  if (pattern.length > actual.length) return false;
-  const offset = actual.length - pattern.length;
-  return pattern.every((segment, index) => segment === actual[index + offset]);
+/**
+ * A pattern names the callee exactly. `exec` is the imported function, not
+ * `regex.exec`; `fs.chmodSync` is that module call, not any `chmodSync`.
+ * Suffix matching here read every `something.exec(...)` as shell execution and
+ * produced 88 false findings in this repository alone.
+ */
+function samePath(pattern: string[], actual: string[]): boolean {
+  return (
+    pattern.length === actual.length && pattern.every((segment, index) => segment === actual[index])
+  );
 }
 
 function propertyKey(node: ts.ObjectLiteralElementLike): string | null {
@@ -868,7 +873,7 @@ function matchClause(clause: Clause, nodes: ts.Node[], source: ts.SourceFile): H
     if (clause.kind === "call") {
       const call = callShape(node);
       if (!call || call.isNew !== clause.isNew) continue;
-      if (!suffixMatches(clause.path, call.expression.getText(source).split("."))) continue;
+      if (!samePath(clause.path, call.expression.getText(source).split("."))) continue;
       const tail = clause.args.some((pattern) => pattern.kind === "anyRemaining");
       const required = clause.args.filter((pattern) => pattern.kind !== "anyRemaining").length;
       if (tail ? call.args.length < required : call.args.length !== required) continue;
@@ -886,7 +891,7 @@ function matchClause(clause: Clause, nodes: ts.Node[], source: ts.SourceFile): H
     if (clause.kind === "assignment") {
       if (!ts.isBinaryExpression(node) || node.operatorToken.kind !== ts.SyntaxKind.EqualsToken)
         continue;
-      if (!suffixMatches(clause.path, node.left.getText(source).split("."))) continue;
+      if (!samePath(clause.path, node.left.getText(source).split("."))) continue;
       const bindings = new Map<string, ts.Node>();
       if (!matchArg(clause.value, node.right, bindings)) continue;
       hits.push({ node, bindings });

@@ -374,6 +374,18 @@ describe("der lokale Regelkanal feuert ohne jeden Download (#38)", () => {
     expect(adapter.filesScanned()).toBe(1);
   });
 
+  it("liest `RegExp.exec` nicht als Shell-Aufruf — der bare `exec` bleibt ein Befund", async () => {
+    const issues = (await localAdapter().scanFile(
+      "regex.ts",
+      ["const m = /^f-(\\d+)$/.exec(fileId);", "const n = input.match(/x/);", "exec(user);"].join(
+        "\n",
+      ),
+    )) as SecurityIssue[];
+    expect(issues.map((i) => `${i.line}|${i.ruleId}`)).toEqual([
+      "3|ephemora-node-command-injection",
+    ]);
+  });
+
   it("bedient die Hausregeln auch ohne Engine — und nennt den Kanal ehrlich", async () => {
     const scanner = new SecurityScanner(undefined, undefined, { semgrep: null, gitleaks: null });
     // leerer Pack-Auswahl-Wort: der gelieferte Default-Pack wird gelesen
