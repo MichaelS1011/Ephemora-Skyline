@@ -43,6 +43,11 @@ const PROVIDER_VALUE =
  * classified as examples, never shouted as live credentials (and never P0). */
 const DOCUMENTED_EXAMPLE = /^(?:AKIAIOSFODNN7EXAMPLE|wJalrXUtnFEMI\/K7MDENG\/bPxRfiCYEXAMPLEKEY)$/;
 
+/** The LLM redaction canary is deliberately fake. It has to keep appearing in
+ * probe output and guard tests, so it cannot be rotated away; the exact value
+ * is the allowlist, never a path. */
+const FAKE_LLM_CANARY = new Set(["sk-live-ABCDEFGHIJKLMNOP1234"]);
+
 /**
  * Does the literal value read as a credential rather than as a label? The
  * keyword name alone is not enough ("password-field-selector" is a CSS class),
@@ -108,8 +113,9 @@ export const REGEX_PATTERNS: ScanPattern[] = [
   },
   {
     // Built-in eval() only — `model.eval()` (PyTorch), `ast.literal_eval()`
-    // and friends are not the eval builtin (real-project false positives)
-    regex: /(?<![.\w])eval\s*\(/g,
+    // and Playwright's `page.$eval`/`page.$$eval` are not the eval builtin
+    // (real-project false positives)
+    regex: /(?<![.$\w])eval\s*\(/g,
     type: "EVAL_USAGE",
     severity: "P0",
     message: "eval() detected — arbitrary code execution risk",
@@ -279,7 +285,9 @@ export const REGEX_PATTERNS: ScanPattern[] = [
     score: 3,
   },
   {
-    regex: /fetch\s*\(\s*['"`]http:\/\//g,
+    // Loopback is not a network hop: the launcher, pack-check and the health
+    // probe speak plain HTTP to 127.0.0.1 on purpose. A public host still fires.
+    regex: /fetch\s*\(\s*['"`]http:\/\/(?!(?:127\.0\.0\.1|localhost|\[::1\])(?:[:/'"`]|$))/gi,
     type: "INSECURE_HTTP",
     severity: "P2",
     message: "HTTP request over unencrypted channel",
@@ -607,6 +615,10 @@ export class RegexAdapter implements ScannerAdapter {
         // not as a label. This is what keeps "password-field-selector",
         // "changeme", "placeholder-value" and the `# label only` case silent.
         if (pattern.type === "HARDCODED_SECRET" && !shapedCredential) {
+          if (match[0].length === 0) regex.lastIndex++;
+          continue;
+        }
+        if (pattern.type === "HARDCODED_SECRET" && FAKE_LLM_CANARY.has(match[1] ?? "")) {
           if (match[0].length === 0) regex.lastIndex++;
           continue;
         }

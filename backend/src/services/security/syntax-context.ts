@@ -1,5 +1,14 @@
 import ts from "typescript";
 
+/** Is this expression only fixed markup, with no value that could vary? */
+function staticHtml(node: ts.Node): boolean {
+  if (ts.isParenthesizedExpression(node)) return staticHtml(node.expression);
+  if (ts.isStringLiteralLike(node) || ts.isNoSubstitutionTemplateLiteral(node)) return true;
+  if (ts.isBinaryExpression(node) && node.operatorToken.kind === ts.SyntaxKind.PlusToken)
+    return staticHtml(node.left) && staticHtml(node.right);
+  return false;
+}
+
 /** Parse once per JS/TS file. A match inside quoted example code is not an
  * executed call. Template interpolations are visited as code, not blanked. */
 export function syntaxContext(
@@ -17,6 +26,7 @@ export function syntaxContext(
   );
   const literals: ts.Node[] = [];
   const storage: ts.CallExpression[] = [];
+  const innerHtmlAssignments: ts.BinaryExpression[] = [];
   const visit = (node: ts.Node): void => {
     if (
       ts.isStringLiteralLike(node) ||
@@ -32,6 +42,13 @@ export function syntaxContext(
       /(?:^|\.)localStorage\.setItem$/.test(node.expression.getText(source))
     )
       storage.push(node);
+    if (
+      ts.isBinaryExpression(node) &&
+      node.operatorToken.kind === ts.SyntaxKind.EqualsToken &&
+      ts.isPropertyAccessExpression(node.left) &&
+      node.left.name.text === "innerHTML"
+    )
+      innerHtmlAssignments.push(node);
     ts.forEachChild(node, visit);
   };
   visit(source);
@@ -72,6 +89,15 @@ export function syntaxContext(
             parent.expression.getText(source),
           )
         );
+      }
+      if (type === "XSS") {
+        const assignment = innerHtmlAssignments.find(
+          (n) => offset >= n.left.getStart(source) && offset < n.left.end,
+        );
+        // Assigning a literal — `""` to clear a test host, or a fixed markup
+        // string — cannot carry attacker input. A variable, concatenation or
+        // template with substitutions still fires.
+        if (assignment && staticHtml(assignment.right)) return false;
       }
       if (type === "LOCALSTORAGE_USAGE") {
         const call = storage.find((n) => offset >= n.getStart(source) && offset < n.expression.end);

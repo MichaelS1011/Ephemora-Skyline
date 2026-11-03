@@ -1,0 +1,18 @@
+# Secrets that are deliberately fake live here, one exact value at a time.
+# A path allowlist would hide any real credential added to the same test file
+# later; an exact value keeps that door open.
+title = "Ephemora Skyline"
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "credential-shaped fixtures and canaries written by the test suite"
+regexTarget = "secret"
+regexes = [
+  '''^sk-live-1234567890abcdefghijklmnop$''',
+  '''^sk-live-1234567890$''',
+  '''^sk-live-ABCDEFGHIJKLMNOP1234$''',
+  '''^sk_live_51HbQKdXyzABC1234defGHIjklMNOp$''',
+  '''^ASIAABCDEFGHIJKLMNOP$''',
+  '''^aK9d2Fq7Xz4Lm8Nr1Bv5Cs3Ty6Uw0Pg2Hj4Kl$''',
+]

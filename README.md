@@ -21,15 +21,15 @@ Nothing is uploaded. No account, no login, no telemetry. It runs on your own mac
 
 ## What's new
 
-0.4.3 — 2026-11-01
+0.4.4 — 2026-11-03
 
-- **A stored finding no longer carries the path of the copy on disk.** — Five scans of real foreign repositories answered `GET /api/result/:id` with the absolute staging directory of the user's source copy inside 56 of 573 and 3 of 107 findings
-- **A Python file has functions again.** — A scan of MoneyPrinterTurbo named a function in 0 of its 94 Python files
-- **The function list stopped counting every declaration twice.** — `frontend/src/city/layout.ts` answered with 59 entries for 33 functions
-- **Files in tool folders are counted instead of swallowed.** — MoneyPrinterTurbo offered 19 262 files and the card accounted for 204 of them (1,06 %)
-- **The three teaching boards reach a screen reader.** — Measured in the running app: 1 painted board equals 1 spoken on this repository, 3 equals 3 and 2 equals 2 on a foreign Python project at two viewports, 0 equals 0 inside a district
+- **The repository's own scan is a gate, and it is green.** After the matcher fix the self-scan still reported 59 findings, and every one now has a documented disposition rather than a blanket switch: Playwright `$eval`/`$$eval` is no longer called the `eval` builtin (5), loopback health probes are not insecure HTTP hops (2), static `innerHTML` assignments are not XSS sinks (3), the exact fake credential values are allowlisted and the LLM-redaction canary is filtered by exact value (9 outside the fixture folder), the deliberate rule fixtures are excluded only from this gate (22), `CONSOLE_USAGE` is off only in the self-scan profile (16), and the real `minimatch` advisory is fixed (2). `npm run self-scan` starts a freshly built backend with an isolated staging/archive root, sends `git ls-files --cached --others --exclude-standard` through `POST /api/analyze-local`, and fails on any open finding. Measured run: **617 analyzed files, 0 findings, 0 `CMD_INJECTION`**. The default profile still reports 39 deliberate test-surface findings (22 fixtures, 17 console lines); that list ships as `docs/self-scan-findings.ndjson`, and `docs/SELF_SCAN.md` names the policy, the 59 dispositions and the review date.
+- **The last development-chain advisory is gone.** A root `overrides.minimatch` pin resolves every `minimatch` path to 11.0.4, so `npm audit` now prints **0 findings** (0 low, 0 moderate, 0 high, 0 critical) and `node scripts/audit-gate.mjs` exits 0 with an empty waiver list. The rule, gate and count work above leaves **3,696 cases** passing (2,742 frontend, 954 backend).
 
 More in [CHANGELOG.md](./CHANGELOG.md).
+
+The 0.4.4 cut above is measured, not written ahead; the full dispositions are in
+[docs/SELF_SCAN.md](./docs/SELF_SCAN.md) and the default-profile list is in [docs/self-scan-findings.ndjson](./docs/self-scan-findings.ndjson).
 
 ## Run it
 
@@ -62,7 +62,7 @@ Optional: `gitleaks`, `semgrep`, `osv-scanner` and `ruff` on your `PATH`. Withou
 
 - **Walk it.** One block per top-level folder from above, ten folders or ten thousand. Click a block to open it as its own district.
 - **Read the names from far away.** A district label keeps a fixed legible size however far the camera is, and never paints over its neighbour. A folder name too long for its plate is cut there and read in full by a screen reader.
-- **See which files are too big.** A file past 500 lines, 50 branches, or carrying one line past 300 characters gets a note on its own card with the measured number and what splitting buys. Those notes are deliberately **not** findings — run through the scanner, this repository's self-scan answered 38 findings, then 122, the lecture burying the queue the city exists for.
+- **See which files are too big.** A file past 500 lines, 50 branches, or carrying one line past 300 characters gets a note on its own card with the measured number and what splitting buys. Those notes are deliberately **not** findings — an early self-scan that counted them answered 122 findings, the lecture burying the queue the city exists for.
 - **Take the Security Tour.** The camera flies finding to finding, worst first, and explains each one in plain words with a fix suggestion.
 - **Ask a resident.** Press `C` and a resident you call walks you to the highest finding that still needs your verdict.
 - **Get pointed back.** When a finding you still have to judge sits off-screen, a small pill shows at the screen edge with a word — `left`, `right`, `behind` — and the distance. Press it, the camera flies there.
@@ -96,7 +96,7 @@ metric set. A city of your own files, unread by anyone else, is a quieter thing.
 Read this before the list above means anything.
 
 - **A finding is a rule that matched, not an exploit proven.** Every card names the scanner and the line, so you can check it. The check is the product; the red light is only the pointer.
-- **There is no accuracy number here, on purpose.** Precision and recall need an annotated corpus this repository does not have, so the honest scan to show is its own: the default profile over this checkout reported 38 findings, and 1 of them landed on an `expect(...)` line — a `gitleaks` `aws-access-token` hit on a test's own masking assertion, not a credential in shipped code. Three further `P0`s sit in `scripts/`: two `EVAL_USAGE` hits on Puppeteer element-evaluation calls and a `stripe-access-token` on a synthetic key template. In `backend/src` and `frontend/src`: none. The list ships as [`docs/self-scan-findings.ndjson`](./docs/self-scan-findings.ndjson), and where all 38 sit is in [`docs/LIMITS.md`](./docs/LIMITS.md).
+- **There is no accuracy number here, on purpose.** Precision and recall need an annotated corpus this repository does not have, so the honest scan to show is its own: the default profile over this checkout reported **39 findings**, and **0 of them** landed on an `expect(...)` line. All 39 are deliberate test surface — 22 rule fixtures in `backend/tests/fixtures/regeln/` and 17 `CONSOLE_USAGE` hits (16 CLI scripts and one frontend test). The policy gate, `npm run self-scan`, excludes that fixture folder and that one rule and answers **0**; the list ships as [`docs/self-scan-findings.ndjson`](./docs/self-scan-findings.ndjson), and where all 39 sit is in [`docs/LIMITS.md`](./docs/LIMITS.md).
 - **It does not run your code to analyse it.** No execution, no fuzzing, no reachability proof. The one route that executes something is named on screen: **Run test file** runs your own project's test file with your user rights, not in a sandbox, so it can use the network — only after you press it.
 - **It does not write to your project.** The explanation layer has a voice and no pen.
 - **A city outlives the process, not a backup.** The newest 20 completed runs are kept on disk (`~/.ephemora-skyline/runs`, owner-only), so a `?city=` link survives a restart until 20 newer scans replace it. Export SARIF or PNG for a lasting record.
@@ -184,6 +184,6 @@ npm run build                 # production build, both packages
 node scripts/audit-gate.mjs   # dependency audit
 ```
 
-3,693 cases measured 2026-11-03 — 2,742 frontend, 951 backend. The audit gate fails on every high or critical finding **except** those accepted in `scripts/audit-gate.mjs` by name with a dated re-check. Measured 2026-11-02, `npm audit` on this lockfile prints nine findings — all moderate, none high, none critical, all in the development chain (`eslint`, `@eslint/config-array`, `@eslint/eslintrc`, `@typescript-eslint/*`, `minimatch`; the fix npm offers swaps `eslint` to 4.0.0) — and `node scripts/audit-gate.mjs` exits 0, because a moderate finding never drops the gate. The Tailwind 4 migration removed the last accepted exception: the list is empty, so the gate names no waiver. Gates, conventions and the PR checklist: **[CONTRIBUTING.md](./CONTRIBUTING.md)**. Small, reviewable changes land fastest. Interface strings need an English and a German entry, and anything that changes the 3D render needs a real-GPU screenshot — headless CI cannot judge a WebGL scene.
+3,696 cases measured 2026-11-03 — 2,742 frontend, 954 backend. The audit gate fails on every high or critical finding **except** those accepted in `scripts/audit-gate.mjs` by name with a dated re-check. Measured 2026-11-03, `npm audit` on this lockfile prints **0 findings** — 0 low, 0 moderate, 0 high, 0 critical — and `node scripts/audit-gate.mjs` exits 0. The `minimatch` override to 11.0.4 removed the last moderate advisories in the development chain, and the gate's waiver list is empty. The self-scan that keeps this repository clean under its own rules is `npm run self-scan`; its policy and exceptions are in [docs/SELF_SCAN.md](./docs/SELF_SCAN.md). Gates, conventions and the PR checklist: **[CONTRIBUTING.md](./CONTRIBUTING.md)**. Small, reviewable changes land fastest. Interface strings need an English and a German entry, and anything that changes the 3D render needs a real-GPU screenshot — headless CI cannot judge a WebGL scene.
 
 Skyline is the piece of this work meant to be read and argued with, not the piece meant to earn. What changed since the last line of the story, each entry measured before it was written, is in [CHANGELOG.md](./CHANGELOG.md).

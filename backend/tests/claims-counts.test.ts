@@ -388,7 +388,7 @@ describe("the claims lane of 2026-10-14 (S1: no public number breaks)", () => {
     }
   });
 
-  it("E — the accuracy bullet describes the expect-line hit and the eval-shaped rule that actually shipped", () => {
+  it("E — the accuracy bullet describes the default list and the policy gate that actually shipped", () => {
     const bullet = read("README.md")
       .split("\n")
       .find((l) => l.includes("There is no accuracy number here, on purpose."));
@@ -396,26 +396,31 @@ describe("the claims lane of 2026-10-14 (S1: no public number breaks)", () => {
     const rows = read("docs/self-scan-findings.ndjson")
       .split("\n")
       .filter((l) => l.length > 0)
-      .map((l) => JSON.parse(l) as { path: string; line: number; ruleId: string });
+      .map((l) => JSON.parse(l) as { path: string; line: number; type: string; ruleId: string });
     const onExpect = rows.filter((f) =>
       /expect\s*\(/.test(read(f.path).split("\n")[f.line - 1] ?? ""),
     );
-    expect(
-      onExpect,
-      "the list must still carry the expect-line hit the sentence describes",
-    ).toHaveLength(1);
-    expect(
-      bullet!,
-      `the real hit is the ${onExpect[0]!.ruleId} on an expect line — name it`,
-    ).toContain(onExpect[0]!.ruleId);
-    expect(bullet!, "the sentence names the rule the same way the list does").toMatch(/EVAL_USAGE/);
-    expect(bullet!, "the sentence may not explain a hit that does not ship").not.toMatch(
-      /\bnot a call to\b/,
+    expect(onExpect, "the delivered default list must carry no assertion-line hits").toHaveLength(
+      0,
+    );
+    expect(bullet!, "the sentence states the total the file counts").toContain(
+      `${rows.length} findings`,
+    );
+    expect(bullet!, "the sentence states the quoted-test count the file counts").toContain(
+      "0 of them",
+    );
+    expect(bullet!, "the sentence names the policy gate").toContain("npm run self-scan");
+    const consoleRows = rows.filter((f) => f.type === "CONSOLE_USAGE");
+    const fixtureRows = rows.filter((f) => f.path.startsWith("backend/tests/fixtures/regeln/"));
+    expect(consoleRows, "the CLI/test console rows moved").toHaveLength(17);
+    expect(fixtureRows, "the intentional rule fixtures moved").toHaveLength(22);
+    expect(consoleRows.length + fixtureRows.length, "an unexplained row entered the list").toBe(
+      rows.length,
     );
     expect(
       rows.some((f) => /eval/i.test(f.ruleId)),
-      "an eval-shaped rule no longer ships — re-describe",
-    ).toBe(true);
+      "an eval-shaped finding still ships — re-describe the list",
+    ).toBe(false);
   });
 
   it("F — CONTRIBUTING quotes the engines range and counts the gates", () => {

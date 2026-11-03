@@ -3,9 +3,9 @@
   "private": true,
   "license": "Apache-2.0",
   "type": "module",
-  "version": "0.4.3",
+  "version": "0.4.4",
   "packageManager": "npm@10.0.0",
-  "description": "3D city visualizer for local codebases \u2014 folders rise as districts, security findings glow as beacons",
+  "description": "3D city visualizer for local codebases — folders rise as districts, security findings glow as beacons",
   "repository": {
     "type": "git",
     "url": "https://github.com/MichaelS1011/Ephemora-Skyline.git"
@@ -19,6 +19,7 @@
     "lint": "turbo run lint",
     "type-check": "turbo run type-check",
     "test": "turbo run test",
+    "self-scan": "npm run build --workspace backend --silent && node scripts/self-scan.mjs",
     "clean": "rm -rf */dist .turbo node_modules */node_modules",
     "format": "prettier --write \"{frontend,backend}/{src,tests}/**/*.{ts,tsx,json}\"",
     "prepare": "husky install"
@@ -44,6 +45,9 @@
     "react-dom": "~19.2.0",
     "turbo": "^2.5.0",
     "typescript": "^5.8.0"
+  },
+  "overrides": {
+    "minimatch": "^11.0.1"
   },
   "lint-staged": {
     "*.{ts,tsx}": [

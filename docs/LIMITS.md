@@ -1,17 +1,17 @@
 # What the tool cannot see
 
-The README lists this in six bullets. This is the same honesty with its working shown: where the 38 self-scan findings sit, what a machine without the optional engines reports, and which picture-language weaknesses stay open on purpose.
+The README lists this in six bullets. This is the same honesty with its working shown: where the 39 default-profile self-scan findings sit, what a machine without the optional engines reports, and which picture-language weaknesses stay open on purpose.
 
 ## The self-scan, distributed
 
-The README's accuracy bullet states the pair the delivered list counts: **38 findings**, **1 of them** on an `expect(...)` line. The distribution is the part worth reading before you judge the number.
+The README's accuracy bullet states the pair the delivered list counts: **39 findings**, **0 of them** on an `expect(...)` line. The distribution is the part worth reading before you judge the number.
 
-- **28** of the 38 are in test files and fixtures. Five of the `P0`s among them are synthetic credential fixtures this project scans on purpose — a secret scanner that cannot see a planted key is not a scanner.
-- **2** are the dependency advisories on `package-lock.json`, which [the audit gate](../scripts/audit-gate.mjs) accepts by name with a reason and a re-check date rather than by lowering its threshold.
-- **8** are in the scripts under `scripts/`, and the other three `P0`s sit there too: a `gitleaks` `stripe-access-token` on a synthetic key template and two `EVAL_USAGE` hits on Puppeteer element-evaluation calls in `scripts/persistenz-drive.mjs`. The remaining five are `CONSOLE_USAGE` in the drive scripts and the audit gate.
-- **In `backend/src` and `frontend/src`: none.**
+- **22** are the intentional rule fixtures in `backend/tests/fixtures/regeln/`: four credential literals, four path traversals, four server-side XSS lines, three SQL injections, three SSRF calls, two CORS configurations and two weak-randomness lines. Their job is to make the rule tests fire; the policy gate excludes that exact folder.
+- **17** are `CONSOLE_USAGE` in the CLI scripts (16) and one frontend test. These are code hygiene in a command-line and test surface, not findings in shipped application code; the policy gate disables this one rule.
+- **0** are dependency advisories. The `minimatch` override to 11.0.4 removed the last moderate findings, and `npm audit` now prints 0/0/0/0/0.
+- **In `backend/src` and `frontend/src`: none beyond the fixture/test path above.**
 
-All four optional engines were on `PATH` for that run (`gitleaks`, `semgrep`, `ruff`, `osv-scanner`), so a machine without them reports fewer, and it says which ones it skipped. The list ships as `docs/self-scan-findings.ndjson`, one finding per line, with path, line, rule, severity and CWE and no source text — so the total is a `wc -l` and the second number is the line each finding points at. `backend/tests/selbst23-two-numbers.test.ts` forms both from that file and fails if the README sentence drifts.
+The list was produced with `node scripts/self-scan.mjs --default-profile --online --write-findings docs/self-scan-findings.ndjson` on 2026-11-03. A machine without the optional engines reports fewer, and it says which ones it skipped. The list ships as `docs/self-scan-findings.ndjson`, one finding per line, with path, line, rule, severity and CWE and no source text — so the total is a `wc -l` and the second number is the line each finding points at. `backend/tests/selbst23-two-numbers.test.ts` forms both from that file and fails if the README sentence drifts.
 
 ## The rules cannot see whole classes
 

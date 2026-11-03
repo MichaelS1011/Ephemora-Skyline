@@ -31,6 +31,36 @@ describe("review evidence precision", () => {
       "SQL_INJECTION",
     );
   });
+  it("keeps Playwright `$eval` and loopback HTTP out of the finding list", () => {
+    expect(types('page.$eval("button", (b) => b.textContent);')).not.toContain("EVAL_USAGE");
+    expect(types('page.$$eval("button", (bs) => bs.length);')).not.toContain("EVAL_USAGE");
+    expect(types("const out = await page.$eval(sel, read);")).not.toContain("EVAL_USAGE");
+    expect(types("fetch('http://127.0.0.1:4173/api/health');")).not.toContain("INSECURE_HTTP");
+    expect(types("fetch('http://localhost:3000/');")).not.toContain("INSECURE_HTTP");
+    expect(types("fetch('http://[::1]:3000/');")).not.toContain("INSECURE_HTTP");
+    expect(types("fetch('https://example.com/api');")).not.toContain("INSECURE_HTTP");
+    expect(types("fetch('http://example.com/api');")).toContain("INSECURE_HTTP");
+    expect(types("eval(userInput);")).toContain("EVAL_USAGE");
+  });
+
+  it("allows only the exact LLM redaction canary", () => {
+    expect(types('const API_KEY = "sk-live-ABCDEFGHIJKLMNOP1234";')).not.toContain(
+      "HARDCODED_SECRET",
+    );
+    const nearMiss = ["sk-live-ABCDEFGHIJKLMNOP", "9999"].join("");
+    expect(types(`const API_KEY = "${nearMiss}";`)).toContain("HARDCODED_SECRET");
+  });
+
+  it("does not call a static innerHTML assignment an XSS sink", () => {
+    expect(types('document.body.innerHTML = "";')).not.toContain("XSS");
+    expect(types("host.innerHTML = '<nav><button>Go</button></nav>';")).not.toContain("XSS");
+    expect(types("host.innerHTML = '<nav>' + '<main></main>';")).not.toContain("XSS");
+    expect(types("el.innerHTML = userInput;")).toContain("XSS");
+    expect(types('el.innerHTML = "<b>" + userInput;')).toContain("XSS");
+    expect(types("el.innerHTML = `<b>${userInput}</b>`;")).toContain("XSS");
+    expect(types("return <div dangerouslySetInnerHTML={{ __html: html }} />;")).toContain("XSS");
+  });
+
   it("only reports storage writes with a sensitive naming signal", () => {
     expect(types("localStorage.setItem(STORAGE_KEY, JSON.stringify(preferences));")).not.toContain(
       "LOCALSTORAGE_USAGE",
