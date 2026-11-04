@@ -23,6 +23,8 @@ import { getDirLayout } from "../city/layout";
 import { surfaceForLayout } from "../city/worldSurface";
 import { defaultOverviewPath } from "../city/overview";
 import { shareHeroShot } from "../share/heroShot";
+import { PostcardChallenges } from "./PostcardChallenges";
+import { markPostcardCaptured } from "../city/postcardChallenges";
 import "../design/share.css";
 
 const LENGTHS: Array<{
@@ -51,6 +53,7 @@ export function ShareStudio() {
   const lang = useStore((s) => s.prefs.lang);
   const cityData = useStore((s) => s.cityData);
   const focusPath = useStore((s) => s.focusPath);
+  const selectedUnit = useStore((s) => s.selectedUnit);
   const buildPhase = useStore((s) => s.buildPhase);
   const capture = useCityCapture();
 
@@ -141,6 +144,8 @@ export function ShareStudio() {
       if (imageUrlRef.current) URL.revokeObjectURL(imageUrlRef.current);
       imageUrlRef.current = previewUrl;
       setImageResult({ image, previewUrl });
+      const selectedId = selectedUnit?.kind === "file" ? selectedUnit.id : null;
+      if (selectedId) markPostcardCaptured(cityData, selectedId);
     } catch {
       if (job === imageJobRef.current) setImageError(true);
     } finally {
@@ -391,6 +396,8 @@ export function ShareStudio() {
           onAgain={clearImage}
         />
       )}
+
+      {media === "image" && <PostcardChallenges />}
     </div>
   );
 }

@@ -32,6 +32,15 @@ import { useLodLevel } from "../hooks/useLodLevel";
 import { LOD_THRESHOLDS } from "../hooks/useLodFar";
 import { computeFocusTiers, type FocusTier } from "../city/focus";
 import { planBlastRadius, type BlastNode } from "../city/blastRadius";
+import { xrayLayerPlan } from "../city/xray";
+import {
+  detectRoleLandmarks,
+  roleLandmarksOnLevel,
+  type RoleLandmarkKind,
+} from "../city/landmarks";
+import { RoleLandmark } from "./RoleLandmark";
+import { GhostTower } from "./GhostTower";
+import { useSandboxStore } from "../stores/useSandboxStore";
 import "../design/city-funktion.css";
 
 /**
@@ -225,11 +234,46 @@ export function CityTree() {
   const blastOn = useStore((s) => s.blastOn);
   // View mode (spec §14): gates the dependency arcs + highlights them
   const viewMode = useStore((s) => s.viewMode);
+  const sandboxFileId = useSandboxStore((s) => s.scenario?.fileId ?? null);
 
   const layout = useMemo(
     () => (cityData ? getDirLayout(cityData, focusPath) : null),
     [cityData, focusPath],
   );
+
+  // X-RAY — the combined structural lens. The pure plan reads only the
+  // payload's own fields and switches, so a layer the scan cannot back is off
+  // rather than drawn as an empty promise. The bodies recede in Building.
+  const xray = viewMode === "xray";
+  const xrayPlan = useMemo(() => {
+    if (!xray || !cityData) return null;
+    return xrayLayerPlan({
+      fileConnections: cityData.fileConnections,
+      dirConnections: cityData.dirConnections,
+      files: (layout?.buildings ?? []).map((b) => b.file),
+      meta: {
+        cycles: cityData.meta.cycles,
+        coverage: cityData.meta.coverage,
+        duplicates: cityData.meta.duplicates,
+      },
+    });
+  }, [xray, cityData, layout]);
+
+  // ROLE LANDMARKS — the project's anatomy (entry, docs, tests, build) read
+  // off the scan and drawn only where this level has a roof for the file. The
+  // risk landmark keeps its own beam in Building; this is a second, orthogonal
+  // axis and never replaces it.
+  const roleLandmarkByFile = useMemo(() => {
+    const map = new Map<string, RoleLandmarkKind>();
+    if (!cityData || !layout) return map;
+    const onLevel = roleLandmarksOnLevel(
+      detectRoleLandmarks(cityData),
+      new Set(layout.buildings.map((b) => b.file.id)),
+    );
+    for (const landmark of onLevel) map.set(landmark.fileId, landmark.kind);
+    return map;
+  }, [cityData, layout]);
+
   // The sidewalk graph the Ephe's walk on: curbs along every street plus
   // lanes between the plaza's file buildings. Shared with RoadSystem so
   // the zebra stripes sit exactly where walkers cross.
@@ -628,6 +672,19 @@ export function CityTree() {
               appearAt={buildingAppear(i)}
               constructing={animating}
             />
+            {roleLandmarkByFile.has(b.file.id) && (
+              <RoleLandmark
+                kind={roleLandmarkByFile.get(b.file.id)!}
+                x={b.x}
+                z={b.z}
+                w={b.w}
+                d={b.d}
+                h={b.h}
+              />
+            )}
+            {sandboxFileId === b.file.id && (
+              <GhostTower x={b.x} z={b.z} w={b.w} d={b.d} fileId={b.file.id} />
+            )}
           </SurfaceAnchor>
         ))}
 
@@ -675,17 +732,38 @@ export function CityTree() {
           layout={layout}
           fileConnections={cityData.fileConnections}
           dirConnections={cityData.dirConnections}
-          showDirArcs={(viewMode === "dependencies" || isRoot) && buildPhase === "built"}
-          showFileArcs={buildPhase === "built" && selectedFileId !== null}
+          showDirArcs={
+            (viewMode === "dependencies" || viewMode === "xray" || isRoot) &&
+            buildPhase === "built" &&
+            (!xrayPlan || xrayPlan.importArcs)
+          }
+          showFileArcs={
+            buildPhase === "built" && (selectedFileId !== null || !!xrayPlan?.importArcs)
+          }
+          allFileArcs={!!xrayPlan?.importArcs}
           selectedFileId={selectedFileId}
-          highlight={viewMode === "dependencies"}
+          highlight={viewMode === "dependencies" || viewMode === "xray"}
         />
 
-        {/* Directed particle streams for the selected building */}
-        <DependencyFlows layout={layout} fileConnections={cityData.fileConnections} />
+        {/* Directed particle streams: the selection's neighbourhood, or every
+            edge this level can anchor under the X-RAY lens. */}
+        {(selectedFileId !== null || !!xrayPlan?.dependencyFlows) && (
+          <DependencyFlows
+            layout={layout}
+            fileConnections={cityData.fileConnections}
+            allFlows={!!xrayPlan?.dependencyFlows}
+            emphasized={viewMode === "xray"}
+          />
+        )}
 
         {/* Copy-paste clones connected by harsh yellow lasers */}
-        {!lodFar && <CloneLasers layout={layout} cityData={cityData} />}
+        {!lodFar && (
+          <CloneLasers
+            layout={layout}
+            cityData={cityData}
+            enabled={!xrayPlan || xrayPlan.cloneLasers}
+          />
+        )}
       </SurfaceCurves>
     </group>
   );

@@ -7,7 +7,12 @@ import * as THREE from "three";
 import type { DirLayout } from "../city/layout";
 import { ENV } from "../city/palette";
 import { reducedSettle } from "../city/motion";
-import { planImportArcs, type ArcAnchor, type ImportArc } from "../city/importArcs";
+import {
+  planAllImportArcs,
+  planImportArcs,
+  type ArcAnchor,
+  type ImportArc,
+} from "../city/importArcs";
 import { placeLabel, hudBoxes, HUD_SURFACES, TOWARD_GLYPH, type Box } from "../city/labelPlacement";
 import { useStore } from "../stores/useStore";
 import { formatCount, t } from "../i18n";
@@ -26,6 +31,12 @@ interface ConnectionProps {
   dirConnections: Array<{ from: string; to: string; weight: number }>;
   showDirArcs: boolean;
   showFileArcs?: boolean;
+  /**
+   * X-RAY lens: draw every import edge between the buildings this level draws,
+   * not only the selected building's edges. The plan stays capped by
+   * `FILE_ARCS_MAX` and still refuses an anchor this level does not own.
+   */
+  allFileArcs?: boolean;
   /**
    * When a building is selected, static file arcs collapse to ONLY that
    * building's edges (idle cities show no file arcs at all — the
@@ -116,6 +127,7 @@ export function CityConnections({
   dirConnections,
   showDirArcs,
   showFileArcs = true,
+  allFileArcs = false,
   selectedFileId = null,
   highlight = false,
 }: ConnectionProps) {
@@ -136,8 +148,11 @@ export function CityConnections({
 
   // ── File → file arcs ─────────────────────────────────────────────────────
   const arcs = useMemo(
-    () => planImportArcs(fileConnections, buildingPos, showFileArcs ? selectedFileId : null),
-    [fileConnections, buildingPos, showFileArcs, selectedFileId],
+    () =>
+      allFileArcs && showFileArcs
+        ? planAllImportArcs(fileConnections, buildingPos)
+        : planImportArcs(fileConnections, buildingPos, showFileArcs ? selectedFileId : null),
+    [fileConnections, buildingPos, showFileArcs, selectedFileId, allFileArcs],
   );
   const labelled = useMemo(() => arcs.find((a) => a.emphasized) ?? null, [arcs]);
 
@@ -234,6 +249,9 @@ export function CityConnections({
     }> = [];
     const gesehen = new Set<string>();
     for (const a of arcs) {
+      // The X-RAY lens draws the whole architecture; only the selected file's
+      // own edges are neighbours, and only they may place a plate.
+      if (a.from !== selectedFileId && a.to !== selectedFileId) continue;
       const andereId: string = a.from === selectedFileId ? a.to : a.from;
       if (andereId === selectedFileId || gesehen.has(andereId)) continue;
       const gebaeude = layout.buildings.find((b) => b.file.id === andereId);

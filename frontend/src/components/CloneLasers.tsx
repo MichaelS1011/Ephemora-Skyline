@@ -30,8 +30,17 @@ function laserGeometry(
   return new THREE.TubeGeometry(curve, 16, 0.045, 4, false);
 }
 
-export function CloneLasers({ layout, cityData }: { layout: DirLayout; cityData: CityData }) {
-  const duplicatesOn = cityData.meta.duplicates ?? false;
+export function CloneLasers({
+  layout,
+  cityData,
+  enabled = true,
+}: {
+  layout: DirLayout;
+  cityData: CityData;
+  /** X-RAY gates the layer on the plan; other lenses keep the payload rule. */
+  enabled?: boolean;
+}) {
+  const duplicatesOn = enabled && (cityData.meta.duplicates ?? false);
   const settledRef = useRef(false);
 
   const buildingPos = useMemo(() => {

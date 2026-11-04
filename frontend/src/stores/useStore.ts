@@ -154,9 +154,11 @@ export function cityOnDisk(city: CityData | null): boolean {
 
 /**
  * City-wide view mode (spec §14): which information layer the skyline shows.
- * One lens at a time — never all information simultaneously.
+ * One lens at a time — never all information simultaneously. `xray` is the
+ * combined blueprint lens: the same city, every structural layer it can
+ * honestly claim, and no invented data.
  */
-export type ViewMode = "structure" | "security" | "dependencies";
+export type ViewMode = "structure" | "security" | "dependencies" | "xray";
 
 export interface TestFailureInfo {
   name: string;

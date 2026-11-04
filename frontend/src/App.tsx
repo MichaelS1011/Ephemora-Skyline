@@ -25,6 +25,7 @@ import { ActionBar } from "./components/ActionBar";
 import { ResidentCard } from "./components/ResidentCard";
 import { EphePreview } from "./components/EphePreview";
 import { ShareStudio } from "./components/ShareStudio";
+import { TimeMachine } from "./components/TimeMachine";
 import { ContextCard } from "./components/ContextCard";
 import { LiveBridge } from "./live/LiveBridge";
 import { PrefsNote } from "./components/PrefsNote";
@@ -736,6 +737,10 @@ export default function App() {
               <SecurityTour />
               <TriageAnnouncer />
               <TeachBoardsReading />
+              <TimeMachine
+                currentId={cityData?.analysisId ?? null}
+                onOpenCity={(id) => void loadCity(id)}
+              />
               <ActionBar />
               {selectedResident !== null && <ResidentCard />}
               {showEpheVitrine && (

@@ -24,6 +24,13 @@ import { reducedSettle } from "../city/motion";
 interface FlowProps {
   layout: DirLayout;
   fileConnections: Array<{ from: string; to: string; weight: number }>;
+  /**
+   * X-RAY lens: stream every file-to-file edge this level can anchor, not only
+   * the selection's neighbourhood. Still capped by `CURVES_MAX`.
+   */
+  allFlows?: boolean;
+  /** The X-RAY lens lets the streams carry the frame — slightly larger. */
+  emphasized?: boolean;
 }
 
 const PARTICLES_PER_CURVE = 90;
@@ -56,7 +63,12 @@ interface FlowCurve {
   offset: number; // per-particle phase spacing
 }
 
-export function DependencyFlows({ layout, fileConnections }: FlowProps) {
+export function DependencyFlows({
+  layout,
+  fileConnections,
+  allFlows = false,
+  emphasized = false,
+}: FlowProps) {
   const selectedUnit = useStore((s) => s.selectedUnit);
   const selectedId = selectedUnit?.kind === "file" ? selectedUnit.id : null;
   const pointsRef = useRef<THREE.Points>(null);
@@ -69,23 +81,27 @@ export function DependencyFlows({ layout, fileConnections }: FlowProps) {
   }, [layout]);
 
   const flows = useMemo<FlowCurve[]>(() => {
-    if (!selectedId) return [];
+    if (!selectedId && !allFlows) return [];
     const outgoing = new Set<string>();
     const incoming = new Set<string>();
+    const edges = new Set<string>();
     for (const c of fileConnections) {
+      edges.add(`${c.from}\u0000${c.to}`);
       if (c.from === selectedId) outgoing.add(c.to);
       if (c.to === selectedId) incoming.add(c.from);
     }
     const curves: FlowCurve[] = [];
     for (const c of fileConnections) {
       if (curves.length >= CURVES_MAX) break;
-      if (c.from !== selectedId && c.to !== selectedId) continue;
+      if (!allFlows && c.from !== selectedId && c.to !== selectedId) continue;
       const a = buildingPos.get(c.from);
       const b = buildingPos.get(c.to);
       if (!a || !b || (a.x === b.x && a.z === b.z)) continue;
-      const direction = c.from === selectedId ? "out" : "in";
+      const direction = allFlows ? "out" : c.from === selectedId ? "out" : "in";
       const other = c.from === selectedId ? c.to : c.from;
-      const circular = outgoing.has(other) && incoming.has(other);
+      const circular = allFlows
+        ? edges.has(`${c.to}\u0000${c.from}`)
+        : outgoing.has(other) && incoming.has(other);
       curves.push({
         curve: flowCurve(a, b),
         direction,
@@ -95,7 +111,7 @@ export function DependencyFlows({ layout, fileConnections }: FlowProps) {
       });
     }
     return curves;
-  }, [selectedId, fileConnections, buildingPos]);
+  }, [selectedId, allFlows, fileConnections, buildingPos]);
 
   const particleCount = flows.length * PARTICLES_PER_CURVE;
 
@@ -173,7 +189,7 @@ export function DependencyFlows({ layout, fileConnections }: FlowProps) {
   };
 
   useFrame((_, delta) => {
-    if (!selectedId || flows.length === 0) return;
+    if (flows.length === 0) return;
     // Reduced motion: the streams hold their spread along the curve. Direction
     // is still readable — the in/out colour split carries it without movement.
     if (reducedSettle(settledRef, () => write(0))) return;
@@ -181,15 +197,15 @@ export function DependencyFlows({ layout, fileConnections }: FlowProps) {
     write(elapsedRef.current);
   });
 
-  if (!selectedId || flows.length === 0) return null;
+  if (flows.length === 0) return null;
 
   return (
     <points ref={pointsRef} geometry={geometry} frustumCulled={false}>
       <pointsMaterial
-        size={0.55}
+        size={emphasized ? 0.68 : 0.55}
         vertexColors
         transparent
-        opacity={0.95}
+        opacity={emphasized ? 1 : 0.95}
         blending={THREE.AdditiveBlending}
         depthWrite={false}
         sizeAttenuation

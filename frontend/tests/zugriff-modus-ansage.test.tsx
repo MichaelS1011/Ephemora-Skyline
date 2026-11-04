@@ -2,8 +2,8 @@
 /**
  * ZUGRIFF-05, Punkt 1 — "was man sieht, aber nicht hört".
  *
- * The mode bar picks one of three lenses (STRUCTURE / SECURITY /
- * DEPENDENCIES, setter `setViewMode` in the store). Reported: which one is on
+ * The mode bar picks one of four lenses (STRUCTURE / SECURITY /
+ * DEPENDENCIES / X-RAY, setter `setViewMode` in the store). Reported: which one is on
  * rides on colour and a CSS dot, so a reader who cannot see the difference
  * cannot say it either. The product's own rule (see
  * `tests/farbsichere-alarme.test.ts`) is that colour is never the only carrier.
@@ -28,7 +28,7 @@ import { ModeBar } from "../src/components/ModeBar";
 import { useStore, type ViewMode } from "../src/stores/useStore";
 import { DICT, type Lang } from "../src/i18n";
 
-const MODES: readonly ViewMode[] = ["structure", "security", "dependencies"];
+const MODES: readonly ViewMode[] = ["structure", "security", "dependencies", "xray"];
 
 let host: HTMLDivElement;
 let root: Root | null = null;
@@ -127,10 +127,10 @@ afterEach(() => {
 });
 
 describe("der aktive Modus ist zu sagen, nicht nur zu sehen", () => {
-  it("trägt genau ein Knopf das Current-Merkmal — in jedem der drei Modi", () => {
+  it("trägt genau ein Knopf das Current-Merkmal — in jedem der vier Modi", () => {
     for (const mode of MODES) {
       paint(mode, "de");
-      expect(radios(), `${mode}: the bar lost a control`).toHaveLength(3);
+      expect(radios(), `${mode}: the bar lost a control`).toHaveLength(4);
       expect(marked(), `${mode}: nothing says which lens is on`).toHaveLength(1);
     }
   });
@@ -177,7 +177,7 @@ describe("der aktive Modus ist zu sagen, nicht nur zu sehen", () => {
       const claimsOn = all.filter((b) => segments(descriptionOf(b)).includes(on));
       const claimsOff = all.filter((b) => segments(descriptionOf(b)).includes(off));
       expect(claimsOn, `${mode}: exactly one control may claim the active state`).toHaveLength(1);
-      expect(claimsOff, `${mode}: the other two must say they are off`).toHaveLength(2);
+      expect(claimsOff, `${mode}: the other lenses must say they are off`).toHaveLength(3);
       expect(claimsOn[0]).toBe(marked()[0]);
     }
   });

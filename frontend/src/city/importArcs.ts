@@ -58,17 +58,17 @@ function apexOf(a: ArcAnchor, b: ArcAnchor): { x: number; y: number; z: number }
  */
 const rankKey = (arc: ImportArc): string => `${arc.start.path}\u0000${arc.end.path}`;
 
-export function planImportArcs(
+function collectArcs(
   edges: readonly ImportEdge[],
   anchors: ReadonlyMap<string, ArcAnchor>,
-  selectedFileId: string | null,
-  max: number = FILE_ARCS_MAX,
+  max: number,
+  keep: (edge: ImportEdge) => boolean,
+  directionOf: (edge: ImportEdge) => "in" | "out",
 ): ImportArc[] {
-  if (!selectedFileId) return [];
   const arcs: ImportArc[] = [];
   for (const edge of edges) {
     if (arcs.length >= max) break;
-    if (edge.from !== selectedFileId && edge.to !== selectedFileId) continue;
+    if (!keep(edge)) continue;
     const start = anchors.get(edge.from);
     const end = anchors.get(edge.to);
     // An edge to a file that is not drawn here gets no arc. Guessing an
@@ -80,7 +80,7 @@ export function planImportArcs(
       from: edge.from,
       to: edge.to,
       weight: edge.weight,
-      direction: edge.from === selectedFileId ? "out" : "in",
+      direction: directionOf(edge),
       emphasized: false,
       start,
       end,
@@ -98,4 +98,42 @@ export function planImportArcs(
   }
   if (best) best.emphasized = true;
   return arcs;
+}
+
+export function planImportArcs(
+  edges: readonly ImportEdge[],
+  anchors: ReadonlyMap<string, ArcAnchor>,
+  selectedFileId: string | null,
+  max: number = FILE_ARCS_MAX,
+): ImportArc[] {
+  if (!selectedFileId) return [];
+  return collectArcs(
+    edges,
+    anchors,
+    max,
+    (edge) => edge.from === selectedFileId || edge.to === selectedFileId,
+    (edge) => (edge.from === selectedFileId ? "out" : "in"),
+  );
+}
+
+/**
+ * Every real import edge between buildings this level draws.
+ *
+ * The X-RAY lens shows the architecture, not one selection's neighbourhood, so
+ * it cannot use the selected-file rule above. Everything else is the same: an
+ * edge to an undrawn file gets no arc, a shared plot gets no line, the set is
+ * capped by the same budget, and exactly one arc carries the label.
+ */
+export function planAllImportArcs(
+  edges: readonly ImportEdge[],
+  anchors: ReadonlyMap<string, ArcAnchor>,
+  max: number = FILE_ARCS_MAX,
+): ImportArc[] {
+  return collectArcs(
+    edges,
+    anchors,
+    max,
+    () => true,
+    () => "out",
+  );
 }

@@ -1,0 +1,154 @@
+/* Postcard Challenges — the studio's local photo missions. */
+
+.postcard-challenges {
+  margin-top: 18px;
+  padding-top: 14px;
+  border-top: 1px solid var(--glass-border, rgba(242, 239, 232, 0.13));
+  color: var(--color-text);
+  font-family: var(--font-ui);
+  font-size: var(--fs-small);
+  line-height: 1.55;
+}
+
+.postcard-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.postcard-head h3 {
+  margin: 0;
+  font-size: var(--fs-small);
+  font-weight: 600;
+  color: var(--brand-ink);
+}
+
+.postcard-count {
+  flex: none;
+  color: var(--accent-gold);
+  font-family: var(--font-mono);
+  font-size: var(--fs-meta);
+}
+
+.postcard-intro,
+.postcard-note,
+.postcard-empty {
+  margin: 4px 0 10px;
+  color: var(--meta-strong);
+  font-size: var(--fs-meta);
+}
+
+.postcard-note {
+  color: var(--accent-gold);
+}
+
+.postcard-list {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.postcard-mission {
+  padding: 9px 10px;
+  border: 1px solid var(--glass-chrome-border, rgba(242, 239, 232, 0.16));
+  border-radius: var(--radius-md, 6px);
+  background: rgba(255, 255, 255, 0.035);
+}
+
+.postcard-mission.is-selected {
+  border-color: color-mix(in srgb, var(--accent-gold) 58%, transparent);
+  background: color-mix(in srgb, var(--accent-gold) 9%, transparent);
+}
+
+.postcard-mission.is-captured {
+  opacity: 0.78;
+}
+
+.postcard-mission-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.postcard-mission-head h4 {
+  margin: 0;
+  font-size: var(--fs-meta);
+  font-weight: 600;
+  color: var(--brand-ink);
+}
+
+.postcard-state {
+  flex: none;
+  color: var(--meta-strong);
+  font-family: var(--font-mono);
+  font-size: var(--fs-meta);
+}
+
+.postcard-mission.is-captured .postcard-state {
+  color: var(--accent-gold);
+}
+
+.postcard-target,
+.postcard-reason,
+.postcard-action,
+.postcard-selected {
+  margin: 4px 0 0;
+  font-size: var(--fs-meta);
+}
+
+.postcard-target {
+  color: var(--meta-strong);
+}
+
+.postcard-target code {
+  color: var(--brand-ink);
+  font-family: var(--font-mono);
+  word-break: break-all;
+}
+
+.postcard-reason {
+  color: var(--color-text);
+}
+
+.postcard-action,
+.postcard-selected {
+  color: var(--meta-strong);
+}
+
+.postcard-selected {
+  color: var(--accent-gold);
+}
+
+.postcard-fly,
+.postcard-clear {
+  margin-top: 7px;
+  min-height: 28px;
+  padding: 0 9px;
+  border: 1px solid var(--glass-chrome-border, rgba(242, 239, 232, 0.16));
+  border-radius: var(--radius-md, 6px);
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--meta-strong);
+  font: inherit;
+  font-size: var(--fs-meta);
+  cursor: pointer;
+}
+
+.postcard-fly:hover,
+.postcard-clear:hover {
+  color: var(--brand-ink);
+  background: rgba(255, 255, 255, 0.09);
+}
+
+.postcard-clear {
+  margin-top: 10px;
+}
+
+.postcard-fly:focus-visible,
+.postcard-clear:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 1px;
+}

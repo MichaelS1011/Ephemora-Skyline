@@ -10,6 +10,9 @@ import { t, type DictKey } from "../i18n";
  * - STRUCTURE     the architecture, nothing else (default)
  * - SECURITY      the city darkens, only the alarm buildings stay lit
  * - DEPENDENCIES  the buildings recede, the dependency veins glow
+ * - X-RAY         the bodies recede and every structural overlay the payload
+ *                 can support stands together: imports, cycles, findings,
+ *                 coverage shields and clone lasers
  *
  * Rendered by App outside the canvas as a screen-fixed DOM control (top center, on
  * the same row as the workspace search), only once the construction
@@ -21,6 +24,7 @@ const MODES: Array<{ id: ViewMode; labelKey: DictKey; tipKey: DictKey }> = [
   { id: "structure", labelKey: "mode.structure", tipKey: "mode.structureTip" },
   { id: "security", labelKey: "mode.security", tipKey: "mode.securityTip" },
   { id: "dependencies", labelKey: "mode.dependencies", tipKey: "mode.dependenciesTip" },
+  { id: "xray", labelKey: "mode.xray", tipKey: "mode.xrayTip" },
 ];
 
 export function ModeBar() {

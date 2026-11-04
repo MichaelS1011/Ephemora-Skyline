@@ -1,0 +1,237 @@
+/* Refactor Sandbox — a compact, read-only learning block inside the file panel.
+ *
+ * It borrows the panel's glass language: one hairline above the section, the
+ * shared meta inks, the gold accent for the chosen reading action and the
+ * focus ring every control in the card already wears. The comparison table is
+ * fixed-layout so a narrow file panel cannot push its numbers out of view.
+ */
+
+.rs-sandbox {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--glass-border);
+  color: var(--color-text);
+  font-family: var(--font-ui);
+  font-size: var(--fs-small);
+  line-height: 1.55;
+}
+
+.rs-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.rs-title {
+  margin: 0;
+  font-size: var(--fs-small);
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  color: var(--brand-ink);
+}
+
+.rs-badge {
+  flex: none;
+  padding: 1px 6px;
+  border: 1px solid color-mix(in srgb, var(--accent-gold) 48%, transparent);
+  border-radius: var(--radius-pill);
+  background: color-mix(in srgb, var(--accent-gold) 12%, transparent);
+  color: var(--accent-gold);
+  font-family: var(--font-mono);
+  font-size: var(--fs-meta);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.rs-heuristic {
+  margin: 4px 0 10px;
+  color: var(--meta-strong);
+  font-size: var(--fs-meta);
+}
+
+.rs-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+
+.rs-action,
+.rs-reset {
+  min-height: 30px;
+  padding: 0 10px;
+  border: 1px solid var(--glass-chrome-border);
+  border-radius: var(--radius-md);
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--meta-strong);
+  font: inherit;
+  font-size: var(--fs-meta);
+  cursor: pointer;
+}
+
+.rs-action:hover,
+.rs-reset:hover:not(:disabled) {
+  color: var(--brand-ink);
+  background: rgba(255, 255, 255, 0.09);
+}
+
+.rs-action[aria-pressed="true"] {
+  color: var(--brand-ink);
+  border-color: color-mix(in srgb, var(--accent-gold) 62%, transparent);
+  background: color-mix(in srgb, var(--accent-gold) 16%, transparent);
+}
+
+.rs-action:focus-visible,
+.rs-reset:focus-visible,
+.rs-parts select:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+.rs-parts {
+  display: grid;
+  grid-template-columns: auto auto;
+  align-items: center;
+  justify-content: start;
+  gap: 4px 8px;
+  margin-bottom: 10px;
+  color: var(--meta-strong);
+  font-size: var(--fs-meta);
+}
+
+.rs-parts select {
+  min-height: 26px;
+  padding: 0 6px;
+  border: 1px solid var(--glass-chrome-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  color: var(--brand-ink);
+  font: inherit;
+  font-size: var(--fs-meta);
+}
+
+.rs-parts-hint {
+  grid-column: 1 / -1;
+  max-width: 42ch;
+  color: var(--meta);
+  font-size: var(--fs-meta);
+  line-height: 1.45;
+}
+
+.rs-preview {
+  padding: 8px;
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-md);
+  background: rgba(0, 0, 0, 0.18);
+}
+
+.rs-compare {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+  font-family: var(--font-mono);
+  font-size: var(--fs-meta);
+  font-variant-numeric: tabular-nums;
+}
+
+.rs-caption {
+  caption-side: top;
+  padding-bottom: 4px;
+  color: var(--meta-strong);
+  font-size: var(--fs-meta);
+  text-align: left;
+}
+
+.rs-compare th,
+.rs-compare td {
+  padding: 3px 4px;
+  border-bottom: 1px solid rgba(242, 239, 232, 0.08);
+  text-align: right;
+  vertical-align: top;
+}
+
+.rs-compare th:first-child {
+  width: 46%;
+  text-align: left;
+  font-weight: 500;
+  color: var(--meta-strong);
+  overflow-wrap: anywhere;
+}
+
+.rs-compare thead th {
+  color: var(--meta);
+  font-weight: 500;
+}
+
+.rs-compare tbody tr:last-child th,
+.rs-compare tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.rs-coupling {
+  margin: 6px 0 0;
+  color: var(--meta);
+  font-size: var(--fs-meta);
+}
+
+.rs-goal {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  margin-top: 8px;
+  padding: 6px 8px;
+  border: 1px solid color-mix(in srgb, var(--color-safe) 64%, transparent);
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--color-safe) 16%, transparent);
+  color: var(--brand-ink);
+  font-size: var(--fs-meta);
+}
+
+.rs-goal-mark {
+  flex: none;
+  color: var(--accent-gold);
+  font-size: var(--fs-small);
+  line-height: 1.2;
+}
+
+.rs-goal strong {
+  display: block;
+  font-weight: 600;
+}
+
+.rs-goal-note {
+  display: block;
+  color: var(--meta);
+  font-size: var(--fs-meta);
+}
+
+.rs-subhead {
+  margin: 10px 0 4px;
+  color: var(--meta-strong);
+  font-size: var(--fs-meta);
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.rs-assumptions {
+  margin: 0;
+  padding-left: 16px;
+  color: var(--meta);
+  font-size: var(--fs-meta);
+  line-height: 1.45;
+}
+
+.rs-assumptions li {
+  margin: 2px 0;
+}
+
+.rs-reset {
+  margin-top: 10px;
+}
+
+.rs-reset:disabled {
+  opacity: 0.4;
+  cursor: default;
+}

@@ -21,6 +21,8 @@ import { RunTestsButton, SourceBlock, VoxelStructureBlock } from "./FilePanels";
 import { BlastRadiusBlock } from "./BlastRadiusBlock";
 import { GuideAction } from "./GuideAction";
 import { MaintenanceAction } from "./MaintenanceAction";
+import { RefactorSandbox } from "./RefactorSandbox";
+import { useSandboxStore } from "../stores/useSandboxStore";
 import "../design/stadt-ui.css";
 import "../design/learning.css";
 
@@ -75,6 +77,15 @@ export function InfoPanel() {
   /** A finding's line the reader asked to open; drives the source scroll. */
   const [sourceLine, setSourceLine] = useState<number | null>(null);
   const selectedId = selectedUnit?.kind === "file" ? selectedUnit.id : null;
+  const resetSandbox = useSandboxStore((s) => s.reset);
+
+  // The sandbox preview belongs to exactly one file. Reset it on every
+  // selection change and again when this panel goes away, so an old ghost
+  // cannot outlive the card that described it.
+  useEffect(() => {
+    resetSandbox();
+    return resetSandbox;
+  }, [selectedId, resetSandbox]);
 
   // Starting a triage moves the city and opens this panel, but keyboard focus
   // stayed on the document body. Once per triage, put it on the file the queue
@@ -425,6 +436,10 @@ export function InfoPanel() {
         </div>
       )}
       <PanelAdvice advice={file.advice} lang={lang} />
+
+      {/* Read-only scenario preview for this one file; the ghost in the
+          scene reads the same store entry. */}
+      <RefactorSandbox file={file} cityData={cityData} />
 
       <nav className="file-learning-return" aria-label={learningCopy(lang, "overview")}>
         <button type="button" onClick={() => returnToCity(true)}>

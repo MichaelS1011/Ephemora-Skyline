@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
+  planAllImportArcs,
   planImportArcs,
   FILE_ARCS_MAX,
   type ArcAnchor,
@@ -161,5 +162,33 @@ describe("Hervorhebung — exactly one arc is the one you read", () => {
 
   it("labels nothing when there is nothing to label", () => {
     expect(planImportArcs([], ROOFS, "a")).toEqual([]);
+  });
+});
+
+describe("X-RAY — the lens draws the whole level, not one selection", () => {
+  it("draws every anchored edge and still refuses an undrawn far end", () => {
+    const arcs = planAllImportArcs([edge("a", "b"), edge("b", "c"), edge("c", "z")], ROOFS);
+    expect(arcs.map((x) => `${x.from}>${x.to}`).sort()).toEqual(["a>b", "b>c"]);
+  });
+
+  it("keeps the same apex, shared-plot refusal and one-label rule", () => {
+    const arcs = planAllImportArcs([edge("a", "b", 3), edge("a", "c", 1)], ROOFS);
+    expect(arcs).toHaveLength(2);
+    expect(arcs.filter((x) => x.emphasized)).toHaveLength(1);
+    expect(arcs.find((x) => x.emphasized)?.to).toBe("b");
+    expect(arcs[0]?.apex.y).toBeGreaterThan(arcs[0]!.start.y);
+
+    const same = new Map<string, ArcAnchor>([
+      ["a", anchor("a", 5, 5)],
+      ["b", anchor("b", 5, 5, { y: 9 })],
+    ]);
+    expect(planAllImportArcs([edge("a", "b")], same)).toEqual([]);
+  });
+
+  it("uses the same published budget", () => {
+    const many = Array.from({ length: FILE_ARCS_MAX + 10 }, (_, i) => edge("a", `b${i}`));
+    const roofs = new Map<string, ArcAnchor>([["a", anchor("a", 0, 0)]]);
+    for (let i = 0; i < FILE_ARCS_MAX + 10; i++) roofs.set(`b${i}`, anchor(`b${i}`, i + 1, 5));
+    expect(planAllImportArcs(many, roofs)).toHaveLength(FILE_ARCS_MAX);
   });
 });

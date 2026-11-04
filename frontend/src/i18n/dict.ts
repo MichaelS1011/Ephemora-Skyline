@@ -1150,6 +1150,10 @@ export const DICT = {
     en: "DEPENDENCIES",
     de: "ABHÄNGIGKEITEN",
   },
+  "mode.xray": {
+    en: "X-RAY",
+    de: "RÖNTGEN",
+  },
   "mode.aria": {
     en: "View mode",
     de: "Ansichtsmodus",
@@ -1165,6 +1169,10 @@ export const DICT = {
   "mode.dependenciesTip": {
     en: "Buildings recede, dependency routes glow",
     de: "Gebäude treten zurück, Abhängigkeitsadern leuchten",
+  },
+  "mode.xrayTip": {
+    en: "Blueprint lens — imports, cycle rings, findings and coverage shields together",
+    de: "Blaupausen-Linse — Importe, Zyklusringe, Funde und Abdeckungsschilde zusammen",
   },
   /**
    * Which lens is on was paint only: an accent colour, a tint, a border and a

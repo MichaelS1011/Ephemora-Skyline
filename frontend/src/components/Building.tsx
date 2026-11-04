@@ -33,6 +33,13 @@ import {
 } from "../interaction/hover";
 import { FOOTPRINT_EDGES, makeInkMaterial } from "../interaction/hoverInk";
 import { materialState, erosionState, findingBarSegments, FINDING_BAR } from "../city/mapping";
+import {
+  XRAY_BUILDING_FACTOR,
+  XRAY_CYCLE_RING_OPACITY,
+  XRAY_SHIELD_EMISSIVE,
+  XRAY_SHIELD_OPACITY,
+  XRAY_SHIELD_TRANSMISSION,
+} from "../city/xray";
 import { landmarkFileId } from "../city/layout";
 import { findVoxelForLine } from "../city/voxels";
 import { useStore, type ViewMode } from "../stores/useStore";
@@ -436,10 +443,13 @@ function dimColor(hex: string, f: number): string {
  * - structure     → 1 (unchanged default view)
  * - security      → alarm buildings keep full light, the rest dims to 0.45
  * - dependencies  → every building recedes to 0.35 so the arcs take the stage
+ * - xray          → every body recedes to the same blueprint floor; the
+ *                   overlays (not the bodies) carry the information
  */
 export function modeFactor(viewMode: ViewMode, alarm: boolean): number {
   if (viewMode === "structure") return 1;
   if (viewMode === "security") return alarm ? 1 : 0.45;
+  if (viewMode === "xray") return XRAY_BUILDING_FACTOR;
   return 0.35;
 }
 
@@ -771,8 +781,14 @@ export function Building({
   // over opacity and must not be double-darkened, so the mode factor
   // neutralizes there exactly like the focus factor already does.
   const viewMode = useStore((s) => s.viewMode);
+  const xray = viewMode === "xray";
   const modeF = dimmed ? 1 : modeFactor(viewMode, alarm);
   const overallFactor = focusFactor * modeF;
+  // X-ray recesses the BODY, never the finding alarm. The bars and beacon keep
+  // the focus-tier brightness every other lens gives them, so a reader can read
+  // the city's structure and its alarms in the same frame. Filter dimming keeps
+  // its existing priority: a filtered-out backdrop stays a backdrop.
+  const markerFactor = xray && !dimmed ? focusFactor : overallFactor;
   const voxelStage = selected && hasVoxelCells && !dimmed && (focusTier == null || focusTier === 0);
   // Voxel-focus V3: resolve the highlighted source line to its cell, only
   // while the voxel stage is active. Pure mapping — recomputed only when the
@@ -862,7 +878,7 @@ export function Building({
         new THREE.Color(
           dimColor(
             fullyReviewed ? REVIEWED_BEACON_COLOR : severityColor(seg.severity, colorblind),
-            overallFactor,
+            markerFactor,
           ),
         ),
       );
@@ -870,7 +886,7 @@ export function Building({
     mesh.count = barSegments.length;
     mesh.instanceMatrix.needsUpdate = true;
     if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
-  }, [barSegments, roofY, overallFactor, colorblind, fullyReviewed, barDummy]);
+  }, [barSegments, roofY, markerFactor, colorblind, fullyReviewed, barDummy]);
 
   const materials = useMemo(() => {
     if (voxelBody) return []; // voxel mode uses the shared cached materials
@@ -1339,7 +1355,7 @@ export function Building({
         : "cone";
   const beaconColor = dimColor(
     fullyReviewed ? REVIEWED_BEACON_COLOR : severityColor(beaconSev, colorblind),
-    overallFactor,
+    markerFactor,
   );
   const detailMats = dimmed ? DETAIL_MATERIALS_DIMMED : DETAIL_MATERIALS;
 
@@ -1587,16 +1603,21 @@ export function Building({
         </mesh>
       )}
 
-      {/* Test coverage shield — well-tested code sits inside a light-blue field */}
+      {/* Test coverage shield — well-tested code sits inside a light-blue field.
+          In the X-ray lens the same field gets a visible body: higher opacity,
+          lower transmission and the shield's own warm tone as a faint emissive,
+          so it reads as a shield rather than vanishing with the receded tower. */}
       {shielded && (
         <mesh position={[0, (h + 0.3) / 2 + 0.4, 0]}>
           <boxGeometry args={[w + 1.1, h + 1.4, d + 1.1]} />
           <meshPhysicalMaterial
             color="#d8c9a3"
+            emissive="#d8c9a3"
+            emissiveIntensity={xray ? XRAY_SHIELD_EMISSIVE : 0}
             transparent
-            opacity={dimmed ? 0.05 : 0.14}
+            opacity={dimmed ? 0.05 : xray ? XRAY_SHIELD_OPACITY : 0.14}
             roughness={0.05}
-            transmission={0.7}
+            transmission={xray ? XRAY_SHIELD_TRANSMISSION : 0.7}
             thickness={0.4}
             depthWrite={false}
           />
@@ -1604,14 +1625,15 @@ export function Building({
       )}
 
       {/* Circular import warning: a thin line on the plinth, not a second
-          ring competing with the selection. */}
+          ring competing with the selection. The X-ray lens keeps it at full
+          stroke; the body behind it has receded. */}
       {inCycle && (
         <mesh position={[0, 0.11, 0]} rotation={[-Math.PI / 2, 0, 0]}>
           <ringGeometry args={[Math.max(w, d) * 0.9, Math.max(w, d) * 0.935, 40]} />
           <meshBasicMaterial
             color={CYCLE_RING_COLOR}
             transparent
-            opacity={0.8}
+            opacity={xray ? XRAY_CYCLE_RING_OPACITY : 0.8}
             side={THREE.DoubleSide}
           />
         </mesh>

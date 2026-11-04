@@ -1,0 +1,201 @@
+/* City Time Machine — a local history panel over the city. */
+
+.panel-time-machine {
+  position: absolute;
+  top: 84px;
+  left: 16px;
+  z-index: 24;
+  width: min(380px, calc(100vw - 32px));
+  max-height: min(70vh, 620px);
+  overflow: auto;
+  padding: 14px 16px 16px;
+  border: 1px solid var(--glass-border, rgba(242, 239, 232, 0.16));
+  border-radius: var(--radius-lg, 10px);
+  background: #1b1b19;
+  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.42);
+  color: var(--color-text);
+  font-family: var(--font-ui);
+  font-size: var(--fs-small);
+  line-height: 1.55;
+  pointer-events: auto;
+}
+
+.tm-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.tm-head h2 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--brand-ink);
+}
+
+.tm-close {
+  width: 30px;
+  height: 30px;
+  border: 1px solid var(--glass-chrome-border, rgba(242, 239, 232, 0.16));
+  border-radius: var(--radius-md, 6px);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--meta-strong);
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.tm-intro,
+.tm-note,
+.tm-empty {
+  margin: 5px 0 10px;
+  color: var(--meta-strong);
+  font-size: var(--fs-meta);
+}
+
+.tm-note {
+  color: var(--accent-gold);
+}
+
+.tm-eras {
+  display: grid;
+  gap: 6px;
+  margin: 0 0 10px;
+  padding: 0;
+  list-style: none;
+}
+
+.tm-era {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  width: 100%;
+  min-height: 40px;
+  padding: 6px 9px;
+  border: 1px solid var(--glass-chrome-border, rgba(242, 239, 232, 0.16));
+  border-radius: var(--radius-md, 6px);
+  background: rgba(255, 255, 255, 0.035);
+  color: var(--color-text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.tm-era:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.tm-era.is-selected {
+  border-color: color-mix(in srgb, var(--accent-gold) 58%, transparent);
+  background: color-mix(in srgb, var(--accent-gold) 10%, transparent);
+}
+
+.tm-era.is-current {
+  border-style: dashed;
+}
+
+.tm-era-when {
+  font-size: var(--fs-meta);
+}
+
+.tm-era-meta {
+  flex: none;
+  color: var(--meta-strong);
+  font-family: var(--font-mono);
+  font-size: var(--fs-meta);
+}
+
+.tm-current {
+  margin-left: 6px;
+  color: var(--accent-gold);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.tm-return,
+.tm-diff button {
+  min-height: 30px;
+  padding: 0 10px;
+  border: 1px solid var(--glass-chrome-border, rgba(242, 239, 232, 0.16));
+  border-radius: var(--radius-md, 6px);
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--meta-strong);
+  font: inherit;
+  font-size: var(--fs-meta);
+  cursor: pointer;
+}
+
+.tm-return:hover {
+  color: var(--brand-ink);
+  background: rgba(255, 255, 255, 0.09);
+}
+
+.tm-diff,
+.tm-unavailable {
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid var(--glass-border, rgba(242, 239, 232, 0.13));
+}
+
+.tm-diff h3,
+.tm-unavailable h3 {
+  margin: 0 0 4px;
+  font-size: var(--fs-meta);
+  font-weight: 600;
+  color: var(--brand-ink);
+}
+
+.tm-diff p,
+.tm-unavailable p {
+  margin: 0 0 8px;
+  color: var(--meta-strong);
+  font-size: var(--fs-meta);
+}
+
+.tm-diff dl {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+}
+
+.tm-diff dl > div {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 3px 0;
+  border-bottom: 1px solid rgba(242, 239, 232, 0.07);
+}
+
+.tm-diff dt {
+  color: var(--meta-strong);
+  font-size: var(--fs-meta);
+}
+
+.tm-diff dd {
+  margin: 0;
+  color: var(--color-text);
+  font-family: var(--font-mono);
+  font-size: var(--fs-meta);
+}
+
+.tm-diff .is-up dd {
+  color: #e0a45a;
+}
+
+.tm-diff .is-down dd {
+  color: #8fbfa8;
+}
+
+.tm-diff .is-flat dd {
+  color: var(--meta-strong);
+}
+
+.tm-close:focus-visible,
+.tm-era:focus-visible,
+.tm-return:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 1px;
+}

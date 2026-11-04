@@ -20,6 +20,8 @@ import { useTestRunner } from "../hooks/useTestRunner";
 import { t } from "../i18n";
 import { cityLinkNotice } from "../cityLifetime";
 import { openStudio } from "../share/studioBus";
+import { openTimeMachine } from "./timeMachineBus";
+import { timeMachineText } from "./timeMachineCopy";
 import { tx } from "../share/fallbackCopy";
 import { useCompactChrome } from "../hooks/useCompactChrome";
 import { severityTotal } from "../city/facts";
@@ -768,6 +770,21 @@ export function ActionBar() {
               >
                 <span aria-hidden="true">●</span>
                 {tx(lang, "menu.item")}
+              </button>
+              <button
+                role="menuitem"
+                type="button"
+                disabled={!analysisId}
+                onClick={() => {
+                  closeMenu();
+                  openTimeMachine();
+                }}
+                className="flex min-h-10 w-full items-center gap-3 rounded-lg px-3 text-left hover:bg-white/5"
+                style={struck(!analysisId)}
+                title={!analysisId ? timeMachineText(lang, { key: "menuNoScan" }) : undefined}
+              >
+                <span aria-hidden="true">◷</span>
+                {timeMachineText(lang, { key: "menu" })}
               </button>
               {/* The two report exports. They live here, next to the picture,
                   because both describe the whole city — the SARIF link in the
