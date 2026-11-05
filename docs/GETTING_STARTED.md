@@ -95,8 +95,8 @@ The publishable package is assembled from `package.publish.json`; it carries
 the launcher, both built workspaces, the licences and the README, and nothing
 else. `npm run pack:check` builds, packs, installs the tarball into an empty
 folder, starts the installed `ephemora-skyline` bin, asks `/api/health` and
-`/` and prints the exact counts and sizes on every run; on 2026-10-30 the run
-ended **health ok, app served, version 0.4.2 matches the package** — 274 files, 3.5 MB unpacked, 1.10 MB packed.
+`/` and prints the exact counts and sizes on every run; on 2026-11-05 the run
+ended **health ok, app served, version 0.4.5 matches the package** — 279 files, 3.62 MB unpacked, 1.13 MB packed.
 
 ```bash
 npm run package:build   # writes dist-package/
@@ -116,7 +116,7 @@ npx ephemora-skyline
 npx ephemora-skyline --port 4200 --no-open   # another address, no browser
 ```
 
-Until then, `npm start` is the one-command path from this checkout — and the release page already carries the built package for anyone who wants to run it without cloning: since v0.3.0 every release ships `ephemora-skyline-<version>.tgz` as its asset (measured 2026-10-31, `gh release view v0.4.2`). In an empty folder, `curl -LO https://github.com/MichaelS1011/Ephemora-Skyline/releases/download/v0.4.2/ephemora-skyline-0.4.2.tgz`, then `npm install ./ephemora-skyline-0.4.2.tgz`, then `node_modules/.bin/ephemora-skyline` (`:4173`; `--port <n>` and `--no-open` as flags). `npm run pack:check` installs a freshly packed tarball into an empty folder and boots it the same way; its run on 2026-10-31 printed **274 files, 3.5 MB unpacked, 1.10 MB packed, health ok, app served, version 0.4.2 matches the package**.
+Until then, `npm start` is the one-command path from this checkout — and the release page already carries the built package for anyone who wants to run it without cloning: since v0.3.0 every release ships `ephemora-skyline-<version>.tgz` as its asset (measured 2026-11-05, `gh release view v0.4.5`). In an empty folder, `curl -LO https://github.com/MichaelS1011/Ephemora-Skyline/releases/download/v0.4.5/ephemora-skyline-0.4.5.tgz`, then `npm install ./ephemora-skyline-0.4.5.tgz`, then `node_modules/.bin/ephemora-skyline` (`:4173`; `--port <n>` and `--no-open` as flags). `npm run pack:check` installs a freshly packed tarball into an empty folder and boots it the same way; its run on 2026-11-05 printed **279 files, 3.62 MB unpacked, 1.13 MB packed, health ok, app served, version 0.4.5 matches the package**.
 
 ## Configuration
 
