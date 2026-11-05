@@ -9,6 +9,8 @@ came from a run on this machine, with the file and the check that produced it.
 
 ## [Unreleased]
 
+## [0.4.6] - 2026-11-05
+
 - **C and C++ files now join the scan.** `.c`, `.h`, `.cpp`, `.cc`, `.cxx`, `.hpp`, `.hh`, `.hxx`, `.ipp`, `.tpp`, `.cu`, `.cuh` and `.ino` pass both walkers, map to the existing Cpp tone and reach semgrep; a capital `.C`/`.H` is normalised too. The structure pass reads C++ `class` and `struct` members, and the missing-engine table names semgrep for the language. Measured: 2,819 frontend / 957 backend cases pass; `npm run self-scan` read 685 text files, analyzed 644 and answered 0 findings.
 
 ## [0.4.5] - 2026-11-05

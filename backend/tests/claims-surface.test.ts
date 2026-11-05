@@ -275,7 +275,7 @@ describe("the surface a stranger reads", () => {
           /updateCheck:\s*parsed\.updateCheck !== false/,
         );
         // The entry document's own sentence must not disagree with that
-        // default: measured 2026-11-01, README.md:70 said the hourly check
+        // default: measured 2026-11-01, README.md:68 said the hourly check
         // "stays off until you turn it on" while prefs.ts started it true and
         // the landing page already asked — the same claim, two answers.
         const readme = read("README.md");

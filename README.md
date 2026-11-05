@@ -21,11 +21,9 @@ Nothing is uploaded. No account, no login, no telemetry. It runs on your own mac
 
 ## What's new
 
-0.4.5 — 2026-11-05
+0.4.6 — 2026-11-05
 
-- **The city gained its reading tools.** — Measured on the change: 44 files changed, 4,413 inserted lines, 49 deleted lines and 9 new frontend test files
-- **The first look tells you where the next step is.** — Measured: 7 new cases in `frontend/tests/start-firstPath.test.tsx` (33 → 40), 233 frontend test files / 2,819 cases pass
-- **A run id has to prove its path, not only its shape.** — Measured locally with CodeQL 2.27.2 and `codeql/javascript-queries` 2.5.0: 6 results before
+- **C and C++ files now join the scan.** — Measured: 2,819 frontend / 957 backend cases pass; `npm run self-scan` read 685 text files, analyzed 644 and answered 0 findings
 
 More in [CHANGELOG.md](./CHANGELOG.md).
 
