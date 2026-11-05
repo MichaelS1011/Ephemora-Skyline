@@ -9,6 +9,8 @@ came from a run on this machine, with the file and the check that produced it.
 
 ## [Unreleased]
 
+- **C and C++ files now join the scan.** `.c`, `.h`, `.cpp`, `.cc`, `.cxx`, `.hpp`, `.hh`, `.hxx`, `.ipp`, `.tpp`, `.cu`, `.cuh` and `.ino` pass both walkers, map to the existing Cpp tone and reach semgrep; a capital `.C`/`.H` is normalised too. The structure pass reads C++ `class` and `struct` members, and the missing-engine table names semgrep for the language. Measured: 2,819 frontend / 957 backend cases pass; `npm run self-scan` read 685 text files, analyzed 644 and answered 0 findings.
+
 ## [0.4.5] - 2026-11-05
 
 - **The city gained its reading tools.** X-Ray layers lines, imports, findings, churn and coverage in one pass; role landmarks name factory, library, entry point and test file on the roof; a read-only refactor ghost estimates split, extract and test inside the file panel; local postcard challenges and a time machine for earlier scans sit in the studio and dock. Measured on the change: 44 files changed, 4,413 inserted lines, 49 deleted lines and 9 new frontend test files.
