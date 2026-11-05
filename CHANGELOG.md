@@ -9,6 +9,8 @@ came from a run on this machine, with the file and the check that produced it.
 
 ## [Unreleased]
 
+## [0.4.5] - 2026-11-05
+
 - **The city gained its reading tools.** X-Ray layers lines, imports, findings, churn and coverage in one pass; role landmarks name factory, library, entry point and test file on the roof; a read-only refactor ghost estimates split, extract and test inside the file panel; local postcard challenges and a time machine for earlier scans sit in the studio and dock. Measured on the change: 44 files changed, 4,413 inserted lines, 49 deleted lines and 9 new frontend test files.
 
 - **The first look tells you where the next step is.** The dock's **First look** card now carries three moves — read the city (`resetFocus`), check one risk (`startTriage`), open the history (`openTimeMachine`) — and four places worth knowing: X-Ray, role landmarks, the read-only refactor sandbox, and postcard challenges. Each action closes the card and lands where it says; a move without its prerequisite (no findings, no earlier scan) is disabled with the reason in its label. When an active filter hides every finding, the risk move says **No findings in this filter** instead of claiming the city has none. The four original hints stay, no new dock button and no new arrival surface. Measured: 7 new cases in `frontend/tests/start-firstPath.test.tsx` (33 → 40), 233 frontend test files / 2,819 cases pass.

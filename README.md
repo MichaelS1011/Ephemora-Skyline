@@ -21,15 +21,13 @@ Nothing is uploaded. No account, no login, no telemetry. It runs on your own mac
 
 ## What's new
 
-0.4.4 — 2026-11-03
+0.4.5 — 2026-11-05
 
-- **The repository's own scan is a gate, and it is green.** After the matcher fix the self-scan still reported 59 findings, and every one now has a documented disposition rather than a blanket switch: Playwright `$eval`/`$$eval` is no longer called the `eval` builtin (5), loopback health probes are not insecure HTTP hops (2), static `innerHTML` assignments are not XSS sinks (3), the exact fake credential values are allowlisted and the LLM-redaction canary is filtered by exact value (9 outside the fixture folder), the deliberate rule fixtures are excluded only from this gate (22), `CONSOLE_USAGE` is off only in the self-scan profile (16), and the real `minimatch` advisory is fixed (2). `npm run self-scan` starts a freshly built backend with an isolated staging/archive root, sends `git ls-files --cached --others --exclude-standard` through `POST /api/analyze-local`, and fails on any open finding. Measured run: **617 analyzed files, 0 findings, 0 `CMD_INJECTION`**. The default profile still reports 39 deliberate test-surface findings (22 fixtures, 17 console lines); that list ships as `docs/self-scan-findings.ndjson`, and `docs/SELF_SCAN.md` names the policy, the 59 dispositions and the review date.
-- **The last development-chain advisory is gone.** A root `overrides.minimatch` pin resolves every `minimatch` path to 11.0.4, so `npm audit` now prints **0 findings** (0 low, 0 moderate, 0 high, 0 critical) and `node scripts/audit-gate.mjs` exits 0 with an empty waiver list. The rule, gate and count work above leaves **3,696 cases** passing (2,742 frontend, 954 backend).
+- **The city gained its reading tools.** — Measured on the change: 44 files changed, 4,413 inserted lines, 49 deleted lines and 9 new frontend test files
+- **The first look tells you where the next step is.** — Measured: 7 new cases in `frontend/tests/start-firstPath.test.tsx` (33 → 40), 233 frontend test files / 2,819 cases pass
+- **A run id has to prove its path, not only its shape.** — Measured locally with CodeQL 2.27.2 and `codeql/javascript-queries` 2.5.0: 6 results before
 
 More in [CHANGELOG.md](./CHANGELOG.md).
-
-The 0.4.4 cut above is measured, not written ahead; the full dispositions are in
-[docs/SELF_SCAN.md](./docs/SELF_SCAN.md) and the default-profile list is in [docs/self-scan-findings.ndjson](./docs/self-scan-findings.ndjson).
 
 ## Run it
 
