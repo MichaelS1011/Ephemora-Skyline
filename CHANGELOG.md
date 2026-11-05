@@ -1264,4 +1264,4 @@ Initial public shape of the repository: the local city, the scanner facade with
 its four optional external engines, the SARIF and NDJSON exports, the in-city
 test runner, the Share Studio, and the Apache-2.0 licence with its `NOTICE`.
 
-[unreleased]: https://github.com/MichaelS1011/Ephemora-Skyline/compare/v0.4.5...HEAD
+[unreleased]: https://github.com/MichaelS1011/Ephemora-Skyline/compare/v0.4.6...HEAD
