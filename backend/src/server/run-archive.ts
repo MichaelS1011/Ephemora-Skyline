@@ -41,38 +41,52 @@ function isCompleteResult(value: unknown, id: string): value is AnalysisResult {
 export class RunArchive {
   constructor(readonly directory: string = runsDir()) {}
 
-  private fileFor(id: string): string {
-    return path.join(this.directory, `${id}.json`);
+  /**
+   * A path is only returned when the UUID lands directly inside the archive:
+   * the resolved-and-relative check is the containment proof, not the shape of
+   * the id alone.
+   */
+  private fileFor(id: string): string | undefined {
+    if (!RUN_ID.test(id)) return undefined;
+    const root = path.resolve(this.directory);
+    const file = path.resolve(root, `${id}.json`);
+    const relative = path.relative(root, file);
+    if (relative === ".." || relative.startsWith(`..${path.sep}`) || path.isAbsolute(relative)) {
+      return undefined;
+    }
+    return file;
   }
 
   /** Write one completed result; a failure is logged and never fails the scan. */
   save(id: string, result: AnalysisResult): void {
-    if (!RUN_ID.test(id) || result.status !== "complete") return;
+    if (result.status !== "complete") return;
+    const file = this.fileFor(id);
+    if (!file) return;
     try {
       fs.mkdirSync(this.directory, { recursive: true, mode: 0o700 });
       fs.chmodSync(this.directory, 0o700);
-      const file = this.fileFor(id);
       const tmp = `${file}.tmp`;
       fs.writeFileSync(tmp, JSON.stringify(result), { mode: 0o600 });
       fs.chmodSync(tmp, 0o600);
       fs.renameSync(tmp, file);
       this.prune();
     } catch (error) {
-      console.error(`runs: could not write ${this.fileFor(id)}`, error);
+      console.error(`runs: could not write ${file}`, error);
     }
   }
 
   /** The stored result for an id, or nothing — a corrupt file is not a city. */
   load(id: string): AnalysisResult | undefined {
-    if (!RUN_ID.test(id)) return undefined;
+    const file = this.fileFor(id);
+    if (!file) return undefined;
     try {
-      const parsed: unknown = JSON.parse(fs.readFileSync(this.fileFor(id), "utf-8"));
+      const parsed: unknown = JSON.parse(fs.readFileSync(file, "utf-8"));
       if (isCompleteResult(parsed, id)) return parsed;
-      console.error(`runs: ${this.fileFor(id)} is not a completed result — ignoring it`);
+      console.error(`runs: ${file} is not a completed result — ignoring it`);
       return undefined;
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code !== "ENOENT") {
-        console.error(`runs: ${this.fileFor(id)} does not parse — ignoring it`);
+        console.error(`runs: ${file} does not parse — ignoring it`);
       }
       return undefined;
     }
@@ -80,11 +94,12 @@ export class RunArchive {
 
   /** Delete one run on purpose (failure, cancellation, a re-run of the same id). */
   remove(id: string): void {
-    if (!RUN_ID.test(id)) return;
+    const file = this.fileFor(id);
+    if (!file) return;
     try {
-      fs.rmSync(this.fileFor(id), { force: true });
+      fs.rmSync(file, { force: true });
     } catch (error) {
-      console.error(`runs: could not remove ${this.fileFor(id)}`, error);
+      console.error(`runs: could not remove ${file}`, error);
     }
   }
 

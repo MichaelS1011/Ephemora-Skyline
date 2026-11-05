@@ -1,9 +1,11 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react";
 import type { CSSProperties, ReactNode } from "react";
-import { useStore } from "../stores/useStore";
+import { triageList, useStore } from "../stores/useStore";
 import { alarmWindowColors, CYCLE_RING_COLOR, ENV, heatLegendGradient } from "../city/palette";
 import { t, type DictKey } from "../i18n";
+import { openStudio } from "../share/studioBus";
 import { ts } from "./startCopy";
+import { openTimeMachine } from "./timeMachineBus";
 import "../design/start.css";
 
 const HINTS: { icon: string; text: DictKey; detail: DictKey }[] = [
@@ -211,6 +213,28 @@ export function CoachMarks() {
   // back from the dock's "First look" row and is dismissed like before.
   const visible = useStore((s) => s.showPrimer);
   const setVisible = useStore((s) => s.setShowPrimer);
+  const cityData = useStore((s) => s.cityData);
+  const analysisId = useStore((s) => s.analysisId);
+  const threatFilter = useStore((s) => s.threatFilter);
+  const ruleFilter = useStore((s) => s.ruleFilter);
+  const startTriage = useStore((s) => s.startTriage);
+  const resetFocus = useStore((s) => s.resetFocus);
+  const setViewMode = useStore((s) => s.setViewMode);
+  // The move must promise exactly what startTriage would do: same city, same
+  // active severity/rule filters. A finding hidden by a filter is not a queue
+  // this button can open.
+  const triageCount = useMemo(
+    () => (cityData ? triageList(cityData, threatFilter, ruleFilter).length : 0),
+    [cityData, threatFilter, ruleFilter],
+  );
+  // Zero in this view can mean two different things. Say which one: a filter
+  // that hides every finding must not read as a city without findings.
+  const allTriageCount = useMemo(
+    () => (cityData ? triageList(cityData, "all", null).length : 0),
+    [cityData],
+  );
+  const riskEmptyKey: DictKey =
+    triageCount === 0 && allTriageCount > 0 ? "coach.moveRiskFiltered" : "coach.moveRiskEmpty";
   // Start collapsed: the first look at the city belongs to the city. The
   // strip names what is on offer and stays out of the frame; the four steps
   // and the 13-row marker legend are one click away, never in the way.
@@ -222,6 +246,11 @@ export function CoachMarks() {
     setVisible(false);
     setExpanded(false);
   }, [setVisible]);
+
+  const runMove = (run: () => void): void => {
+    dismiss();
+    run();
+  };
 
   useEffect(() => {
     if (focusPath.length > 0) dismiss();
@@ -306,6 +335,125 @@ export function CoachMarks() {
               </span>
             </div>
           ))}
+        </div>
+        <div className="start-coach-paths">
+          <h3 className="start-coach-paths-title">{t(lang, "coach.pathsTitle")}</h3>
+          <p className="start-coach-paths-lead">{t(lang, "coach.pathsLead")}</p>
+          <div className="start-coach-moves">
+            <button type="button" className="start-coach-move" onClick={() => runMove(resetFocus)}>
+              <span className="start-coach-move-icon" aria-hidden="true">
+                ⌂
+              </span>
+              <span className="start-coach-move-title">{t(lang, "coach.moveCityTitle")}</span>
+              <span className="start-coach-move-detail">{t(lang, "coach.moveCityDetail")}</span>
+              <span className="start-coach-move-action">
+                {t(lang, "coach.moveCityAction")} <span aria-hidden="true">→</span>
+              </span>
+            </button>
+            <button
+              type="button"
+              className="start-coach-move"
+              disabled={triageCount === 0}
+              title={t(lang, triageCount === 0 ? riskEmptyKey : "coach.moveRiskAction")}
+              onClick={() => runMove(startTriage)}
+            >
+              <span className="start-coach-move-icon" aria-hidden="true">
+                ⚑
+              </span>
+              <span className="start-coach-move-title">{t(lang, "coach.moveRiskTitle")}</span>
+              <span className="start-coach-move-detail">{t(lang, "coach.moveRiskDetail")}</span>
+              <span className="start-coach-move-action">
+                {t(lang, triageCount === 0 ? riskEmptyKey : "coach.moveRiskAction")}
+                {triageCount > 0 && <span aria-hidden="true"> →</span>}
+              </span>
+            </button>
+            <button
+              type="button"
+              className="start-coach-move"
+              disabled={!analysisId}
+              title={
+                analysisId ? t(lang, "coach.moveHistoryAction") : t(lang, "coach.moveHistoryNoScan")
+              }
+              onClick={() => runMove(openTimeMachine)}
+            >
+              <span className="start-coach-move-icon" aria-hidden="true">
+                ◷
+              </span>
+              <span className="start-coach-move-title">{t(lang, "coach.moveHistoryTitle")}</span>
+              <span className="start-coach-move-detail">{t(lang, "coach.moveHistoryDetail")}</span>
+              <span className="start-coach-move-action">
+                {t(lang, analysisId ? "coach.moveHistoryAction" : "coach.moveHistoryNoScan")}
+                {analysisId && <span aria-hidden="true"> →</span>}
+              </span>
+            </button>
+          </div>
+        </div>
+        <div className="start-coach-more">
+          <h3 className="start-coach-paths-title">{t(lang, "coach.moreTitle")}</h3>
+          <ul className="start-coach-more-list">
+            <li className="start-coach-more-row">
+              <span className="start-coach-icon" aria-hidden="true">
+                ◈
+              </span>
+              <span className="start-coach-hint-body">
+                <span className="start-coach-hint-title">{t(lang, "coach.moreXrayTitle")}</span>
+                <span className="start-coach-hint-detail">{t(lang, "coach.moreXrayDetail")}</span>
+              </span>
+              <button
+                type="button"
+                className="start-coach-more-action"
+                aria-label={`${t(lang, "coach.moreXrayAction")}: ${t(lang, "coach.moreXrayTitle")}`}
+                onClick={() => runMove(() => setViewMode("xray"))}
+              >
+                {t(lang, "coach.moreXrayAction")}
+              </button>
+            </li>
+            <li className="start-coach-more-row">
+              <span className="start-coach-icon" aria-hidden="true">
+                ▲
+              </span>
+              <span className="start-coach-hint-body">
+                <span className="start-coach-hint-title">
+                  {t(lang, "coach.moreLandmarksTitle")}
+                </span>
+                <span className="start-coach-hint-detail">
+                  {t(lang, "coach.moreLandmarksDetail")}
+                </span>
+              </span>
+            </li>
+            <li className="start-coach-more-row">
+              <span className="start-coach-icon" aria-hidden="true">
+                ◫
+              </span>
+              <span className="start-coach-hint-body">
+                <span className="start-coach-hint-title">{t(lang, "coach.moreSandboxTitle")}</span>
+                <span className="start-coach-hint-detail">
+                  {t(lang, "coach.moreSandboxDetail")}
+                </span>
+              </span>
+            </li>
+            <li className="start-coach-more-row">
+              <span className="start-coach-icon" aria-hidden="true">
+                ▤
+              </span>
+              <span className="start-coach-hint-body">
+                <span className="start-coach-hint-title">
+                  {t(lang, "coach.morePostcardsTitle")}
+                </span>
+                <span className="start-coach-hint-detail">
+                  {t(lang, "coach.morePostcardsDetail")}
+                </span>
+              </span>
+              <button
+                type="button"
+                className="start-coach-more-action"
+                aria-label={`${t(lang, "coach.morePostcardsAction")}: ${t(lang, "coach.morePostcardsTitle")}`}
+                onClick={() => runMove(openStudio)}
+              >
+                {t(lang, "coach.morePostcardsAction")}
+              </button>
+            </li>
+          </ul>
         </div>
         <button
           onClick={() => setPrimerOpen((open) => !open)}

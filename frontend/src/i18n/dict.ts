@@ -2892,6 +2892,106 @@ export const DICT = {
     en: "What do the city markers mean?",
     de: "Was bedeuten die Marker in der Stadt?",
   },
+  "coach.pathsTitle": {
+    en: "Three moves through the city",
+    de: "Drei Züge durch die Stadt",
+  },
+  "coach.pathsLead": {
+    en: "Open the place that helps. Each move closes this card.",
+    de: "Öffne den Ort, der dir hilft. Jeder Zug schließt diese Karte.",
+  },
+  "coach.moveCityTitle": {
+    en: "Read the city",
+    de: "Stadt lesen",
+  },
+  "coach.moveCityDetail": {
+    en: "Overview, districts, buildings",
+    de: "Überblick, Bezirke, Gebäude",
+  },
+  "coach.moveCityAction": {
+    en: "Show overview",
+    de: "Überblick zeigen",
+  },
+  "coach.moveRiskTitle": {
+    en: "Check a risk",
+    de: "Risiko prüfen",
+  },
+  "coach.moveRiskDetail": {
+    en: "One finding at a time, with a verdict",
+    de: "Ein Fund nach dem anderen, mit Urteil",
+  },
+  "coach.moveRiskAction": {
+    en: "Start triage",
+    de: "Triage starten",
+  },
+  "coach.moveRiskEmpty": {
+    en: "No findings to check",
+    de: "Keine Funde zum Prüfen",
+  },
+  "coach.moveRiskFiltered": {
+    en: "No findings in this filter",
+    de: "Keine Funde in diesem Filter",
+  },
+  "coach.moveHistoryTitle": {
+    en: "Open the history",
+    de: "Verlauf öffnen",
+  },
+  "coach.moveHistoryDetail": {
+    en: "Earlier scans of this same folder",
+    de: "Frühere Scans desselben Ordners",
+  },
+  "coach.moveHistoryAction": {
+    en: "Open time machine",
+    de: "Zeitmaschine öffnen",
+  },
+  "coach.moveHistoryNoScan": {
+    en: "No scan behind this city",
+    de: "Kein Scan hinter dieser Stadt",
+  },
+  "coach.moreTitle": {
+    en: "What else is here",
+    de: "Was noch da ist",
+  },
+  "coach.moreXrayTitle": {
+    en: "X-Ray lens",
+    de: "Röntgen-Linse",
+  },
+  "coach.moreXrayDetail": {
+    en: "Lines, imports, findings, churn and coverage in one pass",
+    de: "Zeilen, Importe, Funde, Churn und Abdeckung in einem Zug",
+  },
+  "coach.moreXrayAction": {
+    en: "Turn on",
+    de: "Einschalten",
+  },
+  "coach.moreLandmarksTitle": {
+    en: "Role landmarks",
+    de: "Rollen-Landmarks",
+  },
+  "coach.moreLandmarksDetail": {
+    en: "Roof marks name factory, library, entry point and test file",
+    de: "Dachmarken nennen Fabrik, Bibliothek, Einstieg und Testdatei",
+  },
+  "coach.moreSandboxTitle": {
+    en: "Refactor sandbox",
+    de: "Refactor-Sandbox",
+  },
+  "coach.moreSandboxDetail": {
+    en: "Pick a building; the read-only split, extract and test estimate sits in the file panel",
+    de: "Wähle ein Gebäude; die lesende Split-, Extract- und Test-Schätzung steht im Datei-Panel",
+  },
+  "coach.morePostcardsTitle": {
+    en: "Postcard challenges",
+    de: "Postkarten-Aufträge",
+  },
+  "coach.morePostcardsDetail": {
+    en: "Local photo missions for this scan, inside the studio",
+    de: "Lokale Foto-Aufgaben für diesen Scan, im Studio",
+  },
+  "coach.morePostcardsAction": {
+    en: "Open studio",
+    de: "Studio öffnen",
+  },
 
   // ── Marker legend (shared by primer and Project overview) ─────────────────
   "legend.height": {

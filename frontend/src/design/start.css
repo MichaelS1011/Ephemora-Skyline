@@ -1714,6 +1714,96 @@
   font: 400 11px/1.45 var(--font-ui);
   color: #aaa69c;
 }
+.start-coach-paths,
+.start-coach-more {
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid rgba(150, 142, 128, 0.18);
+}
+.start-coach-paths-title {
+  margin: 0;
+  font: 500 12px/1.3 var(--font-ui);
+  color: #e8e4da;
+}
+.start-coach-paths-lead {
+  margin: 2px 0 8px;
+  font: 400 11px/1.4 var(--font-ui);
+  color: #aaa69c;
+}
+.start-coach-moves {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 6px;
+}
+.start-coach-move {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  min-height: 78px;
+  padding: 8px;
+  border: 1px solid rgba(242, 239, 232, 0.14);
+  border-radius: 6px;
+  background: rgba(242, 239, 232, 0.04);
+  color: #e8e4da;
+  font: 400 11px/1.35 var(--font-ui);
+  text-align: left;
+  cursor: pointer;
+}
+.start-coach-move:hover:not(:disabled) {
+  border-color: rgba(232, 80, 60, 0.55);
+  background: rgba(232, 80, 60, 0.08);
+}
+.start-coach-move:disabled {
+  cursor: not-allowed;
+  color: #aaa69c;
+}
+.start-coach-move-icon {
+  color: #c5c0b5;
+  font: 400 13px/1 var(--font-mono);
+}
+.start-coach-move-title {
+  font: 500 12px/1.3 var(--font-ui);
+}
+.start-coach-move-detail {
+  color: #aaa69c;
+}
+.start-coach-move-action {
+  margin-top: auto;
+  color: #c5c0b5;
+}
+.start-coach-more-list {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  margin: 7px 0 0;
+  padding: 0;
+  list-style: none;
+}
+.start-coach-more-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+.start-coach-more-row .start-coach-hint-body {
+  flex: 1;
+  min-width: 0;
+}
+.start-coach-more-action {
+  flex: none;
+  min-height: 26px;
+  padding: 3px 7px;
+  border: 1px solid rgba(242, 239, 232, 0.14);
+  border-radius: 4px;
+  background: transparent;
+  color: #c5c0b5;
+  font: 400 11px/1.3 var(--font-ui);
+  cursor: pointer;
+}
+.start-coach-more-action:hover {
+  color: #f2efe8;
+  border-color: rgba(232, 80, 60, 0.6);
+}
 .start-coach-legend-toggle {
   display: flex;
   align-items: center;

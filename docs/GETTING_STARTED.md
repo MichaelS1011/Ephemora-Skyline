@@ -19,6 +19,8 @@ A folder is read up to **10,000 files, 150 MB in total, 2 MB per file**. A large
 
 **Work the open decisions, do not hunt for them.** Once the city stands, the findings are a queue: the dock steps through them, and while you are looking somewhere else a small pill appears at that screen edge with a word and a distance - the next finding that still has no verdict. Press it and the camera flies to the exact line. Nothing is asked of you to enable this, and nothing is announced when there is nothing left open. Triage decisions live in your browser and are mirrored to `~/.ephemora-skyline/verdicts.json` so they survive a reload, a restart and a re-scan. When one of those files cannot be read, the app says so in words instead of showing an empty list - and it will not delete or overwrite bytes it could not read.
 
+**Lost in the city? Open First look.** The dock's **First look** card is now a short orientation, not a manual: three moves for the next step — read the city, check one risk, open the history — and four places worth knowing when the obvious next move is not obvious: the X-Ray lens, the role landmarks on the roofs, the read-only refactor sandbox in the file panel, and the local postcard challenges in the studio. Each action closes the card and puts you where it says; nothing opens on its own, and a move whose prerequisite is missing (no findings, no earlier scan) stays visibly unavailable instead of leading nowhere.
+
 No folder handy? Click **Explore demo** to see the full experience with sample data.
 
 That's the entire primary path. Everything below is configuration, tooling, and deployment.

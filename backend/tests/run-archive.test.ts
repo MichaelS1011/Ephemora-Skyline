@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   existsSync,
   mkdtempSync,
+  readFileSync,
   readdirSync,
   rmSync,
   statSync,
@@ -102,6 +103,20 @@ describe("the run archive", () => {
     archive.save("../escape", result("../escape"));
     archive.remove("../escape");
     expect(readdirSync(dir)).toEqual([]);
+  });
+
+  it("never reads, writes or removes a file beside the archive folder", () => {
+    const archiveDir = path.join(dir, "runs");
+    const outside = path.join(dir, "escape.json");
+    writeFileSync(outside, "keep");
+    const archive = new RunArchive(archiveDir);
+
+    expect(archive.load("../escape")).toBeUndefined();
+    archive.save("../escape", result("../escape"));
+    archive.remove("../escape");
+
+    expect(readFileSync(outside, "utf-8")).toBe("keep");
+    expect(existsSync(path.join(archiveDir, "escape.json"))).toBe(false);
   });
 
   it("serves a run to a fresh store after a restart", () => {

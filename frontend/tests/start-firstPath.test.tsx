@@ -6,6 +6,8 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ScanSummary } from "../src/components/ScanSummary";
 import { CoachMarks } from "../src/components/CoachMarks";
+import { OPEN_TIME_MACHINE_EVENT } from "../src/components/timeMachineBus";
+import { OPEN_STUDIO_EVENT } from "../src/share/studioBus";
 import {
   StartNotice,
   ScanProgress,
@@ -16,6 +18,7 @@ import { LoadingScreen } from "../src/components/LoadingScreen";
 import { useStore } from "../src/stores/useStore";
 import { DICT, t } from "../src/i18n";
 import type { CityData, CityDir, CityFile, DroppedFiles } from "../src/city/types";
+import { finding } from "./helpers/cityFixture";
 
 /**
  * The first path — landing, wait, walls, completion line, first look.
@@ -119,19 +122,47 @@ const lines = (): string[] =>
     .map((e) => (e.textContent ?? "").replace(/\s+/g, " ").trim())
     .filter((l) => l !== "");
 
-function useCity(c: CityData): void {
+function useCity(c: CityData, analysisId: string | null = "scan-1"): void {
   const lang = useStore.getState().prefs.lang;
   useStore.setState(
     {
       ...useStore.getInitialState(),
       prefs: { ...useStore.getInitialState().prefs, lang },
       cityData: c,
-      analysisId: "scan-1",
+      analysisId,
       buildPhase: "built",
     },
     true,
   );
 }
+
+function cityWithFinding(): CityData {
+  const source: CityFile = {
+    ...file("src/a.ts"),
+    findings: [finding({ category: "secrets", severity: "P0" })],
+    threatLevel: "critical",
+  };
+  return city({
+    tree: {
+      ...dir(""),
+      findingsBySeverity: { P0: 1, P1: 0, P2: 0 },
+      threatScore: 10,
+      detailFiles: [source],
+    },
+    findingsBySeverity: { P0: 1, P1: 0, P2: 0 },
+    analysisId: "scan-1",
+  });
+}
+
+function renderPrimer(): void {
+  useStore.getState().setShowPrimer(true);
+  render(<CoachMarks />);
+  const summary = host.querySelector("summary.start-coach-strip") as HTMLElement;
+  act(() => summary.click());
+}
+
+const moveButtons = (): HTMLButtonElement[] =>
+  [...host.querySelectorAll(".start-coach-move")] as HTMLButtonElement[];
 
 beforeEach(() => {
   localStorage.clear();
@@ -148,6 +179,7 @@ afterEach(() => {
   act(() => root?.unmount());
   host?.remove();
   vi.useRealTimers();
+  vi.restoreAllMocks();
 });
 
 /** The dwell tests own the clock; the rest of the file runs on the real one. */
@@ -560,6 +592,90 @@ describe("the first look at the city", () => {
     expect(host.querySelector("details.start-coach[open]")).toBeTruthy();
     expect(host.querySelector(".start-coach-hints")).toBeTruthy();
     expect(host.querySelectorAll(".start-coach-hint")).toHaveLength(4);
+  });
+});
+
+describe("the first look orients the next move", () => {
+  it("keeps the four first-look hints and adds three moves and four more surfaces", () => {
+    useCity(cityWithFinding());
+    renderPrimer();
+
+    expect(host.querySelectorAll(".start-coach-hint")).toHaveLength(4);
+    expect(host.querySelectorAll(".start-coach-move")).toHaveLength(3);
+    expect(host.querySelectorAll(".start-coach-more-row")).toHaveLength(4);
+    expect(host.textContent).toContain("Drei Züge durch die Stadt");
+    expect(host.textContent).toContain("Was noch da ist");
+    expect(host.textContent).toContain("Röntgen-Linse");
+    expect(host.textContent).toContain("Postkarten-Aufträge");
+  });
+
+  it("turns on X-Ray and closes the primer", () => {
+    useCity(cityWithFinding());
+    renderPrimer();
+
+    const xray = host.querySelector(".start-coach-more-action") as HTMLButtonElement;
+    act(() => xray.click());
+
+    expect(useStore.getState().viewMode).toBe("xray");
+    expect(useStore.getState().showPrimer).toBe(false);
+  });
+
+  it("opens the time machine from the history move and closes the primer", () => {
+    useCity(cityWithFinding());
+    renderPrimer();
+    const dispatch = vi.spyOn(window, "dispatchEvent");
+
+    act(() => moveButtons()[2]!.click());
+
+    expect(dispatch).toHaveBeenCalledWith(
+      expect.objectContaining({ type: OPEN_TIME_MACHINE_EVENT }),
+    );
+    expect(useStore.getState().showPrimer).toBe(false);
+  });
+
+  it("opens the studio from the postcard row and closes the primer", () => {
+    useCity(cityWithFinding());
+    renderPrimer();
+    const dispatch = vi.spyOn(window, "dispatchEvent");
+    const actions = [...host.querySelectorAll(".start-coach-more-action")] as HTMLButtonElement[];
+
+    act(() => actions[1]!.click());
+
+    expect(dispatch).toHaveBeenCalledWith(expect.objectContaining({ type: OPEN_STUDIO_EVENT }));
+    expect(useStore.getState().showPrimer).toBe(false);
+  });
+
+  it("starts triage from the risk move and closes the primer", () => {
+    useCity(cityWithFinding());
+    renderPrimer();
+
+    act(() => moveButtons()[1]!.click());
+
+    expect(useStore.getState().triageActive).toBe(true);
+    expect(useStore.getState().showPrimer).toBe(false);
+  });
+
+  it("does not offer a move it cannot perform", () => {
+    useCity(city({ findingsBySeverity: { P0: 0, P1: 0, P2: 0 } }), null);
+    renderPrimer();
+
+    const [cityMove, riskMove, historyMove] = moveButtons();
+    expect(cityMove!.disabled).toBe(false);
+    expect(riskMove!.disabled).toBe(true);
+    expect(historyMove!.disabled).toBe(true);
+    expect(host.textContent).toContain("Keine Funde zum Prüfen");
+    expect(host.textContent).toContain("Kein Scan hinter dieser Stadt");
+  });
+
+  it("does not offer triage when the active filter hides every finding", () => {
+    useCity(cityWithFinding());
+    useStore.setState({ threatFilter: "P1" });
+    renderPrimer();
+
+    const riskMove = moveButtons()[1]!;
+    expect(riskMove.disabled).toBe(true);
+    expect(riskMove.textContent).toContain("Keine Funde in diesem Filter");
+    expect(riskMove.textContent).not.toContain("Keine Funde zum Prüfen");
   });
 });
 
