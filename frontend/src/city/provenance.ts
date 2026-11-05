@@ -19,7 +19,7 @@ import { formatCount, t, type Lang } from "../i18n";
  *
  * One table now carries both roles, with two kinds of applicability:
  *  - `fileLanguages` — which languages this engine looks at, so its absence is
- *    a statement about a FILE (semgrep covers 17 languages, not Markdown:
+ *    a statement about a FILE (semgrep covers 18 languages, not Markdown:
  *    naming it on a docs file would be noise, not honesty).
  *  - `requiresFile` — engines whose findings land in a manifest rather than in
  *    a source file. `npm audit` needs a `package-lock.json`
@@ -52,6 +52,7 @@ const SEMGREP_LANGUAGES = [
   "Rust",
   "CSharp",
   "Swift",
+  "Cpp",
   "JSON",
   "YAML",
   "SQL",

@@ -44,6 +44,21 @@ export function detectLanguage(filePath: string): string {
     ".cs": "CSharp",
     ".kt": "Kotlin",
     ".swift": "Swift",
+    // C and C++ share the Cpp bucket; `.h` is a header either way, and the
+    // CUDA/Arduino dialects use the same syntax.
+    ".c": "Cpp",
+    ".h": "Cpp",
+    ".cpp": "Cpp",
+    ".cc": "Cpp",
+    ".cxx": "Cpp",
+    ".hpp": "Cpp",
+    ".hh": "Cpp",
+    ".hxx": "Cpp",
+    ".ipp": "Cpp",
+    ".tpp": "Cpp",
+    ".cu": "Cpp",
+    ".cuh": "Cpp",
+    ".ino": "Cpp",
   };
   return langMap[ext] || "Other";
 }
@@ -545,9 +560,13 @@ export function extractFunctions(
 }
 
 const CLASS_DECL = /(?:export\s+)?(?:default\s+)?class\s+(\w+)/;
+const CPP_CLASS_DECL = /(?:export\s+)?(?:default\s+)?(?:class|struct)\s+(\w+)/;
 const MEMBER_MODIFIERS =
-  /^(?:static\s+|async\s+|get\s+|set\s+|readonly\s+|public\s+|private\s+|protected\s+|abstract\s+)*/;
-const MEMBER_HEAD = /^(\w+)\s*\(/;
+  /^(?:static\s+|async\s+|get\s+|set\s+|readonly\s+|public\s+|private\s+|protected\s+|abstract\s+|virtual\s+|inline\s+|explicit\s+|constexpr\s+|consteval\s+|constinit\s+|friend\s+|override\s+|final\s+)*/;
+// A C++ member carries its return type in front of the name (`int sum()`),
+// unlike the TypeScript members this parser started with. The optional prefix
+// is kept short and only ever consumes a declaration head ending in whitespace.
+const MEMBER_HEAD = /^(?:[\w:<>,\s*&]+?\s+)?~?(\w+)\s*\(/;
 const NOT_A_MEMBER = new Set([
   "if",
   "for",
@@ -569,6 +588,7 @@ const NOT_A_MEMBER = new Set([
  */
 export function extractClasses(
   content: string,
+  language?: string,
 ): Array<{ name: string; line: number; methods: number }> {
   // Masked once, so a commented-out `class Foo` is not a class and a brace
   // inside a string cannot move a class boundary.
@@ -577,10 +597,11 @@ export function extractClasses(
     slash: true,
     blankStrings: true,
   }).split("\n");
+  const declaration = language === "Cpp" ? CPP_CLASS_DECL : CLASS_DECL;
   const classes: Array<{ name: string; line: number; methods: number }> = [];
 
   for (let i = 0; i < lines.length; i++) {
-    const decl = CLASS_DECL.exec(lines[i] ?? "");
+    const decl = declaration.exec(lines[i] ?? "");
     const name = decl?.[1];
     if (!name) continue;
     const declLine = i + 1;

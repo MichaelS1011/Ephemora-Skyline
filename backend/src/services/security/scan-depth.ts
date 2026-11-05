@@ -32,6 +32,7 @@ const ENGINES_BY_LANGUAGE: Array<{
       "Rust",
       "CSharp",
       "Swift",
+      "Cpp",
       "JSON",
       "YAML",
       "SQL",

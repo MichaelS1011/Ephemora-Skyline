@@ -61,6 +61,19 @@ export const SUPPORTED_EXTENSIONS = new Set([
   ".cs",
   ".kt",
   ".swift",
+  ".c",
+  ".h",
+  ".cpp",
+  ".cc",
+  ".cxx",
+  ".hpp",
+  ".hh",
+  ".hxx",
+  ".ipp",
+  ".tpp",
+  ".cu",
+  ".cuh",
+  ".ino",
 ]);
 
 /**

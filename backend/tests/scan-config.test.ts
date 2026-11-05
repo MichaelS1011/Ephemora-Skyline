@@ -125,6 +125,11 @@ describe("languageOfPath", () => {
     expect(languageOfPath("src/x.py")).toBe("python");
     expect(languageOfPath("src/x.tsx")).toBe("typescript");
     expect(languageOfPath("README.md")).toBe("other");
+    expect(languageOfPath("src/legacy.c")).toBe("cpp");
+    expect(languageOfPath("include/legacy.h")).toBe("cpp");
+    expect(languageOfPath("src/engine.cpp")).toBe("cpp");
+    expect(languageOfPath("src/kernel.cu")).toBe("cpp");
+    expect(languageOfPath("firmware/sketch.ino")).toBe("cpp");
   });
 });
 

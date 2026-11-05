@@ -20,7 +20,22 @@ function typesIn(filePath: string, content: string): string[] {
 }
 
 describe("scan surface — which files the user's folder contributes", () => {
-  const NEW_KINDS = [".sh", ".bash", ".sql", ".tf", ".php", ".cs", ".kt", ".swift"];
+  const NEW_KINDS = [
+    ".sh",
+    ".bash",
+    ".sql",
+    ".tf",
+    ".php",
+    ".cs",
+    ".kt",
+    ".swift",
+    ".c",
+    ".h",
+    ".cpp",
+    ".hpp",
+    ".cu",
+    ".ino",
+  ];
 
   it("puts script, query, infra and other-language files in scope", () => {
     for (const ext of NEW_KINDS) {
@@ -80,6 +95,16 @@ describe("scan surface — which files the user's folder contributes", () => {
     expect(detectLanguage("src/Program.cs")).toBe("CSharp");
     expect(detectLanguage("src/Main.kt")).toBe("Kotlin");
     expect(detectLanguage("Sources/App.swift")).toBe("Swift");
+    expect(detectLanguage("src/legacy.c")).toBe("Cpp");
+    expect(detectLanguage("include/legacy.h")).toBe("Cpp");
+    expect(detectLanguage("src/engine.cpp")).toBe("Cpp");
+    expect(detectLanguage("src/kernel.cu")).toBe("Cpp");
+    expect(detectLanguage("firmware/sketch.ino")).toBe("Cpp");
+  });
+
+  it("admits the C++ spelling with a capital extension too", () => {
+    expect(isScannedPath("src/legacy.C")).toBe(true);
+    expect(isScannedPath("src/legacy.H")).toBe(true);
   });
 });
 

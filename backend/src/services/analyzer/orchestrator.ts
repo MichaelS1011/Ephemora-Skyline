@@ -132,6 +132,22 @@ export const SUPPORTED_EXTENSIONS = new Set([
   ".cs",
   ".kt",
   ".swift",
+  // C and C++ share one bucket: the city already has a Cpp tone, and a split
+  // would need a new measured colour before it could be drawn honestly.
+  ".c",
+  ".h",
+  ".cpp",
+  ".cc",
+  ".cxx",
+  ".hpp",
+  ".hh",
+  ".hxx",
+  ".ipp",
+  ".tpp",
+  // C++ dialects that write the same constructs in the same files.
+  ".cu",
+  ".cuh",
+  ".ino",
 ]);
 
 /**
@@ -141,7 +157,12 @@ export const SUPPORTED_EXTENSIONS = new Set([
  * user thought they had run.
  */
 export function isScannedPath(relativePath: string): boolean {
-  return SUPPORTED_EXTENSIONS.has(path.extname(relativePath)) || ENV_FILE.test(relativePath);
+  // A C++ project may spell a source file `.C`; the extension list is lowercase
+  // so the lookup normalises first, the same way detectLanguage already does.
+  return (
+    SUPPORTED_EXTENSIONS.has(path.extname(relativePath).toLowerCase()) ||
+    ENV_FILE.test(relativePath)
+  );
 }
 
 /**
@@ -601,7 +622,7 @@ export class AnalysisOrchestrator {
     // declaration shapes exist at all, so a TypeScript file quoting a Python
     // sample stays a TypeScript file.
     const functions = dataFile ? [] : extractFunctions(content, language);
-    const classes = dataFile ? [] : extractClasses(content);
+    const classes = dataFile ? [] : extractClasses(content, language);
     // Voxel sections (CodeBlocks): blocks from the found structure
     const sections = dataFile ? [] : extractSections(relativePath, content, { functions, classes });
 

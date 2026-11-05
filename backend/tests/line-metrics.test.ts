@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { countLines, extractClasses } from "../src/services/analyzer/metrics.js";
+import { countLines, extractClasses, extractFunctions } from "../src/services/analyzer/metrics.js";
 
 /**
  * `lines.total` is summed into the headline "Lines of code" the HUD shows, and
@@ -66,5 +66,23 @@ describe("extractClasses", () => {
 
   it("returns nothing for a file without classes", () => {
     expect(extractClasses("const a = 1;\nfunction f() {}")).toEqual([]);
+  });
+
+  it("reads a C++ struct and the methods under it", () => {
+    const source = [
+      "struct Point {",
+      "  int x;",
+      "  int sum() { return x; }",
+      "};",
+      "",
+      "int add(int a, int b) {",
+      "  return a + b;",
+      "}",
+    ].join("\n");
+    expect(extractClasses(source, "Cpp")).toEqual([{ name: "Point", line: 1, methods: 1 }]);
+    expect(extractFunctions(source, "Cpp").map((f) => f.name)).toEqual(["sum", "add"]);
+    // A struct is a class-shaped declaration only in C++; TypeScript keeps
+    // `struct` as an ordinary identifier and must not grow a phantom class.
+    expect(extractClasses(source)).toEqual([]);
   });
 });

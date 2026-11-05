@@ -421,6 +421,19 @@ export function languageOfPath(filePath: string): string {
     ".cs": "csharp",
     ".kt": "kotlin",
     ".swift": "swift",
+    ".c": "cpp",
+    ".h": "cpp",
+    ".cpp": "cpp",
+    ".cc": "cpp",
+    ".cxx": "cpp",
+    ".hpp": "cpp",
+    ".hh": "cpp",
+    ".hxx": "cpp",
+    ".ipp": "cpp",
+    ".tpp": "cpp",
+    ".cu": "cpp",
+    ".cuh": "cpp",
+    ".ino": "cpp",
   };
   return map[ext] ?? "other";
 }
