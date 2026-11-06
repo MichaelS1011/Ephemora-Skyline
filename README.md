@@ -175,11 +175,11 @@ First look in one screen — what you see, what you can do, what you cannot: [`d
 ```bash
 npm run lint                  # ESLint, zero warnings
 npm run type-check            # tsc --noEmit, both packages
-npm run test                  # Vitest — 325 test files: 233 frontend, 92 backend (2026-11-04)
+npm run test                  # Vitest — 325 test files: 233 frontend, 92 backend (2026-11-06)
 npm run build                 # production build, both packages
 node scripts/audit-gate.mjs   # dependency audit
 ```
 
-3,776 cases measured 2026-11-05 — 2,819 frontend, 957 backend. The audit gate fails on every high or critical finding **except** those accepted in `scripts/audit-gate.mjs` by name with a dated re-check. Measured 2026-11-03, `npm audit` on this lockfile prints **0 findings** — 0 low, 0 moderate, 0 high, 0 critical — and `node scripts/audit-gate.mjs` exits 0. The `minimatch` override to 11.0.4 removed the last moderate advisories in the development chain, and the gate's waiver list is empty. The self-scan that keeps this repository clean under its own rules is `npm run self-scan`; its policy and exceptions are in [docs/SELF_SCAN.md](./docs/SELF_SCAN.md). Gates, conventions and the PR checklist: **[CONTRIBUTING.md](./CONTRIBUTING.md)**. Small, reviewable changes land fastest. Interface strings need an English and a German entry, and anything that changes the 3D render needs a real-GPU screenshot — headless CI cannot judge a WebGL scene.
+3,788 cases measured 2026-11-06 — 2,824 frontend, 964 backend. The audit gate fails on every high or critical finding **except** those accepted in `scripts/audit-gate.mjs` by name with a dated re-check. Measured 2026-11-03, `npm audit` on this lockfile prints **0 findings** — 0 low, 0 moderate, 0 high, 0 critical — and `node scripts/audit-gate.mjs` exits 0. The `minimatch` override to 11.0.4 removed the last moderate advisories in the development chain, and the gate's waiver list is empty. The self-scan that keeps this repository clean under its own rules is `npm run self-scan`; its policy and exceptions are in [docs/SELF_SCAN.md](./docs/SELF_SCAN.md). Gates, conventions and the PR checklist: **[CONTRIBUTING.md](./CONTRIBUTING.md)**. Small, reviewable changes land fastest. Interface strings need an English and a German entry, and anything that changes the 3D render needs a real-GPU screenshot — headless CI cannot judge a WebGL scene.
 
 Skyline is the piece of this work meant to be read and argued with, not the piece meant to earn. What changed since the last line of the story, each entry measured before it was written, is in [CHANGELOG.md](./CHANGELOG.md).

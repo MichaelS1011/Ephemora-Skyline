@@ -46,7 +46,7 @@ These are exactly what CI enforces: the steps in `.github/workflows/ci.yml`, whi
 ```bash
 npm run lint          # ESLint, zero warnings
 npm run type-check    # tsc --noEmit across both packages
-npm run test          # Vitest — 325 test files: 233 frontend, 92 backend (2026-11-04)
+npm run test          # Vitest — 325 test files: 233 frontend, 92 backend (2026-11-06)
 npm run build         # production build, both packages
 ```
 
