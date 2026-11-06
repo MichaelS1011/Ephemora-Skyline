@@ -2,8 +2,12 @@ import { describe, it, expect, afterEach } from "vitest";
 import { readFileSync } from "fs";
 import os from "os";
 import path from "path";
+import http from "http";
+import express from "express";
+import helmet from "helmet";
 import { vi } from "vitest";
 import { expectedOrigins, corsOptionsFor } from "../src/server/local-only.js";
+import { helmetOptions } from "../src/server/csp.js";
 import { MAX_FILES, footprintSnapshot } from "../src/server/routes/local-analyze.js";
 
 /**
@@ -89,6 +93,50 @@ describe("the two ports and the one origin list (docs/GETTING_STARTED.md:58-59, 
     expect(origins).toContain("http://localhost:3010");
     const options = corsOptionsFor() as { origin?: unknown };
     expect(options.origin).toBeDefined();
+  });
+});
+
+/**
+ * The app is installed as a loopback HTTP server. Safari follows
+ * `upgrade-insecure-requests` even for `http://127.0.0.1`, so Helmet's default
+ * policy upgraded every module request to https://127.0.0.1:<port> and the page
+ * painted black: the HTML arrived, none of its scripts did. This reads the real
+ * header from a real response, not the source text.
+ */
+describe("the CSP a loopback install serves", () => {
+  async function contentSecurityPolicy(): Promise<string> {
+    const app = express();
+    app.use(helmet(helmetOptions));
+    app.get("/", (_req, res) => {
+      res.type("html").send("<!doctype html><title>Ephemora Skyline</title>");
+    });
+    const server = http.createServer(app);
+    await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+    const address = server.address();
+    if (address === null || typeof address === "string") {
+      throw new Error("the test server did not expose a TCP port");
+    }
+    try {
+      const response = await fetch(`http://127.0.0.1:${address.port}/`);
+      return response.headers.get("content-security-policy") ?? "";
+    } finally {
+      await new Promise<void>((resolve, reject) =>
+        server.close((error) => (error ? reject(error) : resolve())),
+      );
+    }
+  }
+
+  it("never upgrades http://127.0.0.1 assets to https", async () => {
+    const csp = await contentSecurityPolicy();
+    expect(csp).not.toContain("upgrade-insecure-requests");
+  });
+
+  it("keeps the app's own protections", async () => {
+    const csp = await contentSecurityPolicy();
+    expect(csp).toContain("script-src 'self' 'unsafe-inline'");
+    expect(csp).toContain("script-src-attr 'none'");
+    expect(csp).toContain("frame-ancestors 'none'");
+    expect(csp).toContain("connect-src 'self'");
   });
 });
 

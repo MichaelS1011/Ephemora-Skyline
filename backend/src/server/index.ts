@@ -20,6 +20,7 @@ import { AnalysisStore } from "./analysis-store.js";
 import { RunArchive } from "./run-archive.js";
 import { AnalysisOrchestrator } from "../services/analyzer/orchestrator.js";
 import { corsOptionsFor, localOnlyRoute, uploadLimitAwareErrorHandler } from "./local-only.js";
+import { helmetOptions } from "./csp.js";
 import { defaultFrontendDir, notFoundHandler, serveFrontend } from "./static-site.js";
 import { exportCity } from "../services/export/export-city.js";
 import { mapResultToCityData } from "../utils/cityMapper.js";
@@ -184,37 +185,9 @@ const testRunLimiter = rateLimit({
 if (process.env.TRUST_PROXY) {
   app.set("trust proxy", process.env.TRUST_PROXY);
 }
-/**
- * Helmet's defaults are written for a server that serves nothing but JSON.
- * This one now serves the built app too, and the default policy refused the
- * one inline <script> Vite leaves in index.html to set the theme before paint
- * (measured: `script-src 'self'` error in the console of every first visit).
- *
- * The policy below is the app's own: scripts and styles come from this origin
- * with that one inline hash-free allowance, the renderer needs `data:` and
- * `blob:` for textures and recorded video, and there is no third-party origin
- * anywhere — which is a product promise, not a tick-box.
- */
-app.use(
-  helmet({
-    contentSecurityPolicy: {
-      directives: {
-        defaultSrc: ["'self'"],
-        scriptSrc: ["'self'", "'unsafe-inline'"],
-        styleSrc: ["'self'", "'unsafe-inline'"],
-        imgSrc: ["'self'", "data:", "blob:"],
-        mediaSrc: ["'self'", "blob:"],
-        workerSrc: ["'self'", "blob:"],
-        connectSrc: ["'self'"],
-        fontSrc: ["'self'", "data:"],
-        objectSrc: ["'none'"],
-        frameAncestors: ["'none'"],
-        baseUri: ["'self'"],
-        formAction: ["'self'"],
-      },
-    },
-  }),
-);
+// The policy lives beside its reason in csp.ts; this line stays here so the
+// security headers remain the first middleware the app installs.
+app.use(helmet(helmetOptions));
 app.use(cors(corsOptionsFor()));
 // Large-body parser must run BEFORE the global one: the global 10mb parser
 // would otherwise reject big local-folder uploads with 413 first. The ceiling
