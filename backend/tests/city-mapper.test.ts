@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { FileAnalysis } from "../src/models/index.js";
 import { mapResultToCityData } from "../src/utils/cityMapper.js";
+import { scanFileStructure } from "../src/services/analyzer/file-structure.js";
 import { makeFile, makeResult } from "./helpers/fixtures.js";
 
 describe("mapResultToCityData", () => {
@@ -59,6 +60,37 @@ describe("mapResultToCityData", () => {
     // cross-directory edge aggregated at top level: src -> lib
     expect(result.dirConnections.some((c) => c.from === "src" && c.to === "lib")).toBe(true);
     expect(edge).toBeDefined();
+  });
+
+  it("draws C/C++ include edges and leaves system headers unresolved", () => {
+    const parsed = scanFileStructure(
+      "src/main.c",
+      ['#include "util.h"', "#include <stdio.h>", "#include <project/api.hpp>"].join("\n"),
+    );
+    expect(parsed.imports.map((i) => i.source)).toEqual(["./util.h", "stdio.h", "project/api.hpp"]);
+    expect(parsed.imports.every((i) => !i.isExternal)).toBe(true);
+
+    const result = mapResultToCityData(
+      makeResult([
+        makeFile({
+          path: "src/main.c",
+          language: "C",
+          imports: parsed.imports.map((imp) => ({ ...imp, line: 0 })),
+        }),
+        makeFile({ path: "src/util.h", language: "C" }),
+        makeFile({ path: "project/api.hpp", language: "Cpp" }),
+      ]),
+    );
+
+    const src = result.tree.children.find((c) => c.name === "src")!;
+    const main = src.detailFiles.find((f) => f.name === "main.c")!;
+    const util = src.detailFiles.find((f) => f.name === "util.h")!;
+    const project = result.tree.children.find((c) => c.name === "project")!;
+    const api = project.detailFiles.find((f) => f.name === "api.hpp")!;
+
+    expect(result.fileConnections).toContainEqual({ from: main.id, to: util.id, weight: 1 });
+    expect(result.fileConnections).toContainEqual({ from: main.id, to: api.id, weight: 1 });
+    expect(result.fileConnections).toHaveLength(2);
   });
 
   it("handles TS-ESM .js import specifiers and index files", () => {

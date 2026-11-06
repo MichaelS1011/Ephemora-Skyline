@@ -8,7 +8,13 @@ import { heightAxisKey } from "../city/heightAxis";
 import { useLodFar } from "../hooks/useLodFar";
 import { describeGitignoreSkips, scanVerdict } from "../city/provenance";
 import { blindCategories, categoryMeta, summarizeCategories } from "../config/findingCategories";
-import { topLanguages, languageColor, severityColor, authorColor } from "../city/palette";
+import {
+  topLanguages,
+  languageColor,
+  languageLabel,
+  severityColor,
+  authorColor,
+} from "../city/palette";
 import { MarkerLegend } from "./CoachMarks";
 import { SinceLastScan } from "./SinceLastScan";
 import { CityLearningGuide } from "./CityLearningGuide";
@@ -93,7 +99,7 @@ export function ContextCard() {
   const codeLines = dir.codeLines ?? dir.linesOfCode;
   const dataLines = dir.dataLines ?? 0;
   const dataLabels = topLanguages(dir.dataLanguages ?? {}, 2)
-    .map((language) => language.name)
+    .map((language) => languageLabel(language.name))
     .join(", ");
   const drawLines = explainDistrictDraw(dir, cityData.limits, lang);
   const skipped = describeGitignoreSkips(cityData.skippedByGitignore, lang);
@@ -450,7 +456,7 @@ export function ContextCard() {
                 key={language.name}
                 className="flex items-center gap-1.5 min-w-0 text-[length:var(--fs-small)]"
                 title={t(lang, "ctx.langShare", {
-                  name: language.name,
+                  name: languageLabel(language.name),
                   pct: Math.round((language.lines / totalLangLines) * 100),
                 })}
               >
@@ -460,7 +466,7 @@ export function ContextCard() {
                   aria-hidden
                 />
                 <span className="truncate" style={{ color: "#c5c0b5" }}>
-                  {language.name}
+                  {languageLabel(language.name)}
                 </span>
                 <span className="ml-auto tabular-nums" style={{ color: "#aaa69c" }}>
                   {Math.round((language.lines / totalLangLines) * 100)}%

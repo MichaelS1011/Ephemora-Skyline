@@ -5,6 +5,7 @@ import {
   validateCustomPattern,
   defaultScanConfig,
   languageOfPath,
+  languageScopeMatches,
 } from "../src/services/security/scan-config.js";
 
 describe("resolveConfig", () => {
@@ -125,11 +126,21 @@ describe("languageOfPath", () => {
     expect(languageOfPath("src/x.py")).toBe("python");
     expect(languageOfPath("src/x.tsx")).toBe("typescript");
     expect(languageOfPath("README.md")).toBe("other");
-    expect(languageOfPath("src/legacy.c")).toBe("cpp");
-    expect(languageOfPath("include/legacy.h")).toBe("cpp");
+    expect(languageOfPath("src/legacy.c")).toBe("c");
+    expect(languageOfPath("include/legacy.h")).toBe("c");
     expect(languageOfPath("src/engine.cpp")).toBe("cpp");
     expect(languageOfPath("src/kernel.cu")).toBe("cpp");
     expect(languageOfPath("firmware/sketch.ino")).toBe("cpp");
+  });
+
+  it("lets a shared .h header join either C or C++ scope", () => {
+    expect(languageScopeMatches("include/api.h", ["c"])).toBe(true);
+    expect(languageScopeMatches("include/api.h", ["cpp"])).toBe(true);
+    expect(languageScopeMatches("include/api.h", ["typescript"])).toBe(false);
+    expect(languageScopeMatches("src/legacy.c", ["cpp"])).toBe(false);
+    expect(languageScopeMatches("src/legacy.C", ["cpp"])).toBe(true);
+    expect(languageScopeMatches("src/engine.cpp", ["c"])).toBe(false);
+    expect(languageScopeMatches("src/engine.cpp", ["c", "cpp"])).toBe(true);
   });
 });
 

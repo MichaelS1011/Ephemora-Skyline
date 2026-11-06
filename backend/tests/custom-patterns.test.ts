@@ -89,6 +89,21 @@ describe("a custom rule runs like a built-in one", () => {
     expect(only.map((i) => i.type)).not.toContain("CUSTOM_NO_MOMENT");
   });
 
+  it("lets a .h header answer both the C and C++ language gate", async () => {
+    const header = "int d = moment();\n";
+    for (const languages of [["c"], ["cpp"]]) {
+      const issues = await scanWith(
+        { profile: "custom", customPatterns: [rule({ languages })] },
+        "include/api.h",
+        header,
+      );
+      expect(
+        issues.map((i) => i.type),
+        languages.join(","),
+      ).toContain("CUSTOM_NO_MOMENT");
+    }
+  });
+
   it("is off when the profile turns its type off, like any other type", async () => {
     const issues = await scanWith(
       {

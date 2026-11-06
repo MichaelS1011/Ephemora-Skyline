@@ -15,9 +15,27 @@ import type { FileAnalysis } from "../../models/index.js";
  */
 export const ENV_FILE = /(^|\/)\.env(\.|$)/;
 
-export function detectLanguage(filePath: string): string {
+/**
+ * `.h` is the one ambiguous C/C++ extension: the same suffix serves a C
+ * header and a C++ header. A path alone cannot answer, so a header with
+ * content is read for C++-only constructs; without content it stays C, the
+ * narrower claim. A C API header guarded by `__cplusplus` therefore stays C,
+ * which is the honest classification for the C side that owns it.
+ */
+function looksLikeCppHeader(content: string): boolean {
+  const code = maskNonCode(content, { hash: false, slash: true, blankStrings: true });
+  return /\b(?:namespace|template|class|typename|constexpr|consteval|constinit|nullptr|decltype|noexcept|override|virtual|friend|using)\b|::/.test(
+    code,
+  );
+}
+
+export function detectLanguage(filePath: string, content?: string): string {
   if (ENV_FILE.test(filePath)) return "Env";
-  const ext = path.extname(filePath).toLowerCase();
+  const rawExt = path.extname(filePath);
+  const ext = rawExt.toLowerCase();
+  // A capital `.C`/`.H` is the long-standing C++ spelling, not the lowercase
+  // C source/header. The scan already admits both; this keeps the kind right.
+  if (rawExt === ".C" || rawExt === ".H") return "Cpp";
   const langMap: Record<string, string> = {
     ".ts": "TypeScript",
     ".tsx": "TypeScript",
@@ -44,10 +62,9 @@ export function detectLanguage(filePath: string): string {
     ".cs": "CSharp",
     ".kt": "Kotlin",
     ".swift": "Swift",
-    // C and C++ share the Cpp bucket; `.h` is a header either way, and the
-    // CUDA/Arduino dialects use the same syntax.
-    ".c": "Cpp",
-    ".h": "Cpp",
+    // C and C++ are separate visible kinds; CUDA/Arduino use the C++ syntax.
+    ".c": "C",
+    ".h": content !== undefined && looksLikeCppHeader(content) ? "Cpp" : "C",
     ".cpp": "Cpp",
     ".cc": "Cpp",
     ".cxx": "Cpp",
@@ -343,6 +360,7 @@ const SCAN_MASKS: Record<string, MaskOptions> = {
   Kotlin: { hash: false, slash: true, blankStrings: false },
   Swift: { hash: false, slash: true, blankStrings: false },
   CSharp: { hash: false, slash: true, blankStrings: false },
+  C: { hash: false, slash: true, blankStrings: false },
   Cpp: { hash: false, slash: true, blankStrings: false },
   Go: { hash: false, slash: true, blankStrings: false },
   Rust: { hash: false, slash: true, blankStrings: false },
@@ -597,7 +615,7 @@ export function extractClasses(
     slash: true,
     blankStrings: true,
   }).split("\n");
-  const declaration = language === "Cpp" ? CPP_CLASS_DECL : CLASS_DECL;
+  const declaration = language === "Cpp" || language === "C" ? CPP_CLASS_DECL : CLASS_DECL;
   const classes: Array<{ name: string; line: number; methods: number }> = [];
 
   for (let i = 0; i < lines.length; i++) {
@@ -793,7 +811,7 @@ export function extractSections(
   existing: SectionExisting,
 ): Section[] {
   const lines = source.split("\n");
-  const language = detectLanguage(filePath);
+  const language = detectLanguage(filePath, source);
   const pythonLike = language === "Python" || language === "Ruby";
   const landmarks = collectLandmarks(lines, existing, pythonLike);
 

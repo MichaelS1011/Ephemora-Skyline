@@ -22,14 +22,14 @@ import type { Severity, ThreatLevel } from "./types";
 // 1. The ten languages a reader actually scans first (TypeScript, JavaScript,
 //    Python, Go, Rust, Java, Ruby, C#, HTML, CSS) keep their conventional hue:
 //    blue, gold, green, cyan, orange, brown, red, orchid, salmon, indigo.
-// 2. Every tone — these ten and the fourteen behind them — has to stand off the
+// 2. Every tone — these ten and the fifteen behind them — has to stand off the
 //    city floor it is drawn on, so a minimum distance of 12 ΔE00 to the whole
 //    environment band (ground, plot, kerb, asphalt, crossing, haze, zenith) is
 //    a hard floor. This is what stopped an earlier run from solving the
 //    separation with pale washes that vanished on `ENV.ground`.
 // 3. Inside those two constraints, L\* and C\*ab were searched (simulated
 //    annealing, in a local optimiser script that is not shipped) to maximise
-//    the SMALLEST distance over all 276 pairs, and the smallest distance was
+//    the SMALLEST distance over all 300 pairs, and the smallest distance was
 //    required under simulated protanopia and deuteranopia too — the same
 //    message has to survive the colorblind branch, so the palette is safe by
 //    construction instead of by the Okabe-Ito claim in a comment.
@@ -48,6 +48,7 @@ export const LANGUAGE_COLORS: Record<string, string> = {
   Java: "#763b1d",
   Ruby: "#c0433c",
   CSharp: "#df8dd4",
+  C: "#cb626d",
   Cpp: "#007983",
   HTML: "#d4958c",
   CSS: "#45619f",
@@ -75,6 +76,13 @@ export const LANGUAGE_COLORS: Record<string, string> = {
 export function languageColor(language: string | undefined): string {
   if (!language) return LANGUAGE_COLORS.Other!;
   return LANGUAGE_COLORS[language] ?? LANGUAGE_COLORS.Other!;
+}
+
+/** The name a reader sees: the internal `Cpp` bucket is spelled `C++`. */
+export function languageLabel(language: string): string {
+  if (language === "Cpp") return "C++";
+  if (language === "CSharp") return "C#";
+  return language;
 }
 
 /** Top languages by code lines, for legend + facade variety. */

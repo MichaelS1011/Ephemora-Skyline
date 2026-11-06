@@ -1,6 +1,13 @@
 import { describe, expect, it } from "vitest";
+import { mkdtemp, rm, writeFile } from "fs/promises";
+import { tmpdir } from "os";
+import path from "path";
 import { RegexAdapter } from "../src/services/security/adapters/regex-adapter.js";
-import { bucketSeverity } from "../src/services/security/adapters/osv-adapter.js";
+import {
+  bucketSeverity,
+  hasAnyOsvManifest,
+  OSV_MANIFESTS,
+} from "../src/services/security/adapters/osv-adapter.js";
 import { enrichIssues } from "../src/services/security/finding-knowledge.js";
 import { dedupIssues } from "../src/services/security/dedup.js";
 import type { SecurityIssue } from "../src/models/index.js";
@@ -77,6 +84,19 @@ describe("review evidence precision", () => {
     expect(bucketSeverity("HIGH").severity).toBe("P1");
     expect(bucketSeverity("CRITICAL").severity).toBe("P0");
     expect(bucketSeverity(undefined)).toEqual({ severity: "P1", score: 0 });
+  });
+
+  it("reads conan.lock and does not pretend CMake or vcpkg are covered", async () => {
+    const dir = await mkdtemp(path.join(tmpdir(), "skyline-osv-manifest-"));
+    try {
+      expect(await hasAnyOsvManifest(dir)).toBe(false);
+      await writeFile(path.join(dir, "conan.lock"), "{}");
+      expect(await hasAnyOsvManifest(dir)).toBe(true);
+      expect(OSV_MANIFESTS).not.toContain("CMakeLists.txt");
+      expect(OSV_MANIFESTS).not.toContain("vcpkg.json");
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
   });
   it("anchors npm advisories to the package, not line one", () => {
     const finding = issue({

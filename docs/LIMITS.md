@@ -28,6 +28,16 @@ Two things stay open and are stated rather than smoothed over:
 
 Both are picture-language decisions: acting on them redraws every published frame and every screenshot in this repository, so they are listed instead of quietly changed. `frontend/tests/farbband-palette.test.ts` and the ΔE00 measurements behind them are recorded in `docs/UI_REVIEW.md`.
 
+## C and C++: what the pass reads, and what it does not
+
+C and C++ are separate visible kinds now: `.c` is **C**; `.cpp`/`.cc`/`.cxx`/`.hpp`/`.hh`/`.hxx`/`.ipp`/`.tpp`/`.cu`/`.cuh`/`.ino` are **C++**; the uppercase `.C`/`.H` spelling is **C++** too. The city has one tone for each. `.h` is the one ambiguous suffix; a header read with its content is classified **C++** only when it contains a C++-only construct (`namespace`, `template`, `class`, `typename`, `constexpr`, `nullptr`, `::`, …), otherwise it stays **C**. A header read by path alone stays **C**. This is a heuristic, not a compiler: a C++ header that uses only C-shaped declarations is drawn as C, and a C header with a C++ construct in a macro body can be drawn as C++. The language-scope filter exempts `.h` from the choice by admitting it under both `c` and `cpp`.
+
+The structure pass names C `struct`s and C++ `class`/`struct` bodies and counts their members. It does not parse templates, namespaces, preprocessor branches, function-pointer declarations or macros, and it does not know a translation unit. Those are compiler facts, not regex facts.
+
+The include graph reads `#include "local.h"` and `#include <project/header.hpp>`. Quoted includes are resolved relative to the file; angle includes are tried root-anchored, which matches a project whose headers sit at the repository root. It does not read `-I`/`-isystem` flags, CMake target include directories or vcpkg layouts, so a header found only through `-Iinclude` draws no edge. Every `#include` is read whether or not the preprocessor would take that branch, and a system header simply finds no scanned path.
+
+Security depth is semgrep-only for C/C++. The built-in rule pack is a TypeScript parser and does not evaluate C/C++ source, so a scan with semgrep off says C/C++ was not deeply read rather than calling it clean. Dependency CVEs are read from `conan.lock` when OSV is available; **CMake and vcpkg are not parsed by OSV-Scanner**, so a CMake- or vcpkg-only C/C++ project has no dependency-CVE coverage in this tool. The limit is named here instead of being hidden behind a green scan.
+
 ## Other limits that are real
 
 - **A metadata watch has a blind spot.** A file that changed without its size or mtime moving is invisible to the live delta; the full scan is the way to settle it.

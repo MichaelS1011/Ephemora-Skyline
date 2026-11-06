@@ -19,7 +19,7 @@
 
 import type { CityData, CityDir, CityFile, CityFinding, Severity } from "./types";
 import { formatCount, t, type Lang } from "../i18n";
-import { languageColor, threatRank } from "./palette";
+import { languageColor, languageLabel, threatRank } from "./palette";
 import { defaultOverviewPath } from "./overview";
 import {
   blockFootprint as blockFootprintOf,
@@ -1312,7 +1312,8 @@ export function searchFiles(city: CityData, query: string, limit = 7): FileHit[]
       ({ file }) =>
         file.name.toLowerCase().includes(q) ||
         file.path.toLowerCase().includes(q) ||
-        file.language.toLowerCase().includes(q),
+        file.language.toLowerCase().includes(q) ||
+        languageLabel(file.language).toLowerCase().includes(q),
     )
     .sort((a, b) => b.file.linesOfCode - a.file.linesOfCode)
     .slice(0, limit);

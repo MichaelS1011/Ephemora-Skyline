@@ -1,7 +1,13 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "fs";
 import path from "path";
-import { ENV, LANGUAGE_COLORS, THREAT_COLOR, UNCHECKED_COLOR } from "../src/city/palette";
+import {
+  ENV,
+  LANGUAGE_COLORS,
+  languageLabel,
+  THREAT_COLOR,
+  UNCHECKED_COLOR,
+} from "../src/city/palette";
 import { overviewShot } from "../src/city/layout";
 import { crowdFor, BUS_MIN_PLOTS } from "../src/components/Pedestrians";
 import { contrast, dE, deltaE00, lab, relLum, simulate, worstSeharten } from "./colourMath";
@@ -81,7 +87,7 @@ describe("world picture: language colours are a measurement", () => {
     deutan: colors.map((c) => simulate(c, "deutan")),
   };
 
-  it("tells every pair of the 24 categories apart, in all three vision types", () => {
+  it("tells every pair of the 25 categories apart, in all three vision types", () => {
     const { worst, pair } = worstPair(names, sets);
     // The set this replaces measured 1.29 / 1.09 / 1.28 — pairs drawn in what
     // is one colour on screen. 6.5 is the floor the search was held to; the
@@ -99,6 +105,13 @@ describe("world picture: language colours are a measurement", () => {
     };
     const { worst, pair } = worstPair(majors, sets);
     expect(worst, `schwächstes Hauptpaar: ${pair}`).toBeGreaterThanOrEqual(8);
+  });
+
+  it("spells the C++ bucket the way a reader does", () => {
+    expect(languageLabel("Cpp")).toBe("C++");
+    expect(languageLabel("C")).toBe("C");
+    expect(languageLabel("CSharp")).toBe("C#");
+    expect(languageLabel("TypeScript")).toBe("TypeScript");
   });
 
   it("keeps the document pair that used to be one colour apart by 1.29 apart", () => {

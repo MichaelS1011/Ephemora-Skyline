@@ -6,6 +6,7 @@ import {
   authorColor,
   churnColor,
   languageColor,
+  languageLabel,
   severityColor,
   UNCHECKED_COLOR,
 } from "../city/palette";
@@ -232,7 +233,7 @@ export function InfoPanel() {
               style={{ color: accent }}
               title={t(lang, "panel.langTitle")}
             >
-              {file.language}
+              {languageLabel(file.language)}
             </span>
             <span
               className="font-jetbrains text-[length:var(--fs-meta)]"

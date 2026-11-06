@@ -57,6 +57,7 @@ describe("missingEnginesFor", () => {
   it("names the engines that were off for the language", () => {
     expect(missingEnginesFor("TypeScript", QUICK)).toEqual(["semgrep"]);
     expect(missingEnginesFor("Python", QUICK)).toEqual(["semgrep", "ruff"]);
+    expect(missingEnginesFor("C", QUICK)).toEqual(["semgrep"]);
     expect(missingEnginesFor("Cpp", QUICK)).toEqual(["semgrep"]);
     expect(missingEnginesFor("TypeScript", DEEP)).toEqual([]);
   });

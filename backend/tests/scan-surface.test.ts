@@ -95,11 +95,22 @@ describe("scan surface — which files the user's folder contributes", () => {
     expect(detectLanguage("src/Program.cs")).toBe("CSharp");
     expect(detectLanguage("src/Main.kt")).toBe("Kotlin");
     expect(detectLanguage("Sources/App.swift")).toBe("Swift");
-    expect(detectLanguage("src/legacy.c")).toBe("Cpp");
-    expect(detectLanguage("include/legacy.h")).toBe("Cpp");
+    expect(detectLanguage("src/legacy.c")).toBe("C");
+    expect(detectLanguage("include/legacy.h")).toBe("C");
+    expect(detectLanguage("include/engine.hpp")).toBe("Cpp");
+    expect(detectLanguage("src/legacy.C")).toBe("Cpp");
+    expect(detectLanguage("include/legacy.H")).toBe("Cpp");
     expect(detectLanguage("src/engine.cpp")).toBe("Cpp");
     expect(detectLanguage("src/kernel.cu")).toBe("Cpp");
     expect(detectLanguage("firmware/sketch.ino")).toBe("Cpp");
+  });
+
+  it("reads a header with content so C and C++ do not share one bucket", () => {
+    expect(detectLanguage("include/api.h", "typedef struct Point { int x; } Point;\n")).toBe("C");
+    expect(detectLanguage("include/api.h", "namespace api { class Client {}; }\n")).toBe("Cpp");
+    expect(detectLanguage("include/api.h", "template <typename T> T run(T v);\n")).toBe("Cpp");
+    // A comment is not a C++ construct.
+    expect(detectLanguage("include/api.h", "/* class Client {}; */\nvoid run(void);\n")).toBe("C");
   });
 
   it("admits the C++ spelling with a capital extension too", () => {

@@ -1,7 +1,7 @@
 import { useRef, useState, useEffect, useCallback, useId } from "react";
 import { useStore } from "../stores/useStore";
 import { searchFiles, searchFindings } from "../city/layout";
-import { languageColor, severityColor, threatColor } from "../city/palette";
+import { languageColor, languageLabel, severityColor, threatColor } from "../city/palette";
 import type { CityFile, CityFinding, Severity } from "../city/types";
 import { findingKey } from "../reviews";
 import { formatCount, t, type DictKey } from "../i18n";
@@ -373,7 +373,7 @@ export function SearchBar() {
                         className="block text-[length:var(--fs-meta)] mt-1"
                         style={{ color: "var(--meta)" }}
                       >
-                        {file.language} · {formatCount(lang, file.linesOfCode)} LOC
+                        {languageLabel(file.language)} · {formatCount(lang, file.linesOfCode)} LOC
                       </span>
                     </div>
                   </div>

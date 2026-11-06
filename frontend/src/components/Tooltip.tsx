@@ -3,6 +3,7 @@ import { useStore } from "../stores/useStore";
 import { getDirLayout } from "../city/layout";
 import {
   languageColor,
+  languageLabel,
   REVIEWED_BEACON_COLOR,
   severityColor,
   severityTextColor,
@@ -234,7 +235,7 @@ export function Tooltip() {
             en: "Enter — circle it, Esc frees the camera",
             de: "Enter — umkreisen, Esc gibt die Kamera frei",
           })
-        : t(lang, "tooltip.noFindingsOrbitHint", { language: b.file.language });
+        : t(lang, "tooltip.noFindingsOrbitHint", { language: languageLabel(b.file.language) });
     }
   }
 

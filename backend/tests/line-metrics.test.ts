@@ -80,8 +80,9 @@ describe("extractClasses", () => {
       "}",
     ].join("\n");
     expect(extractClasses(source, "Cpp")).toEqual([{ name: "Point", line: 1, methods: 1 }]);
+    expect(extractClasses(source, "C")).toEqual([{ name: "Point", line: 1, methods: 1 }]);
     expect(extractFunctions(source, "Cpp").map((f) => f.name)).toEqual(["sum", "add"]);
-    // A struct is a class-shaped declaration only in C++; TypeScript keeps
+    // A struct is a class-shaped declaration in C and C++; TypeScript keeps
     // `struct` as an ordinary identifier and must not grow a phantom class.
     expect(extractClasses(source)).toEqual([]);
   });

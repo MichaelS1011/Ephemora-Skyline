@@ -92,11 +92,45 @@ function toIssue(
   } as SecurityIssue;
 }
 
+/** Lockfiles and manifests OSV actually parses. */
+export const OSV_MANIFESTS = [
+  "requirements.txt",
+  "Pipfile.lock",
+  "poetry.lock",
+  "pyproject.toml",
+  "package-lock.json",
+  "npm-shrinkwrap.json",
+  "yarn.lock",
+  "pnpm-lock.yaml",
+  "Cargo.lock",
+  "go.mod",
+  "go.sum",
+  "Gemfile.lock",
+  "composer.lock",
+  // C/C++: Conan's lockfile is the one OSV parses. CMake and vcpkg are not
+  // supported by osv-scanner, so a CMake-only project still has no dependency
+  // CVE coverage here — that limit is deliberate and documented.
+  "conan.lock",
+] as const;
+
+/** Does this repo have a manifest OSV can read? */
+export async function hasAnyOsvManifest(clonePath: string): Promise<boolean> {
+  for (const m of OSV_MANIFESTS) {
+    try {
+      await access(path.join(clonePath, m));
+      return true;
+    } catch {
+      // next
+    }
+  }
+  return false;
+}
+
 /**
  * CVE scanning for every ecosystem — one osv-scanner run covers
  * requirements.txt, pyproject, package-lock, Cargo.lock, go.mod, yarn,
- * pnpm, Gemfile.lock, composer.lock … Falls back to pip-audit for Python
- * requirements when the osv binary is unavailable.
+ * pnpm, Gemfile.lock, composer.lock, conan.lock … Falls back to pip-audit for
+ * Python requirements when the osv binary is unavailable.
  */
 export class OsvAdapter implements ScannerAdapter {
   readonly id = "osv";
@@ -136,7 +170,7 @@ export class OsvAdapter implements ScannerAdapter {
     const byFile = new Map<string, SecurityIssue[]>();
 
     // osv needs at least one recognized lockfile/manifest on disk
-    const hasManifest = await this.hasAnyManifest(clonePath);
+    const hasManifest = await hasAnyOsvManifest(clonePath);
     if (!hasManifest) return byFile;
 
     const bin = await this.resolveBinary();
@@ -191,33 +225,6 @@ export class OsvAdapter implements ScannerAdapter {
       }
     }
     return byFile;
-  }
-
-  private async hasAnyManifest(clonePath: string): Promise<boolean> {
-    const manifests = [
-      "requirements.txt",
-      "Pipfile.lock",
-      "poetry.lock",
-      "pyproject.toml",
-      "package-lock.json",
-      "npm-shrinkwrap.json",
-      "yarn.lock",
-      "pnpm-lock.yaml",
-      "Cargo.lock",
-      "go.mod",
-      "go.sum",
-      "Gemfile.lock",
-      "composer.lock",
-    ];
-    for (const m of manifests) {
-      try {
-        await access(path.join(clonePath, m));
-        return true;
-      } catch {
-        // next
-      }
-    }
-    return false;
   }
 
   /** pip-audit --format json over requirements.txt (already installed locally) */

@@ -10,7 +10,7 @@ import {
 import { enrichIssues } from "../finding-knowledge.js";
 import { CREDENTIAL_NAME } from "../redact.js";
 import type { ScannerAdapter } from "../adapter.js";
-import { languageOfPath, type CustomPattern } from "../scan-config.js";
+import { languageScopeMatches, type CustomPattern } from "../scan-config.js";
 
 export interface ScanPattern {
   regex: RegExp;
@@ -502,11 +502,7 @@ export class RegexAdapter implements ScannerAdapter {
       // Python `==` is the correct operator (400+ false positives in real
       // Python projects otherwise)
       if (pattern.type === "LOOSE_EQUALITY" && !isJsFamily) continue;
-      if (
-        pattern.languages?.length &&
-        !pattern.languages.includes(languageOfPath(filePath).toLowerCase())
-      )
-        continue;
+      if (pattern.languages?.length && !languageScopeMatches(filePath, pattern.languages)) continue;
 
       // Path gating: an install hook is a fact about a manifest, not about a
       // source file that happens to name one.

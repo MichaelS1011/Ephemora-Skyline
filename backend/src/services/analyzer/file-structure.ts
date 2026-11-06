@@ -32,13 +32,13 @@ export function scanFileStructure(filePath: string, content: string): FileStruct
   const exports: Array<{ type: string; name: string }> = [];
   const seen = new Set<string>();
 
-  const push = (source: string, named: string[]): void => {
+  const push = (source: string, named: string[], isExternal?: boolean): void => {
     if (seen.has(source)) return;
     seen.add(source);
     imports.push({
       source,
       named,
-      isExternal: !source.startsWith(".") && !source.startsWith("/"),
+      isExternal: isExternal ?? (!source.startsWith(".") && !source.startsWith("/")),
     });
   };
 
@@ -94,6 +94,23 @@ export function scanFileStructure(filePath: string, content: string): FileStruct
   const dynImport = /import\s*\(\s*['"]([^'"]+)['"]\s*\)/g;
   while ((match = dynImport.exec(content)) !== null) {
     push(match[1]!, []);
+  }
+
+  // ── C/C++: #include "local.h" / #include <project/header.hpp> ──────────
+  // Quoted includes are relative to the file, so they get the same `./`
+  // spelling the resolver already understands. Angle includes are left
+  // root-anchored: a project that compiles with `-Iinclude` resolves
+  // `#include <api/client.h>` from the root, while a system header simply
+  // finds no matching scanned path and draws no edge. Both are marked
+  // non-external so the resolver can decide with the path set in hand.
+  const cInclude = /^[ \t]*#[ \t]*include[ \t]*([<"])([^>"]+)[>"]/gm;
+  while ((match = cInclude.exec(content)) !== null) {
+    const quoted = match[1] === '"';
+    const raw = match[2]!.trim();
+    if (!raw) continue;
+    const relative =
+      quoted && !raw.startsWith("/") && !raw.startsWith("./") && !raw.startsWith("../");
+    push(relative ? `./${raw}` : raw, [], false);
   }
 
   // ── ESM exports ────────────────────────────────────────────────────────

@@ -393,7 +393,11 @@ export function languageOfPath(filePath: string): string {
   // ".env.production" ends in an extension that means nothing; as an env file it
   // is env, and a rule scoped to "env" has to reach it
   if (ENV_FILE.test(filePath)) return "env";
-  const ext = filePath.slice(filePath.lastIndexOf(".")).toLowerCase();
+  const dot = filePath.lastIndexOf(".");
+  const rawExt = dot >= 0 ? filePath.slice(dot) : "";
+  const ext = rawExt.toLowerCase();
+  // `.C`/`.H` are the uppercase C++ spellings; do not fold them onto `.c`/`.h`.
+  if (rawExt === ".C" || rawExt === ".H") return "cpp";
   const map: Record<string, string> = {
     ".py": "python",
     ".pyw": "python",
@@ -421,8 +425,8 @@ export function languageOfPath(filePath: string): string {
     ".cs": "csharp",
     ".kt": "kotlin",
     ".swift": "swift",
-    ".c": "cpp",
-    ".h": "cpp",
+    ".c": "c",
+    ".h": "c",
     ".cpp": "cpp",
     ".cc": "cpp",
     ".cxx": "cpp",
@@ -436,4 +440,17 @@ export function languageOfPath(filePath: string): string {
     ".ino": "cpp",
   };
   return map[ext] ?? "other";
+}
+
+/**
+ * Does a path join a language allowlist? `.h` belongs to both C and C++: a
+ * C project needs its headers under a C scope, a C++ project under a C++ scope,
+ * and the file itself does not say which. Every other extension is exact.
+ */
+export function languageScopeMatches(filePath: string, scope: string[]): boolean {
+  if (scope.length === 0) return true;
+  const lang = languageOfPath(filePath);
+  if (scope.includes(lang)) return true;
+  const ext = filePath.slice(filePath.lastIndexOf(".")).toLowerCase();
+  return ext === ".h" && (scope.includes("c") || scope.includes("cpp"));
 }

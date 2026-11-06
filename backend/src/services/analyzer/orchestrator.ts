@@ -31,7 +31,7 @@ import {
   extractSections,
   isDataFile,
 } from "./metrics.js";
-import { languageOfPath, type ResolvedScanConfig } from "../security/scan-config.js";
+import { languageScopeMatches, type ResolvedScanConfig } from "../security/scan-config.js";
 import { collectGitChurn, hasGitHistory } from "./git-churn.js";
 import { detectDuplicates } from "./duplicates.js";
 import { collectCoverage } from "./coverage.js";
@@ -132,8 +132,8 @@ export const SUPPORTED_EXTENSIONS = new Set([
   ".cs",
   ".kt",
   ".swift",
-  // C and C++ share one bucket: the city already has a Cpp tone, and a split
-  // would need a new measured colour before it could be drawn honestly.
+  // C and C++ are separate drawn kinds; `.h` is refined by content in
+  // detectLanguage, and both source spellings still reach the same scan.
   ".c",
   ".h",
   ".cpp",
@@ -356,9 +356,11 @@ export class AnalysisOrchestrator {
         continue;
       }
       // Scan-config scope: language allowlist + user exclude paths
-      if (config?.languageScope?.length) {
-        const lang = languageOfPath(relativePath);
-        if (!config.languageScope.includes(lang)) continue;
+      if (
+        config?.languageScope?.length &&
+        !languageScopeMatches(relativePath, config.languageScope)
+      ) {
+        continue;
       }
       if (isExcludedPath(relativePath, config?.excludePaths ?? [])) {
         dropped.excluded += 1;
@@ -595,7 +597,7 @@ export class AnalysisOrchestrator {
    */
   async analyzeContent(relativePath: string, content: string): Promise<FileAnalysis> {
     const lines = countLines(content);
-    const language = detectLanguage(relativePath);
+    const language = detectLanguage(relativePath, content);
     // Data has lines but no behaviour: no control flow to score, no
     // functions to name, no imports to draw edges from.
     const dataFile = isDataFile(relativePath, language);

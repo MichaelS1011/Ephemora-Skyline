@@ -25,3 +25,5 @@ A pack is a directory with a `pack.json` manifest and rule YAML beside it. The m
 ## Engines, and what happens when one is missing
 
 `gitleaks`, `semgrep`, `osv-scanner` and `ruff` are optional and asked for on `PATH`. Without one, the corresponding check reports itself as skipped — on the card, in the provenance and in the summary — instead of pretending to have run. Semgrep falls back to a Docker image when no binary is present and Docker is, and `SKYLINE_OFFLINE=1` closes that fallback unless a local pack is selected. The probe that decides whether a case can run asks the filesystem, not the scanner, because a cold `semgrep --version` took 11–104 s on this machine and used to retire three real assertions as skips.
+
+OSV reads the manifests it actually supports: npm, yarn and pnpm lockfiles, Python requirements/Pipfile/poetry/pyproject, Cargo, Go, Gemfile, Composer and, for C/C++, `conan.lock`. CMake and vcpkg are **not** OSV manifest formats; a project that uses only those is not dependency-scanned, and `docs/LIMITS.md` says so in the C/C++ section.

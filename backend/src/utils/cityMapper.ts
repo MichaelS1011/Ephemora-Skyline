@@ -531,6 +531,21 @@ const EXT_CANDIDATES = [
   "/index.ts",
   "/index.tsx",
   "/index.js",
+  // C/C++ headers and sources: an include may omit the suffix, and the
+  // header is the edge a source/header pair is actually drawn from.
+  ".h",
+  ".hpp",
+  ".hh",
+  ".hxx",
+  ".c",
+  ".cc",
+  ".cpp",
+  ".cxx",
+  ".ipp",
+  ".tpp",
+  ".cu",
+  ".cuh",
+  ".ino",
 ];
 
 /**
