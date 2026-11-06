@@ -1,8 +1,8 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { nextOpenTriageIndex, triageList, useStore } from "../stores/useStore";
 import { identityIsGuessed } from "../reviews";
 import { edgeSignalForWaypoint, worldTargetForFinding } from "../city/waypoint";
-import { topLanguages, languageColor, severityColor } from "../city/palette";
+import { topLanguages, languageColor, languageLabel, severityColor } from "../city/palette";
 import { scanVerdict } from "../city/provenance";
 import { BrandWordmark } from "./Landing";
 import { AnalyzePanel } from "./AnalyzePanel";
@@ -10,7 +10,7 @@ import { XrayRaw } from "./XrayRaw";
 import { openSearch } from "./SearchBar";
 import { PHASE_0_MS } from "./CityTree";
 import { t, formatCount, type DictKey, type Lang } from "../i18n";
-import { getDirLayout } from "../city/layout";
+import { allFiles, getDirLayout } from "../city/layout";
 import { heightAxisKey } from "../city/heightAxis";
 import { useLodFar } from "../hooks/useLodFar";
 import { severityCount, severityTotal } from "../city/facts";
@@ -83,6 +83,8 @@ export function HudOverlay({ apiStatus }: HudOverlayProps) {
   const setCityOnly = useStore((s) => s.setCityOnly);
   const reviews = useStore((s) => s.reviews);
   const ruleFilter = useStore((s) => s.ruleFilter);
+  const languageFilter = useStore((s) => s.languageFilter);
+  const setLanguageFilter = useStore((s) => s.setLanguageFilter);
   const triageActive = useStore((s) => s.triageActive);
   const triageCursor = useStore((s) => s.triageCursor);
   const startTriage = useStore((s) => s.startTriage);
@@ -153,9 +155,38 @@ export function HudOverlay({ apiStatus }: HudOverlayProps) {
   // The queue the dock walks — same list, same filters, same order. Memoised
   // on the city and the filters: a camera move must never re-sort the city.
   const queue = useMemo(
-    () => (cityData ? triageList(cityData, threatFilter, ruleFilter) : []),
-    [cityData, threatFilter, ruleFilter],
+    () => (cityData ? triageList(cityData, threatFilter, ruleFilter, languageFilter) : []),
+    [cityData, threatFilter, ruleFilter, languageFilter],
   );
+  const languageOptions = useMemo(() => {
+    if (!cityData) return [];
+    const filesByLanguage = new Map<string, number>();
+    for (const { file } of allFiles(cityData)) {
+      filesByLanguage.set(file.language, (filesByLanguage.get(file.language) ?? 0) + 1);
+    }
+    return [...filesByLanguage.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
+  }, [cityData]);
+  const [languageMenuOpen, setLanguageMenuOpen] = useState(false);
+  const languageMenuRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!languageMenuOpen) return;
+    const onPointerDown = (event: PointerEvent): void => {
+      if (!languageMenuRef.current?.contains(event.target as Node)) setLanguageMenuOpen(false);
+    };
+    const onKeyDown = (event: KeyboardEvent): void => {
+      if (event.key === "Escape") setLanguageMenuOpen(false);
+    };
+    document.addEventListener("pointerdown", onPointerDown);
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("pointerdown", onPointerDown);
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [languageMenuOpen]);
+  const chooseLanguage = (language: string | null): void => {
+    setLanguageFilter(language);
+    setLanguageMenuOpen(false);
+  };
   if (!cityData) return null;
   const totalFindings = severityTotal(cityData.findingsBySeverity);
 
@@ -353,6 +384,87 @@ export function HudOverlay({ apiStatus }: HudOverlayProps) {
                   </>
                 )}
               </span>
+              {languageOptions.length > 1 && (
+                <div className="workspace-language" ref={languageMenuRef}>
+                  <button
+                    type="button"
+                    className="workspace-language-trigger"
+                    data-language-filter="true"
+                    data-active={languageFilter !== null || undefined}
+                    aria-haspopup="menu"
+                    aria-expanded={languageMenuOpen}
+                    aria-label={
+                      languageFilter === null
+                        ? t(lang, "hud.filterByLanguageAria")
+                        : t(lang, "hud.languageFilterTitle", {
+                            language: languageLabel(languageFilter),
+                          })
+                    }
+                    title={
+                      languageFilter === null
+                        ? t(lang, "hud.allLanguagesTitle")
+                        : t(lang, "hud.languageFilterTitle", {
+                            language: languageLabel(languageFilter),
+                          })
+                    }
+                    onClick={() => setLanguageMenuOpen((open) => !open)}
+                  >
+                    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                      <path
+                        d="M2 3h6M5 1.5V3M6.5 3c0 3-1.8 5.5-4.5 7M3 4.5c.6 1.8 2 3.2 4 4M9.5 13.5 12 6l2.5 7.5M10.6 11h2.8"
+                        stroke="currentColor"
+                        strokeWidth="1.2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      />
+                    </svg>
+                    {languageFilter !== null && (
+                      <>
+                        <span
+                          className="workspace-language-dot"
+                          style={{ background: languageColor(languageFilter) }}
+                          aria-hidden="true"
+                        />
+                        <span className="workspace-language-label">
+                          {languageLabel(languageFilter)}
+                        </span>
+                      </>
+                    )}
+                  </button>
+                  {languageMenuOpen && (
+                    <div
+                      className="workspace-language-menu"
+                      role="menu"
+                      aria-label={t(lang, "hud.filterByLanguageAria")}
+                    >
+                      <button
+                        type="button"
+                        role="menuitemradio"
+                        aria-checked={languageFilter === null}
+                        onClick={() => chooseLanguage(null)}
+                      >
+                        {t(lang, "hud.allLanguages")}
+                      </button>
+                      {languageOptions.map(([language]) => (
+                        <button
+                          key={language}
+                          type="button"
+                          role="menuitemradio"
+                          aria-checked={languageFilter === language}
+                          onClick={() => chooseLanguage(language)}
+                        >
+                          <span
+                            className="workspace-language-dot"
+                            style={{ background: languageColor(language) }}
+                            aria-hidden="true"
+                          />
+                          {languageLabel(language)}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
               <div
                 className="workspace-severities"
                 aria-label={t(lang, "hud.filterBySeverityAria")}
@@ -424,7 +536,7 @@ export function HudOverlay({ apiStatus }: HudOverlayProps) {
           {topLanguages(cityData.languages, 3).map((language) => (
             <span key={language.name}>
               <i style={{ background: languageColor(language.name) }} />
-              {language.name}
+              {languageLabel(language.name)}
             </span>
           ))}
           <span className="legend-explainer">

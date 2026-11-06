@@ -68,6 +68,8 @@ export function FindingsPanel() {
   const setThreatFilter = useStore((s) => s.setThreatFilter);
   const ruleFilter = useStore((s) => s.ruleFilter);
   const setRuleFilter = useStore((s) => s.setRuleFilter);
+  const languageFilter = useStore((s) => s.languageFilter);
+  const setLanguageFilter = useStore((s) => s.setLanguageFilter);
   const reviews = useStore((s) => s.reviews);
   const verdictsUnreadable = useStore((s) => s.verdictsUnreadable);
   const closeRef = useRef<HTMLButtonElement>(null);
@@ -79,6 +81,7 @@ export function FindingsPanel() {
   const severityGroups = useMemo<FileGroup[]>(() => {
     if (!cityData) return [];
     return allFiles(cityData)
+      .filter(({ file }) => languageFilter === null || file.language === languageFilter)
       .map(({ file }) => ({
         file,
         findings: file.findings
@@ -95,7 +98,7 @@ export function FindingsPanel() {
       .sort(
         (a, b) => a.worst - b.worst || b.count - a.count || a.file.linesOfCode - b.file.linesOfCode,
       );
-  }, [cityData, threatFilter]);
+  }, [cityData, threatFilter, languageFilter]);
 
   // Pass 2: rule filter AND-combined on top of the severity filter.
   const groups = useMemo<FileGroup[]>(() => {
@@ -203,7 +206,9 @@ export function FindingsPanel() {
    */
   const scanTotal = cityData ? severityTotal(cityData.findingsBySeverity) : 0;
   const undrawn =
-    threatFilter === "all" && ruleFilter === null ? Math.max(0, scanTotal - filteredTotal) : 0;
+    threatFilter === "all" && ruleFilter === null && languageFilter === null
+      ? Math.max(0, scanTotal - filteredTotal)
+      : 0;
   const rowRefs = useRef<Map<string, HTMLDivElement>>(new Map());
   const selectedId = selectedUnit?.kind === "file" ? selectedUnit.id : null;
 
@@ -455,20 +460,22 @@ export function FindingsPanel() {
             style={{ color: "#dedbd3" }}
           >
             <p>
-              {ruleFilter
-                ? threatFilter === "all"
-                  ? t(lang, "findings.emptyRule", { rule: ruleFilter })
-                  : t(lang, "findings.emptyRulePriority", {
-                      rule: ruleFilter,
-                      priority: t(lang, SEVERITY_LABEL_KEY[threatFilter as Severity]),
-                    })
-                : threatFilter === "all"
-                  ? t(lang, "findings.emptyAll")
-                  : t(lang, "findings.emptyPriority", {
-                      priority: t(lang, SEVERITY_LABEL_KEY[threatFilter as Severity]),
-                    })}
+              {languageFilter !== null
+                ? t(lang, "findings.emptyFiltered")
+                : ruleFilter
+                  ? threatFilter === "all"
+                    ? t(lang, "findings.emptyRule", { rule: ruleFilter })
+                    : t(lang, "findings.emptyRulePriority", {
+                        rule: ruleFilter,
+                        priority: t(lang, SEVERITY_LABEL_KEY[threatFilter as Severity]),
+                      })
+                  : threatFilter === "all"
+                    ? t(lang, "findings.emptyAll")
+                    : t(lang, "findings.emptyPriority", {
+                        priority: t(lang, SEVERITY_LABEL_KEY[threatFilter as Severity]),
+                      })}
             </p>
-            {(threatFilter !== "all" || ruleFilter !== null) && (
+            {(threatFilter !== "all" || ruleFilter !== null || languageFilter !== null) && (
               <div className="mt-3 flex flex-wrap justify-center gap-2">
                 {threatFilter !== "all" && (
                   <button
@@ -488,9 +495,18 @@ export function FindingsPanel() {
                     {t(lang, "findings.showAllRules")}
                   </button>
                 )}
+                {languageFilter !== null && (
+                  <button
+                    type="button"
+                    onClick={() => setLanguageFilter(null)}
+                    className="min-h-9 rounded-lg border border-white/20 px-3 text-xs hover:bg-white/5"
+                  >
+                    {t(lang, "findings.showAllLanguages")}
+                  </button>
+                )}
               </div>
             )}
-            {threatFilter === "all" && ruleFilter === null && (
+            {threatFilter === "all" && ruleFilter === null && languageFilter === null && (
               <p className="mt-2 text-xs" style={{ color: "#aaa79e" }}>
                 {t(lang, "findings.emptyHint")}
               </p>

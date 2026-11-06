@@ -224,6 +224,7 @@ export function CityTree() {
   const lang = useStore((s) => s.prefs.lang);
   const threatFilter = useStore((s) => s.threatFilter);
   const ruleFilter = useStore((s) => s.ruleFilter);
+  const languageFilter = useStore((s) => s.languageFilter);
   const reviews = useStore((s) => s.reviews);
   const buildPhase = useStore((s) => s.buildPhase);
   const buildStartedAt = useStore((s) => s.buildStartedAt);
@@ -489,16 +490,17 @@ export function CityTree() {
   const podiumAppear = riseAt(plan.podiumAt);
 
   // Filters combine with AND: a building stays bright only when it matches
-  // EVERY active filter (threat + rule); anything else dims to a backdrop.
-  // The placement arrives from the same loop that draws it — looking the file
-  // up again by id was a linear scan per building per render (104 calls,
-  // 1184 array steps in one drill-in).
+  // EVERY active filter (threat + rule + language); anything else dims to a
+  // backdrop. The placement arrives from the same loop that draws it — looking
+  // the file up again by id was a linear scan per building per render (104
+  // calls, 1184 array steps in one drill-in).
   const fileDimmed = (b: (typeof layout.buildings)[number]): boolean => {
     const threatDimmed =
       threatFilter !== "all" && !b.file.findings.some((v) => v.severity === threatFilter);
     const ruleDimmed =
       ruleFilter !== null && !b.file.findings.some((f) => (f.ruleId ?? f.type) === ruleFilter);
-    return threatDimmed || ruleDimmed;
+    const languageDimmed = languageFilter !== null && b.file.language !== languageFilter;
+    return threatDimmed || ruleDimmed || languageDimmed;
   };
 
   // A file whose findings ALL carry a review status calms its beacons down.

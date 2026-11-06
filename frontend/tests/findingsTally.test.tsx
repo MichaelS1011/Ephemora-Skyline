@@ -18,12 +18,12 @@ function finding(rule: string, severity: Severity = "P2"): CityFinding {
   return { type: rule, ruleId: rule, severity, line: 3, message: `${rule} fired` };
 }
 
-function file(path: string, findings: CityFinding[]): CityFile {
+function file(path: string, findings: CityFinding[], language = "TypeScript"): CityFile {
   return {
     id: path,
     name: path.split("/").pop() ?? path,
     path,
-    language: "TypeScript",
+    language,
     linesOfCode: 40,
     cyclomaticComplexity: 3,
     threatLevel: findings.length > 0 ? "medium" : "safe",
@@ -133,6 +133,23 @@ describe("the findings tally", () => {
     const data = city([file("a.ts", [finding("rule_a", "P0")])], { P0: 1, P1: 4, P2: 0 });
     const text = await show(<FindingsPanel />, data, { threatFilter: "P0" });
     expect(text).not.toContain("does not draw");
+  });
+
+  it("narrows the list to one language and offers the way back", async () => {
+    const data = city(
+      [file("a.ts", [finding("ts_rule")]), file("native.cpp", [finding("cpp_rule")], "Cpp")],
+      { P0: 0, P1: 0, P2: 2 },
+    );
+    const text = await show(<FindingsPanel />, data, { languageFilter: "Cpp" });
+    expect(text).toContain("cpp_rule fired");
+    expect(text).not.toContain("ts_rule fired");
+  });
+
+  it("states an empty language filter honestly and offers to clear it", async () => {
+    const data = city([file("a.ts", [finding("ts_rule")])], { P0: 0, P1: 0, P2: 1 });
+    const text = await show(<FindingsPanel />, data, { languageFilter: "C" });
+    expect(text).toContain("No findings match the active filters.");
+    expect(text).toContain("Show all languages");
   });
 
   it("says how many rules the chip row left out, and shows them on demand", async () => {

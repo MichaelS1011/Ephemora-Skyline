@@ -122,6 +122,7 @@ export function ActionBar() {
   const reviews = useStore((s) => s.reviews);
   const threatFilter = useStore((s) => s.threatFilter);
   const ruleFilter = useStore((s) => s.ruleFilter);
+  const languageFilter = useStore((s) => s.languageFilter);
   /** B2 — the first arrival names one handgrip. The store stamps the marker
    *  when the first city lands and keeps it for the visit, so the proposal
    *  costs its words once per browser, never per city. */
@@ -243,14 +244,14 @@ export function ActionBar() {
    */
   const queue = useMemo(() => {
     if (!cityData) return null;
-    const list = triageList(cityData, threatFilter, ruleFilter);
+    const list = triageList(cityData, threatFilter, ruleFilter, languageFilter);
     return {
       total: list.length,
       open: openTriageCount(list, reviews),
       ahead: nextOpenTriageIndex(list, reviews, triageCursor + 1, 1) !== -1,
       behind: nextOpenTriageIndex(list, reviews, triageCursor - 1, -1) !== -1,
     };
-  }, [cityData, threatFilter, ruleFilter, reviews, triageCursor]);
+  }, [cityData, threatFilter, ruleFilter, languageFilter, reviews, triageCursor]);
 
   if (!cityData) return null;
 

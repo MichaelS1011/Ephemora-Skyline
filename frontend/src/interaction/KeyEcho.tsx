@@ -75,7 +75,7 @@ function readWorld(): World {
   const s = useStore.getState();
   const city = s.cityData;
   const layout = city ? getDirLayout(city, s.focusPath) : null;
-  const list = city ? triageList(city, s.threatFilter, s.ruleFilter) : [];
+  const list = city ? triageList(city, s.threatFilter, s.ruleFilter, s.languageFilter) : [];
   return {
     hasCity: !!city,
     focusPath: s.focusPath,

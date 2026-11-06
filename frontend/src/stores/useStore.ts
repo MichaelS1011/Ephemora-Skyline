@@ -380,6 +380,10 @@ interface AppState {
   ruleFilter: string | null;
   setRuleFilter: (rule: string | null) => void;
 
+  /** Language bucket (`C`, `Cpp`, `TypeScript`, …) — null shows every language. */
+  languageFilter: string | null;
+  setLanguageFilter: (language: string | null) => void;
+
   /** What the far-zoom heat cells are colored by. */
   heatChannel: HeatChannel;
   setHeatChannel: (c: HeatChannel) => void;
@@ -821,16 +825,19 @@ const SEVERITY_RANK: Record<Severity, number> = { P0: 0, P1: 1, P2: 2 };
 
 /**
  * The triage queue: every finding in the city matching the current
- * severity + rule filters, worst first (severity → risk → path → line).
- * Exported so the dock can state how much of the queue still needs a verdict.
+ * severity + rule + language filters, worst first (severity → risk → path →
+ * line). Exported so the dock can state how much of the queue still needs a
+ * verdict.
  */
 export function triageList(
   city: CityData,
   threat: Severity | "all",
   rule: string | null,
+  language: string | null = null,
 ): TriageEntry[] {
   const out: TriageEntry[] = [];
   for (const { file } of allFiles(city)) {
+    if (language !== null && file.language !== language) continue;
     file.findings.forEach((f, index) => {
       if (threat !== "all" && f.severity !== threat) return;
       const ruleId = f.ruleId ?? f.type;
@@ -851,8 +858,9 @@ export function triageList(
 /**
  * Re-point a running triage at the queue the CURRENT filters produce.
  *
- * The queue is derived from `threatFilter` + `ruleFilter`, but the cursor and
- * the total were only ever recomputed on start/next/prev. Switching a filter
+ * The queue is derived from `threatFilter` + `ruleFilter` + `languageFilter`,
+ * but the cursor and the total were only ever recomputed on start/next/prev.
+ * Switching a filter
  * mid-queue therefore left the stepper saying "4 of 11" over a queue of three,
  * and the next click jumped from a position in the old list to one in the new —
  * silently skipping the entries at the front. A queue that the filter empties
@@ -861,7 +869,7 @@ export function triageList(
 function reanchorTriage(set: (partial: Partial<AppState>) => void, get: () => AppState): void {
   const { cityData, triageActive, triageCursor, triageTotal, focusedFindingKey } = get();
   if (!cityData || !triageActive) return;
-  const list = triageList(cityData, get().threatFilter, get().ruleFilter);
+  const list = triageList(cityData, get().threatFilter, get().ruleFilter, get().languageFilter);
   if (list.length === 0) {
     set({ triageActive: false, triageCursor: 0, triageTotal: 0, focusedFindingKey: null });
     return;
@@ -1018,6 +1026,7 @@ export const useStore = create<AppState>((set, get) => {
         // would keep walking a city it was never started for.
         threatFilter: "all",
         ruleFilter: null,
+        languageFilter: null,
         // A new city is a neutral stage: the previous repo's view mode must not
         // dim or re-lighten the fresh skyline before the user has chosen a lens.
         viewMode: "structure",
@@ -1420,6 +1429,12 @@ export const useStore = create<AppState>((set, get) => {
       reanchorTriage(set, get);
     },
 
+    languageFilter: null,
+    setLanguageFilter: (language) => {
+      set({ languageFilter: language });
+      reanchorTriage(set, get);
+    },
+
     heatChannel: "threat",
     setHeatChannel: (c) => set({ heatChannel: c }),
     heatDateMs: null,
@@ -1439,7 +1454,7 @@ export const useStore = create<AppState>((set, get) => {
     startTriage: () => {
       const { cityData } = get();
       if (!cityData) return;
-      const list = triageList(cityData, get().threatFilter, get().ruleFilter);
+      const list = triageList(cityData, get().threatFilter, get().ruleFilter, get().languageFilter);
       if (list.length === 0) return;
       // A verdict is a finished decision. The round opens on the first finding
       // that still needs one, so re-scanning the same folder tomorrow does not
@@ -1463,7 +1478,7 @@ export const useStore = create<AppState>((set, get) => {
     nextTriage: () => {
       const { cityData, triageActive, triageCursor } = get();
       if (!cityData || !triageActive) return;
-      const list = triageList(cityData, get().threatFilter, get().ruleFilter);
+      const list = triageList(cityData, get().threatFilter, get().ruleFilter, get().languageFilter);
       if (list.length === 0) return;
       // Step to the next finding WITHOUT a verdict. A judge that lands on the
       // already-decided entry next to it costs the user a decision twice.
@@ -1483,7 +1498,7 @@ export const useStore = create<AppState>((set, get) => {
     prevTriage: () => {
       const { cityData, triageActive, triageCursor } = get();
       if (!cityData || !triageActive) return;
-      const list = triageList(cityData, get().threatFilter, get().ruleFilter);
+      const list = triageList(cityData, get().threatFilter, get().ruleFilter, get().languageFilter);
       if (list.length === 0) return;
       // Same walk backwards. Filters may have shrunk the queue while the triage
       // ran, so the walk starts no later than the last entry of the new list.

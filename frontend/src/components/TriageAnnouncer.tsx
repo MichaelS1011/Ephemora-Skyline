@@ -16,9 +16,10 @@ export function TriageAnnouncer() {
   const triageTotal = useStore((s) => s.triageTotal);
   const threatFilter = useStore((s) => s.threatFilter);
   const ruleFilter = useStore((s) => s.ruleFilter);
+  const languageFilter = useStore((s) => s.languageFilter);
   const list = useMemo(
-    () => (cityData ? triageList(cityData, threatFilter, ruleFilter) : []),
-    [cityData, threatFilter, ruleFilter],
+    () => (cityData ? triageList(cityData, threatFilter, ruleFilter, languageFilter) : []),
+    [cityData, threatFilter, ruleFilter, languageFilter],
   );
   const entry = triageActive ? list[triageCursor] : undefined;
   const finding = entry?.file.findings[entry.index];

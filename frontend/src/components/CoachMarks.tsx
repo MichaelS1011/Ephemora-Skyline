@@ -217,6 +217,7 @@ export function CoachMarks() {
   const analysisId = useStore((s) => s.analysisId);
   const threatFilter = useStore((s) => s.threatFilter);
   const ruleFilter = useStore((s) => s.ruleFilter);
+  const languageFilter = useStore((s) => s.languageFilter);
   const startTriage = useStore((s) => s.startTriage);
   const resetFocus = useStore((s) => s.resetFocus);
   const setViewMode = useStore((s) => s.setViewMode);
@@ -224,8 +225,8 @@ export function CoachMarks() {
   // active severity/rule filters. A finding hidden by a filter is not a queue
   // this button can open.
   const triageCount = useMemo(
-    () => (cityData ? triageList(cityData, threatFilter, ruleFilter).length : 0),
-    [cityData, threatFilter, ruleFilter],
+    () => (cityData ? triageList(cityData, threatFilter, ruleFilter, languageFilter).length : 0),
+    [cityData, threatFilter, ruleFilter, languageFilter],
   );
   // Zero in this view can mean two different things. Say which one: a filter
   // that hides every finding must not read as a city without findings.

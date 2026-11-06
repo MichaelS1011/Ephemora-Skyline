@@ -96,6 +96,93 @@
   color: var(--meta-strong);
 }
 
+/* Language filter — one compact control beside the severity chips. Closed, it
+   is an icon plus the active language's dot, so the arrival chrome gains no
+   words; the menu itself only exists while open. `data-active` marks a narrowed
+   city without repainting the whole control in a severity colour. */
+.workspace-language {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  min-width: 0;
+}
+.workspace-language-trigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  min-width: 32px;
+  min-height: 32px;
+  padding: 0 7px;
+  border: 1px solid #ffffff19;
+  border-radius: 6px;
+  background: #ffffff03;
+  color: #d6d7cd;
+  font: inherit;
+  font-size: 12px;
+  line-height: 1;
+  cursor: pointer;
+}
+.workspace-language-trigger:hover {
+  background: #ffffff09;
+}
+.workspace-language-trigger[data-active] {
+  border-color: var(--glass-chrome-border);
+  background: rgba(255, 255, 255, 0.09);
+  color: var(--brand-ink);
+}
+.workspace-language-dot {
+  width: 7px;
+  height: 7px;
+  flex: none;
+  border-radius: 50%;
+}
+.workspace-language-label {
+  white-space: nowrap;
+}
+.workspace-language-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 70;
+  display: grid;
+  gap: 2px;
+  min-width: 156px;
+  max-height: min(60vh, 320px);
+  overflow-y: auto;
+  padding: 5px;
+  border: 1px solid var(--glass-chrome-border);
+  border-radius: 8px;
+  background: var(--glass-chrome-sheen), var(--material-read-bg);
+  box-shadow: var(--glass-chrome-edge), var(--glass-shadow);
+  backdrop-filter: var(--glass-chrome-blur);
+  -webkit-backdrop-filter: var(--glass-chrome-blur);
+}
+.workspace-language-menu button {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  width: 100%;
+  min-height: 30px;
+  padding: 5px 8px;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--brand-ink);
+  font: inherit;
+  font-size: 12px;
+  text-align: left;
+  cursor: pointer;
+}
+.workspace-language-menu button:hover,
+.workspace-language-menu button[aria-checked="true"] {
+  background: rgba(255, 255, 255, 0.09);
+}
+.workspace-language-menu button:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: -2px;
+}
+
 /* ── Layer view (Z-05) ────────────────────────────────────────────────────
    Four shares, one per layer the city is drawn from. No hue of its own: the
    channels this app switches between are named in text and painted by one
@@ -769,7 +856,7 @@
 }
 
 /* ── Keyboard focus, one ring for the whole HUD ────────────────────────── */
-.workspace-header :is(button, a, input):focus-visible,
+.workspace-header :is(button, a, input, select):focus-visible,
 .panel-card :is(button, a, input):focus-visible,
 .workspace-breadcrumbs button:focus-visible,
 .workspace-modes button:focus-visible,
@@ -799,6 +886,15 @@
   .app-shell .workspace-header .workspace-severities .severity-label {
     font-size: var(--fs-meta);
     margin-left: 3px;
+  }
+  .app-shell .workspace-language-trigger {
+    min-width: 30px;
+    min-height: 30px;
+    padding: 0 6px;
+    font-size: var(--fs-meta);
+  }
+  .app-shell .workspace-language-label {
+    display: none;
   }
   .app-shell .workspace-header .clean-status {
     font-size: var(--fs-meta);

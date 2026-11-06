@@ -663,6 +663,22 @@ export const DICT = {
     en: "Filter city by severity",
     de: "Stadt nach Schweregrad filtern",
   },
+  "hud.filterByLanguageAria": {
+    en: "Filter city by language",
+    de: "Stadt nach Sprache filtern",
+  },
+  "hud.allLanguages": {
+    en: "All languages",
+    de: "Alle Sprachen",
+  },
+  "hud.allLanguagesTitle": {
+    en: "Show files of every language",
+    de: "Dateien aller Sprachen zeigen",
+  },
+  "hud.languageFilterTitle": {
+    en: "Show only {language} files",
+    de: "Nur {language}-Dateien zeigen",
+  },
   "hud.sevCritical": {
     en: "Critical",
     de: "Kritisch",
@@ -2265,6 +2281,10 @@ export const DICT = {
     en: "No {priority} findings in this scan.",
     de: "Keine {priority}-Funde in diesem Scan.",
   },
+  "findings.emptyFiltered": {
+    en: "No findings match the active filters.",
+    de: "Keine Funde passen zu den aktiven Filtern.",
+  },
   "findings.showAllPriorities": {
     en: "Show all priorities",
     de: "Alle Prioritäten anzeigen",
@@ -2272,6 +2292,10 @@ export const DICT = {
   "findings.showAllRules": {
     en: "Show all rules",
     de: "Alle Regeln anzeigen",
+  },
+  "findings.showAllLanguages": {
+    en: "Show all languages",
+    de: "Alle Sprachen anzeigen",
   },
   "findings.emptyHint": {
     en: "Explore the city to review the files and their structure.",

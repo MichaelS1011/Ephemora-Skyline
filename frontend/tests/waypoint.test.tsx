@@ -34,6 +34,7 @@ const OPEN = file("src/open.ts", "TypeScript", [
 const DECIDED = file("src/decided.ts", "TypeScript", [
   finding({ severity: "P1", type: "SQL_INJECTION", line: 7 }),
 ]);
+const CPP = file("src/native.cpp", "Cpp", [finding({ severity: "P1", line: 4 })]);
 
 function probeCity(): CityData {
   return city({
@@ -296,6 +297,35 @@ describe("the pill in the HUD", () => {
       before,
     );
     expect(useStore.getState().flyRequest, "und fliegt mit derselben Quelle").toBeTruthy();
+  });
+});
+
+describe("the visible language filter", () => {
+  it("lists the city's own buckets and writes the chosen one", () => {
+    setState({
+      cityData: city({
+        tree: dir({
+          path: "",
+          name: "repo",
+          children: [dir({ path: "src", name: "src", detailFiles: [OPEN, DECIDED, CPP] })],
+        }),
+      }),
+      languageFilter: null,
+    });
+    renderHud();
+    const trigger = host.querySelector<HTMLButtonElement>("button[data-language-filter]");
+    expect(trigger, "the header offers no language filter").not.toBeNull();
+    expect(trigger!.getAttribute("aria-expanded")).toBe("false");
+    act(() => trigger!.click());
+    const options = [...host.querySelectorAll<HTMLButtonElement>('[role="menuitemradio"]')];
+    expect(options.map((option) => option.textContent?.trim())).toEqual([
+      "All languages",
+      "TypeScript",
+      "C++",
+    ]);
+    act(() => options.find((option) => option.textContent?.trim() === "C++")!.click());
+    expect(useStore.getState().languageFilter).toBe("Cpp");
+    expect(host.querySelector("button[data-language-filter]")?.textContent).toContain("C++");
   });
 });
 

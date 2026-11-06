@@ -4,12 +4,17 @@ import { findingKey } from "../src/reviews";
 import type { CityData, CityFile } from "../src/city/types";
 
 /** Minimal file fixture with a configurable findings list. */
-function makeFile(id: string, path: string, severities: Array<"P0" | "P1" | "P2">): CityFile {
+function makeFile(
+  id: string,
+  path: string,
+  severities: Array<"P0" | "P1" | "P2">,
+  language = "TypeScript",
+): CityFile {
   return {
     id: `file:${id}`,
     name: id,
     path,
-    language: "TypeScript",
+    language,
     linesOfCode: 10,
     cyclomaticComplexity: 1,
     threatLevel: severities.includes("P0") ? "critical" : "low",
@@ -133,6 +138,24 @@ describe("triage queue", () => {
     expect(after.triageActive).toBe(false);
     expect(after.ruleFilter).toBeNull();
     expect(after.focusedFindingKey).toBeNull();
+  });
+
+  it("narrows the queue to the selected language and re-anchors on clear", () => {
+    const data = makeCity();
+    data.tree.children[0]!.detailFiles.push(
+      makeFile("native.cpp", "src/native.cpp", ["P1"], "Cpp"),
+    );
+    useStore.getState().setCityData(data);
+    useStore.getState().setBuildPhase("built");
+
+    const s = useStore.getState();
+    s.setLanguageFilter("Cpp");
+    s.startTriage();
+    expect(useStore.getState().triageTotal).toBe(1);
+    expect(useStore.getState().selectedUnit).toEqual({ kind: "file", id: "file:native.cpp" });
+
+    s.setLanguageFilter(null);
+    expect(useStore.getState().triageTotal).toBe(5);
   });
 
   it("startTriage does nothing on a city without findings", () => {

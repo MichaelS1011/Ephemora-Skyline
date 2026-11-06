@@ -177,6 +177,7 @@ export function HeatCells({ layout }: { layout: DirLayout }) {
   const heatDateMs = useStore((s) => s.heatDateMs);
   const churnMeta = useStore((s) => s.cityData?.meta) as ChurnMeta;
   const threatFilter = useStore((s) => s.threatFilter);
+  const languageFilter = useStore((s) => s.languageFilter);
   const colorblind = useStore((s) => s.prefs.colorblind);
   const meshRef = useRef<THREE.InstancedMesh>(null);
 
@@ -263,8 +264,10 @@ export function HeatCells({ layout }: { layout: DirLayout }) {
     if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
   }, [layout, heatChannel, heatDateMs, churnMeta, colorblind, cellCount, dummy, surface]);
 
-  // threatFilter dims safe cells by shifting them toward the background tone
-  const dimNonMatching = threatFilter !== "all";
+  // An active filter dims the far grid toward the background tone. The grid
+  // aggregates whole districts, so it can only say that a filter is on — the
+  // close city carries the per-file match.
+  const dimNonMatching = threatFilter !== "all" || languageFilter !== null;
 
   return (
     <instancedMesh
