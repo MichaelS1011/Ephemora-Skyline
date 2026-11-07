@@ -124,7 +124,6 @@ frontend/src/
 │   ├── MaintenanceAction.tsx # 005 B12: ask the ⚒ resident what the cx figure counts
 │   ├── Minimap.tsx         # Overview map of the city
 │   ├── RoadSystem.tsx      # Connecting roads between buildings
-│   ├── ParticleField.tsx   # Drifting particles over the plaza (atmosphere layer)
 │   └── SearchBar.tsx       # Search files by name, path or language — results fly the camera
 ├── render/                 # sky, ground and world surface, drawn under the city
 ├── hooks/

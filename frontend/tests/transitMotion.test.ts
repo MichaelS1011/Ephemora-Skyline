@@ -45,10 +45,11 @@ describe("the cab and the bus keep to the street", () => {
     expect(pedestrians).toContain("stopT");
   });
 
-  it("keeps background cars off the two transit streets", () => {
-    // derive from the UNSORTED list: `find` inside deriveTransit is order-bound
-    expect(road).toContain("deriveTransit(layout.streets)");
-    expect(road).not.toContain("deriveTransit(lanes)");
-    expect(road).toContain("withoutTransit");
+  it("has no background fleet left to compete with the transit", () => {
+    // The ambient cars measured 0 px with three visibility patches applied and
+    // were removed 2026-11-07; the cab and the bus are the only street traffic.
+    expect(road).not.toContain("deriveTransit");
+    expect(road).not.toContain("withoutTransit");
+    expect(road).not.toContain("fleet-body");
   });
 });

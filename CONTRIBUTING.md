@@ -7,7 +7,7 @@ Thanks for your interest. Ephemora Skyline is a focused 3D visualizer — small,
 - **Local-first, always.** Nothing here should send analyzed file content off the machine. A PR that introduces network egress for code that was analyzed from a local folder is a security bug, not a feature.
 - **The name is yours to keep out of.** `Ephemora Skyline` is the project's name; Apache-2.0 licenses the code, not the mark.
 - **UI strings need both languages.** Every interface string lives in `frontend/src/i18n.ts` with an English and a German entry; a key that exists in one language only falls back to printing its own name, which is a visible bug, not a missing translation.
-- **3D / render-critical files** (`CityScene`, `Building`, `District`, `RoadSystem`, `ParticleField`, the `renderer/` folder) need a real-GPU screenshot in the PR before they are reviewed — the headless CI cannot render WebGL.
+- **3D / render-critical files** (`CityScene`, `Building`, `District`, `RoadSystem`, the `renderer/` folder) need a real-GPU screenshot in the PR before they are reviewed — the headless CI cannot render WebGL.
 
 ## Getting set up
 
@@ -46,7 +46,7 @@ These are exactly what CI enforces: the steps in `.github/workflows/ci.yml`, whi
 ```bash
 npm run lint          # ESLint, zero warnings
 npm run type-check    # tsc --noEmit across both packages
-npm run test          # Vitest — 325 test files: 233 frontend, 92 backend (2026-11-06)
+npm run test          # Vitest — 324 test files: 232 frontend, 92 backend (2026-11-07)
 npm run build         # production build, both packages
 ```
 

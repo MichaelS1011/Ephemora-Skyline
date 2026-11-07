@@ -253,7 +253,8 @@ describe("the role mark dodges open panels", () => {
     // The rule only holds if all three marks actually run through it: source
     // guard, because jsdom never mounts the R3F tree.
     const src = readFileSync(new URL("../src/components/Pedestrians.tsx", import.meta.url), "utf8");
-    const badgeHtml = src.match(/<Html center zIndexRange=\{\[9, 0\]\}[^>]*>/g) ?? [];
+    const badgeHtml =
+      src.match(/<(?:Html|OccludableHtml) center zIndexRange=\{\[9, 0\]\}[^>]*>/g) ?? [];
     expect(badgeHtml.length).toBe(3);
     for (const tag of badgeHtml) expect(tag).toContain("calculatePosition={badgePosition}");
     const wornDivs = src.match(/className="cf-guide-badge[^"]*"/g) ?? [];

@@ -18,6 +18,7 @@ const SRC = path.resolve(import.meta.dirname, "../src");
 const toast = readFileSync(path.join(SRC, "components/ScanSummary.tsx"), "utf-8");
 const startCss = readFileSync(path.join(SRC, "design/start.css"), "utf-8");
 const css = readFileSync(path.join(SRC, "design/globals.css"), "utf-8");
+const stadtCss = readFileSync(path.join(SRC, "design/stadt-ui.css"), "utf-8");
 const hud = readFileSync(path.join(SRC, "components/HudOverlay.tsx"), "utf-8");
 
 /** The `.start-summary` rule block, so a contract is read where it is set. */
@@ -50,6 +51,82 @@ describe("the scan toast inside the Satzspiegel", () => {
 
   it("wraps its row, so the cap shortens the toast rather than cutting it", () => {
     expect(toast).toMatch(/className="flex flex-wrap/);
+  });
+});
+
+describe("the phone header keeps its primary action reachable", () => {
+  // Measured in WebKit at 390x844 on 2026-11-06: search + fullscreen + fps +
+  // three severity chips + Open project needed 522 px inside a 362 px row.
+  // The header clipped the last 160 px, so "+ Open project" could not be seen
+  // or tapped at the phone width the layout claims to support.
+  const at = stadtCss.indexOf("@media (max-width: 520px)");
+  const phone = stadtCss.slice(at, stadtCss.indexOf("@media", at + 1));
+  const statusAt = phone.indexOf(".app-shell .workspace-status {");
+  const status = phone.slice(statusAt, phone.indexOf("}", statusAt));
+
+  it("lets the status row wrap inside the header instead of clipping", () => {
+    expect(at, "the 520 px block moved").toBeGreaterThan(-1);
+    expect(statusAt, "the phone status row moved").toBeGreaterThan(-1);
+    expect(status).toMatch(/flex-wrap:\s*wrap/);
+    expect(status).toMatch(/row-gap:\s*6px/);
+  });
+
+  it("compacts the mode bar before it leaves a 320 px screen", () => {
+    // Measured 2026-11-06: 341.6 px English / 392.4 px German at 390 px, and
+    // 330.8 px German at 320 px. These are the two steps that bring the bar
+    // back inside the viewport without dropping below the 11 px type floor.
+    const from380 = stadtCss.slice(stadtCss.indexOf("@media (max-width: 380px)"));
+    const block380 = from380.slice(0, from380.indexOf("@media (max-width: 340px)"));
+    expect(block380).toMatch(/workspace-modes \.glass[\s\S]*?gap:\s*2px/);
+    expect(block380).toMatch(/workspace-modes \[role="radio"\][\s\S]*?padding:\s*2px 4px/);
+    const block340 = from380.slice(from380.indexOf("@media (max-width: 340px)"));
+    expect(block340).toMatch(/workspace-modes \.glass[\s\S]*?gap:\s*1px/);
+    expect(block340).toMatch(/workspace-modes \[role="radio"\][\s\S]*?padding:\s*2px 3px/);
+  });
+
+  it("keeps the hyphenated X-RAY label on one line", () => {
+    // At 390 px the browser broke `X-RAY` at its hyphen: the bar measured
+    // 327.1 px wide and 49 px tall while the German label stayed 38 px on one
+    // line. Compaction may shrink the bar; it may not make a second row.
+    const modeAt = stadtCss.indexOf('.workspace-modes [role="radio"],');
+    const mode = stadtCss.slice(modeAt, stadtCss.indexOf("}", modeAt));
+    expect(mode).toMatch(/white-space:\s*nowrap/);
+  });
+});
+
+describe("a narrow workspace still reaches its primary action", () => {
+  // Measured in WebKit 2026-11-06: 740x360 needed 815 px and clipped the last
+  // 75 px of "+ Open project"; 800x360 clipped 53 px. The width-only phone
+  // rule never fired, and the 760 px rule only narrowed the gaps. The defect
+  // is the width, not the height, so the fix is not gated on landscape.
+  const at = stadtCss.indexOf("@media (min-width: 521px) and (max-width: 800px)");
+  const block = stadtCss.slice(at, stadtCss.indexOf("@media", at + 1));
+  const compactAt = stadtCss.indexOf("@media (min-width: 521px) and (max-width: 599px)");
+  const compact = stadtCss.slice(compactAt, stadtCss.indexOf("@media", compactAt + 1));
+
+  it("gives the header a second row instead of clipping the action", () => {
+    expect(at, "the landscape block moved").toBeGreaterThan(-1);
+    expect(block).toMatch(/workspace-header[\s\S]*?height:\s*auto/);
+    expect(block).toMatch(/workspace-header[\s\S]*?min-height:\s*98px/);
+    expect(block).toMatch(/workspace-header[\s\S]*?flex-wrap:\s*wrap/);
+    expect(block).toMatch(/workspace-status[\s\S]*?width:\s*100%/);
+    expect(block).toMatch(/workspace-status[\s\S]*?flex-wrap:\s*wrap/);
+  });
+
+  it("moves search, crumbs and the mode bar below that row", () => {
+    expect(block).toMatch(/workspace-search[\s\S]*?top:\s*110px/);
+    expect(block).toMatch(/workspace-breadcrumbs[\s\S]*?top:\s*158px/);
+    expect(block).toMatch(/workspace-modes[\s\S]*?top:\s*186px/);
+  });
+
+  it("drops only the duplicate door and the readout below 600 px", () => {
+    // 568x320 needed the 66 px these two occupy; city-only lives in More and
+    // the frame rate is an instrument, while severity words stay mandatory.
+    expect(compactAt, "the compact landscape block moved").toBeGreaterThan(-1);
+    expect(compact).toMatch(
+      /workspace-search-toggle \+ \.workspace-search-toggle[\s\S]*?display:\s*none/,
+    );
+    expect(compact).toMatch(/workspace-fps[\s\S]*?display:\s*none/);
   });
 });
 

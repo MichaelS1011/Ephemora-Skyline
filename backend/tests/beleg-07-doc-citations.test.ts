@@ -97,7 +97,6 @@ describe("the source trees the documents draw", () => {
       "components/InfoPanel.tsx",
       "components/Minimap.tsx",
       "components/RoadSystem.tsx",
-      "components/ParticleField.tsx",
       "components/SearchBar.tsx",
       "render",
       "hooks/useLocalAnalysis.ts",

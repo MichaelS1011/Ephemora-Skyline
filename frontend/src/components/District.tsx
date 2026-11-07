@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef } from "react";
-import { Html } from "@react-three/drei";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import type { BlockPlacement, StripBar } from "../city/layout";
@@ -32,6 +31,7 @@ import { FOOTPRINT_EDGES, makeInkMaterial } from "../interaction/hoverInk";
 import { useStore } from "../stores/useStore";
 import type { Severity } from "../city/types";
 import { Building } from "./Building";
+import { OccludableHtml } from "../render/LabelOcclusion";
 import "../design/city-funktion.css";
 
 /** Same rhythm as the import plate's HUD read (CityConnections): one DOM
@@ -475,7 +475,7 @@ export function District({ placement, appearAt, skylineAt, constructing }: Distr
       {/* The ONE bundled street sign for this plot: name + risk, the
           underground tally (865 of 900 files — no longer hover-only), and
           the tallest file's complexity, in the measuring mast's coordinates. */}
-      <Html
+      <OccludableHtml
         center
         position={[0, 0.6, d / 2 + 2.2]}
         zIndexRange={[8, 0]}
@@ -508,7 +508,7 @@ export function District({ placement, appearAt, skylineAt, constructing }: Distr
             </div>
           )}
         </div>
-      </Html>
+      </OccludableHtml>
     </group>
   );
 }

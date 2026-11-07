@@ -67,6 +67,12 @@ export const HUD_SURFACES = [
   // a plate the card must be reserved against.
   ".panel-context-card",
   ".context-reopen",
+  // The height mast's legend is a live city surface, not decoration: it
+  // carries the axis sentence and the roof note the height bars are read
+  // against. A district plaque that lands on it hides both halves of that
+  // measurement at once (measured 2026-11-06: the demo's docs plaque sat
+  // across the 1.00–0.00 ticks at 1440×900).
+  ".cf-mast",
 ] as const;
 
 export const overlaps = (a: Box, b: Box): boolean =>

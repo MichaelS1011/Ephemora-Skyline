@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useFrame, useThree, type ThreeEvent } from "@react-three/fiber";
-import { Html } from "@react-three/drei";
 import * as THREE from "three";
 import { useStore } from "../stores/useStore";
 import { t } from "../i18n";
@@ -68,6 +67,7 @@ import {
 } from "../city/labelPlacement";
 import { surfaceMatrix, surfacePoint } from "../city/worldSurface";
 import { useWorldSurface } from "../render/WorldSurface";
+import { OccludableHtml } from "../render/LabelOcclusion";
 
 /**
  * The role mark's own placement pass — measured, not guessed.
@@ -3363,7 +3363,7 @@ export function Pedestrians({
           appears with the task and goes when the task does. */}
       {guide?.role === "maintenance" && maintenance !== null && (
         <group ref={maintenanceRef}>
-          <Html center zIndexRange={[9, 0]} calculatePosition={badgePosition}>
+          <OccludableHtml center zIndexRange={[9, 0]} calculatePosition={badgePosition}>
             <div
               ref={badgeElRef}
               className="cf-guide-badge cf-guide-badge-maintenance"
@@ -3373,12 +3373,12 @@ export function Pedestrians({
             >
               {ROLE_GLYPH.maintenance}
             </div>
-          </Html>
+          </OccludableHtml>
         </group>
       )}
       {guide?.role === "security" && security !== null && (
         <group ref={securityRef}>
-          <Html center zIndexRange={[9, 0]} calculatePosition={badgePosition}>
+          <OccludableHtml center zIndexRange={[9, 0]} calculatePosition={badgePosition}>
             <div
               ref={badgeElRef}
               className="cf-guide-badge cf-guide-badge-security"
@@ -3388,12 +3388,12 @@ export function Pedestrians({
             >
               {ROLE_GLYPH.security}
             </div>
-          </Html>
+          </OccludableHtml>
         </group>
       )}
       {guide?.role === "explorer" && explorer !== null && (
         <group ref={guideRef}>
-          <Html center zIndexRange={[9, 0]} calculatePosition={badgePosition}>
+          <OccludableHtml center zIndexRange={[9, 0]} calculatePosition={badgePosition}>
             {/* Glyph only, and the word in its accessible name: a resident is
                 20-30 px on the district camera, and a badge that spells
                 "Explorer" beside it is bigger than the figure it marks. The
@@ -3407,7 +3407,7 @@ export function Pedestrians({
             >
               {ROLE_GLYPH.explorer}
             </div>
-          </Html>
+          </OccludableHtml>
         </group>
       )}
       {/* Chat bubbles — binary small talk */}

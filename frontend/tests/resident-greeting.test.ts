@@ -284,9 +284,9 @@ describe("the called figure's body row faces the lens with its head", () => {
     const tree = readFileSync(new URL("../src/components/CityTree.tsx", import.meta.url), "utf-8");
     // the crowd's coat is the ONE 0.85 material inside Pedestrians (bodyRef),
     expect(crowd.match(/roughness=\{0\.85\}/g)).toHaveLength(1);
-    // while RoadSystem ships two box paints at 0.85 (the zebra and the wheels)
+    // while RoadSystem ships one box paint at 0.85 (the zebra)
     // whose box geometry has 24 vertices — the 665-instance mesh of the inventory —
-    expect(streets.match(/roughness=\{0\.85\}/g)).toHaveLength(2);
+    expect(streets.match(/roughness=\{0\.85\}/g)).toHaveLength(1);
     // and CityTree renders the street before the crowd, so a scene-wide
     // "first mesh with roughness 0.85" walks into the crosswalk, not the figure.
     expect(tree.indexOf("<RoadSystem")).toBeLessThan(tree.indexOf("<Pedestrians"));

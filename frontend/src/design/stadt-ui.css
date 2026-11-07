@@ -840,6 +840,10 @@
   border-radius: 6px;
   font-size: var(--fs-meta);
   letter-spacing: 0.06em;
+  /* `X-RAY` is the one label with a break opportunity, and at 390 px the
+     browser took it: the mode bar grew to 49 px with "X-" over "RAY". The
+     bar may be compacted; it may not be hyphenated into a second row. */
+  white-space: nowrap;
 }
 .workspace-modes [role="radio"][aria-checked="true"]::before,
 .workspace-heatmap [role="radio"][aria-checked="true"]::before {
@@ -893,6 +897,13 @@
     padding: 0 6px;
     font-size: var(--fs-meta);
   }
+  /* The four mode labels are the widest control on the phone. Measured in
+     WebKit 2026-11-06: 341.6 px of bar at 390 px, 391.4 px in German — the
+     edge letters were clipped. The type floor stays 11 px; only the tracking
+     and the box give way. */
+  .app-shell .workspace-modes [role="radio"] {
+    letter-spacing: 0.02em;
+  }
   .app-shell .workspace-language-label {
     display: none;
   }
@@ -935,6 +946,13 @@
     width: 100%;
     justify-content: flex-start;
     gap: 10px;
+    /* At 390 px the status row needs 522 px for search + fullscreen + fps +
+       three severity chips + Open project. Without wrapping, the last 160 px
+       were clipped and the primary scan action could not be reached. Let the
+       row stack inside the header it already owns; the mode bar starts at
+       186 px, below the tallest measured phone header (173 px). */
+    flex-wrap: wrap;
+    row-gap: 6px;
   }
   .app-shell .workspace-search {
     top: 110px;
@@ -965,6 +983,75 @@
   }
   .panel-head {
     padding: 12px 12px 8px;
+  }
+}
+
+/* Narrow workspaces: a wide viewport does not buy a wide header. Measured in
+   WebKit 2026-11-06 at 740x360: the identity and status rows needed 815 px in a
+   740 px header and "+ Open project" ended 75 px past the edge; at 800x360 the
+   overhang was 53 px. The 520 px phone rule never fired because the viewport is
+   wide, and the 760 px rule only narrowed the gaps. Below 600 px the duplicate
+   city-only door and the frame readout give way so the status row stays one row;
+   at 600 px and above it already fits. The mode bar keeps its 186 px row, and
+   search/crumbs sit below the taller header instead of under it. */
+@media (min-width: 521px) and (max-width: 800px) {
+  .app-shell .workspace-header {
+    height: auto;
+    min-height: 98px;
+    align-content: flex-start;
+    flex-wrap: wrap;
+    padding-top: 8px;
+    padding-bottom: 8px;
+    row-gap: 6px;
+  }
+  .app-shell .workspace-status {
+    width: 100%;
+    justify-content: flex-start;
+    gap: 8px;
+    flex-wrap: wrap;
+    row-gap: 6px;
+  }
+  .app-shell .workspace-search {
+    top: 110px;
+  }
+  .app-shell .workspace-breadcrumbs {
+    top: 158px;
+  }
+  .app-shell .workspace-modes {
+    top: 186px;
+  }
+}
+
+@media (min-width: 521px) and (max-width: 599px) {
+  /* Both are reachable elsewhere: city-only is a named row in the dock's More
+     menu, and the frame rate is an instrument, not the primary action. Keeping
+     them here would push the status row back to two lines at 568x320. */
+  .app-shell .workspace-status > .workspace-search-toggle + .workspace-search-toggle,
+  .app-shell .workspace-fps {
+    display: none;
+  }
+}
+
+/* Fit the mode bar before it leaves a 320 px screen. Measured 2026-11-06:
+   341.6 px English / 392.4 px German at 390 px; 330.8 px German at 320 px.
+   The padding is the control's, not the text's — the 11 px floor stays. */
+@media (max-width: 380px) {
+  .app-shell .workspace-modes .glass {
+    gap: 2px;
+    padding: 4px 3px;
+  }
+  .app-shell .workspace-modes [role="radio"] {
+    padding: 2px 4px;
+  }
+}
+
+@media (max-width: 340px) {
+  .app-shell .workspace-modes .glass {
+    gap: 1px;
+    padding: 4px 2px;
+  }
+  .app-shell .workspace-modes [role="radio"] {
+    padding: 2px 3px;
   }
 }
 

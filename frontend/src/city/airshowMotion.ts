@@ -2,8 +2,9 @@
  * The airshow's own decisions — where the aircraft flies, how it leans, what
  * the banner says and how big it lands on the screen.
  *
- * The split is the one `fleetMotion.ts` sets: `BannerPlane` owns the meshes and
- * the frame loop, this module owns the arithmetic and every number in it.
+ * The split this module shares with the other motion files: the component owns
+ * the meshes and the frame loop, this module owns the arithmetic and every
+ * number in it.
  *
  * The shape is a **racetrack, not a circle**, and that is a readability
  * decision rather than a taste one. A towed banner is a flat cloth whose face

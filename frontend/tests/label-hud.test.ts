@@ -5,7 +5,7 @@ import { HUD_SURFACES } from "../src/city/labelPlacement";
 
 /**
  * The label keeps out of the HUD by knowing where the HUD is. That knowledge is
- * a list of seven class names, and a list like this rots in silence: rename
+ * a list of class names, and a list like this rots in silence: rename
  * `.panel-info` and the plate starts sitting on the dossier, with every test
  * still green because nothing checks the list against the tree.
  */
@@ -60,6 +60,12 @@ describe("the surfaces the import label keeps clear of", () => {
     for (const cls of ["panel-context-card", "context-reopen"]) {
       expect(HUD_SURFACES, cls).toContain(`.${cls}`);
     }
+  });
+
+  it("reserves the height mast's live legend", () => {
+    // 2026-11-06, WebKit 1440x900: the demo's docs plaque covered the mast's
+    // ticks and roof note. The legend is a measurement surface, not scenery.
+    expect(HUD_SURFACES).toContain(".cf-mast");
   });
 });
 
@@ -174,5 +180,73 @@ describe("B3 — the district plaque obeys the same rule", () => {
   it("says where its plot went when the rule had to move it", () => {
     expect(district).toContain("plate.dataset.toward");
     expect(district).toContain("plate.dataset.detached");
+  });
+});
+
+/**
+ * A DOM plate is painted after the WebGL canvas, so it has no depth of its own.
+ * These guards hold the two ends of the fix: a curated solid-city provider, and
+ * a short fade instead of a per-frame pop when the orbit crosses a tower edge.
+ */
+describe("labels hide behind the city, not just behind the HUD", () => {
+  const wrapper = readFileSync(path.resolve(SRC, "render/LabelOcclusion.tsx"), "utf-8");
+  const tree = readFileSync(path.resolve(SRC, "components/CityTree.tsx"), "utf-8");
+  const css = readFileSync(path.resolve(SRC, "design/city-funktion.css"), "utf-8");
+
+  it("hands drei the curated occluder and keeps the DOM node for the fade", () => {
+    expect(wrapper).toContain("export const LabelOccludersContext");
+    expect(wrapper).toContain("occlude={occlude}");
+    expect(wrapper).toContain("onOcclude={setOccluded}");
+    expect(wrapper).toContain('data-occluded={hidden ? "true" : undefined}');
+    expect(tree).toContain('<group ref={setLabelOccluder} name="label-occluders">');
+    expect(tree).toContain("<LabelOccludersContext.Provider value={labelOccluder}>");
+  });
+
+  it("puts plots and towers in the occluder group; roads, crowd and arcs stay out", () => {
+    const start = tree.indexOf('name="label-occluders"');
+    const group = tree.slice(start, tree.indexOf("</group>", start));
+    expect(group).toContain("<District");
+    expect(group).toContain("<Building");
+    expect(group).not.toContain("<RoadSystem");
+    expect(group).not.toContain("<Pedestrians");
+    expect(group).not.toContain("<CityConnections");
+  });
+
+  it("moves every content plate onto the wrapper", () => {
+    const district = readFileSync(path.resolve(SRC, "components/District.tsx"), "utf-8");
+    const connections = readFileSync(path.resolve(SRC, "components/CityConnections.tsx"), "utf-8");
+    const pedestrians = readFileSync(path.resolve(SRC, "components/Pedestrians.tsx"), "utf-8");
+    expect(district).toContain("<OccludableHtml");
+    expect((connections.match(/<OccludableHtml/g) ?? []).length).toBe(2);
+    expect((pedestrians.match(/<OccludableHtml/g) ?? []).length).toBe(3);
+    expect(connections).toContain('k === "bogen" ? plateRef.current : plattenRef.current.get(k)');
+    expect(connections).toContain(
+      'el?.closest(".label-occludable")?.getAttribute("data-occluded")',
+    );
+    expect(connections).toContain('!== "true"');
+  });
+
+  it("leaves the measuring mast and the far heat chips unoccluded", () => {
+    const road = readFileSync(path.resolve(SRC, "components/RoadSystem.tsx"), "utf-8");
+    expect(road).toContain("<Html");
+    expect(road).not.toContain("OccludableHtml");
+    // The far tier is tiles, not towers: its chip is the tile's only name.
+    const farChip = tree.indexOf("district-label-${b.dir.path}");
+    expect(farChip).toBeGreaterThan(-1);
+    expect(tree.lastIndexOf("<Html", farChip)).toBeGreaterThan(-1);
+  });
+
+  it("waits through a one-frame crossing instead of flickering", () => {
+    expect(wrapper).toMatch(/HIDE_AFTER_MS = 140/);
+    expect(wrapper).toMatch(/SHOW_AFTER_MS = 90/);
+    expect(wrapper).toContain("window.setTimeout");
+    expect(wrapper).toContain("window.clearTimeout");
+  });
+
+  it("fades with a reduced-motion exit and keeps the plate in layout", () => {
+    expect(css).toContain('.label-occludable[data-occluded="true"]');
+    expect(css).toContain("opacity: 0");
+    expect(css).toContain("@media (prefers-reduced-motion: reduce)");
+    expect(css).toContain("transition: none;");
   });
 });

@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useMemo, useRef } from "react";
 import { useFrame } from "@react-three/fiber";
-import { Html } from "@react-three/drei";
 import * as THREE from "three";
 import type { DirLayout } from "../city/layout";
 import { ENV } from "../city/palette";
@@ -16,6 +15,7 @@ import {
 import { placeLabel, hudBoxes, HUD_SURFACES, TOWARD_GLYPH, type Box } from "../city/labelPlacement";
 import { useStore } from "../stores/useStore";
 import { formatCount, t } from "../i18n";
+import { OccludableHtml } from "../render/LabelOcclusion";
 
 /**
  * Import relationships as glowing arcs:
@@ -170,7 +170,11 @@ export function CityConnections({
   const plattenRef = useRef(new Map<string, HTMLDivElement | null>());
   const anderePlatten = (eigenes: string): Box[] =>
     [...reserviertRef.current.entries()]
-      .filter(([k]) => k !== eigenes)
+      .filter(([k]) => {
+        if (k === eigenes) return false;
+        const el = k === "bogen" ? plateRef.current : plattenRef.current.get(k);
+        return el?.closest(".label-occludable")?.getAttribute("data-occluded") !== "true";
+      })
       .map(([, b]): Box => ({
         x: b.x - PLATE_ABSTAND,
         y: b.y - PLATE_ABSTAND,
@@ -454,7 +458,7 @@ export function CityConnections({
         </group>
       ))}
       {labelled && (
-        <Html
+        <OccludableHtml
           center
           position={[labelled.apex.x, labelled.apex.y, labelled.apex.z]}
           zIndexRange={[8, 0]}
@@ -475,10 +479,10 @@ export function CityConnections({
               })}
             </div>
           </div>
-        </Html>
+        </OccludableHtml>
       )}
       {nachbarn.map((n) => (
-        <Html
+        <OccludableHtml
           key={`np-${n.id}`}
           center
           position={[n.x, n.y, n.z]}
@@ -503,7 +507,7 @@ export function CityConnections({
                   })}
             </div>
           </div>
-        </Html>
+        </OccludableHtml>
       ))}
       {dirGeos.map((geo, i) => (
         <mesh key={`da-${i}`} geometry={geo} material={dirMat} />

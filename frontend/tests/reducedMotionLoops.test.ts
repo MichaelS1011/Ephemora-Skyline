@@ -3,7 +3,7 @@ import { readFileSync, readdirSync } from "fs";
 import path from "path";
 
 /**
- * Eight `useFrame` loops animated the city while `prefers-reduced-motion` was
+ * Every `useFrame` loop animated the city while `prefers-reduced-motion` was
  * honoured only by the stylesheet and the camera rig. A signal that has to be
  * remembered per file is a signal that gets forgotten per file, so this guard
  * makes the omission fail a test instead of a user's expectations: every file
@@ -15,9 +15,7 @@ const COMPONENTS = path.resolve(import.meta.dirname, "../src/components");
 /** Files whose loops this lane guarantees honour the signal. */
 const MUST_HONOUR = [
   "Building.tsx",
-  "ParticleField.tsx",
   "Pedestrians.tsx",
-  "RoadSystem.tsx",
   "CityConnections.tsx",
   "DependencyFlows.tsx",
   "CloneLasers.tsx",

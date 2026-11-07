@@ -1,20 +1,18 @@
 // @vitest-environment node
 /**
- * The street fleet as a thing with rules.
+ * The car shape and paint that survive the ambient fleet.
  *
- * It used to be two boxes: 0.85 long, 0.22 high, unlit (`meshBasicMaterial
- * toneMapped={false}`, so it ignored the day the rest of the world lives in), no
- * wheels, and coloured from a literal that included an alarm-band orange and the
- * streetlight's own filament colour. Measured against the resident walking past
- * it, the car was 0.54 units tall against a person of 1.35 — a toy on a toy
- * street.
+ * The street fleet used to draw background cars from three instanced meshes.
+ * §06.08 measured it at 0 px in the district with three patches applied: the
+ * instances ran, nothing was visible. The fleet is gone, but its proportions
+ * and livery still carry the car a reader can drive and the residents' wheel
+ * roll, so those numbers stay under guard.
  */
 
 import { describe, it, expect } from "vitest";
-import { readFileSync } from "fs";
+import { existsSync, readFileSync } from "fs";
 import path from "path";
-import { wheelRoll } from "../src/components/RoadSystem";
-import { CAR_SHAPE, FLEET_LIVERY } from "../src/city/openWorldStreets";
+import { CAR_SHAPE, FLEET_LIVERY, wheelRoll } from "../src/city/openWorldStreets";
 import { SEVERITY_COLOR, SEVERITY_CVD_COLOR } from "../src/city/palette";
 import { FIGURE } from "../src/components/Pedestrians";
 
@@ -37,7 +35,7 @@ const deltaE = (a: string, b: string): number => {
   return Math.hypot(l1! - l2!, a1! - a2!, b1! - b2!);
 };
 
-describe("the street fleet", () => {
+describe("the car shape", () => {
   it("stands a car up to the height of the person beside it", () => {
     const carTop = CAR_SHAPE.cabin.y + CAR_SHAPE.cabin.h / 2;
     // a hatchback is roughly three quarters of a standing adult
@@ -72,7 +70,7 @@ describe("the street fleet", () => {
     expect(Math.abs(wheelRoll(Math.PI * r, 1, r))).toBeCloseTo(Math.PI, 6);
   });
 
-  it("keeps every fleet coat outside the alarm band", () => {
+  it("keeps every remaining coat outside the alarm band", () => {
     for (const coat of FLEET_LIVERY) {
       for (const severity of [
         ...Object.values(SEVERITY_COLOR),
@@ -83,23 +81,33 @@ describe("the street fleet", () => {
     }
   });
 
-  it("is lit like the rest of the world, and never carries its own colour literal", () => {
-    const road = readFileSync(path.join(SRC, "components/RoadSystem.tsx"), "utf-8");
-    // The body used to be `meshBasicMaterial toneMapped={false}`: a sticker in a
-    // lit scene, so a car could not show which way the sun came from. The flat
-    // paint that stays unlit is the road marking, the lamp head and the plot
-    // edge — so the rule is scoped to the traffic block, not the whole file.
-    const traffic = road.slice(road.indexOf("{/* Traffic"));
-    const block = traffic.slice(0, traffic.indexOf("\n\n"));
-    expect(block, "the traffic block is not where the memo says it is").toContain("CAR_SHAPE");
-    expect(block).not.toMatch(/toneMapped=\{false\}/);
-    expect(block).not.toContain('meshBasicMaterial color="#ffffff"');
-    expect((block.match(/meshStandardMaterial/g) ?? []).length).toBe(3);
-    expect(road).toContain("FLEET_LIVERY");
-    expect(road).toContain("CAR_SHAPE");
-    // and the four old literals are gone from the file, not merely unused
-    for (const gone of ["#ff6a4d", "#ffd9a0", "#ffe9c4", "#bfe8ff"]) {
-      expect(road, `${gone} is back in RoadSystem`).not.toContain(gone);
-    }
+  it("is still the shape the drive car uses", () => {
+    const drive = readFileSync(path.join(SRC, "components/DriveCar.tsx"), "utf-8");
+    expect(drive).toContain("CAR_SHAPE");
+    expect(drive).toContain("FLEET_LIVERY");
+  });
+});
+
+describe("the decoration that measured zero is gone", () => {
+  const road = readFileSync(path.join(SRC, "components/RoadSystem.tsx"), "utf-8");
+  const barrel = readFileSync(path.join(SRC, "components/index.ts"), "utf-8");
+  const loops = readFileSync(
+    path.resolve(import.meta.dirname, "reducedMotionLoops.test.ts"),
+    "utf-8",
+  );
+
+  it("draws no ambient street fleet", () => {
+    // 0 px with three visibility patches applied — it cost instances, not image.
+    expect(road).not.toContain("fleet-body");
+    expect(road).not.toContain("carRef");
+    expect(road).not.toContain("FLEET_LIVERY");
+    expect(road).not.toContain("CAR_SHAPE");
+    expect(existsSync(path.join(SRC, "city/fleetMotion.ts"))).toBe(false);
+  });
+
+  it("keeps no dust module or guard for a module nothing rendered", () => {
+    expect(existsSync(path.join(SRC, "components/ParticleField.tsx"))).toBe(false);
+    expect(barrel).not.toContain("ParticleField");
+    expect(loops).not.toContain("ParticleField.tsx");
   });
 });
