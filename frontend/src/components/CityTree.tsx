@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useFrame } from "@react-three/fiber";
 import { Html } from "@react-three/drei";
 import type { Group } from "three";
@@ -22,7 +22,7 @@ import { reviewKeyFor } from "../reviews";
 import type { CityDir, CityFile } from "../city/types";
 import type { Lang } from "../i18n";
 import { RoadSystem } from "./RoadSystem";
-import { District } from "./District";
+import { District, SITZ_AN } from "./District";
 import { Building } from "./Building";
 import { CityConnections } from "./CityConnections";
 import { DependencyFlows } from "./DependencyFlows";
@@ -32,6 +32,8 @@ import { Pedestrians } from "./Pedestrians";
 import { useLodLevel } from "../hooks/useLodLevel";
 import { LOD_THRESHOLDS } from "../hooks/useLodFar";
 import { computeFocusTiers, type FocusTier } from "../city/focus";
+import { planFocusPath, visibleFocusPath } from "../city/focusPath";
+import { collectBenches } from "../city/benchLife";
 import { planBlastRadius, type BlastNode } from "../city/blastRadius";
 import { xrayLayerPlan } from "../city/xray";
 import {
@@ -312,6 +314,21 @@ export function CityTree() {
     [cityData, layout, selectedFileId],
   );
 
+  // Entry path — the proven import chain from a real lighthouse to the
+  // selected file. Only the contiguous suffix whose hops both stand on this
+  // level is drawn; a gap ends the line rather than borrowing a district
+  // anchor. The path is an inspection lens of its own, so it stays out of the
+  // X-RAY and DEPENDENCIES stages, which already own the same edges.
+  const entryPath = useMemo(() => {
+    if (!cityData || !layout || !selectedFileId || viewMode !== "structure") return null;
+    const entries = detectRoleLandmarks(cityData)
+      .filter((landmark) => landmark.kind === "lighthouse")
+      .map((landmark) => landmark.fileId);
+    const plan = planFocusPath(entries, selectedFileId, cityData.fileConnections);
+    return visibleFocusPath(plan, new Set(layout.buildings.map((b) => b.file.id)));
+  }, [cityData, layout, selectedFileId, viewMode]);
+  const entryPathIds = useMemo(() => new Set(entryPath?.nodes ?? []), [entryPath]);
+
   // Blast radius (005 Teil A) — the files that IMPORT the selection. Deliberately
   // narrower than the focus tier above: a depth of field may be symmetric
   // because it only dims, an impact claim may not. Off until asked for, and
@@ -435,6 +452,26 @@ export function CityTree() {
         .filter((s) => s.kind === "building")
         .map((s) => ({ x: s.x, z: s.z, doorX: s.doorX, doorZ: s.doorZ, unitId: s.unitId ?? null })),
     [plan],
+  );
+
+  // Benches are the same seats the plots already draw, named in world space.
+  // A district reports its own screen-space answer here (the plate can cover a
+  // seat even when the seat exists), and the crowd targets only the ones left
+  // visible. The set changes only when a camera pose changes, not per frame.
+  const benches = useMemo(() => (SITZ_AN ? collectBenches(layout?.blocks ?? []) : []), [layout]);
+  const [hiddenBenches, setHiddenBenches] = useState<ReadonlySet<string>>(new Set());
+  const reportSeatVisibility = useCallback((id: string, visible: boolean) => {
+    setHiddenBenches((previous) => {
+      if (visible ? !previous.has(id) : previous.has(id)) return previous;
+      const next = new Set(previous);
+      if (visible) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }, []);
+  const visibleBenches = useMemo(
+    () => benches.map((bench) => ({ ...bench, visible: !hiddenBenches.has(bench.id) })),
+    [benches, hiddenBenches],
   );
 
   // Build director: reports progress and flips to 'built', riding the
@@ -638,6 +675,7 @@ export function CityTree() {
             homes={homes}
             buildSites={constructing ? sitesWithAt : null}
             vehiclesActive={buildPhase === "built"}
+            benches={visibleBenches}
             count={72}
             bounds={layout.bounds}
           />
@@ -656,6 +694,7 @@ export function CityTree() {
                   appearAt={blockAppear(i)}
                   skylineAt={skylineAppear(i)}
                   constructing={animating}
+                  onSeatVisibility={reportSeatVisibility}
                 />
               </SurfaceAnchor>
             ))}
@@ -676,7 +715,13 @@ export function CityTree() {
                   findingFocus={voxelHighlight?.fileId === b.file.id}
                   isLandmark={b.file.id === landmarkId}
                   dimmed={fileDimmed(b)}
-                  focusTier={tiers.get(b.file.id) ?? null}
+                  focusTier={
+                    entryPath
+                      ? entryPathIds.has(b.file.id)
+                        ? 0
+                        : 3
+                      : (tiers.get(b.file.id) ?? null)
+                  }
                   blastAffected={blastIds.has(b.file.id)}
                   fullyReviewed={fullyReviewed(b.file)}
                   appearAt={buildingAppear(i)}
@@ -754,11 +799,14 @@ export function CityTree() {
             allFileArcs={!!xrayPlan?.importArcs}
             selectedFileId={selectedFileId}
             highlight={viewMode === "dependencies" || viewMode === "xray"}
+            pathEdges={entryPath?.edges ?? null}
           />
 
           {/* Directed particle streams: the selection's neighbourhood, or every
-            edge this level can anchor under the X-RAY lens. */}
-          {(selectedFileId !== null || !!xrayPlan?.dependencyFlows) && (
+            edge this level can anchor under the X-RAY lens. The entry path
+            already draws its hops as a still line, so the streams step aside
+            instead of adding a second moving copy of the same chain. */}
+          {!entryPath && (selectedFileId !== null || !!xrayPlan?.dependencyFlows) && (
             <DependencyFlows
               layout={layout}
               fileConnections={cityData.fileConnections}

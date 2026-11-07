@@ -63,6 +63,8 @@ export interface DistrictProps {
    */
   skylineAt: number[];
   constructing: boolean;
+  /** Report the screen-space answer for this plot's bench; only on a change. */
+  onSeatVisibility?: (id: string, visible: boolean) => void;
 }
 
 /** Shared by every district band: the colour is per vertex, so one material
@@ -109,7 +111,7 @@ const SEAT_MATERIAL = new THREE.MeshStandardMaterial({
  * `?ruhe=0`: an A/B on the plate needs a build to compare against, and the
  * switch is the only reason the comparison does not need a second checkout.
  */
-const SITZ_AN = (() => {
+export const SITZ_AN = (() => {
   if (typeof window === "undefined") return true;
   try {
     return new URLSearchParams(window.location.search).get("sitz") !== "0";
@@ -118,7 +120,13 @@ const SITZ_AN = (() => {
   }
 })();
 
-export function District({ placement, appearAt, skylineAt, constructing }: DistrictProps) {
+export function District({
+  placement,
+  appearAt,
+  skylineAt,
+  constructing,
+  onSeatVisibility,
+}: DistrictProps) {
   const drillIn = useStore((s) => s.drillIn);
   const setHoveredId = useStore((s) => s.setHoveredId);
 
@@ -333,12 +341,9 @@ export function District({ placement, appearAt, skylineAt, constructing }: Distr
         state.size.width !== zuletzt.breite;
       if (kameraNeu) {
         sitzKamera.current = { x: k.x, y: k.y, z: k.z, breite: state.size.width };
-        sitzMesh.visible = !bankUnterPlakette(
-          sitzMesh,
-          plakette,
-          state.camera,
-          state.gl.domElement,
-        );
+        const sichtbar = !bankUnterPlakette(sitzMesh, plakette, state.camera, state.gl.domElement);
+        if (sitzMesh.visible !== sichtbar) sitzMesh.visible = sichtbar;
+        onSeatVisibility?.(dir.path || dir.name, sichtbar);
       }
     }
   });

@@ -50,6 +50,13 @@ interface ConnectionProps {
    * second colour language.
    */
   highlight?: boolean;
+  /**
+   * A proven entry-to-selection chain. When present, the static arcs collapse
+   * to exactly these hops and the plate family stays silent: the chain is the
+   * sentence, not another row of labels. A null/empty list keeps the ordinary
+   * selection arcs.
+   */
+  pathEdges?: ReadonlyArray<{ from: string; to: string }> | null;
 }
 
 const DIR_ARCS_MAX = 26;
@@ -130,9 +137,11 @@ export function CityConnections({
   allFileArcs = false,
   selectedFileId = null,
   highlight = false,
+  pathEdges = null,
 }: ConnectionProps) {
   const lang = useStore((s) => s.prefs.lang);
   const settledRef = useRef(false);
+  const pathActive = !!pathEdges && pathEdges.length > 0;
   const buildingPos = useMemo(() => {
     const map = new Map<string, ArcAnchor>();
     for (const b of layout.buildings)
@@ -147,14 +156,33 @@ export function CityConnections({
   }, [layout]);
 
   // ── File → file arcs ─────────────────────────────────────────────────────
-  const arcs = useMemo(
-    () =>
-      allFileArcs && showFileArcs
-        ? planAllImportArcs(fileConnections, buildingPos)
-        : planImportArcs(fileConnections, buildingPos, showFileArcs ? selectedFileId : null),
-    [fileConnections, buildingPos, showFileArcs, selectedFileId, allFileArcs],
+  const arcs = useMemo(() => {
+    if (pathActive) {
+      return planAllImportArcs(
+        pathEdges!.map((edge) => ({ ...edge, weight: 1 })),
+        buildingPos,
+      ).map((arc) => ({
+        ...arc,
+        emphasized: true,
+        direction: "out" as const,
+      }));
+    }
+    return allFileArcs && showFileArcs
+      ? planAllImportArcs(fileConnections, buildingPos)
+      : planImportArcs(fileConnections, buildingPos, showFileArcs ? selectedFileId : null);
+  }, [
+    fileConnections,
+    buildingPos,
+    showFileArcs,
+    selectedFileId,
+    allFileArcs,
+    pathActive,
+    pathEdges,
+  ]);
+  const labelled = useMemo(
+    () => (pathActive ? null : (arcs.find((a) => a.emphasized) ?? null)),
+    [arcs, pathActive],
   );
-  const labelled = useMemo(() => arcs.find((a) => a.emphasized) ?? null, [arcs]);
 
   // The plate is placed by the same rule the tests measure: it sits on the
   // arc's apex when the apex is somewhere a reader can look, and as close to it
@@ -241,7 +269,7 @@ export function CityConnections({
    * frame of lag at 4 Hz and invisible.
    */
   const nachbarn = useMemo(() => {
-    if (!selectedFileId || !showFileArcs) return [];
+    if (pathActive || !selectedFileId || !showFileArcs) return [];
     const out: Array<{
       id: string;
       name: string;
@@ -274,7 +302,7 @@ export function CityConnections({
       if (out.length >= NACHBARN_MAX) break;
     }
     return out;
-  }, [arcs, selectedFileId, showFileArcs, layout]);
+  }, [arcs, selectedFileId, showFileArcs, layout, pathActive]);
 
   const plattenPosition = useCallback(
     (id: string) =>

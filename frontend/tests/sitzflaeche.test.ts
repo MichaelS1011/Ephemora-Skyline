@@ -305,8 +305,9 @@ describe("§07.13a-Fix — the screen, not the world, has the last word", () => 
     // Absicht pruefen, nicht den Zeilenumbruch: das Formatierwerkzeug des
     // Pre-Commit-Hooks darf diese Zeile umbrechen, ohne dass die Wache stirbt.
     expect(DISTRICT).toMatch(
-      /sitzMesh\.visible\s*=\s*!bankUnterPlakette\(\s*sitzMesh,\s*plakette,\s*state\.camera,\s*state\.gl\.domElement,?\s*\);/,
+      /const sichtbar = !bankUnterPlakette\(\s*sitzMesh,\s*plakette,\s*state\.camera,\s*state\.gl\.domElement,?\s*\);/,
     );
+    expect(DISTRICT).toContain("onSeatVisibility?.(dir.path || dir.name, sichtbar);");
     expect(DISTRICT.match(/useFrame\(/g) ?? []).toHaveLength(1);
   });
 

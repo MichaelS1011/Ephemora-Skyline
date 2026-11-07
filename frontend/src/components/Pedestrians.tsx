@@ -55,6 +55,8 @@ import {
   waveLateral,
 } from "../city/epheGait";
 import type { BuildSite } from "../city/layout";
+import { freeBenchNear, type BenchSpot } from "../city/benchLife";
+import { SEAT } from "../city/seatSurface";
 import { ENV, EPHE_PALETTE } from "../city/palette";
 import {
   BADGE_EXTRA_HUD,
@@ -138,7 +140,9 @@ type Mode =
   | "inTaxi"
   | "toSite"
   | "guide"
-  | "work";
+  | "work"
+  | "toBench"
+  | "sit";
 
 interface Ephe {
   x: number;
@@ -171,6 +175,12 @@ interface Ephe {
   pause: number;
   /** How far the rest pose has taken hold, 0 = walking stance, 1 = resting. */
   restBlend: number;
+  /** How far the seated pose has taken hold; 0 also means "not on a bench". */
+  sitBlend: number;
+  /** The bench this resident holds, or null when none. */
+  benchId: string | null;
+  /** Simulation time at which the sit ends and the walk resumes. */
+  sitUntil: number;
   mode: Mode;
   home: number; // home spot index
   anim: number; // grow/shrink 0..1
@@ -231,7 +241,7 @@ interface Ephe {
 
 const WALKER_COLORS = EPHE_PALETTE.jackets;
 
-export type EpheGesture = "idle" | "chat" | "carry" | "lift" | "greet" | "point" | "rest";
+export type EpheGesture = "idle" | "chat" | "carry" | "lift" | "greet" | "point" | "rest" | "sit";
 
 /**
  * The body plan of one resident, in units of the 1.35-tall person.
@@ -456,6 +466,7 @@ export function writeEpheLimbPose(
   strideAmp = 0.13,
   blend = 1,
   restBlend = 0,
+  sitBlend = 0,
 ): void {
   const step = Math.max(-1, Math.min(1, stride)) * side;
   out.footX = side * 0.12;
@@ -542,6 +553,20 @@ export function writeEpheLimbPose(
       out.handZ = -0.08 * r;
     }
     out.handX = side * (0.28 + 0.04 * r);
+  } else if (gesture === "sit") {
+    // §07.13b — the bench is 0,60 above its slab and the hip is 0,70 in a
+    // standing figure, so sitting raises the body by only 0,08 units; what
+    // changes the silhouette is the bend. Both feet move forward to the ground
+    // below the knees, the knees lead the hip→ankle line, and both hands come
+    // down onto the thighs. Nothing here is a new mesh or a new draw call.
+    const s = sitBlend;
+    out.footX += side * 0.01 * s;
+    out.footZ += 0.32 * s;
+    out.footY = 0.078;
+    out.kneeForward += 0.16 * s;
+    out.handX -= side * 0.02 * s;
+    out.handY += 0.16 * s;
+    out.handZ += 0.18 * s;
   }
 }
 
@@ -689,6 +714,9 @@ function makeEphe(
     tz: 0,
     pause: 0,
     restBlend: 0,
+    sitBlend: 0,
+    benchId: null,
+    sitUntil: 0,
     mode: "walk",
     home,
     identity: ephePresenceIdentity(
@@ -789,6 +817,7 @@ export function Pedestrians({
   buildSites = null,
   vehiclesActive = true,
   streetPlates = null,
+  benches = [],
   directStep = DIRECT_STEP_UNITS,
 }: {
   streets?: StreetLine[] | null;
@@ -803,6 +832,8 @@ export function Pedestrians({
   /** Flat street paint to draw — the open world's own grid. Absent in a city,
    *  where RoadSystem already paints the streets. */
   streetPlates?: StreetPlate[] | null;
+  /** Benches this level can seat a resident on; visibility already applied. */
+  benches?: readonly BenchSpot[];
   /** How short a hop may be to walk it straight instead of being routed over
    *  the street graph. A city uses the frontage step (a door is 2 units off the
    *  kerb); the open world passes 0, because without doors there is nothing to
@@ -921,6 +952,12 @@ export function Pedestrians({
     [crowd, bounds, network, homes],
   );
 
+  // Benches arrive from CityTree once a district has measured the screen-space
+  // answer for its seat. Keep them out of the walkers memo: a bench blinking
+  // under a nameplate must not rebuild (and teleport) the crowd.
+  const benchesRef = useRef(benches);
+  benchesRef.current = benches;
+
   // Scratch space for the personal-space pass: one neighbour record per figure
   // and one output object, reused every frame. No allocation in the loop.
   const socialNeighbors = useMemo(
@@ -1023,6 +1060,7 @@ export function Pedestrians({
     // scheduler timers
     tEnter: 4,
     tExit: 2.5,
+    tBench: 14,
     tChat: 5,
     tStopRefill: 3,
     tTaxi: 8,
@@ -2147,6 +2185,52 @@ export function Pedestrians({
       }
     }
 
+    // A bench is a place to stop, not a destination selected by the dwell
+    // timer: one resident at a time walks to the nearest visible free seat,
+    // sits until its own timer runs out, then rejoins the street. The one-at-a-
+    // time cap is also the occupancy rule — no second figure can claim what the
+    // crowd already holds.
+    S.tBench -= dt;
+    if (S.tBench <= 0 && benchesRef.current.length > 0) {
+      S.tBench = 15 + Math.random() * 10;
+      const taken = new Set(walkers.filter((e) => e.benchId !== null).map((e) => e.benchId!));
+      const busy = walkers.some((e) => e.mode === "toBench" || e.mode === "sit");
+      const claimed = useStore.getState().residentNames;
+      if (!busy) {
+        let best = -1;
+        let bestBench: BenchSpot | null = null;
+        let bestDistance = Infinity;
+        for (let i = 0; i < walkers.length; i++) {
+          const e = walkers[i]!;
+          if (
+            e.mode !== "walk" ||
+            e.pause > 0 ||
+            e.hidden ||
+            e.chatPartner >= 0 ||
+            e.ride !== null ||
+            onDuty(e, epheKey(e.identity) in claimed)
+          )
+            continue;
+          const seat = freeBenchNear(benchesRef.current, taken, e);
+          if (!seat) continue;
+          const distance = Math.hypot(seat.x - e.x, seat.z - e.z);
+          if (distance < bestDistance) {
+            bestDistance = distance;
+            best = i;
+            bestBench = seat;
+          }
+        }
+        if (best >= 0 && bestBench) {
+          const e = walkers[best]!;
+          e.mode = "toBench";
+          e.benchId = bestBench.id;
+          e.pause = 0;
+          e.anim = 1;
+          routeTo(e, bestBench.x, bestBench.z);
+        }
+      }
+    }
+
     // chat pairing
     S.tChat -= dt;
     if (S.tChat <= 0) {
@@ -2646,12 +2730,20 @@ export function Pedestrians({
         slot.moving =
           o.pause <= 0 &&
           o.vel > 0.05 &&
-          (o.mode === "walk" || o.mode === "waitBus" || o.mode === "toSite" || o.mode === "toTaxi");
+          (o.mode === "walk" ||
+            o.mode === "waitBus" ||
+            o.mode === "toSite" ||
+            o.mode === "toTaxi" ||
+            o.mode === "toBench");
         nearby++;
       }
       for (const e of walkers) {
         const walking =
-          e.mode === "walk" || e.mode === "waitBus" || e.mode === "toSite" || e.mode === "toTaxi";
+          e.mode === "walk" ||
+          e.mode === "waitBus" ||
+          e.mode === "toSite" ||
+          e.mode === "toTaxi" ||
+          e.mode === "toBench";
         if (!walking) {
           e.avoid = 1;
           e.px = ramp(e.px, 0, 5, dt);
@@ -2722,6 +2814,36 @@ export function Pedestrians({
             if (Math.random() < 0.22) e.pause = 0.7 + Math.random() * 2.2;
             graphWander(e);
           }
+        }
+      } else if (e.mode === "toBench") {
+        const bench = benchesRef.current.find((b) => b.id === e.benchId);
+        if (!bench || !bench.visible) {
+          e.benchId = null;
+          e.mode = "walk";
+          resumeWalk(e);
+        } else if (planStep(e, dt)) {
+          e.x = bench.x;
+          e.z = bench.z;
+          e.tx = bench.x;
+          e.tz = bench.z;
+          e.path = [];
+          e.finalX = null;
+          e.angle = 0;
+          e.vel = 0;
+          e.mode = "sit";
+          e.sitUntil = now + 18 + Math.random() * 14;
+        }
+      } else if (e.mode === "sit") {
+        const bench = benchesRef.current.find((b) => b.id === e.benchId);
+        e.vel = ramp(e.vel, 0, ACCEL, dt);
+        if (!bench || !bench.visible || now >= e.sitUntil) {
+          e.mode = "walk";
+          e.benchId = null;
+          e.sitUntil = 0;
+          // Hold the feet for the length of the pose ramp so standing up goes
+          // through the same 0→1 blend the sit arrived on, not a one-frame snap.
+          e.pause = Math.max(e.pause, 0.3);
+          resumeWalk(e);
         }
       } else if (e.mode === "called") {
         // Stand, turn to the person who called, and wait. Once the guide card
@@ -2880,6 +3002,10 @@ export function Pedestrians({
       // working, chatting, pointing or being called keeps its own posture.
       const resting = RUHE_AN && e.mode === "walk" && !moving && !turning && e.pause > 0;
       e.restBlend = ramp(e.restBlend, resting ? 1 : 0, STRIDE_RAMP, dt);
+      // §07.13b — the seated pose is ramped on the same clock as every other
+      // posture; at blend 0 it is the standing body, so standing up never pops.
+      e.sitBlend = ramp(e.sitBlend, e.mode === "sit" ? 1 : 0, STRIDE_RAMP, dt);
+      const sitLift = e.sitBlend * (SEAT.slabY + SEAT.kronenY - FIGURE.hipY);
       const stride = moving
         ? Math.sin(e.gait) * e.blend
         : turning
@@ -2898,7 +3024,7 @@ export function Pedestrians({
         : e.mode === "work"
           ? Math.sin(now * 9) * 0.04
           : 0;
-      const y = (FIGURE.bodyY + bob) * e.tall * grow;
+      const y = (FIGURE.bodyY + bob) * e.tall * grow + sitLift * e.tall * grow;
       const vScale = e.tall * grow * visibleScale;
 
       // A walk is a weight shifting from one foot to the other, not a body
@@ -3037,9 +3163,11 @@ export function Pedestrians({
                   ? "lift"
                   : e.mode === "toSite"
                     ? "carry"
-                    : resting
-                      ? "rest"
-                      : "idle";
+                    : e.mode === "sit" || e.sitBlend > 0.002
+                      ? "sit"
+                      : resting
+                        ? "rest"
+                        : "idle";
       // Eleven limb instances per figure: 0-1 boots, 2-3 sleeves, 4-5 hands,
       // 6-7 thighs, 8-9 shins, 10 the hair cap — all written from one pose
       // call, all drawn in the crowd's single limb pass.
@@ -3071,6 +3199,7 @@ export function Pedestrians({
           // stop use, so a figure adjusting its footing never snaps.
           e.blend * e.pivotAmp,
           e.restBlend,
+          e.sitBlend,
         );
         if (gesture === "idle") limbPose.handZ *= e.armStyle;
         const footX = renderX + (forwardZ * limbPose.footX + forwardX * limbPose.footZ) * width;
@@ -3087,7 +3216,7 @@ export function Pedestrians({
         // two spheres into a bending leg instead of a hanging one.
         const hipX = renderX + swayX * 0.6 + forwardZ * lateral * FIGURE.hipWidth * width;
         const hipZ = renderZ + swayZ * 0.6 - forwardX * lateral * FIGURE.hipWidth * width;
-        const hipYw = FIGURE.hipY * vScale;
+        const hipYw = (FIGURE.hipY + sitLift) * vScale;
         const kneeLead = limbPose.kneeForward * width;
         const kneeX = (hipX + footX) / 2 + forwardX * kneeLead;
         const kneeY = FIGURE.kneeY * vScale;

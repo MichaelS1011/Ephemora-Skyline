@@ -108,7 +108,7 @@ describe("Z-02 — the neighbour plates", () => {
 
   it("draws one plate per neighbour, only while a building is selected", () => {
     expect(datei).toContain("const NACHBARN_MAX = 6;");
-    expect(datei).toMatch(/if \(!selectedFileId \|\| !showFileArcs\) return \[\];/);
+    expect(datei).toMatch(/if \(pathActive \|\| !selectedFileId \|\| !showFileArcs\) return \[\];/);
     expect(datei).toContain("const gesehen = new Set<string>();");
     expect(datei).toContain('className="cf-plate cf-plate-neighbour"');
     // The plate rides the neighbour's own roof, not the arc's apex.

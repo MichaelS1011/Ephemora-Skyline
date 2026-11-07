@@ -142,9 +142,10 @@ describe("the gate keeps it a walker's pose", () => {
 
   it("never overrides a greeting, a call, a chat, a job or a guide", () => {
     // `rest` is the last branch of the gesture chain, behind every named mode.
-    const zeile = PEDESTRIANS.indexOf(': resting\n                      ? "rest"');
+    // Sitting joined that list in §07.13b, and the branch indent moved with it.
+    const zeile = PEDESTRIANS.indexOf(": resting");
     const kette = PEDESTRIANS.slice(PEDESTRIANS.indexOf("const gesture: EpheGesture ="), zeile);
-    for (const andere of ["guide", "called", "greet", "chat", "work", "toSite"]) {
+    for (const andere of ["guide", "called", "greet", "chat", "work", "toSite", "sit"]) {
       expect(kette, `${andere} is decided before rest`).toContain(andere);
     }
     expect(zeile).toBeGreaterThan(PEDESTRIANS.indexOf("const resting ="));
