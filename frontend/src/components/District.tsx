@@ -21,7 +21,12 @@ import {
 } from "../city/palette";
 import { districtBandGeometry } from "../city/districtBand";
 import { seatGeometry, seatPlacement } from "../city/seatSurface";
-import { bankUnterPlakette } from "../city/seatVisibility";
+import {
+  bankUnterPlakette,
+  projektion,
+  projektionVonBox,
+  type Rechteck,
+} from "../city/seatVisibility";
 import { HUD_SURFACES, TOWARD_GLYPH, hudBoxes, placeLabel, type Box } from "../city/labelPlacement";
 import { complexityForHeight } from "../city/mapping";
 import { reducedSettle } from "../city/motion";
@@ -38,6 +43,7 @@ import "../design/city-funktion.css";
  *  census per interval, shared by every district's plaque. */
 const HUD_REFRESH_MS = 250;
 const _plakettePunkt = new THREE.Vector3();
+const _turmBox = new THREE.Box3();
 
 /**
  * A district — a BUILT plot: curb, nameplate and a skyline of up to six
@@ -65,6 +71,13 @@ export interface DistrictProps {
   constructing: boolean;
   /** Report the screen-space answer for this plot's bench; only on a change. */
   onSeatVisibility?: (id: string, visible: boolean) => void;
+  /** Whole-level overview: blockier towers, none of the hairline detail. */
+  overview?: boolean;
+  /**
+   * A proven import path is on screen. Its line is the one thing the reader
+   * asked to follow; a district nameplate may not sit on top of it.
+   */
+  suppressPlate?: boolean;
 }
 
 /** Shared by every district band: the colour is per vertex, so one material
@@ -126,6 +139,8 @@ export function District({
   skylineAt,
   constructing,
   onSeatVisibility,
+  overview = false,
+  suppressPlate = false,
 }: DistrictProps) {
   const drillIn = useStore((s) => s.drillIn);
   const setHoveredId = useStore((s) => s.setHoveredId);
@@ -189,6 +204,7 @@ export function District({
   // all stand for the same district, so they claim and release together and
   // the tooltip never blinks while the pointer travels across them.
   const ownerRef = useRef<object>({ block: dir.path });
+  const groupRef = useRef<THREE.Group>(null);
   const hoverTargetRef = useRef(0);
   const hoverGlowRef = useRef(0);
 
@@ -238,9 +254,15 @@ export function District({
    *  near the level's left edge crosses the picture's boundary to reach its
    *  plot. The card is reserved against now (it joined `HUD_SURFACES`), so
    *  the plaque stands beside it, as close to its plot as the HUD allows. */
-  const plaketteHud = useRef<{ at: number; canvas: DOMRect | null; boxes: Box[] }>({
+  const plaketteHud = useRef<{
+    at: number;
+    canvas: DOMRect | null;
+    canvasEl: HTMLElement | null;
+    boxes: Box[];
+  }>({
     at: -Infinity,
     canvas: null,
+    canvasEl: null,
     boxes: [],
   });
   const plakettePosition = useCallback(
@@ -256,14 +278,52 @@ export function District({
       };
       const now = Date.now();
       if (now - plaketteHud.current.at > HUD_REFRESH_MS) {
-        const canvas = document.querySelector("canvas")?.getBoundingClientRect() ?? null;
-        plaketteHud.current = { at: now, canvas, boxes: hudBoxes(canvas, HUD_SURFACES) };
+        const canvasEl = document.querySelector("canvas");
+        const canvas = canvasEl?.getBoundingClientRect() ?? null;
+        plaketteHud.current = {
+          at: now,
+          canvas,
+          canvasEl,
+          boxes: hudBoxes(canvas, HUD_SURFACES),
+        };
       }
       const plate = plaketteRef.current;
       const box = { w: plate?.offsetWidth || 96, h: plate?.offsetHeight || 40 };
-      const placed = placeLabel(anchor, box, { w: size.width, h: size.height }, [
-        ...plaketteHud.current.boxes,
-      ]);
+      // The bench is already the plate's neighbour in the world; reserve its
+      // projected rectangle so the plate moves aside instead of covering the
+      // one seat on the plot. The towers are reserved too: at overview distance
+      // a two-line plate may not bury the skyline it names. The final visibility
+      // check still catches the case where every candidate is blocked.
+      const reserved = [...plaketteHud.current.boxes];
+      const canvasEl = plaketteHud.current.canvasEl;
+      const canvas = plaketteHud.current.canvas;
+      if (canvasEl && canvas) {
+        const reserve = (rect: Rechteck): void => {
+          reserved.push({
+            x: rect.x - canvas.left - 4,
+            y: rect.y - canvas.top - 4,
+            w: rect.width + 8,
+            h: rect.height + 8,
+          });
+        };
+        const sitz = sitzRef.current;
+        if (sitz) {
+          const sitzRect = projektion(sitz, camera, canvasEl);
+          if (sitzRect) reserve(sitzRect);
+        }
+        const group = groupRef.current;
+        if (group && skyline.length > 0) {
+          group.updateWorldMatrix(true, false);
+          for (const b of skyline) {
+            _turmBox.min.set(b.x - b.w / 2, 0, b.z - b.d / 2);
+            _turmBox.max.set(b.x + b.w / 2, b.h, b.z + b.d / 2);
+            _turmBox.applyMatrix4(group.matrixWorld);
+            const turmRect = projektionVonBox(_turmBox, camera, canvasEl);
+            if (turmRect) reserve(turmRect);
+          }
+        }
+      }
+      const placed = placeLabel(anchor, box, { w: size.width, h: size.height }, reserved);
       if (plate) {
         const glyph = placed.toward ? TOWARD_GLYPH[placed.toward] : "";
         if (plate.dataset.toward !== glyph) plate.dataset.toward = glyph;
@@ -275,12 +335,11 @@ export function District({
       // drei centres a `center` Html on the returned point.
       return [placed.x + box.w / 2, placed.y + box.h / 2];
     },
-    [],
+    [skyline],
   );
   /** Last camera the seat was measured against — see the check in the frame. */
   const sitzKamera = useRef<{ x: number; y: number; z: number; breite: number } | null>(null);
 
-  const groupRef = useRef<THREE.Group>(null);
   const riseSettledRef = useRef({ current: false });
 
   // Construction / drill-in rise + the pointer's answer
@@ -432,6 +491,7 @@ export function District({
           hoverId={blockId}
           appearAt={skylineAt[i] ?? appearAt}
           constructing={constructing}
+          overview={overview}
         />
       ))}
 
@@ -480,40 +540,42 @@ export function District({
       {/* The ONE bundled street sign for this plot: name + risk, the
           underground tally (865 of 900 files — no longer hover-only), and
           the tallest file's complexity, in the measuring mast's coordinates. */}
-      <OccludableHtml
-        center
-        position={[0, 0.6, d / 2 + 2.2]}
-        zIndexRange={[8, 0]}
-        calculatePosition={plakettePosition}
-      >
-        <div
-          ref={plaketteRef}
-          className={`cf-plate${hasP0 ? " cf-plate-alarm" : ""}`}
-          style={{ background: "#121210" }}
-          aria-label={districtPlateLabel(lang, dir.name, underground.total, totalFindings)}
-          title={districtPlateLabel(lang, dir.name, underground.total, totalFindings)}
+      {!suppressPlate && (
+        <OccludableHtml
+          center
+          position={[0, 0.6, d / 2 + 2.2]}
+          zIndexRange={[8, 0]}
+          calculatePosition={plakettePosition}
         >
-          <div className="cf-plate-name">
-            {dir.name}
-            {worstSev && (
-              <span
-                className="cf-plate-risk"
-                style={{ color: severityColor(worstSev, colorblind) }}
-              >
-                ●{totalFindings}
-              </span>
+          <div
+            ref={plaketteRef}
+            className={`cf-plate${hasP0 ? " cf-plate-alarm" : ""}`}
+            style={{ background: "#121210" }}
+            aria-label={districtPlateLabel(lang, dir.name, underground.total, totalFindings)}
+            title={districtPlateLabel(lang, dir.name, underground.total, totalFindings)}
+          >
+            <div className="cf-plate-name">
+              {dir.name}
+              {worstSev && (
+                <span
+                  className="cf-plate-risk"
+                  style={{ color: severityColor(worstSev, colorblind) }}
+                >
+                  ●{totalFindings}
+                </span>
+              )}
+            </div>
+            <div className="cf-plate-under">
+              {undergroundPlateLine(lang, underground.hidden, underground.total)}
+            </div>
+            {tallH > 0 && (
+              <div className="cf-plate-height">
+                ↑ {formatDecimal(lang, complexityForHeight(tallH), 2)}
+              </div>
             )}
           </div>
-          <div className="cf-plate-under">
-            {undergroundPlateLine(lang, underground.hidden, underground.total)}
-          </div>
-          {tallH > 0 && (
-            <div className="cf-plate-height">
-              ↑ {formatDecimal(lang, complexityForHeight(tallH), 2)}
-            </div>
-          )}
-        </div>
-      </OccludableHtml>
+        </OccludableHtml>
+      )}
     </group>
   );
 }

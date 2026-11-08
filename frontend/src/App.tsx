@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import { Canvas } from "@react-three/fiber";
 import { useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
@@ -37,6 +37,7 @@ import { HelpTipProvider } from "./components/HelpTipProvider";
 import { useStore } from "./stores";
 import { t } from "./i18n";
 import { getDirLayout } from "./city/layout";
+import { useLodLevel } from "./hooks/useLodLevel";
 import { WORLD_FOV_DEG } from "./city/worldFraming";
 import type { CityData } from "./city/types";
 import { currentVisit, writePoseParam, type CameraPose } from "./urlState";
@@ -189,6 +190,7 @@ function VisitCamera() {
 
 export default function App() {
   const cityData = useStore((s) => s.cityData);
+  const focusPath = useStore((s) => s.focusPath);
   const setCityData = useStore((s) => s.setCityData);
   const liveStatus = useStore((s) => s.live.status);
   const liveAnalysisId = useStore((s) => s.live.analysisId);
@@ -204,6 +206,23 @@ export default function App() {
   // expensive path; only the manual one is ever persisted.
   const gfxLite = useStore((s) => s.prefs.gfxLite || s.autoGfxLite);
   const lang = useStore((s) => s.prefs.lang);
+  // The overview's pixel grid. The bounds are the current level's own half
+  // extent, so the same threshold means the same thing in a district as in the
+  // root city. The LOD hook owns the hysteresis, so the pixel grid, the light
+  // rig and the building materials flip on the same tier.
+  const levelBounds = useMemo(
+    () => (cityData ? getDirLayout(cityData, focusPath).bounds : null),
+    [cityData, focusPath],
+  );
+  const lodLevel = useLodLevel(levelBounds ?? 100);
+  const pixelOverview = cityData !== null && lodLevel !== 2;
+  const canvasDpr = pixelOverview
+    ? gfxLite
+      ? 0.72
+      : 0.6
+    : gfxLite
+      ? ([1, 1.25] as [number, number])
+      : ([1, 2] as [number, number]);
   // The arrival budget: which of the folded surfaces the reader has asked back.
   const showSearch = useStore((s) => s.showSearch);
   const showMinimap = useStore((s) => s.showMinimap);
@@ -589,7 +608,7 @@ export default function App() {
         tabIndex={inCity ? 0 : -1}
         aria-label={t(lang, inCity ? "city.canvasAria" : "city.canvasEmptyAria")}
         role="application"
-        className="city-canvas w-full h-full"
+        className={`city-canvas w-full h-full${pixelOverview ? " is-pixel-overview" : ""}`}
       >
         {sceneCrashed || contextLost ? (
           <SurfaceFailed
@@ -613,7 +632,7 @@ export default function App() {
             <Canvas
               key={canvasNonce}
               camera={{ position: [0, 100, 150], fov: 52, near: 0.5, far: 1600 }}
-              dpr={gfxLite ? [1, 1.25] : [1, 2]}
+              dpr={canvasDpr}
               gl={{ antialias: true, preserveDrawingBuffer: true }}
             >
               <SceneBoundary origin="scene" onFail={() => setSceneCrashed(true)}>

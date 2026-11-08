@@ -56,6 +56,7 @@ import {
 } from "../city/worldFraming";
 import { STANDARD_AZIMUTH, fitAnsicht, isAnsicht } from "../city/cameraPresets";
 import { currentVisit } from "../urlState";
+import { overviewZoomDirection, overviewZoomDistance } from "../city/zoomSteps";
 import {
   FLAT_SURFACE,
   surfaceForLayout,
@@ -622,11 +623,29 @@ export function CameraRig() {
     const onWheel = (e: WheelEvent) => {
       abortTween();
       if (modeRef.current !== "free") return; // orbit mode: OrbitControls zooms
+      if (e.deltaY === 0) return;
+      const f = boundsRef.current;
+      // Overview: one wheel event is one rung on the zoom ladder. Moving along
+      // the camera's radial vector keeps the chosen azimuth and elevation and
+      // puts the camera on an exact distance, so a facade edge stops crawling
+      // between pixel grids. Near the street the live dolly stays continuous.
+      if (f && f.bounds > 0) {
+        _pivot.set(f.centre.x, PIVOT_Y, f.centre.z);
+        _offset.copy(camera.position).sub(_pivot);
+        const distance = _offset.length();
+        const next = overviewZoomDistance(f.bounds, distance, overviewZoomDirection(e.deltaY));
+        if (next !== distance && distance > f.bounds * 0.78) {
+          _offset.setLength(next);
+          camera.position.copy(_pivot).add(_offset);
+          const kept = clampToCity(camera.position, f.bounds, f.centre, f.surface);
+          camera.position.set(kept.x, kept.y, kept.z);
+          return;
+        }
+      }
       // Dolly along the view direction — the wheel walks you into the city.
       camera.getWorldDirection(_dir);
       const step = -e.deltaY * 0.012 * Math.max(2, camera.position.y * 0.15 + 4);
       camera.position.addScaledVector(_dir, step);
-      const f = boundsRef.current;
       const kept = clampToCity(camera.position, f?.bounds ?? null, f?.centre ?? ORIGIN, f?.surface);
       camera.position.set(kept.x, kept.y, kept.z);
     };

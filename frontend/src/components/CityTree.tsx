@@ -295,6 +295,10 @@ export function CityTree() {
   // The old boolean far-LOD is exactly tier 0.
   const lodLevel = useLodLevel(layout?.bounds ?? 100);
   const lodFar = lodLevel === 0;
+  // The geometric overview — the tier where a whole level is on screen. It is
+  // the one tier that gets the blocky silhouette pass; the near tier keeps its
+  // facades, seams and rooftop detail.
+  const overview = lodLevel === 1;
 
   // Focus tiers — the depth of field around the selected building. All plaza
   // files of the current level live in ONE district (the focusPath chain),
@@ -695,6 +699,8 @@ export function CityTree() {
                   skylineAt={skylineAppear(i)}
                   constructing={animating}
                   onSeatVisibility={reportSeatVisibility}
+                  overview={overview}
+                  suppressPlate={!!entryPath}
                 />
               </SurfaceAnchor>
             ))}
@@ -726,6 +732,7 @@ export function CityTree() {
                   fullyReviewed={fullyReviewed(b.file)}
                   appearAt={buildingAppear(i)}
                   constructing={animating}
+                  overview={overview}
                 />
                 {roleLandmarkByFile.has(b.file.id) && (
                   <RoleLandmark

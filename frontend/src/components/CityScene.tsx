@@ -5,6 +5,7 @@ import { useThree } from "@react-three/fiber";
 import type { PerspectiveCamera } from "three";
 import { useStore } from "../stores/useStore";
 import { defaultOverviewPath } from "../city/overview";
+import { useLodLevel } from "../hooks/useLodLevel";
 import { armRevealPulse, getDirLayout, overviewShot, REVEAL_FLIGHT_MS } from "../city/layout";
 import { prefersReducedMotion } from "../city/motion";
 import {
@@ -29,7 +30,7 @@ import {
 import { surfacePoint } from "../city/worldSurface";
 import { WorldSurfaceContext } from "../render/WorldSurface";
 import { SkyDome } from "../render/SkyDome";
-import { LIGHT_RIG, SUN_POSITION } from "../render/sky";
+import { LIGHT_RIG, OVERVIEW_LIGHT_RIG, SUN_POSITION } from "../render/sky";
 import {
   grownFootprint,
   groundFrameRadius,
@@ -67,6 +68,18 @@ const OPEN_WORLD_COUNT = 46;
  */
 export function fogRange(bounds: number): [number, number] {
   return [bounds * 6, bounds * 9 + 600];
+}
+
+/**
+ * The overview's thinner atmosphere.
+ *
+ * At the geometric overview the whole level is inside the old near plane, so
+ * the only thing that haze can do is wash the far plots into the horizon. The
+ * same scale, pushed out: the seam is still carried by `render/ground.ts`,
+ * not by this fog.
+ */
+export function overviewFogRange(bounds: number): [number, number] {
+  return [bounds * 9, bounds * 14 + 900];
 }
 
 /**
@@ -374,6 +387,14 @@ export function CityScene() {
     };
   }, [cityData, focusPath]);
   const { bounds } = frame;
+  // Tier 0 (heat grid) and tier 1 (whole level) are both overviews; tier 2 is
+  // street level. The LOD hook owns the hysteresis, so this grade flips on the
+  // same tier as the pixel grid and the building materials. Only the city gets
+  // the overview grade, never the empty world.
+  const lodLevel = useLodLevel(bounds);
+  const overviewLook = cityData !== null && lodLevel !== 2;
+  const light = overviewLook ? OVERVIEW_LIGHT_RIG : LIGHT_RIG;
+  const fog = overviewLook ? overviewFogRange(bounds) : fogRange(bounds);
   useEffect(() => {
     const view = camera as PerspectiveCamera;
     const previous = view.far;
@@ -416,18 +437,18 @@ export function CityScene() {
           term is what is left after both: it was 0.65, and at 0.65 it added a
           flat third to every facade, which is exactly the amount that turns
           twenty-four language colours into four. */}
-      <hemisphereLight args={[LIGHT_RIG.hemiSky, LIGHT_RIG.hemiGround, LIGHT_RIG.hemiIntensity]} />
+      <hemisphereLight args={[light.hemiSky, light.hemiGround, light.hemiIntensity]} />
       <directionalLight
         position={SUN_POSITION}
-        intensity={LIGHT_RIG.sunIntensity}
-        color={LIGHT_RIG.sunColor}
+        intensity={light.sunIntensity}
+        color={light.sunColor}
       />
       <directionalLight
-        position={LIGHT_RIG.fillPosition}
-        intensity={LIGHT_RIG.fillIntensity}
-        color={LIGHT_RIG.fillColor}
+        position={light.fillPosition}
+        intensity={light.fillIntensity}
+        color={light.fillColor}
       />
-      <ambientLight intensity={LIGHT_RIG.ambientIntensity} />
+      <ambientLight intensity={light.ambientIntensity} />
       {/* Atmosphere scales with the current district size.
           The seam at the horizon is NOT this fog's job — `render/ground.ts`
           carries the floor into the haze tone with its own ramp, which is what
@@ -439,7 +460,7 @@ export function CityScene() {
           of the heat grid had contrast 1.0 against its own ground, and the
           `unchecked` tile 2.07 where the shipped guard asks for 2.5. A dusk
           atmosphere may not eat a measurement. */}
-      <fog attach="fog" args={[ENV.fog, ...fogRange(bounds)]} />
+      <fog attach="fog" args={[ENV.fog, ...fog]} />
       {/* Asphalt ground — graded toward the haze, see render/ground.ts */}
       <mesh geometry={groundGeometry} material={groundMaterial} />
 

@@ -136,6 +136,27 @@ export const LIGHT_RIG = {
   ambientIntensity: 0.25,
 } as const;
 
+/**
+ * Whole-level overview light: the same sun and sky, but far less fill.
+ *
+ * The shipped rig is tuned for a street-level frame, where a resident and a
+ * door have to read. At the overview the same hemisphere term flattens a
+ * tower's three visible faces into one value — the exact thing that makes a
+ * silhouette hard to scan. Pulling the fill and ambient down lets the key
+ * separate top / left / right while keeping the palette's hue families.
+ */
+export const OVERVIEW_LIGHT_RIG = {
+  hemiSky: LIGHT_RIG.hemiSky,
+  hemiGround: LIGHT_RIG.hemiGround,
+  hemiIntensity: 0.62,
+  sunColor: LIGHT_RIG.sunColor,
+  sunIntensity: 2.15,
+  fillColor: LIGHT_RIG.fillColor,
+  fillIntensity: 0.24,
+  fillPosition: LIGHT_RIG.fillPosition,
+  ambientIntensity: 0.08,
+} as const;
+
 export const SKY_VERTEX_SHADER = /* glsl */ `
   varying vec3 vViewDir;
   void main() {

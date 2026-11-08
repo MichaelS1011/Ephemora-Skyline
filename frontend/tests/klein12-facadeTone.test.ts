@@ -34,7 +34,9 @@ const MIX = Number(
     /new THREE\.Color\(color\)\.lerp\(new THREE\.Color\("#ffffff"\),\s*([0-9.]+)\)/,
   )?.[1],
 );
-const BODY = building.match(/color:\s*"(#[0-9a-f]{6})",\s*\n\s*map: facade!\.map/)?.[1];
+const BODY = building.match(
+  /color:\s*(?:overview\s*\?\s*overviewSide\s*:\s*)?"(#[0-9a-f]{6})",\s*\n\s*map:\s*(?:overview\s*\?\s*null\s*:\s*)?facade!\.map/,
+)?.[1];
 
 const lin8 = (hex: string): THREE.Color => new THREE.Color(hex);
 const toSrgbHex = (c: THREE.Color): string => `#${c.getHexString()}`;

@@ -613,6 +613,12 @@ export interface BuildingProps {
   highlightLine?: number | null;
   /** True when a triage finding points at this file (focusedFindingKey matches). */
   findingFocus?: boolean;
+  /**
+   * Whole-city overview: bolder boxes, flat overview materials and none of the
+   * hairline details that shimmer away at this distance. Set by the level that
+   * knows the LOD, never inferred per building.
+   */
+  overview?: boolean;
 }
 
 export function Building({
@@ -635,6 +641,7 @@ export function Building({
   voxels = null,
   highlightLine = null,
   findingFocus = false,
+  overview = false,
 }: BuildingProps) {
   const { camera, gl } = useThree();
   const selectBuilding = useStore((s) => s.selectBuilding);
@@ -694,6 +701,12 @@ export function Building({
   const stepped = h >= 17;
   const bodyH = stepped ? h * 0.72 : h;
   const towerH = stepped ? h - bodyH : 0;
+  // The overview main hull is 5 % fatter. The plot, collision, labels and the
+  // annex keep the honest footprint; the fattened hull stays the pick target,
+  // so the silhouette is easy to hit. At a pixelated overview a one-pixel
+  // facade needs mass, not another hairline.
+  const gw = overview ? w * 1.05 : w;
+  const gd = overview ? d * 1.05 : d;
   // The crown states what the body cannot: whether anything was found in this
   // file, and how badly. It used to be derived from `h` — the same number the
   // height already told, drawn twice, which is why every tower read as one shape.
@@ -891,29 +904,56 @@ export function Building({
   const materials = useMemo(() => {
     if (voxelBody) return []; // voxel mode uses the shared cached materials
     if (monolith) {
-      // Bloat monolith: near-black, featureless slab — reads as wasted space
+      // Bloat monolith: near-black, featureless slab — reads as wasted space.
+      // In the overview it is matte and flat: one silhouette, no metal sheen.
       const side = new THREE.MeshStandardMaterial({
-        color: "#5d7180",
-        roughness: 0.35,
-        metalness: 0.55,
+        color: overview ? "#6b7f89" : "#5d7180",
+        roughness: overview ? 0.95 : 0.35,
+        metalness: overview ? 0 : 0.55,
+        flatShading: overview,
         transparent: dimmed || voxelStage,
         opacity: dimmed ? 0.12 : voxelStage ? 0.3 : 1,
       });
       const roof = new THREE.MeshStandardMaterial({
-        color: "#445b6b",
-        roughness: 0.3,
-        metalness: 0.6,
+        color: overview ? "#455b66" : "#445b6b",
+        roughness: overview ? 1 : 0.3,
+        metalness: overview ? 0 : 0.6,
+        flatShading: overview,
         transparent: dimmed || voxelStage,
         opacity: dimmed ? 0.1 : voxelStage ? 0.26 : 1,
       });
-      side.userData.baseColor = "#5d7180";
-      roof.userData.baseColor = "#445b6b";
+      side.userData.baseColor = overview ? "#6b7f89" : "#5d7180";
+      roof.userData.baseColor = overview ? "#455b66" : "#445b6b";
       // Three slots in the original draw order: the hull geometry carries
       // three groups (sides, roof, sides) so each hull mesh is three draw
       // calls instead of six, with unchanged blend order.
       return [side, roof, side];
     }
     if (matState === "glass") {
+      // Overview has no glass: transmission is a smooth gradient at exactly
+      // the distance where the pixel grid cannot hold it. A matte body and a
+      // darker lid keep the dead-code silhouette readable instead.
+      if (overview) {
+        const side = new THREE.MeshStandardMaterial({
+          color: "#b9c7c1",
+          roughness: 0.95,
+          metalness: 0,
+          flatShading: true,
+          transparent: dimmed,
+          opacity: dimmed ? 0.12 : 1,
+        });
+        const roof = new THREE.MeshStandardMaterial({
+          color: "#3c4a53",
+          roughness: 1,
+          metalness: 0,
+          flatShading: true,
+          transparent: dimmed,
+          opacity: dimmed ? 0.1 : 1,
+        });
+        side.userData.baseColor = "#b9c7c1";
+        roof.userData.baseColor = "#3c4a53";
+        return [side, roof, side];
+      }
       const side = new THREE.MeshPhysicalMaterial({
         color: "#d8cdb4",
         roughness: 0.12,
@@ -938,49 +978,85 @@ export function Building({
     // roughness and metal response in the same order. Language stays as the
     // lit-slot accent.
     const surface = facadeSurfaceForStyle(facadeStyleForSeed(seed));
+    // Overview material: the facade raster is 128 × 256 and turns into noise
+    // once the frame is sampled at 0.6×. One flat language-tinted body plus a
+    // dark roof gives the three-face light something to shape.
+    const overviewSide = new THREE.Color(facadeColor).lerp(new THREE.Color("#f4f1e9"), 0.38);
+    const overviewSideHex = `#${overviewSide.getHexString()}`;
     const side = new THREE.MeshStandardMaterial({
-      color: "#e1e7df",
-      map: facade!.map,
-      emissiveMap: facade!.emissive,
+      color: overview ? overviewSide : "#e1e7df",
+      map: overview ? null : facade!.map,
+      emissiveMap: overview ? null : facade!.emissive,
       emissive: new THREE.Color(0xffffff),
-      emissiveIntensity: voxelStage ? 0.15 : matState === "alarm" ? 1.15 : 0.55,
+      emissiveIntensity: overview ? 0 : voxelStage ? 0.15 : matState === "alarm" ? 1.15 : 0.55,
       // Eroded hotspots read as coarse, corroded panels; healthy code as
       // smooth brushed metal.
-      roughness: Math.min(
-        1,
-        surface.roughness + (erosion === "eroded" ? 0.24 : erosion === "weathered" ? 0.11 : 0),
-      ),
-      metalness: Math.max(
-        0,
-        surface.metalness - (erosion === "eroded" ? 0.12 : erosion === "weathered" ? 0.05 : 0),
-      ),
-      envMapIntensity: 0.9,
+      roughness: overview
+        ? 0.96
+        : Math.min(
+            1,
+            surface.roughness + (erosion === "eroded" ? 0.24 : erosion === "weathered" ? 0.11 : 0),
+          ),
+      metalness: overview
+        ? 0
+        : Math.max(
+            0,
+            surface.metalness - (erosion === "eroded" ? 0.12 : erosion === "weathered" ? 0.05 : 0),
+          ),
+      envMapIntensity: overview ? 0.15 : 0.9,
+      flatShading: overview,
       transparent: dimmed || voxelStage,
       opacity: dimmed ? 0.12 : voxelStage ? 0.32 : 1,
     });
     const roof = new THREE.MeshStandardMaterial({
-      color: erosion === "stable" || erosion === "unknown" ? "#748c9e" : "#84796c",
-      roughness: 0.9,
-      metalness: 0.2,
+      color: overview
+        ? "#4d626d"
+        : erosion === "stable" || erosion === "unknown"
+          ? "#748c9e"
+          : "#84796c",
+      roughness: overview ? 1 : 0.9,
+      metalness: overview ? 0 : 0.2,
+      flatShading: overview,
       transparent: dimmed || voxelStage,
       opacity: dimmed ? 0.12 : voxelStage ? 0.26 : 1,
     });
-    side.userData.baseColor = "#e1e7df";
-    side.userData.baseEmissive = voxelStage ? 0.15 : matState === "alarm" ? 1.15 : 0.55;
-    roof.userData.baseColor = erosion === "stable" || erosion === "unknown" ? "#748c9e" : "#84796c";
+    side.userData.baseColor = overview ? overviewSideHex : "#e1e7df";
+    side.userData.baseEmissive = overview
+      ? 0
+      : voxelStage
+        ? 0.15
+        : matState === "alarm"
+          ? 1.15
+          : 0.55;
+    roof.userData.baseColor = overview
+      ? "#4d626d"
+      : erosion === "stable" || erosion === "unknown"
+        ? "#748c9e"
+        : "#84796c";
     return [side, roof, side];
-  }, [voxelBody, facade, dimmed, matState, erosion, monolith, voxelStage, seed]);
+  }, [
+    voxelBody,
+    facade,
+    dimmed,
+    matState,
+    erosion,
+    monolith,
+    voxelStage,
+    seed,
+    overview,
+    facadeColor,
+  ]);
 
   // One hull geometry per volume, three groups in the original face order —
   // the order the material array `[side, roof, side]` above is drawn in. The
   // body, the stepped tower and the annex each cost 3 draw calls instead of 6.
   const hullGeometries = useMemo(() => {
     if (voxelBody) return [];
-    const list = [threeGroupBox(w, bodyH, d)];
-    if (stepped) list.push(threeGroupBox(w * 0.62, towerH, d * 0.62));
+    const list = [threeGroupBox(gw, bodyH, gd)];
+    if (stepped) list.push(threeGroupBox(gw * 0.62, towerH, gd * 0.62));
     if (hasAnnex) list.push(threeGroupBox(annexW, annexH, annexD));
     return list;
-  }, [voxelBody, w, bodyH, d, stepped, towerH, hasAnnex, annexW, annexH, annexD]);
+  }, [voxelBody, gw, bodyH, gd, stepped, towerH, hasAnnex, annexW, annexH, annexD]);
 
   useEffect(() => {
     return () => {
@@ -1024,11 +1100,11 @@ export function Building({
       box.dispose();
       return edges;
     };
-    const list = [make(w, bodyH, d)];
-    if (stepped) list.push(make(w * 0.62, towerH, d * 0.62));
+    const list = [make(gw, bodyH, gd)];
+    if (stepped) list.push(make(gw * 0.62, towerH, gd * 0.62));
     if (hasAnnex) list.push(make(annexW, annexH, annexD));
     return list;
-  }, [voxelBody, w, bodyH, d, stepped, towerH, hasAnnex, annexW, annexH, annexD]);
+  }, [voxelBody, gw, bodyH, gd, stepped, towerH, hasAnnex, annexW, annexH, annexD]);
 
   // Voxel-body outline: the block stack's silhouette seam — hover eases it
   // bright (the facade flicker's replacement), selection keeps it lit.
@@ -1440,7 +1516,7 @@ export function Building({
 
           {/* Flat cap — a finished roofline on the topmost block */}
           <mesh position={[0, h + 0.3 + 0.09, 0]}>
-            <boxGeometry args={[w + 0.16, 0.18, d + 0.16]} />
+            <boxGeometry args={[gw + 0.16, 0.18, gd + 0.16]} />
             <meshStandardMaterial
               color="#242c3d"
               roughness={0.85}
@@ -1450,7 +1526,7 @@ export function Building({
           </mesh>
 
           {/* Outline seam — hover/selection ease it bright (see useFrame) */}
-          {outlineEdges && (
+          {!overview && outlineEdges && (
             <lineSegments
               geometry={outlineEdges}
               position={[0, h / 2 + 0.3, 0]}
@@ -1478,7 +1554,7 @@ export function Building({
           {/* Illuminated edges — lit corner seams on the dark metal body. The
               material is one object the hover eases (see useFrame), not a
               fresh JSX material per render. */}
-          {edgeGeometries[0] && (
+          {!overview && edgeGeometries[0] && (
             <lineSegments
               geometry={edgeGeometries[0]}
               position={[0, bodyH / 2 + 0.3, 0]}
@@ -1496,7 +1572,7 @@ export function Building({
               {...pointerProps}
             />
           )}
-          {stepped && edgeGeometries[1] && (
+          {!overview && stepped && edgeGeometries[1] && (
             <lineSegments
               geometry={edgeGeometries[1]}
               position={[0, bodyH + 0.3 + towerH / 2, 0]}
@@ -1514,7 +1590,7 @@ export function Building({
               {...pointerProps}
             />
           )}
-          {hasAnnex && edgeGeometries[1] && (
+          {!overview && hasAnnex && edgeGeometries[1] && (
             <lineSegments
               geometry={edgeGeometries[1]}
               position={[annexX, annexH / 2 + 0.3, annexZ]}
@@ -1534,6 +1610,7 @@ export function Building({
             material={(dimmed ? BAND_MATERIALS_DIMMED : BAND_MATERIALS).band}
             frustumCulled={false}
             raycast={() => null}
+            visible={!overview}
           />
         </>
       )}
@@ -1552,7 +1629,8 @@ export function Building({
               opacity={dimmed ? 0.1 : 1}
             />
           </mesh>
-          {erosion === "eroded" &&
+          {!overview &&
+            erosion === "eroded" &&
             (
               [
                 [-1, -1],
@@ -1734,7 +1812,7 @@ export function Building({
             const capY = crownBaseY({ voxelBody, bodyH, stepped, h });
             return (
               <mesh position={[0, capY, 0]}>
-                <boxGeometry args={[w + 0.25, 0.24, d + 0.25]} />
+                <boxGeometry args={[gw + 0.25, 0.24, gd + 0.25]} />
                 <meshStandardMaterial
                   color="#242c3d"
                   roughness={0.85}
@@ -1746,7 +1824,7 @@ export function Building({
           })()}
 
           {/* Rooftop clutter — one seeded item: water tank / AC unit / vent / chimney */}
-          {clutter === "tank" && (
+          {!overview && clutter === "tank" && (
             <mesh
               geometry={UNIT_CYLINDER}
               material={detailMats.metal}
@@ -1754,7 +1832,7 @@ export function Building({
               scale={[0.9, 1.0, 0.9]}
             />
           )}
-          {clutter === "ac" && (
+          {!overview && clutter === "ac" && (
             <mesh
               geometry={UNIT_BOX}
               material={detailMats.metal}
@@ -1762,7 +1840,7 @@ export function Building({
               scale={[1.0, 0.55, 0.8]}
             />
           )}
-          {clutter === "vent" && (
+          {!overview && clutter === "vent" && (
             <mesh
               geometry={UNIT_BOX}
               material={detailMats.dark}
@@ -1770,7 +1848,7 @@ export function Building({
               scale={[0.45, 0.7, 0.45]}
             />
           )}
-          {clutter === "chimney" && (
+          {!overview && clutter === "chimney" && (
             <mesh
               geometry={UNIT_BOX}
               material={detailMats.dark}
@@ -1782,7 +1860,7 @@ export function Building({
       )}
 
       {/* Antenna for towers / landmark — height + offset vary per seed */}
-      {(isTower || showLandmark) && (
+      {!overview && (isTower || showLandmark) && (
         <mesh
           position={[
             antennaOffX + (barSegments.length ? FINDING_BAR.WIDTH / 2 + 0.12 : 0),

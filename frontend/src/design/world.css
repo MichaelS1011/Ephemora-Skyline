@@ -43,3 +43,10 @@
 /* Reduced motion does not touch this layer — it has no motion to still. The
    rule is here so the next reader does not add one: the grade is part of the
    lighting, and the lighting does not animate. */
+
+/* Overview pixel grid — the scene buffer is drawn at 0.6× and scaled up by the
+   browser; nearest-neighbour keeps every step a hard square. Labels are DOM,
+   outside the canvas, so they stay at their own resolution. */
+.city-canvas.is-pixel-overview canvas {
+  image-rendering: pixelated;
+}

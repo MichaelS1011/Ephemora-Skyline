@@ -17,7 +17,7 @@ import * as THREE from "three";
  */
 const VERDECKUNGSGRENZE = 0.5;
 
-type Rechteck = { x: number; y: number; width: number; height: number };
+export type Rechteck = { x: number; y: number; width: number; height: number };
 
 /** The eight corners of an object's bounding box, in page pixels. */
 export function projektion(
@@ -41,6 +41,35 @@ export function projektion(
       for (const sz of [bb.min.z, bb.max.z]) {
         punkt.set(sx, sy, sz);
         objekt.localToWorld(punkt);
+        punkt.project(kamera);
+        const px = brect.left + (punkt.x * 0.5 + 0.5) * brect.width;
+        const py = brect.top + (-punkt.y * 0.5 + 0.5) * brect.height;
+        if (px < x0) x0 = px;
+        if (px > x1) x1 = px;
+        if (py < y0) y0 = py;
+        if (py > y1) y1 = py;
+      }
+  if (!Number.isFinite(x0 + x1 + y0 + y1)) return null;
+  return { x: x0, y: y0, width: x1 - x0, height: y1 - y0 };
+}
+
+/** The eight corners of a world-space box, in page pixels. */
+export function projektionVonBox(
+  box: THREE.Box3,
+  kamera: THREE.Camera,
+  leinwand: HTMLElement,
+): Rechteck | null {
+  if (box.isEmpty()) return null;
+  const punkt = new THREE.Vector3();
+  const brect = leinwand.getBoundingClientRect();
+  let x0 = Infinity,
+    x1 = -Infinity,
+    y0 = Infinity,
+    y1 = -Infinity;
+  for (const sx of [box.min.x, box.max.x])
+    for (const sy of [box.min.y, box.max.y])
+      for (const sz of [box.min.z, box.max.z]) {
+        punkt.set(sx, sy, sz);
         punkt.project(kamera);
         const px = brect.left + (punkt.x * 0.5 + 0.5) * brect.width;
         const py = brect.top + (-punkt.y * 0.5 + 0.5) * brect.height;

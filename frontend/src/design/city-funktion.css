@@ -305,3 +305,24 @@
   margin-left: 6px;
   color: var(--meta-strong, #9aa7bd);
 }
+
+/* Narrow viewports and the whole-level overview: a district sign keeps its
+   name and its alarm count, and folds the two second lines into the accessible
+   name. Six three-line plates on a 390 px canvas covered more city than they
+   named; at overview distance the same plates sat over the towers they point
+   at. The close view still carries both numbers. */
+@media (max-width: 640px) {
+  .cf-plate-under,
+  .cf-plate-height {
+    display: none;
+  }
+}
+
+.city-canvas.is-pixel-overview .cf-plate {
+  padding: 1px 6px 2px;
+}
+
+.city-canvas.is-pixel-overview .cf-plate-under,
+.city-canvas.is-pixel-overview .cf-plate-height {
+  display: none;
+}
