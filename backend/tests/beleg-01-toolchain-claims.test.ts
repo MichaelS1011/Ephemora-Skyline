@@ -38,7 +38,7 @@ function installedCopies(name: string): string[] {
     .map((dir) => json<{ version: string }>(`${dir}/${name}/package.json`).version);
 }
 
-describe("the runtime the documents ask for (README.md:32, docs/GETTING_STARTED.md:22-27)", () => {
+describe("the runtime the documents ask for (README.md:36, docs/GETTING_STARTED.md:22-27)", () => {
   const engines = json<{ engines: { node: string; npm: string } }>("package.json").engines;
 
   it("matches the Node versions required by the installed Vite runtime", () => {
@@ -48,7 +48,7 @@ describe("the runtime the documents ask for (README.md:32, docs/GETTING_STARTED.
   });
 
   it("asks for npm 10 or newer", () => {
-    // README.md:32 "and **npm >= 10**", GETTING_STARTED.md:25 "≥ 10.0.0"
+    // README.md:36 "and **npm >= 10**", GETTING_STARTED.md:25 "≥ 10.0.0"
     expect(engines.npm).toBe(">=10.0.0");
   });
 
@@ -145,7 +145,7 @@ describe("TypeScript: the one number the documents may not disagree about", () =
   });
 });
 
-describe("the gates the README tells a reader to run (README.md:105-117)", () => {
+describe("the gates the README tells a reader to run (README.md:109-121)", () => {
   const root = json<{ scripts: Record<string, string> }>("package.json");
   const gateCommands = ["lint", "type-check", "test", "build"];
 
@@ -164,7 +164,7 @@ describe("the gates the README tells a reader to run (README.md:105-117)", () =>
   });
 
   it("ships no advisory waiver now that Tailwind 4 dropped the braces path", () => {
-    // README.md:183 says the audit gate accepts high findings only when an
+    // README.md:187 says the audit gate accepts high findings only when an
     // entry names them. The braces entry went away with Tailwind 4: the lockfile
     // no longer resolves braces at all, so neither the waiver nor the override
     // that pinned it has a subject.
@@ -191,7 +191,7 @@ describe("the names and cadences a reader can check", () => {
     expect(new Set(intervals)).toEqual(new Set(["weekly"]));
   });
 
-  it("keeps the two workspaces the README's install line promises (README.md:97)", () => {
+  it("keeps the two workspaces the README's install line promises (README.md:101)", () => {
     expect(json<{ workspaces: string[] }>("package.json").workspaces).toEqual([
       "frontend",
       "backend",

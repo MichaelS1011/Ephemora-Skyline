@@ -9,6 +9,8 @@ came from a run on this machine, with the file and the check that produced it.
 
 ## [Unreleased]
 
+## [0.4.7] - 2026-11-08
+
 - **A finding now has a walkable import chain, and a resident has somewhere to sit.** In the structure view, selecting a file draws only a proven hop chain from a real lighthouse entry to that file: directed `fileConnections` edges, shortest path, deterministic ties, and only hops whose two buildings are drawn on the current level (`visible hops only`). No district anchor is invented and no edge is inferred; a chain with no drawable hop stays invisible. The path reuses the existing arcs with no second label family. Separately, an idle resident now walks to the nearest `seatPlacement` bench that is both screen-visible (`bankUnterPlakette`) and unclaimed, sits for 18–32 s, and stands back into the crowd; one resident at a time, `?sitz=0` still removes both furniture and target, and the seated pose is a ramped limb pose with no new mesh or draw call. Measured: 24 new cases across `focusPath`, `benchLife` and `benchSit`; 2,847 frontend / 964 backend cases pass; 235 frontend / 92 backend test files; type-check, lint and build green.
 
 - **The layer that measured zero is gone.** `ParticleField` was dead code with an active reduced-motion guard; the 24 ambient street cars had measured 0 px under all three visibility patches while their instances still ran. Both are removed — the field with its export and guard, the cars with their geometry, meshes and motion module — while the cab and bus stay. Measured: 2,823 frontend / 964 backend cases pass; type-check, lint and build green.

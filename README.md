@@ -21,9 +21,13 @@ Nothing is uploaded. No account, no login, no telemetry. It runs on your own mac
 
 ## What's new
 
-0.4.6 — 2026-11-05
+0.4.7 — 2026-11-08
 
-- **C and C++ files now join the scan.** — Measured: 2,819 frontend / 957 backend cases pass; `npm run self-scan` read 685 text files, analyzed 644 and answered 0 findings
+- **A finding now has a walkable import chain, and a resident has somewhere to sit.** — sits for 18–32 s
+- **The layer that measured zero is gone.** — `ParticleField` was dead code with an active reduced-motion guard; the 24 ambient street cars had measured 0 px under all three visibility patches while their instances still ran
+- **C and C++ are separate kinds, and their includes are edges.** — `.c` now draws as **C** with its own measured tone `#cb626d`; `.cpp`/`.cc`/`.cxx`/`.hpp`/`.hh`/`.hxx`/`.ipp`/`.tpp`/`.cu`/`.cuh`/`.ino` stay **C++**, and uppercase `.C`/`.H` follow the C++ spelling
+- **The city can be narrowed to one language.** — A header control appears only when the scan holds more than one language bucket; closed, it is an icon plus the active language's colour, so the arrival budget stays at its measured 171 words
+- **Safari no longer paints the app black.** — Helmet's default policy includes `upgrade-insecure-requests`; WebKit upgraded the loopback page's module requests to `https://127.0.0.1:4173/assets/...`, where no TLS listener exists
 
 More in [CHANGELOG.md](./CHANGELOG.md).
 
