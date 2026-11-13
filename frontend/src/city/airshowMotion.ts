@@ -222,6 +222,19 @@ export function bannerPixelHeight(viewportH: number, distance: number): number {
 }
 
 /**
+ * The invitation is scenery, not a wall. At the reference overview the cloth
+ * lands around 50–85 px tall; a two-file city can put the camera metres from
+ * the track, where the same 26-unit cloth becomes a 190–480 px billboard and
+ * clips across the upper corner. Past this height the show stands down until
+ * the reader pulls back, instead of covering the city it was inviting them to.
+ */
+export const BANNER_MAX_SCREEN_PX = 180;
+
+export function bannerTooLarge(viewportH: number, distance: number, scale: number): boolean {
+  return bannerPixelHeight(viewportH, distance) * scale > BANNER_MAX_SCREEN_PX;
+}
+
+/**
  * The point on the track nearest to a world position, as a distance along it —
  * the inverse of `onTrack`, needed when a person hands the aircraft back to the
  * show: the aircraft must resume where it is, not teleport to where it would

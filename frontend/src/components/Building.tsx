@@ -91,7 +91,7 @@ export function facadeCacheKey(
   seed: number,
   tones: AlarmWindowTones,
 ): string {
-  return `v4|${color}|${Math.round(w * 4)}|${Math.round(h * 4)}|${alarm ? 1 : 0}|${seed % 9}|${tones.lit}${tones.pale}`;
+  return `v5|${color}|${Math.round(w * 4)}|${Math.round(h * 4)}|${alarm ? 1 : 0}|${seed % 9}|${tones.lit}${tones.pale}`;
 }
 
 /** Test seam: the pixel-pattern guard renders through the same painter. */
@@ -305,6 +305,21 @@ function getFacadeTextures(
   const plinth = tint.clone().multiplyScalar(0.72);
   aCtx.fillStyle = `#${plinth.getHexString()}`;
   aCtx.fillRect(0, H - cellH * 1.15, W, cellH * 1.15);
+
+  // Ground-floor entrance. The plinth is painted over the window grid, so the
+  // door has to come after it; one dark opening and a warm transom per face
+  // turn every tower's base into a place a person could enter without a mesh
+  // or a draw call per building.
+  const doorW = cellW * 1.12;
+  const doorH = cellH * 0.82;
+  const doorX = W / 2 - doorW / 2;
+  const doorY = H - doorH - 2;
+  aCtx.fillStyle = "#151a21";
+  aCtx.fillRect(doorX, doorY, doorW, doorH);
+  aCtx.fillStyle = seam;
+  aCtx.fillRect(doorX - 1.5, doorY - 1.5, doorW + 3, 1.5);
+  eCtx.fillStyle = litColor;
+  eCtx.fillRect(doorX + 3, doorY + 2, Math.max(1, doorW - 6), 2);
 
   const map = new THREE.CanvasTexture(albedo);
   map.colorSpace = THREE.SRGBColorSpace;

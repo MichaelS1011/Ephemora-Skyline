@@ -44,9 +44,8 @@
    rule is here so the next reader does not add one: the grade is part of the
    lighting, and the lighting does not animate. */
 
-/* Overview pixel grid — the scene buffer is drawn at 0.6× and scaled up by the
-   browser; nearest-neighbour keeps every step a hard square. Labels are DOM,
-   outside the canvas, so they stay at their own resolution. */
-.city-canvas.is-pixel-overview canvas {
-  image-rendering: pixelated;
-}
+/* The overview keeps the display's own pixels. It used to render at 0.6× and
+   ask the browser for nearest-neighbour, which kept the facades calm but made
+   the city and its painted boards soft; the 0.4.8 path renders at the native
+   pixel ratio in the full profile and at a capped 1.25 in the lite profile.
+   Labels are DOM, outside the canvas, and were already sharp. */

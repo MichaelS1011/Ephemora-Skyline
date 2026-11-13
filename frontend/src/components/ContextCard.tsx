@@ -140,11 +140,12 @@ export function ContextCard() {
   const langs = topLanguages(dir.languages, 4);
   const totalLangLines = Object.values(dir.languages).reduce((sum, lines) => sum + lines, 0) || 1;
   const stops = tourStops(cityData);
-  // Whether an earlier scan of this folder shape exists is a localStorage
-  // read; the card asks once per render rather than after a button. When
-  // that read FAILED (bytes there, would not parse) the row must say so —
-  // "no earlier scan" is a claim about absence the failed read cannot make.
-  const previousScan = Boolean(anchorFor(cityData)?.previousId);
+  // Whether an earlier scan of this project exists is a localStorage read;
+  // the card asks once per render rather than after a button. When that read
+  // FAILED (bytes there, would not parse) the row must say so — "no earlier
+  // scan" is a claim about absence the failed read cannot make.
+  const anchor = anchorFor(cityData);
+  const previousScan = Boolean(anchor?.previousId);
   const anchorsUnreadable = cityData.analysisId
     ? verifyAnchorsUnreadable(cityData.analysisId)
     : false;
@@ -353,6 +354,7 @@ export function ContextCard() {
           lang={lang}
           previousScan={previousScan}
           anchorsUnreadable={anchorsUnreadable}
+          identityGuessed={Boolean(anchor?.projectGuessed)}
         />
       )}
 

@@ -67,7 +67,7 @@ describe("the numbers the flight stands on", () => {
 
   it("walls the flight before the level would stop being drawn as buildings", () => {
     // The two numbers already exist and are already pinned elsewhere: the
-    // camera's collar (`bounds*4+220`) and the far-LOD band (`bounds*3.8`).
+    // camera's collar (`bounds*4+220`) and the far-LOD band (`bounds*4.1`).
     for (const bounds of [24, 60, 120, 240]) {
       const collar = cityClampRadius(bounds);
       const drawn = farLodExitDistance(bounds);
@@ -77,8 +77,8 @@ describe("the numbers the flight stands on", () => {
     }
     // The shape that matters most: the demo level, 60 units.
     expect(cityClampRadius(60)).toBe(460);
-    expect(farLodExitDistance(60)).toBeCloseTo(228, 6);
-    expect(pilotWall(460, 228)).toBeCloseTo(228, 6);
+    expect(farLodExitDistance(60)).toBeCloseTo(246, 6);
+    expect(pilotWall(460, 246)).toBeCloseTo(246, 6);
   });
 });
 

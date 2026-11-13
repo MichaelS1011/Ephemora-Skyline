@@ -9,6 +9,7 @@ import {
   OVERVIEW_FACTOR,
 } from "../src/city/layout";
 import { LOD_THRESHOLDS } from "../src/hooks/useLodFar";
+import { OVERVIEW_ZOOM_FACTORS } from "../src/city/zoomSteps";
 import { useStore } from "../src/stores/useStore";
 import type { CityData, CityDir, CityFile } from "../src/city/types";
 
@@ -123,8 +124,27 @@ describe("overview framing stays inside the drawn band", () => {
     // assertion above fails the moment it does not.
     // The fitted higher overview now keeps the whole city in frame; its
     // distance band is larger than the old low-angle cropped reveal.
-    expect(LOD_THRESHOLDS.RELATIVE_EXIT).toBe(3.8);
+    expect(LOD_THRESHOLDS.RELATIVE_EXIT).toBe(4.1);
     expect(LOD_THRESHOLDS.ABSOLUTE_FLOOR).toBe(170);
+  });
+
+  it("leaves no overview rung inside the far-LOD hysteresis band", () => {
+    // The wheel ladder and the far-LOD band are separate numbers. When a rung
+    // sits between the exit and the enter, its tier depends on the direction
+    // the camera arrived from — the 4× notch rendered District from below and
+    // Skyline from above. Pin the relationship instead of the two numbers.
+    const { RELATIVE_ENTER, RELATIVE_EXIT } = LOD_THRESHOLDS;
+    expect(RELATIVE_EXIT, "hysteresis must stay a band").toBeLessThan(RELATIVE_ENTER);
+    for (const rung of OVERVIEW_ZOOM_FACTORS) {
+      expect(
+        rung < RELATIVE_EXIT || rung > RELATIVE_ENTER,
+        `zoom rung ${rung}× sits strictly inside the hysteresis band [${RELATIVE_EXIT}, ${RELATIVE_ENTER}]`,
+      ).toBe(true);
+    }
+    expect(OVERVIEW_ZOOM_FACTORS).toContain(4);
+    expect(OVERVIEW_ZOOM_FACTORS).toContain(5);
+    expect(4).toBeLessThan(RELATIVE_EXIT);
+    expect(5).toBeGreaterThan(RELATIVE_ENTER);
   });
 
   it("frames the crown it is asked to frame", () => {
@@ -183,7 +203,7 @@ describe("the reveal flies the level's own overview shot", () => {
     // stopped overriding the shot with its own 41,6° vantage (2026-10-27).
     expect(demo.elevation).toBe(0.52);
     // A 200-unit level: the shot asks for 1.6 × bounds = 320 m — far inside
-    // the heat grid's margin at 699.2 m — while the cap landed the camera at
+    // the heat grid's margin at 754.4 m — while the cap landed the camera at
     // 85 m, 235 m closer than the level's own framing.
     const wide = overviewShot(200, 5);
     expect(wide.dist).toBeCloseTo(320, 6);

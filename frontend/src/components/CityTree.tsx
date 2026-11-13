@@ -22,6 +22,7 @@ import { reviewKeyFor } from "../reviews";
 import type { CityDir, CityFile } from "../city/types";
 import type { Lang } from "../i18n";
 import { RoadSystem } from "./RoadSystem";
+import { StreetParking } from "./StreetParking";
 import { District, SITZ_AN } from "./District";
 import { Building } from "./Building";
 import { CityConnections } from "./CityConnections";
@@ -603,6 +604,7 @@ export function CityTree() {
     <LabelOccludersContext.Provider value={labelOccluder}>
       <group>
         <RoadSystem layout={layout} sidewalks={sidewalks} active={buildPhase === "built"} />
+        <StreetParking layout={layout} active={buildPhase === "built"} />
 
         {/* Far zoom: the city as one instanced heat-grid (single draw call) */}
         {lodFar && <HeatCells layout={layout} />}

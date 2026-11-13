@@ -10,6 +10,7 @@ import { CURB_OFFSET, type SidewalkNetwork } from "../city/sidewalks";
 import { ENV } from "../city/palette";
 import { COMPLEXITY_TICKS, heightForComplexity } from "../city/mapping";
 import { heightAxisKey } from "../city/heightAxis";
+import { lampArm, planStreetLamps, planStreetTrees, treeTint } from "../city/streetFurniture";
 import { useLodFar } from "../hooks/useLodFar";
 import { formatDecimal, t } from "../i18n";
 import { useStore } from "../stores/useStore";
@@ -23,6 +24,9 @@ import "../design/city-funktion.css";
  * heads are off. Everything repeated uses InstancedMesh so a whole district
  * costs a handful of draw calls.
  */
+
+const TREE_CROWN = "#2f6b50";
+const TREE_TOP = "#3a7a5c";
 
 const dummy = new THREE.Object3D();
 const CROSSWALK_BARS = [-1.65, -1.1, -0.55, 0, 0.55, 1.1, 1.65];
@@ -82,10 +86,12 @@ export function RoadSystem({
   // The skyline's height is a measurement (synthetic complexity on the
   // 2.2..34 rail of city/mapping), so the rail stands in the picture: a pole
   // at the plaza corner opposite the podium, ticks at 0 / .25 / .5 / .75 / 1
-  // complexity, one bundled label. Empty levels get no mast.
+  // complexity, one bundled label. A two-file level has no skyline to compare,
+  // and its fitted camera puts the bundled label above the frame: the pole
+  // then stood alone through the middle of the picture (measured on the
+  // 02-files arrival). Empty and two-file levels get no mast.
   const mast = useMemo(() => {
-    const hasData = layout.buildings.length > 0 || layout.blocks.length > 0;
-    if (!hasData) return null;
+    if (layout.buildings.length < 3) return null;
     const r = Math.max(layout.plazaExtent, 12) + 2.6;
     return { x: layout.plazaCenter.x - r, z: layout.plazaCenter.z - r };
   }, [layout]);
@@ -234,78 +240,43 @@ export function RoadSystem({
   }, [dashData, surface]);
 
   // ── Streetlights lined along the sidewalks ──────────────────────────────
-  const lampData = useMemo(() => {
-    const items: Array<{ x: number; z: number; rotY: number }> = [];
-    layout.streets.forEach((s, li) => {
-      const len = Math.hypot(s.x2 - s.x1, s.z2 - s.z1);
-      if (len < 6) return;
-      const ux = (s.x2 - s.x1) / len;
-      const uz = (s.z2 - s.z1) / len;
-      const nx = -uz;
-      const nz = ux;
-      const rotY = -Math.atan2(uz, ux);
-      const count = Math.floor(len / 16);
-      for (let i = 0; i <= count; i++) {
-        const side = (li + i) % 2 === 0 ? 1 : -1;
-        const t = count > 0 ? i / count : 0.5;
-        const jitter = (((li * 73 + i * 31) % 100) / 100 - 0.5) * 2.4;
-        const t2 = Math.min(Math.max(t + jitter / len, 0.08), 0.92);
-        items.push({
-          x: s.x1 + (s.x2 - s.x1) * t2 + nx * (CURB_OFFSET + 0.2) * side,
-          z: s.z1 + (s.z2 - s.z1) * t2 + nz * (CURB_OFFSET + 0.2) * side,
-          rotY,
-        });
-      }
-    });
-    return items.slice(0, 160);
-  }, [layout]);
+  const lampData = useMemo(() => planStreetLamps(layout.streets), [layout]);
 
   const poleRef = useRef<THREE.InstancedMesh>(null);
+  const armRef = useRef<THREE.InstancedMesh>(null);
   const headRef = useRef<THREE.InstancedMesh>(null);
   useLayoutEffect(() => {
     const poles = poleRef.current;
+    const arms = armRef.current;
     const heads = headRef.current;
-    if (!poles || !heads) return;
+    if (!poles || !arms || !heads) return;
     lampData.forEach((l, i) => {
       dummy.rotation.set(0, l.rotY, 0);
       dummy.position.set(l.x, 1.5, l.z);
       dummy.updateMatrix();
       poles.setMatrixAt(i, surfaceMatrix(surface, dummy.matrix));
-      dummy.position.set(l.x, 3.1, l.z);
+      // The arm and the lantern are boxes whose local X is the kerb normal.
+      // Keeping them in two instances means the light and its bracket share
+      // one orientation instead of guessing a world-space offset per lamp.
+      const arm = lampArm(l);
+      dummy.rotation.set(0, arm.rotY, 0);
+      dummy.position.set(arm.x, 2.96, arm.z);
+      dummy.updateMatrix();
+      arms.setMatrixAt(i, surfaceMatrix(surface, dummy.matrix));
+      dummy.position.set(arm.headX, 2.86, arm.headZ);
       dummy.updateMatrix();
       heads.setMatrixAt(i, surfaceMatrix(surface, dummy.matrix));
     });
     poles.count = lampData.length;
+    arms.count = lampData.length;
     heads.count = lampData.length;
     poles.instanceMatrix.needsUpdate = true;
+    arms.instanceMatrix.needsUpdate = true;
     heads.instanceMatrix.needsUpdate = true;
   }, [lampData, surface]);
 
   // ── Blocky street trees along the sidewalks ─────────────────────────────
-  const treeData = useMemo(() => {
-    const items: Array<{ x: number; z: number; rotY: number; s: number }> = [];
-    layout.streets.forEach((s, li) => {
-      const len = Math.hypot(s.x2 - s.x1, s.z2 - s.z1);
-      if (len < 8) return;
-      const ux = (s.x2 - s.x1) / len;
-      const uz = (s.z2 - s.z1) / len;
-      const nx = -uz;
-      const nz = ux;
-      const count = Math.floor(len / 10);
-      for (let i = 0; i < count; i++) {
-        const side = (li + i) % 2 === 0 ? -1 : 1;
-        const t = (i + 0.5) / count;
-        const jitter = (((li * 41 + i * 17) % 100) / 100 - 0.5) * 0.7;
-        items.push({
-          x: s.x1 + (s.x2 - s.x1) * t + nx * (CURB_OFFSET + 0.75) * side + nx * jitter,
-          z: s.z1 + (s.z2 - s.z1) * t + nz * (CURB_OFFSET + 0.75) * side + nz * jitter,
-          rotY: (((li * 97 + i * 53) % 100) / 100) * Math.PI * 2,
-          s: 0.8 + ((li * 29 + i * 13) % 45) / 100,
-        });
-      }
-    });
-    return items.slice(0, 140);
-  }, [layout]);
+  const treeData = useMemo(() => planStreetTrees(layout.streets), [layout]);
 
   const trunkRef = useRef<THREE.InstancedMesh>(null);
   const crownRef = useRef<THREE.InstancedMesh>(null);
@@ -315,6 +286,9 @@ export function RoadSystem({
     const crowns = crownRef.current;
     const tops = crownTopRef.current;
     if (!trunks || !crowns || !tops) return;
+    const crown = new THREE.Color(TREE_CROWN);
+    const top = new THREE.Color(TREE_TOP);
+    const shade = new THREE.Color();
     treeData.forEach((t, i) => {
       dummy.position.set(t.x, 0.45 * t.s, t.z);
       dummy.rotation.set(0, t.rotY, 0);
@@ -327,6 +301,11 @@ export function RoadSystem({
       dummy.position.set(t.x, 2.28 * t.s, t.z);
       dummy.updateMatrix();
       tops.setMatrixAt(i, surfaceMatrix(surface, dummy.matrix));
+      // A street row is planted, not stamped: each crown shifts a few degrees
+      // around the same two greens, enough that no two neighbours match.
+      const tint = treeTint(i);
+      crowns.setColorAt(i, shade.copy(crown).offsetHSL(tint.hue, 0, tint.light));
+      tops.setColorAt(i, shade.copy(top).offsetHSL(-tint.hue, 0, tint.light * 0.7));
     });
     trunks.count = treeData.length;
     crowns.count = treeData.length;
@@ -334,6 +313,8 @@ export function RoadSystem({
     trunks.instanceMatrix.needsUpdate = true;
     crowns.instanceMatrix.needsUpdate = true;
     tops.instanceMatrix.needsUpdate = true;
+    if (crowns.instanceColor) crowns.instanceColor.needsUpdate = true;
+    if (tops.instanceColor) tops.instanceColor.needsUpdate = true;
     dummy.scale.setScalar(1);
   }, [treeData, surface]);
 
@@ -389,12 +370,20 @@ export function RoadSystem({
         <meshStandardMaterial color="#2b3346" roughness={0.6} />
       </instancedMesh>
       <instancedMesh
+        ref={armRef}
+        args={[undefined, undefined, Math.max(1, lampData.length)]}
+        frustumCulled={false}
+      >
+        <boxGeometry args={[0.62, 0.07, 0.08]} />
+        <meshStandardMaterial color="#2b3346" roughness={0.6} />
+      </instancedMesh>
+      <instancedMesh
         ref={headRef}
         args={[undefined, undefined, Math.max(1, lampData.length)]}
         frustumCulled={false}
         visible={active}
       >
-        <sphereGeometry args={[0.17, 8, 8]} />
+        <boxGeometry args={[0.34, 0.16, 0.22]} />
         <meshBasicMaterial color={ENV.streetlight} toneMapped={false} />
       </instancedMesh>
 
@@ -413,7 +402,7 @@ export function RoadSystem({
         frustumCulled={false}
       >
         <boxGeometry args={[1.25, 1.1, 1.25]} />
-        <meshStandardMaterial color="#2f6b50" roughness={0.9} />
+        <meshStandardMaterial color="#ffffff" roughness={0.9} />
       </instancedMesh>
       <instancedMesh
         ref={crownTopRef}
@@ -421,7 +410,7 @@ export function RoadSystem({
         frustumCulled={false}
       >
         <boxGeometry args={[0.8, 0.75, 0.8]} />
-        <meshStandardMaterial color="#3a7a5c" roughness={0.9} />
+        <meshStandardMaterial color="#ffffff" roughness={0.9} />
       </instancedMesh>
 
       {/* The height rail, standing in the picture — see the mast memo above */}

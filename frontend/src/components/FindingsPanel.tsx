@@ -70,14 +70,26 @@ export function FindingsPanel() {
   const setRuleFilter = useStore((s) => s.setRuleFilter);
   const languageFilter = useStore((s) => s.languageFilter);
   const setLanguageFilter = useStore((s) => s.setLanguageFilter);
+  const newFindingsOnly = useStore((s) => s.newFindingsOnly);
+  const setNewFindingsOnly = useStore((s) => s.setNewFindingsOnly);
+  const verify = useStore((s) => s.verify);
   const reviews = useStore((s) => s.reviews);
   const verdictsUnreadable = useStore((s) => s.verdictsUnreadable);
   const closeRef = useRef<HTMLButtonElement>(null);
   /** Rule chips show the frequent ones; this reveals the long tail. */
   const [showAllRules, setShowAllRules] = useState(false);
 
-  // Pass 1: severity filter only — the rule chips count over this pool so
-  // their counts stay stable while a rule chip is toggled.
+  const verifyReport = verify.status === "ran" ? verify.report : null;
+  const newFindings = verifyReport?.newFindings ?? [];
+  const verifyComparable = verifyReport?.comparable?.ok ?? true;
+  const newFingerprints = useMemo(
+    () => new Set(newFindings.map((finding) => finding.fingerprint)),
+    [newFindings],
+  );
+
+  // Pass 1: severity, language and "new since the earlier scan" filters — the
+  // rule chips count over this pool so their counts stay stable while a rule
+  // chip is toggled.
   const severityGroups = useMemo<FileGroup[]>(() => {
     if (!cityData) return [];
     return allFiles(cityData)
@@ -86,7 +98,12 @@ export function FindingsPanel() {
         file,
         findings: file.findings
           .map((finding, index) => ({ finding, index }))
-          .filter(({ finding }) => threatFilter === "all" || finding.severity === threatFilter),
+          .filter(
+            ({ finding }) =>
+              (!newFindingsOnly ||
+                (finding.fingerprint !== undefined && newFingerprints.has(finding.fingerprint))) &&
+              (threatFilter === "all" || finding.severity === threatFilter),
+          ),
       }))
       .filter(({ findings }) => findings.length > 0)
       .map(({ file, findings }) => ({
@@ -98,7 +115,7 @@ export function FindingsPanel() {
       .sort(
         (a, b) => a.worst - b.worst || b.count - a.count || a.file.linesOfCode - b.file.linesOfCode,
       );
-  }, [cityData, threatFilter, languageFilter]);
+  }, [cityData, threatFilter, languageFilter, newFindingsOnly, newFingerprints]);
 
   // Pass 2: rule filter AND-combined on top of the severity filter.
   const groups = useMemo<FileGroup[]>(() => {
@@ -206,7 +223,7 @@ export function FindingsPanel() {
    */
   const scanTotal = cityData ? severityTotal(cityData.findingsBySeverity) : 0;
   const undrawn =
-    threatFilter === "all" && ruleFilter === null && languageFilter === null
+    threatFilter === "all" && ruleFilter === null && languageFilter === null && !newFindingsOnly
       ? Math.max(0, scanTotal - filteredTotal)
       : 0;
   const rowRefs = useRef<Map<string, HTMLDivElement>>(new Map());
@@ -395,6 +412,23 @@ export function FindingsPanel() {
         })}
       </div>
 
+      {newFindings.length > 0 && verifyComparable && (
+        <div className="filter-row" role="group" aria-label={t(lang, "findings.newOnlyTitle")}>
+          <button
+            type="button"
+            aria-pressed={newFindingsOnly}
+            onClick={() => setNewFindingsOnly(!newFindingsOnly)}
+            title={t(lang, "findings.newOnlyTitle")}
+            className="filter-chip"
+            data-new-chip={newFindings.length}
+            data-active={newFindingsOnly || undefined}
+          >
+            {t(lang, "findings.newOnly")}
+            <span className="filter-count">{newFindings.length}</span>
+          </button>
+        </div>
+      )}
+
       {ruleChips.length > 0 && (
         <div
           className="filter-row filter-row-rules"
@@ -460,23 +494,37 @@ export function FindingsPanel() {
             style={{ color: "#dedbd3" }}
           >
             <p>
-              {languageFilter !== null
-                ? t(lang, "findings.emptyFiltered")
-                : ruleFilter
-                  ? threatFilter === "all"
-                    ? t(lang, "findings.emptyRule", { rule: ruleFilter })
-                    : t(lang, "findings.emptyRulePriority", {
-                        rule: ruleFilter,
-                        priority: t(lang, SEVERITY_LABEL_KEY[threatFilter as Severity]),
-                      })
-                  : threatFilter === "all"
-                    ? t(lang, "findings.emptyAll")
-                    : t(lang, "findings.emptyPriority", {
-                        priority: t(lang, SEVERITY_LABEL_KEY[threatFilter as Severity]),
-                      })}
+              {newFindingsOnly
+                ? t(lang, "findings.emptyNew")
+                : languageFilter !== null
+                  ? t(lang, "findings.emptyFiltered")
+                  : ruleFilter
+                    ? threatFilter === "all"
+                      ? t(lang, "findings.emptyRule", { rule: ruleFilter })
+                      : t(lang, "findings.emptyRulePriority", {
+                          rule: ruleFilter,
+                          priority: t(lang, SEVERITY_LABEL_KEY[threatFilter as Severity]),
+                        })
+                    : threatFilter === "all"
+                      ? t(lang, "findings.emptyAll")
+                      : t(lang, "findings.emptyPriority", {
+                          priority: t(lang, SEVERITY_LABEL_KEY[threatFilter as Severity]),
+                        })}
             </p>
-            {(threatFilter !== "all" || ruleFilter !== null || languageFilter !== null) && (
+            {(newFindingsOnly ||
+              threatFilter !== "all" ||
+              ruleFilter !== null ||
+              languageFilter !== null) && (
               <div className="mt-3 flex flex-wrap justify-center gap-2">
+                {newFindingsOnly && (
+                  <button
+                    type="button"
+                    onClick={() => setNewFindingsOnly(false)}
+                    className="min-h-9 rounded-lg border border-white/20 px-3 text-xs hover:bg-white/5"
+                  >
+                    {t(lang, "findings.showAllFindings")}
+                  </button>
+                )}
                 {threatFilter !== "all" && (
                   <button
                     type="button"
@@ -506,11 +554,14 @@ export function FindingsPanel() {
                 )}
               </div>
             )}
-            {threatFilter === "all" && ruleFilter === null && languageFilter === null && (
-              <p className="mt-2 text-xs" style={{ color: "#aaa79e" }}>
-                {t(lang, "findings.emptyHint")}
-              </p>
-            )}
+            {threatFilter === "all" &&
+              ruleFilter === null &&
+              languageFilter === null &&
+              !newFindingsOnly && (
+                <p className="mt-2 text-xs" style={{ color: "#aaa79e" }}>
+                  {t(lang, "findings.emptyHint")}
+                </p>
+              )}
           </div>
         )}
         {visibleGroups.map(({ file, worst, count, findings: groupFindings }) => {

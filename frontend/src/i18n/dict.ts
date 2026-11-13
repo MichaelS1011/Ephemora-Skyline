@@ -2285,6 +2285,22 @@ export const DICT = {
     en: "No findings match the active filters.",
     de: "Keine Funde passen zu den aktiven Filtern.",
   },
+  "findings.emptyNew": {
+    en: "No new findings match the active filters.",
+    de: "Keine neuen Funde passen zu den aktiven Filtern.",
+  },
+  "findings.newOnly": {
+    en: "New",
+    de: "Neu",
+  },
+  "findings.newOnlyTitle": {
+    en: "Only findings that were not in the earlier scan",
+    de: "Nur Funde, die im früheren Scan nicht enthalten waren",
+  },
+  "findings.showAllFindings": {
+    en: "Show all findings",
+    de: "Alle Funde anzeigen",
+  },
   "findings.showAllPriorities": {
     en: "Show all priorities",
     de: "Alle Prioritäten anzeigen",
@@ -3532,24 +3548,34 @@ export const DICT = {
     en: "Since your last scan",
     de: "Seit deinem letzten Scan",
   },
-  // The ask names what the tie actually is — the file list — because the same
-  // repository at another branch or path hashes the same, and a person must be
-  // able to tell which earlier visit they are about to be measured against.
+  // The ask names what the tie actually is — the project identity, not the
+  // full file list. Adding a file must not turn the last visit into a first.
   "ctx.sinceAsk": {
-    en: "Compare with the last earlier scan with this file list",
-    de: "Mit dem letzten früheren Scan mit dieser Dateiliste vergleichen",
+    en: "Compare with the earlier scan of this project",
+    de: "Mit dem früheren Scan dieses Projekts vergleichen",
   },
   "ctx.sinceRunning": {
     en: "Comparing…",
     de: "Wird verglichen …",
   },
   "ctx.sinceNone": {
-    en: "Nothing earlier with this file list on this machine to compare with.",
-    de: "Nichts Früheres mit dieser Dateiliste auf diesem Rechner zum Vergleichen.",
+    en: "No earlier scan of this project on this machine to compare with.",
+    de: "Kein früherer Scan dieses Projekts auf diesem Rechner zum Vergleichen.",
   },
   "ctx.sinceAgedOut": {
     en: "The earlier scan is gone (only the newest 20 completed runs are kept) — a fresh scan will compare again.",
     de: "Der frühere Scan ist weg (nur die neuesten 20 abgeschlossenen Scans bleiben) — ein neuer Scan vergleicht wieder.",
+  },
+  // New is a lead, not a regression: a new file, a line that starts matching,
+  // or an engine that now runs all produce it. The count opens the filtered
+  // list, where the finding itself can be read.
+  "ctx.sinceNew": {
+    en: "{n} new",
+    de: "{n} neu",
+  },
+  "ctx.sinceNewTip": {
+    en: "Not in the earlier scan. A new file, a line that now matches, or a rule that newly fires — check the finding, do not read it as a regression by itself.",
+    de: "Im früheren Scan nicht vorhanden. Eine neue Datei, eine Zeile, die jetzt passt, oder eine Regel, die neu anschlägt — sieh dir den Fund an, allein ist er kein Rückschritt.",
   },
   // "No longer detected", not "fixed": a renamed file and a silenced finding
   // both leave this count, and the docs say so. The loosened severity is part
@@ -3577,6 +3603,38 @@ export const DICT = {
   "ctx.sincePresentTip": {
     en: "Same rule, same file, same line, same code — nothing moved.",
     de: "Dieselbe Regel, dieselbe Datei, dieselbe Zeile, derselbe Code — nichts hat sich bewegt.",
+  },
+  "ctx.sinceNotComparable": {
+    en: "Not comparable: {reasons}. A count here would mix a different scan with a code change.",
+    de: "Nicht vergleichbar: {reasons}. Eine Zahl hier würde einen anderen Scan mit einer Code-Änderung vermischen.",
+  },
+  "ctx.sinceNotComparableWhy": {
+    en: "The numbers are left out rather than presented as your project's change. Run both scans with the same project, scanners and full file set to compare them.",
+    de: "Die Zahlen bleiben weg, statt als Änderung deines Projekts zu erscheinen. Scanne beide Male dasselbe Projekt mit denselben Scannern und dem vollständigen Dateisatz, um zu vergleichen.",
+  },
+  "ctx.sinceReasonProject": {
+    en: "different project",
+    de: "anderes Projekt",
+  },
+  "ctx.sinceReasonEngines": {
+    en: "different scanners",
+    de: "andere Scanner",
+  },
+  "ctx.sinceReasonRunner": {
+    en: "different dependency engine",
+    de: "andere Abhängigkeits-Engine",
+  },
+  "ctx.sinceReasonLive": {
+    en: "a live delta",
+    de: "ein Live-Delta",
+  },
+  "ctx.sinceReasonPreview": {
+    en: "a sampled scan",
+    de: "ein Stichproben-Scan",
+  },
+  "ctx.sinceIdentityGuessed": {
+    en: "Project identity is inferred from the folder name and its top-level folders. Set a project root in the editor link to pin it.",
+    de: "Die Projektidentität ist aus dem Ordnernamen und seinen obersten Ordnern abgeleitet. Setze im Editor-Link einen Projektstamm, um sie festzulegen.",
   },
   "ctx.sinceWhy": {
     en: "A finding that vanished is not a fix by itself: if the rule still fires on that file, the pair below is not a before and after.",

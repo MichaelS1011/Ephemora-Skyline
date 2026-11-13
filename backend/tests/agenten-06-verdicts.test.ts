@@ -138,8 +138,68 @@ describe("the four verdicts are branches, and the document says which", () => {
       "present",
       "gone",
       "moved",
+      "newFindings",
+      "newBySeverity",
+      "comparable",
       "unknown",
     ]);
+  });
+
+  it("new: a finding only the later scan holds is not silently dropped", () => {
+    const added = resultWith("nachher", [{ path: "src/a.js", vulns: [SQL, MOVER, OTHER] }]);
+    const report = compareScans(before, added);
+    expect(report.newFindings.map((n) => n.type)).toEqual(["XSS"]);
+    expect(report.newFindings[0]!.path).toBe("src/a.js");
+    expect(report.newFindings[0]!.severity).toBe("P0");
+    expect(report.newBySeverity).toEqual({ P0: 1, P1: 0, P2: 0 });
+  });
+
+  it("a moved target is consumed by the pair, never counted as new as well", () => {
+    const after = resultWith("nachher", [
+      {
+        path: "src/a.js",
+        vulns: [
+          SQL,
+          hit({ line: 44, type: "CONSOLE_USAGE", ruleId: "regex:CONSOLE_USAGE" }),
+          OTHER,
+        ],
+      },
+    ]);
+    const report = compareScans(before, after);
+    expect(report.newFindings.map((n) => n.type)).toEqual(["XSS"]);
+    expect(report.newFindings.some((n) => n.type === "CONSOLE_USAGE")).toBe(false);
+  });
+
+  it("pairs moved findings one-to-one instead of sharing one target", () => {
+    const twoBefore = resultWith("vorher", [
+      {
+        path: "src/a.js",
+        vulns: [
+          hit({ line: 10, type: "CONSOLE_USAGE", ruleId: "regex:CONSOLE_USAGE" }),
+          hit({ line: 20, type: "CONSOLE_USAGE", ruleId: "regex:CONSOLE_USAGE" }),
+        ],
+      },
+    ]);
+    const oneAfter = resultWith("nachher", [
+      {
+        path: "src/a.js",
+        vulns: [hit({ line: 30, type: "CONSOLE_USAGE", ruleId: "regex:CONSOLE_USAGE" })],
+      },
+    ]);
+    const report = compareScans(twoBefore, oneAfter);
+    expect(report.moved).toHaveLength(1);
+    expect(report.gone).toHaveLength(1);
+    expect(report.newFindings).toHaveLength(0);
+  });
+
+  it("counts duplicate fingerprints as a multiset, not as one hit", () => {
+    const duplicate = hit();
+    const twoBefore = resultWith("vorher", [{ path: "src/a.js", vulns: [duplicate, duplicate] }]);
+    const oneAfter = resultWith("nachher", [{ path: "src/a.js", vulns: [duplicate] }]);
+    const report = compareScans(twoBefore, oneAfter);
+    expect(report.present).toHaveLength(1);
+    expect(report.gone).toHaveLength(1);
+    expect(report.newFindings).toHaveLength(0);
   });
 
   it("names each verdict by the branch that produces it, in the document too", () => {

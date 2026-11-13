@@ -36,11 +36,20 @@ function dir(path: string, children: CityDir[] = [], files: string[] = []): City
   } as unknown as CityDir;
 }
 
-function city(id: string, tree: CityDir): CityData {
+function city(
+  id: string,
+  tree: CityDir,
+  repo: { owner: string; name: string; branch: string } = {
+    owner: "local",
+    name: "p",
+    branch: "main",
+  },
+): CityData {
   return {
     analysisId: id,
-    projectName: "p",
+    projectName: repo.name,
     rootPath: "",
+    repo,
     totalFiles: 1,
     totalLines: 10,
     findingsBySeverity: { P0: 0, P1: 0, P2: 0 },
@@ -57,6 +66,11 @@ const repoB = city(
   "scan-2",
   dir("root", [dir("src", [], ["src/a.ts", "src/b.ts", "src/c.ts"])], ["README.md"]),
 );
+const otherProject = city("scan-other", repoA.tree, {
+  owner: "local",
+  name: "other",
+  branch: "main",
+});
 
 describe("the anchor keeps what 'last scan' means", () => {
   beforeEach(() => window.localStorage.clear());
@@ -108,7 +122,7 @@ describe("the comparison anchor", () => {
     expect(
       JSON.parse(window.localStorage.getItem("ephemora-skyline-verify-anchor:v1") ?? "[]"),
     ).toHaveLength(1);
-    expect(anchorFor(repoB)?.previousId).toBeNull();
+    expect(anchorFor(otherProject)?.previousId).toBeNull();
     expect(
       JSON.parse(window.localStorage.getItem("ephemora-skyline-verify-anchor:v1") ?? "[]"),
     ).toHaveLength(2);
@@ -123,9 +137,19 @@ describe("the comparison anchor", () => {
     expect(third?.previousId, "the newest earlier scan, not the oldest").toBe("scan-3");
   });
 
-  it("does not tie two different folders together", () => {
+  it("does not tie two different projects together", () => {
     anchorFor(repoA);
-    expect(anchorFor(repoB)?.previousId).toBeNull();
+    expect(anchorFor(otherProject)?.previousId).toBeNull();
+  });
+
+  it("keeps comparing after a file is added — the path list is not identity", () => {
+    expect(folderShape(repoA)).not.toBe(folderShape(repoB));
+    anchorFor(repoA);
+    const afterPull = anchorFor(repoB);
+    expect(afterPull?.previousId).toBe("scan-1");
+    expect(
+      JSON.parse(window.localStorage.getItem("ephemora-skyline-verify-anchor:v1") ?? "[]"),
+    ).toHaveLength(1);
   });
 
   it("keeps the anchor when the same scan is opened again", () => {

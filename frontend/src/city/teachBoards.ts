@@ -131,6 +131,15 @@ export const focalPxFor = (canvas: CanvasMeasure): number =>
  */
 export const TARGET_EDGE_PX = 124;
 
+/**
+ * The smallest city that gets the full three-board exhibition. At two files the
+ * city is two buildings on an empty plain; three plates at the readable edge
+ * would fill the frame and hang off both sides, so the small city keeps ONE
+ * plate — the file board — and the project card carries the rest. Twelve is the
+ * first level the placement tests stand three plates in.
+ */
+export const BOARD_FULL_MIN_FILES = 12;
+
 /** How far the three plates' BODY heights may drift apart. Each plate is cut so
  *  it reads the same on screen, which makes a nearer one shorter in the world;
  *  half the height is as much of that as reads as one family rather than three
@@ -633,16 +642,16 @@ export function rectGap(a: ScreenRect, b: ScreenRect): number {
  * 1280×800 window, 1124×900 in a 1440×900 one): the workspace header lies over
  * y 0…64, the scan summary over y 128…250 and x up to 712, the action dock over
  * y 726…792. The plate therefore keeps to y ≥ 9 % and y ≤ 90 % of the frame —
- * the dock and the header are what those two numbers are — and 2 % of the
+ * the dock and the header are what those two numbers are — and 5 % of the
  * width off each rim.
  *
  * There is no left band for the project card: it stands at window x 22…294 and
  * the picture begins at window x 316, so the card column is OUTSIDE the frame
- * the boards are placed in. Reading its 294 px off a 1280 px window as 26 % of
- * the picture is what made the old search give away a quarter of the ground it
- * could have used, and still put a plate 2 px from the canvas's right edge.
+ * the boards are placed in. The old 2 % rim gave away a quarter of the ground
+ * and still put a plate 2 px from the canvas's right edge; 5 % is the air that
+ * keeps a plate clear of the rim and of the DOM chrome beside it.
  */
-export const READING_AREA = { left: 0.02, right: 0.02, top: 0.09, bottom: 0.9 } as const;
+export const READING_AREA = { left: 0.05, right: 0.05, top: 0.09, bottom: 0.9 } as const;
 
 /** Frame margins a board may not cross at the reference viewport. */
 const MARGIN_PX = 10;
@@ -727,6 +736,13 @@ export function planBoardPlacements(
   layout: DirLayout,
   surface: WorldSurface,
   canvas: CanvasMeasure,
+  /** A screen rectangle the city already owns (the height mast's DOM label).
+   *  It is not a plot and has no ground footprint, so only the screen check can
+   *  keep a plate off it. */
+  reserved: ScreenRect | null = null,
+  /** The exhibition's ceiling: three normally, one on a two-file city where
+   *  three plates would be a wall. */
+  maxBoards = 3,
 ): BoardPlan {
   const view = arrivalView(layout, surface, canvas);
   const plots = plotRects(layout, surface, view);
@@ -772,6 +788,7 @@ export function planBoardPlacements(
         continue;
       const gap = Math.min(...plots.map((p) => rectGap(rect, p)));
       if (gap < 6) continue;
+      if (reserved && rectGap(rect, reserved) < BOARD_GAP_PX) continue;
       candidates.push({ x, z, y, depth, height, rect, edgePx, gap });
     }
   }
@@ -806,7 +823,7 @@ export function planBoardPlacements(
     return Math.abs(cx - ox) >= W * BOARD_SPREAD;
   };
   let chosen: Candidate[] = [];
-  for (let want = 3; want >= 2 && chosen.length === 0; want -= 1) {
+  for (let want = Math.min(3, maxBoards); want >= 2 && chosen.length === 0; want -= 1) {
     let budget = SEARCH_BUDGET;
     const take = (from: number, set: Candidate[]): boolean => {
       if (set.length === want) return true;
@@ -825,7 +842,17 @@ export function planBoardPlacements(
   }
   // Three were asked for. Where the picture holds three, three stand; where it
   // holds two, two; one place is never thrown away on top of that.
-  if (chosen.length === 0 && candidates.length > 0) chosen = [candidates[0]!];
+  if (chosen.length === 0 && candidates.length > 0) {
+    // On a two-file city one plate carries the whole teaching load: put it in
+    // the middle of the picture. Taking the widest-gap candidate put it hard
+    // against the left rim, where the project card clipped its first words.
+    const central = candidates.reduce((best, c) => {
+      const bestCentre = (best.rect.x0 + best.rect.x1) / 2;
+      const cCentre = (c.rect.x0 + c.rect.x1) / 2;
+      return Math.abs(cCentre - W / 2) < Math.abs(bestCentre - W / 2) ? c : best;
+    });
+    chosen = [maxBoards === 1 ? central : candidates[0]!];
+  }
 
   const boards: BoardPlacement[] = chosen
     .slice()

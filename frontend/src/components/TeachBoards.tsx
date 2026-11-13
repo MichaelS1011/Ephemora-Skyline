@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useThree } from "@react-three/fiber";
 import * as THREE from "three";
 import { useStore } from "../stores/useStore";
@@ -11,6 +11,7 @@ import { reviewKeyFor } from "../reviews";
 import {
   BOARD_CANVAS,
   BOARD_FONT,
+  BOARD_FULL_MIN_FILES,
   BOARD_TYPE,
   CAP_RATIO,
   boardCopy,
@@ -19,14 +20,15 @@ import {
   type BoardId,
   type BoardPlacement,
   type BoardText,
+  type ScreenRect,
 } from "../city/teachBoards";
 import type { CityFile, CityFinding } from "../city/types";
 
 /**
- * The three teaching boards, drawn.
+ * The teaching boards, drawn.
  *
- * Three planes, three canvas textures, no fourth thing: no DOM, no raycast, no
- * frame loop, no motion. The placement and the copy are decided in
+ * Up to three planes (one on a two-file city), the same number of canvas
+ * textures, no fourth thing: no DOM, no raycast, no frame loop, no motion. The placement and the copy are decided in
  * `city/teachBoards.ts` — this file only paints what that module measured, so a
  * guard can hold the decisions without a renderer.
  *
@@ -181,19 +183,86 @@ export function TeachBoards() {
   const gl = useThree((s) => s.gl);
   const size = useThree((s) => s.size);
 
+  /** The height mast is a DOM label anchored in the city, not a plot and not a
+   *  board. Its rectangle is measured after it mounts, then handed to the
+   *  placement so a plate cannot be painted behind the live axis. */
+  const [mastRect, setMastRect] = useState<ScreenRect | null>(null);
+
+  /** The canvas's TRUE client box. `useThree().size` can still carry the
+   *  landing canvas's full-window measure for a beat after the workspace
+   *  arrives, and a plan solved for 1440×900 painted a 2-file board against
+   *  the left rim of the 1124×900 picture. This measures the element the
+   *  plates are drawn into and re-measures on every resize. */
+  const [picture, setPicture] = useState({ width: 0, height: 0 });
+  useEffect(() => {
+    const el = gl.domElement;
+    const measure = (): void => {
+      const width = el.clientWidth;
+      const height = el.clientHeight;
+      setPicture((prev) =>
+        prev.width === width && prev.height === height ? prev : { width, height },
+      );
+    };
+    measure();
+    let observer: ResizeObserver | null = null;
+    if (typeof ResizeObserver !== "undefined") {
+      observer = new ResizeObserver(measure);
+      observer.observe(el);
+    }
+    window.addEventListener("resize", measure);
+    return () => {
+      observer?.disconnect();
+      window.removeEventListener("resize", measure);
+    };
+  }, [gl]);
+  useEffect(() => {
+    const mast = document.querySelector<HTMLElement>(".cf-mast");
+    const picture = gl.domElement;
+    if (!mast || !picture) {
+      setMastRect(null);
+      return;
+    }
+    const c = picture.getBoundingClientRect();
+    const r = mast.getBoundingClientRect();
+    if (r.width < 1 || r.height < 1) {
+      setMastRect(null);
+      return;
+    }
+    const pad = 12;
+    const next = {
+      x0: r.left - c.left - pad,
+      y0: r.top - c.top - pad,
+      x1: r.right - c.left + pad,
+      y1: r.bottom - c.top + pad,
+    };
+    setMastRect((prev) =>
+      prev &&
+      Math.abs(prev.x0 - next.x0) < 1 &&
+      Math.abs(prev.y0 - next.y0) < 1 &&
+      Math.abs(prev.x1 - next.x1) < 1 &&
+      Math.abs(prev.y1 - next.y1) < 1
+        ? prev
+        : next,
+    );
+  }, [gl, size, cityData, buildPhase]);
+
   const plan = useMemo(() => {
     if (!cityData) return null;
-    const canvas = {
-      width: gl.domElement.clientWidth,
-      height: gl.domElement.clientHeight,
-    };
     // No measure yet means no picture to place anything in. The module refuses
     // to guess one; this returns nothing rather than a placement for a frame
     // that is never rendered.
-    if (canvas.width < 1 || canvas.height < 1) return null;
+    if (picture.width < 1 || picture.height < 1) return null;
+    const canvas = { width: picture.width, height: picture.height };
     const layout = getDirLayout(cityData, []);
-    return planBoardPlacements(layout, surfaceForLayout(layout, false), canvas);
-  }, [cityData, gl, size]);
+    const maxBoards = cityData.totalFiles < BOARD_FULL_MIN_FILES ? 1 : 3;
+    return planBoardPlacements(
+      layout,
+      surfaceForLayout(layout, false),
+      canvas,
+      mastRect,
+      maxBoards,
+    );
+  }, [cityData, picture, mastRect]);
 
   const copy = useMemo(() => {
     if (!cityData) return null;

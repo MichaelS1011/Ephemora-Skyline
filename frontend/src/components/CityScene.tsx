@@ -45,6 +45,7 @@ import { Pedestrians } from "./Pedestrians";
 import { BannerPlane } from "./BannerPlane";
 import { DriveCar } from "./DriveCar";
 import { TeachBoards } from "./TeachBoards";
+import { BOARD_FULL_MIN_FILES } from "../city/teachBoards";
 import { NeighbourTowns } from "./NeighbourTowns";
 import "../design/world.css";
 
@@ -494,7 +495,10 @@ export function CityScene() {
         centre={frame.centre}
         tallest={frame.tallest}
         lang={lang}
-        active={buildPhase !== "constructing" || shareHero !== null}
+        active={
+          (buildPhase !== "constructing" || shareHero !== null) &&
+          (!cityData || cityData.totalFiles >= BOARD_FULL_MIN_FILES)
+        }
       />
 
       {/* The three teaching boards on the empty ground: what a house is, the

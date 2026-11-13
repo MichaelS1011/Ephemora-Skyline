@@ -52,15 +52,32 @@ curl -s -X POST -H 'Content-Type: application/json' \
 ```
 
 `present`, `gone`, `moved`, `unknown` — four branches of one comparison in
-`compareScans`, not four heuristics. A fingerprint the later scan still holds is
-`present`. A fingerprint that is gone, with no finding of the same rule left in
-the same path, is `gone`. A finding whose rule is still in the same path at
-another line is `moved`, never `gone`. A fingerprint the caller asked about that
-the before-scan never held is `unknown`. Only the fingerprints the caller names
-are checked: the body also takes `"fingerprints": ["83672b8534b95c59"]`, a list is
-read up to 2000 fingerprints, and without that list every finding of the
-before-scan is checked. The answer carries `before`, `after`, `checked` and those
-four lists, `moved` as `from`/`to` pairs.
+`compareScans`, not four heuristics, all about the before-scan. A
+fingerprint the later scan still holds is `present`. A fingerprint that is gone,
+with no finding of the same rule left in the same path, is `gone`. A finding
+whose rule is still in the same path at another line is `moved`, never `gone`.
+A fingerprint the caller asked about that the before-scan never held is
+`unknown`. Only the fingerprints the caller names are checked: the body also
+takes `"fingerprints": ["83672b8534b95c59"]`, a list is read up to 2000
+fingerprints, and without that list every finding of the before-scan is checked.
+The answer carries `before`, `after`, `checked`, those four lists, and `moved`
+as `from`/`to` pairs.
+
+A full comparison (no `fingerprints` list) also answers the other direction:
+`newFindings` names every finding only the later scan holds, with
+`newBySeverity` counting them by P0/P1/P2. A hit named there is not a regression
+by itself — a new file, a newly matching line and a rule that now fires all look
+the same. The pairing is one-to-one: a moved pair consumes both of its hits, so
+one later hit cannot satisfy two earlier findings or appear in `moved` and
+`newFindings` at once. When the caller names fingerprints, `newFindings` is
+empty because the question is the named list, not the whole later scan.
+
+Finally, `comparable` says whether the two scans may be read against each other:
+`{ "ok": true, "reasons": [] }`, or `ok: false` with one or more of
+`different-project`, `different-engines`, `different-dependency-runner`,
+`live-delta` and `preview-sample`. The lists are still there for an agent to
+inspect, but a different scanner set or a sampled scan can move a count without
+the code changing.
 
 `moved` exists because a vanished fingerprint is not proof of a fix: the line can
 have shifted under an unchanged rule. A renamed file and a silenced finding do

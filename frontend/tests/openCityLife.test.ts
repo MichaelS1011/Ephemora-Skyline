@@ -411,6 +411,13 @@ describe("deriveTransit on a built city's street list", () => {
     expect(t!.taxiCurb).toEqual({ x: 38.3, z: 0 });
   });
 
+  it("keeps the cab on the stop's own street when there is no bus line", () => {
+    const t = deriveTransit(cityStreets, { bus: false });
+    expect(t).not.toBeNull();
+    expect(t!.taxiLane).toBe(t!.busLane);
+    expect(t!.taxiCurb).toEqual({ x: 0, z: -18.3 });
+  });
+
   it("hands back nothing when there is no street to put it on", () => {
     expect(deriveTransit([])).toBeNull();
   });

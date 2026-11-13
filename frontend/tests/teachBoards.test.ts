@@ -122,6 +122,18 @@ const CLEAN: CityData = city({
   tree: dir({ path: "", detailFiles: [file("src/loader.py", "Python", [])] }),
 });
 
+/** The two-file city: two buildings on an empty plain, one plate of teaching. */
+const TWO: CityData = city({
+  totalFiles: 2,
+  findingsBySeverity: { P0: 0, P1: 0, P2: 0 },
+  languages: { TypeScript: 8 },
+  scanProvenance: provenance({ churn: true, duplicates: true, coverage: true }),
+  tree: dir({
+    path: "",
+    detailFiles: [file("src/a.ts", "TypeScript", []), file("src/b.ts", "TypeScript", [])],
+  }),
+});
+
 /** A scan whose every finding already carries a verdict. */
 const ANSWERED: CityData = city({
   totalFiles: 5,
@@ -718,6 +730,19 @@ describe("a board stands on free ground", () => {
     }
   });
 
+  it("keeps a plate off the height mast's reserved screen rectangle", () => {
+    // The mast is a DOM label anchored in the city, not a plot and not a board.
+    // A plate behind it is still a plate on top of a live measurement, so the
+    // reserved rectangle gets the same gap as another plate would.
+    const layout = getDirLayout(DEMO, []);
+    const surface = surfaceForLayout(layout, false);
+    const reserved = { x0: 700, y0: 300, x1: 1124, y1: 650 };
+    const plan = planBoardPlacements(layout, surface, { width: 1124, height: 900 }, reserved);
+    expect(plan.boards.length).toBeGreaterThan(0);
+    for (const b of plan.boards)
+      expect(rectGap(b.rect, reserved), "a plate sits on the mast").toBeGreaterThanOrEqual(20);
+  });
+
   it("stands three boards wherever three do stand", () => {
     // Three is what the arrival was designed around. Where the picture cannot
     // hold three plates at the promised edge, the plan says so with fewer boards
@@ -729,6 +754,17 @@ describe("a board stands on free ground", () => {
         expect(plan.boards.length, `${name} / ${label}`).toBe(3);
       }
     }
+  });
+
+  it("keeps a two-file city to one plate instead of a three-plate wall", () => {
+    const layout = getDirLayout(TWO, []);
+    const canvas = { width: 1124, height: 900 };
+    const plan = planBoardPlacements(layout, surfaceForLayout(layout, false), canvas, null, 1);
+    expect(plan.boards).toHaveLength(1);
+    const b = plan.boards[0]!;
+    expect(b.rect.x0).toBeGreaterThanOrEqual(Math.max(10, canvas.width * READING_AREA.left) - 1e-6);
+    expect(b.rect.x1).toBeLessThanOrEqual(canvas.width * (1 - READING_AREA.right) - 10 + 1e-6);
+    expect(b.rect.y1).toBeLessThanOrEqual(canvas.height * READING_AREA.bottom - 10 + 1e-6);
   });
 
   it("keeps the main line's cap over the operator's 11 px floor in both pictures", () => {

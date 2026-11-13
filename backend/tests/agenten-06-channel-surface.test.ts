@@ -527,8 +527,11 @@ describe("the result and verify routes answer their contract", () => {
       "after",
       "before",
       "checked",
+      "comparable",
       "gone",
       "moved",
+      "newBySeverity",
+      "newFindings",
       "present",
       "unknown",
     ]);

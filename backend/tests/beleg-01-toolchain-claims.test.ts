@@ -145,7 +145,7 @@ describe("TypeScript: the one number the documents may not disagree about", () =
   });
 });
 
-describe("the gates the README tells a reader to run (README.md:109-121)", () => {
+describe("the gates the README tells a reader to run (README.md:110-122)", () => {
   const root = json<{ scripts: Record<string, string> }>("package.json");
   const gateCommands = ["lint", "type-check", "test", "build"];
 
@@ -164,7 +164,7 @@ describe("the gates the README tells a reader to run (README.md:109-121)", () =>
   });
 
   it("ships no advisory waiver now that Tailwind 4 dropped the braces path", () => {
-    // README.md:187 says the audit gate accepts high findings only when an
+    // README.md:188 says the audit gate accepts high findings only when an
     // entry names them. The braces entry went away with Tailwind 4: the lockfile
     // no longer resolves braces at all, so neither the waiver nor the override
     // that pinned it has a subject.
@@ -191,7 +191,7 @@ describe("the names and cadences a reader can check", () => {
     expect(new Set(intervals)).toEqual(new Set(["weekly"]));
   });
 
-  it("keeps the two workspaces the README's install line promises (README.md:101)", () => {
+  it("keeps the two workspaces the README's install line promises (README.md:102)", () => {
     expect(json<{ workspaces: string[] }>("package.json").workspaces).toEqual([
       "frontend",
       "backend",

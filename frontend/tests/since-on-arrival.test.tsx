@@ -15,6 +15,7 @@ import { act } from "react";
 import { createRoot } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ContextCard } from "../src/components/ContextCard";
+import { SinceLastScan } from "../src/components/SinceLastScan";
 import { useStore } from "../src/stores/useStore";
 import { city } from "./helpers/cityFixture";
 beforeEach(() => {
@@ -32,22 +33,20 @@ describe("the comparison asks on arrival", () => {
     useStore.getState().setCityData(city({ analysisId: "scan-2" }));
     // the card draws once the build is done — CityTree raises this in the app
     useStore.setState({ buildPhase: "built" });
-    const spy = vi
-      .spyOn(globalThis, "fetch")
-      .mockResolvedValue(
-        new Response(
-          JSON.stringify({
-            before: "scan-1",
-            after: "scan-2",
-            checked: 0,
-            present: [],
-            gone: [],
-            moved: [],
-            unknown: [],
-          }),
-          { status: 200 },
-        ),
-      );
+    const spy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          before: "scan-1",
+          after: "scan-2",
+          checked: 0,
+          present: [],
+          gone: [],
+          moved: [],
+          unknown: [],
+        }),
+        { status: 200 },
+      ),
+    );
     const host = document.createElement("div");
     document.body.append(host);
     const root = createRoot(host);
@@ -84,5 +83,80 @@ describe("the comparison asks on arrival", () => {
     await act(async () => root.unmount());
     host.remove();
     vi.restoreAllMocks();
+  });
+});
+
+describe("the new count is the door to the new findings", () => {
+  const report = {
+    before: "scan-1",
+    after: "scan-2",
+    checked: 2,
+    present: [],
+    gone: [],
+    moved: [],
+    newFindings: [
+      {
+        fingerprint: "fp-new",
+        path: "src/new.ts",
+        line: 3,
+        type: "SQL_INJECTION",
+        ruleId: "regex:SQL_INJECTION",
+        severity: "P0",
+      },
+    ],
+    newBySeverity: { P0: 1, P1: 0, P2: 0 },
+    comparable: { ok: true, reasons: [] },
+    unknown: [],
+  };
+
+  function mount(): { host: HTMLDivElement; root: ReturnType<typeof createRoot> } {
+    const host = document.createElement("div");
+    document.body.append(host);
+    const root = createRoot(host);
+    return { host, root };
+  }
+
+  it("opens the findings panel with the new filter on", async () => {
+    window.localStorage.clear();
+    useStore.setState(useStore.getInitialState(), true);
+    useStore.getState().setCityData(city({ analysisId: "scan-2" }));
+    useStore.setState({
+      showFindings: false,
+      newFindingsOnly: false,
+      verify: { status: "ran", report, beforeId: "scan-1" } as never,
+    });
+    const { host, root } = mount();
+    await act(async () => root.render(<SinceLastScan lang="en" previousScan={false} />));
+    const button = host.querySelector<HTMLButtonElement>("[data-since-new]");
+    expect(button?.textContent).toContain("1 new");
+    await act(async () => button?.click());
+    expect(useStore.getState().showFindings).toBe(true);
+    expect(useStore.getState().newFindingsOnly).toBe(true);
+    await act(async () => root.unmount());
+    host.remove();
+  });
+
+  it("replaces the counts with the reason a cross-scan comparison is not valid", async () => {
+    window.localStorage.clear();
+    useStore.setState(useStore.getInitialState(), true);
+    useStore.getState().setCityData(city({ analysisId: "scan-2" }));
+    useStore.setState({
+      verify: {
+        status: "ran",
+        beforeId: "scan-1",
+        report: {
+          ...report,
+          comparable: { ok: false, reasons: ["different-engines"] },
+        },
+      } as never,
+    });
+    const { host, root } = mount();
+    await act(async () => root.render(<SinceLastScan lang="en" previousScan={false} />));
+    expect(host.querySelector("[data-verify-not-comparable]")).not.toBeNull();
+    expect(host.textContent).toContain("different scanners");
+    expect(host.textContent).not.toContain("1 new");
+    expect(host.textContent).not.toContain("unchanged");
+    await act(async () => root.unmount());
+    host.remove();
   });
 });

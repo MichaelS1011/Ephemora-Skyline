@@ -30,6 +30,8 @@ import { readFileSync } from "fs";
 import path from "path";
 import * as THREE from "three";
 import {
+  CALLED_PATCH_LAYERS,
+  CALLED_PATCH_SCALE,
   CONTACT_PATCH_Y,
   FIGURE,
   LIMB_SLOTS,
@@ -398,6 +400,25 @@ describe("the figure meets the ground", () => {
     expect(patch / footSpan).toBeLessThan(1.1);
     // even the slimmest resident (fat 0.82) keeps a disc that is not a dot
     expect(0.57 * 0.82 * S(20).across).toBeGreaterThanOrEqual(8);
+  });
+
+  it("keeps the called resident's patch inside the crowd's one draw", () => {
+    // The called resident is the only figure whose ground mark changes. It is
+    // the same 0.3-radius disc at 3× on both ground axes and 9 alpha layers;
+    // dropping either the scale or the layer count takes the measured 3:1
+    // contact back toward the 1.35:1 ceiling of one 0.26-alpha disc. The extra
+    // layers must ride in the existing shadow InstancedMesh, never a new mesh.
+    expect(CALLED_PATCH_SCALE).toBe(3);
+    expect(CALLED_PATCH_LAYERS).toBe(9);
+    const src = readFileSync(
+      path.resolve(import.meta.dirname, "../src/components/Pedestrians.tsx"),
+      "utf-8",
+    );
+    expect(src).toMatch(/const called = i === calledIndex && visibleScale > 0/);
+    expect(src).toMatch(
+      /shadows\.count = crowd \+ \(calledPatchDrawn \? CALLED_PATCH_LAYERS - 1 : 0\)/,
+    );
+    expect(src).toMatch(/args=\{\[shadowGeo, undefined, count \+ CALLED_PATCH_LAYERS - 1\]\}/);
   });
 
   it("keeps the selection mark thick enough on the squashed ground plane", () => {

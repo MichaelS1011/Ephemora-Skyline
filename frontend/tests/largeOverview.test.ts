@@ -52,9 +52,12 @@ describe("large world entry", () => {
     const city = world();
     city.tree.detailFiles = [{ id: "manifest" }] as CityFile[];
     expect(defaultOverviewPath(city)).toEqual([]);
-    city.tree.detailFiles = [];
-    city.tree.remainingFiles = 1;
-    expect(defaultOverviewPath(city)).toEqual([]);
+  });
+  it("does not mistake a child's capped overflow for files at the wrapper level", () => {
+    const city = world();
+    city.tree.remainingFiles = 330;
+    city.tree.children[0]!.remainingFiles = 330;
+    expect(defaultOverviewPath(city)).toEqual(["src"]);
   });
   it("does not drill into a single leaf or skip an already branching root", () => {
     const city = world();

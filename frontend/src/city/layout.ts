@@ -1000,7 +1000,7 @@ export const OVERVIEW_FACTOR = 1.6;
  * be imported here — it reads the store, the store reads this module).
  * `tests/lodFraming.test.ts` pins the two together.
  */
-const FAR_LOD_EXIT_FACTOR = 3.8;
+const FAR_LOD_EXIT_FACTOR = 4.1;
 const FAR_LOD_EXIT_FLOOR = 170 * 0.7;
 /** How much of that band an overview flight may use and still be a CITY. */
 export const FAR_LOD_SAFE_RATIO = 0.92;

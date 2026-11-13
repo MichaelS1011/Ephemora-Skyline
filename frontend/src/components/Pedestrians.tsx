@@ -70,6 +70,7 @@ import {
 import { surfaceMatrix, surfacePoint } from "../city/worldSurface";
 import { useWorldSurface } from "../render/WorldSurface";
 import { OccludableHtml } from "../render/LabelOcclusion";
+import { StopFurniture } from "./StopFurniture";
 
 /**
  * The role mark's own placement pass — measured, not guessed.
@@ -391,6 +392,23 @@ export const LIMB = {
  * `ephe-readability.test.ts` checks it against the real plate list.
  */
 export const CONTACT_PATCH_Y = 0.09;
+
+/**
+ * The called resident's contact patch: the same disc, scaled on both ground
+ * axes so it clears the figure's own silhouette at the overview. Everyone
+ * else keeps the 0.95 × stance width the eye already knows.
+ *
+ * The sibling number below is why one enlarged disc is not enough. The shared
+ * material is deliberately faint (opacity 0.26): against the plaza's
+ * #d1e0bd it tops out at 1.35:1 however dark the disc is, because 74 % of the
+ * substrate still shows through. Stacking the same instance compounds the
+ * alpha (1 − 0.74⁹ = 0.933), which is what makes the called mark clear 3:1
+ * on the shaded kerb under the figure while the crowd's patches stay exactly
+ * as they were. Nine layers sound like a lot; they are eight extra quads in
+ * the draw we already make, not a new surface.
+ */
+export const CALLED_PATCH_SCALE = 3;
+export const CALLED_PATCH_LAYERS = 9;
 
 /**
  * The called resident's mark, as an annulus in the ground plane.
@@ -1043,8 +1061,11 @@ export function Pedestrians({
    *  derivation the open world and the city share: a vehicle is never routed on
    *  a street while its own stop sits on another. */
   const transit = useMemo<Transit | null>(
-    () => (transitReady && streets && streets.length > 0 ? deriveTransit(streets) : null),
-    [transitReady, streets],
+    () =>
+      transitReady && streets && streets.length > 0
+        ? deriveTransit(streets, { bus: busLine })
+        : null,
+    [busLine, transitReady, streets],
   );
 
   // ── Crew jobs ────────────────────────────────────────────────────────────
@@ -2134,6 +2155,12 @@ export function Pedestrians({
     const hats = hatRef.current;
     const cargos = cargoRef.current;
     const shadows = shadowRef.current;
+    // The called figure is the only one whose ground mark may differ. Resolve
+    // it once; a hidden figure draws no extra layers, and clearing the call
+    // collapses the layer count back to the crowd.
+    const calledWalker = liveResident !== null ? walkers[liveResident] : undefined;
+    const calledIndex = calledWalker && !calledWalker.hidden ? liveResident! : -1;
+    let calledPatchDrawn = false;
 
     // Construction site: keep the vehicles off the stage. `placeTraffic`
     // collapses their instances, so an in-city re-scan (same mounted component)
@@ -3269,13 +3296,33 @@ export function Pedestrians({
       if (shadows) {
         // The contact patch, flat on the ground under the figure's own feet. It
         // follows the feet, not the sway: a weight shift does not move where a
-        // body touches down.
+        // body touches down. The called figure gets the same disc, scaled on
+        // both ground axes; its extra layers are written below at the same
+        // matrix, still inside this one InstancedMesh.
         const reach = visibleScale > 0 ? 0.95 * width : 0;
+        const called = i === calledIndex && visibleScale > 0;
         dummy.rotation.set(0, 0, 0);
         dummy.position.set(renderX, CONTACT_PATCH_Y, renderZ);
-        dummy.scale.set(reach, reach, 1);
+        if (called) {
+          // X and Z are the ground plane; Y is the flat disc's normal.
+          const patchReach = reach * CALLED_PATCH_SCALE;
+          dummy.scale.set(patchReach, 1, patchReach);
+        } else {
+          // Everyone else keeps the exact write they had.
+          dummy.scale.set(reach, reach, 1);
+        }
         dummy.updateMatrix();
-        shadows.setMatrixAt(i, surfaceMatrix(surface, dummy.matrix));
+        const patch = surfaceMatrix(surface, dummy.matrix);
+        shadows.setMatrixAt(i, patch);
+        if (called) {
+          calledPatchDrawn = true;
+          // One disc at 0.26 alpha is a 1.35:1 hint at best. Each extra layer
+          // is the same geometry over the same footprint, so the alpha
+          // compounds without a second mesh or a second draw call.
+          for (let layer = 1; layer < CALLED_PATCH_LAYERS; layer++) {
+            shadows.setMatrixAt(crowd + layer - 1, patch);
+          }
+        }
       }
 
       if (hats) {
@@ -3334,7 +3381,13 @@ export function Pedestrians({
     }
     if (hats) hats.instanceMatrix.needsUpdate = true;
     if (cargos) cargos.instanceMatrix.needsUpdate = true;
-    if (shadows) shadows.instanceMatrix.needsUpdate = true;
+    if (shadows) {
+      // Extra slots only exist while the called figure's patch was actually
+      // drawn; otherwise the count goes back to the crowd and stale matrices
+      // in the spare slots are never rendered.
+      shadows.count = crowd + (calledPatchDrawn ? CALLED_PATCH_LAYERS - 1 : 0);
+      shadows.instanceMatrix.needsUpdate = true;
+    }
 
     // The ring is one mesh, not one per resident; it follows the called figure
     // including the personal-space side-step.
@@ -3411,7 +3464,7 @@ export function Pedestrians({
           own, so a body meets the ground instead of hovering over it. */}
       <instancedMesh
         ref={shadowRef}
-        args={[shadowGeo, undefined, count]}
+        args={[shadowGeo, undefined, count + CALLED_PATCH_LAYERS - 1]}
         frustumCulled={false}
         renderOrder={-1}
       >
@@ -3469,6 +3522,9 @@ export function Pedestrians({
           <meshStandardMaterial roughness={0.75} metalness={0.05} />
         </instancedMesh>
       )}
+      {/* The stop bench, bin and — once a bus line runs — the shallow shelter.
+          Static, one group, written once: furniture, not another moving body. */}
+      {transit && <StopFurniture transit={transit} bus={busLine} />}
       {/* The street and its traffic: two instanced meshes, one unit box and one
           unit cylinder, scaled and coloured per instance. Everything flat lives
           in the box mesh (asphalt, kerb, zebra bars, lane dashes, block pads,

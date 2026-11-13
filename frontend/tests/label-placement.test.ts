@@ -1,6 +1,12 @@
 import { readFileSync } from "node:fs";
 import { describe, it, expect } from "vitest";
-import { placeLabel, overlaps, TOWARD_GLYPH, type Box } from "../src/city/labelPlacement";
+import {
+  LABEL_EDGE_INSET,
+  placeLabel,
+  overlaps,
+  TOWARD_GLYPH,
+  type Box,
+} from "../src/city/labelPlacement";
 
 /**
  * Folge-003: the label has to stay where a reader can read it, without the
@@ -56,6 +62,16 @@ describe("the plate keeps out of the HUD", () => {
     const p = placeLabel({ x: 800, y: 947 }, PLATE, CANVAS, HUD);
     expect(clear(p)).toBe(true);
     expect(p.toward).toBe("down");
+  });
+
+  it("leaves a measured plate a rail's inset from the canvas edge", () => {
+    // A late web font can make the real plate a few px wider than the solved
+    // box; the 1,100-file overview's `feature-17` and the 236-file `area-08`
+    // were clipped at the rail because the solve sat flush against it.
+    const right = placeLabel({ x: CANVAS.w, y: 500 }, PLATE, CANVAS, []);
+    expect(right.x + PLATE.w).toBeLessThanOrEqual(CANVAS.w - LABEL_EDGE_INSET);
+    const bottom = placeLabel({ x: 700, y: CANVAS.h }, PLATE, CANVAS, []);
+    expect(bottom.y + PLATE.h).toBeLessThanOrEqual(CANVAS.h - LABEL_EDGE_INSET);
   });
 
   it("comes back inside from behind the dossier", () => {

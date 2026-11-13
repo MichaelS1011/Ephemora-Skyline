@@ -12,6 +12,7 @@ import {
   airshowScaleFor,
   altitudeFor,
   bankFor,
+  bannerTooLarge,
   lapLength,
   legHalfFor,
   onTrack,
@@ -364,6 +365,7 @@ export function BannerPlane({ centre, bounds, tallest, lang, active }: BannerPla
   const liftRef = useRef<THREE.Group>(null);
   const shipRef = useRef<THREE.Group>(null);
   const bannerRef = useRef<THREE.Group>(null);
+  const clothRef = useRef<THREE.Mesh>(null);
   const barRef = useRef<THREE.Mesh>(null);
   const propRef = useRef<THREE.Mesh>(null);
   const surface = useWorldSurface();
@@ -447,6 +449,7 @@ export function BannerPlane({ centre, bounds, tallest, lang, active }: BannerPla
   const Y_AXIS = useMemo(() => new THREE.Vector3(0, 1, 0), []);
   const Z_AXIS = useMemo(() => new THREE.Vector3(0, 0, 1), []);
   const eyeFlat = useMemo(() => new THREE.Vector2(), []);
+  const clothPos = useMemo(() => new THREE.Vector3(), []);
 
   const place = (along: number): void => {
     const { legHalf, nx, nz, altitude } = live.current;
@@ -575,7 +578,18 @@ export function BannerPlane({ centre, bounds, tallest, lang, active }: BannerPla
     // is decoration, so this one ends — the next begins beyond the edge.
     const cycle = lap + PASS_REST;
     const along = travelled.current % cycle;
-    const visible = active && !far && along <= lap;
+    // A two-file city can put the eye metres from the track. The cloth then
+    // lands as a 190–480 px billboard across the upper corner; it stands down
+    // until the reader pulls back, rather than covering the city it advertises.
+    // Measure the cloth, not the aircraft: the cloth trails behind the hull, so
+    // in a two-file city it can stand metres from the eye while the aircraft is
+    // still out over the plain. The group origin would under-report the size.
+    const cloth = clothRef.current;
+    const clothDistance = cloth
+      ? cloth.getWorldPosition(clothPos).distanceTo(cam.position)
+      : cam.position.distanceTo(pos);
+    const tooLarge = bannerTooLarge(state.size.height, clothDistance, live.current.scale);
+    const visible = active && !far && along <= lap && !tooLarge;
     if (lift) lift.visible = visible;
     if (!visible) {
       if (along > lap) travelled.current = Math.floor(travelled.current / cycle + 1) * cycle;
@@ -604,7 +618,7 @@ export function BannerPlane({ centre, bounds, tallest, lang, active }: BannerPla
         />
       </group>
       <group ref={bannerRef}>
-        <mesh geometry={clothGeo} material={clothMat} raycast={() => null} />
+        <mesh ref={clothRef} geometry={clothGeo} material={clothMat} raycast={() => null} />
         <mesh ref={barRef} geometry={barGeo} material={barMat} raycast={() => null} />
       </group>
     </group>

@@ -43,6 +43,16 @@ export interface Placement {
 const EPS = 1;
 /** Bounded, so a crowded window cannot make the placement loop. */
 const MAX_PASSES = 12;
+/**
+ * A plate measured before its web font arrives can be a few pixels wider than
+ * the box `placeLabel` solved for. At the rail that difference clips the last
+ * glyphs (the 1,100-file overview's `feature-17` and the 236-file overview's
+ * `area-08`). The rail is therefore inset, not flush: a plate that has to move
+ * to the edge stays wholly inside it even when its own measurement was late.
+ * 24 px covers the tallest two-line district plate, whose second line can
+ * arrive after the first frame's `offsetHeight` was read.
+ */
+export const LABEL_EDGE_INSET = 24;
 
 /**
  * The surfaces the label must not sit on. Each is a real container with a
@@ -131,11 +141,18 @@ export function placeLabel(
   reserved: readonly Box[],
 ): Placement {
   const free = { w: Math.max(0, canvas.w - plate.w), h: Math.max(0, canvas.h - plate.h) };
+  // The free rail is inset by a measurement's worth of slack. If the plate is
+  // wider than the canvas there is no slack to give, so the inset collapses
+  // rather than pushing the plate out the other side.
+  const insetX = Math.min(LABEL_EDGE_INSET, free.w / 2);
+  const insetY = Math.min(LABEL_EDGE_INSET, free.h / 2);
+  const lo = { x: insetX, y: insetY };
+  const hi = { x: free.w - insetX, y: free.h - insetY };
   // Compared against the raw apex position, not the canvas-limited one: a plate
   // pulled in from an apex 258 px above the window is detached from its arc just
   // as much as one pushed aside by the header, and the reader has to be told.
   const raw = { x: anchor.x - plate.w / 2, y: anchor.y - plate.h / 2 };
-  const ideal = { x: clamp(raw.x, 0, free.w), y: clamp(raw.y, 0, free.h) };
+  const ideal = { x: clamp(raw.x, lo.x, hi.x), y: clamp(raw.y, lo.y, hi.y) };
   let best = ideal;
   let bestCost = totalOverlap(ideal, plate, reserved);
   let leastBad = ideal;
@@ -156,8 +173,8 @@ export function placeLabel(
     // clamping back leaves the plate exactly where it was, overlapping.
     const moves: Array<{ x: number; y: number; d: number }> = [];
     const offer = (nx: number, ny: number, d: number): void => {
-      const cx = clamp(nx, 0, free.w);
-      const cy = clamp(ny, 0, free.h);
+      const cx = clamp(nx, lo.x, hi.x);
+      const cy = clamp(ny, lo.y, hi.y);
       if (Math.abs(cx - best.x) < EPS && Math.abs(cy - best.y) < EPS) return;
       if (seen.has(`${cx}|${cy}`)) return;
       moves.push({ x: cx, y: cy, d });

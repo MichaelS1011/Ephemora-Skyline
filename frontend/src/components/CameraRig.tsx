@@ -56,7 +56,7 @@ import {
 } from "../city/worldFraming";
 import { STANDARD_AZIMUTH, fitAnsicht, isAnsicht } from "../city/cameraPresets";
 import { currentVisit } from "../urlState";
-import { overviewZoomDirection, overviewZoomDistance } from "../city/zoomSteps";
+import { freeDollyStep, overviewZoomDirection, overviewZoomDistance } from "../city/zoomSteps";
 import {
   FLAT_SURFACE,
   surfaceForLayout,
@@ -393,9 +393,9 @@ function cityPointsInFrustum(
  * frustum; found again once a third of it does (3 of the 9 ground points). The
  * two bars differ on purpose — a city that flickers across the threshold at the
  * edge of frame would hand out a hint the user learns to ignore. Measured on
- * the demo city: eight wheel notches over open ground take the frame from 333
- * distinct colours to 49, and the same collapse happens flying 8+ notches INTO
- * a building, which is why the hint is not a pure zoom-out story.
+ * the demo city: a sustained wheel scroll over open ground takes the frame from
+ * 333 distinct colours to 49, and the same collapse happens scrolling INTO a
+ * building, which is why the hint is not a pure zoom-out story.
  */
 export function cityFrameState(
   camera: THREE.Camera,
@@ -502,6 +502,8 @@ export function CameraRig() {
   const lastReported = useRef<CameraInfo | null>(null);
   /** Seconds since the header's flight numbers were last asked (0,5 s beat). */
   const readoutAt = useRef(0);
+  /** Last overview rung, so trackpad momentum cannot skip the ladder. */
+  const lastOverviewStepAt = useRef(0);
   // The first flight after a fresh city load has no user-established
   // viewpoint yet — it keeps the legacy fallback approach; every later
   // flight preserves the direction the user is looking from.
@@ -625,16 +627,21 @@ export function CameraRig() {
       if (modeRef.current !== "free") return; // orbit mode: OrbitControls zooms
       if (e.deltaY === 0) return;
       const f = boundsRef.current;
-      // Overview: one wheel event is one rung on the zoom ladder. Moving along
-      // the camera's radial vector keeps the chosen azimuth and elevation and
-      // puts the camera on an exact distance, so a facade edge stops crawling
-      // between pixel grids. Near the street the live dolly stays continuous.
+      // Overview: one wheel gesture is one rung on the zoom ladder. Moving
+      // along the camera's radial vector keeps the chosen azimuth and
+      // elevation and puts the camera on an exact distance, so a facade edge
+      // stops crawling between pixel grids. A trackpad emits a burst of events
+      // for one flick; the cooldown keeps that burst from skipping several
+      // rungs. Near the street the live dolly stays continuous.
       if (f && f.bounds > 0) {
         _pivot.set(f.centre.x, PIVOT_Y, f.centre.z);
         _offset.copy(camera.position).sub(_pivot);
         const distance = _offset.length();
         const next = overviewZoomDistance(f.bounds, distance, overviewZoomDirection(e.deltaY));
         if (next !== distance && distance > f.bounds * 0.78) {
+          const now = Date.now();
+          if (now - lastOverviewStepAt.current < 160) return;
+          lastOverviewStepAt.current = now;
           _offset.setLength(next);
           camera.position.copy(_pivot).add(_offset);
           const kept = clampToCity(camera.position, f.bounds, f.centre, f.surface);
@@ -644,7 +651,7 @@ export function CameraRig() {
       }
       // Dolly along the view direction — the wheel walks you into the city.
       camera.getWorldDirection(_dir);
-      const step = -e.deltaY * 0.012 * Math.max(2, camera.position.y * 0.15 + 4);
+      const step = freeDollyStep(e.deltaY, camera.position.y);
       camera.position.addScaledVector(_dir, step);
       const kept = clampToCity(camera.position, f?.bounds ?? null, f?.centre ?? ORIGIN, f?.surface);
       camera.position.set(kept.x, kept.y, kept.z);

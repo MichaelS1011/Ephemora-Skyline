@@ -206,23 +206,21 @@ export default function App() {
   // expensive path; only the manual one is ever persisted.
   const gfxLite = useStore((s) => s.prefs.gfxLite || s.autoGfxLite);
   const lang = useStore((s) => s.prefs.lang);
-  // The overview's pixel grid. The bounds are the current level's own half
+  // The overview's LOD tier. The bounds are the current level's own half
   // extent, so the same threshold means the same thing in a district as in the
-  // root city. The LOD hook owns the hysteresis, so the pixel grid, the light
+  // root city. The LOD hook owns the hysteresis, so the flat hulls, the light
   // rig and the building materials flip on the same tier.
   const levelBounds = useMemo(
     () => (cityData ? getDirLayout(cityData, focusPath).bounds : null),
     [cityData, focusPath],
   );
   const lodLevel = useLodLevel(levelBounds ?? 100);
-  const pixelOverview = cityData !== null && lodLevel !== 2;
-  const canvasDpr = pixelOverview
-    ? gfxLite
-      ? 0.72
-      : 0.6
-    : gfxLite
-      ? ([1, 1.25] as [number, number])
-      : ([1, 2] as [number, number]);
+  const overviewLod = cityData !== null && lodLevel !== 2;
+  // Native pixels in the full path, a capped 1.25 in the lite path. The
+  // overview used to render at 0.6× and let the browser blow it up; that bought
+  // calm but made the city and every painted plate soft on a Retina display.
+  // The frame budget still governs the expensive path, and lite keeps a cap.
+  const canvasDpr = gfxLite ? ([1, 1.25] as [number, number]) : ([1, 2] as [number, number]);
   // The arrival budget: which of the folded surfaces the reader has asked back.
   const showSearch = useStore((s) => s.showSearch);
   const showMinimap = useStore((s) => s.showMinimap);
@@ -608,7 +606,7 @@ export default function App() {
         tabIndex={inCity ? 0 : -1}
         aria-label={t(lang, inCity ? "city.canvasAria" : "city.canvasEmptyAria")}
         role="application"
-        className={`city-canvas w-full h-full${pixelOverview ? " is-pixel-overview" : ""}`}
+        className={`city-canvas w-full h-full${overviewLod ? " is-overview-lod" : ""}`}
       >
         {sceneCrashed || contextLost ? (
           <SurfaceFailed

@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import { allFiles } from "../city/layout";
-import { formatCount, t, type Lang } from "../i18n";
+import { formatCount, t, type DictKey, type Lang } from "../i18n";
 import { useStore } from "../stores/useStore";
+import type { VerifyComparabilityReason } from "../verify";
 
 /** A sample path shown beside the count, so the reader knows which earlier visit. */
 function samplePath(city: NonNullable<ReturnType<typeof useStore.getState>["cityData"]>): string {
@@ -19,27 +20,43 @@ function samplePath(city: NonNullable<ReturnType<typeof useStore.getState>["city
  * channel was built (`POST /api/verify`); this is the human's door to the same
  * answer.
  *
- * Three numbers, never four: no longer detected, at another line, unchanged.
- * The words carry the looseness the comparison really has — a vanished
- * fingerprint is also what a renamed file leaves behind — so the reader does
- * not have to hover to be told that "no longer detected" is not "fixed".
- * Colour never carries the meaning either: no green on this row, because green
- * would say "fixed" louder than any tooltip can take back.
+ * Four numbers: new, no longer detected, at another line, unchanged. A fifth
+ * state exists for the pair that cannot be read against each other at all —
+ * a different project, scanner set or sampled scan — and it replaces the
+ * numbers rather than adding a footnote to them. The words carry the looseness
+ * the comparison really has — a vanished fingerprint is also what a renamed
+ * file leaves behind — so the reader does not have to hover to be told that
+ * "no longer detected" is not "fixed". Colour never carries the meaning either:
+ * no green on this row, because green would say "fixed" louder than any
+ * tooltip can take back.
  */
+const REASON_KEY = {
+  "different-project": "ctx.sinceReasonProject",
+  "different-engines": "ctx.sinceReasonEngines",
+  "different-dependency-runner": "ctx.sinceReasonRunner",
+  "live-delta": "ctx.sinceReasonLive",
+  "preview-sample": "ctx.sinceReasonPreview",
+} satisfies Record<VerifyComparabilityReason, DictKey>;
+
 export function SinceLastScan({
   lang,
   previousScan,
   anchorsUnreadable = false,
+  identityGuessed = false,
 }: {
   lang: Lang;
   previousScan: boolean;
   /** The browser's anchor table exists and would not parse. Over that, the
    *  row may not claim "no earlier scan" — it says what it cannot see. */
   anchorsUnreadable?: boolean;
+  /** The project key is inferred, not a configured root. */
+  identityGuessed?: boolean;
 }) {
   const verify = useStore((s) => s.verify);
   const runVerify = useStore((s) => s.runVerify);
   const cityData = useStore((s) => s.cityData);
+  const setShowFindings = useStore((s) => s.setShowFindings);
+  const setNewFindingsOnly = useStore((s) => s.setNewFindingsOnly);
   const [showMoved, setShowMoved] = useState(false);
   // The opening ask lives here, next to the row it fills. In App the card is
   // mounted and unmounted as the view changes, so an effect there measured as
@@ -55,6 +72,12 @@ export function SinceLastScan({
   if (cityData.analysisId === "demo-001") return null;
 
   const report = verify.status === "ran" ? verify.report : null;
+  const newFindings = report?.newFindings ?? [];
+  const comparable = report?.comparable ?? { ok: true, reasons: [] };
+  const openNewFindings = (): void => {
+    setNewFindingsOnly(true);
+    setShowFindings(true);
+  };
   return (
     <div className="py-4" data-since-last-scan={verify.status}>
       <div
@@ -132,22 +155,62 @@ export function SinceLastScan({
           {t(lang, "ctx.sinceFailed")}
         </p>
       )}
-      {report && (
+      {report && !comparable.ok && (
+        <div className="flex flex-col gap-1" data-verify-not-comparable="true" role="status">
+          <p className="text-[12px] leading-relaxed" style={{ color: "var(--meta-strong)" }}>
+            {t(lang, "ctx.sinceNotComparable", {
+              reasons: comparable.reasons.map((reason) => t(lang, REASON_KEY[reason])).join(", "),
+            })}
+          </p>
+          <p
+            className="text-[length:var(--fs-meta)] leading-relaxed"
+            style={{ color: "var(--meta-strong)" }}
+          >
+            {t(lang, "ctx.sinceNotComparableWhy")}
+          </p>
+        </div>
+      )}
+      {report && comparable.ok && (
         <div className="flex flex-col gap-1">
           <p className="text-[12px] leading-relaxed" style={{ color: "var(--meta-strong)" }}>
             {[
+              ["ctx.sinceNew", "ctx.sinceNewTip", newFindings.length],
               ["ctx.sinceGone", "ctx.sinceGoneTip", report.gone.length],
               ["ctx.sinceMoved", "ctx.sinceMovedTip", report.moved.length],
               ["ctx.sincePresent", "ctx.sincePresentTip", report.present.length],
-            ].map(([key, tip, n], index) => (
-              <span key={String(key)} title={t(lang, tip as Parameters<typeof t>[1])}>
-                {index > 0 && " · "}
-                <span className="tabular-nums">
-                  {t(lang, key as Parameters<typeof t>[1], { n: formatCount(lang, Number(n)) })}
+            ].map(([key, tip, n], index) => {
+              const text = t(lang, key as Parameters<typeof t>[1], {
+                n: formatCount(lang, Number(n)),
+              });
+              return (
+                <span key={String(key)} title={t(lang, tip as Parameters<typeof t>[1])}>
+                  {index > 0 && " · "}
+                  {key === "ctx.sinceNew" && Number(n) > 0 ? (
+                    <button
+                      type="button"
+                      onClick={openNewFindings}
+                      data-since-new={n}
+                      className="underline decoration-dotted underline-offset-2"
+                      style={{ color: "var(--meta-strong)" }}
+                    >
+                      {text}
+                    </button>
+                  ) : (
+                    <span className="tabular-nums">{text}</span>
+                  )}
                 </span>
-              </span>
-            ))}
+              );
+            })}
           </p>
+          {identityGuessed && (
+            <p
+              className="text-[length:var(--fs-meta)] leading-relaxed"
+              style={{ color: "var(--meta-strong)" }}
+              data-verify-identity-guessed="true"
+            >
+              {t(lang, "ctx.sinceIdentityGuessed")}
+            </p>
+          )}
           {report.moved.length > 0 && (
             <>
               <p

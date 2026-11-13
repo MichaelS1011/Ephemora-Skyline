@@ -370,8 +370,8 @@ describe("cityFrameState", () => {
   });
 
   it("says lost once the camera looks away from every corner of the level", () => {
-    // eight wheel notches over open ground land the pilot here: above the
-    // city, pointed at the sky
+    // a sustained wheel scroll over open ground lands the pilot here: above
+    // the city, pointed at the sky
     const cam = camAt({ x: 0, y: 900, z: 0 }, { x: 0, y: 901, z: 0 });
     expect(cityFrameState(cam, 60, false)).toBe("lost");
   });

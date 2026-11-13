@@ -13,6 +13,7 @@ import {
   altitudeFor,
   bankFor,
   bannerPixelHeight,
+  bannerTooLarge,
   crownTop,
   lapLength,
   legHalfFor,
@@ -146,5 +147,15 @@ describe("the cloth is big enough to read", () => {
     const heights = [60, 91, 150, 240].map((d) => bannerPixelHeight(900, d) * airshowScaleFor(d));
     for (const h of heights) expect(h, "apparent height").toBeGreaterThanOrEqual(40);
     expect(Math.max(...heights) / Math.min(...heights)).toBeLessThan(1.25);
+    for (const d of [60, 91, 150, 240])
+      expect(bannerTooLarge(900, d, airshowScaleFor(d)), `distance ${d}`).toBe(false);
+  });
+
+  it("stands down when a two-file city brings the eye too close for the cloth", () => {
+    // The scale has a floor, so distance alone still grows the cloth: at 10 m
+    // it fills 192 px, and at 6 m over 300 px. The show is an invitation, not
+    // a wall; it hides until the reader pulls back.
+    for (const d of [6, 8, 10])
+      expect(bannerTooLarge(900, d, airshowScaleFor(d)), `distance ${d}`).toBe(true);
   });
 });

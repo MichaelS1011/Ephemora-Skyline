@@ -182,6 +182,7 @@ export const TAXI_LIVERY = "#e6dfcb";
 export const VEHICLE_BOXES: VehicleBox[] = [
   { vehicle: "taxi", y: 0.34, z: 0, w: 1.05, h: 0.42, d: 2.1, color: TAXI_LIVERY },
   { vehicle: "taxi", y: 0.66, z: -0.15, w: 0.9, h: 0.3, d: 1.1, color: "#1c1c1a" },
+  { vehicle: "taxi", y: 0.88, z: 0, w: 0.34, h: 0.14, d: 0.44, color: "#f2efe8" },
   { vehicle: "bus", y: 0.75, z: 0, w: 1.5, h: 1.15, d: 4.6, color: TRANSIT_LIVERY },
   { vehicle: "bus", y: 1.05, z: 0, w: 1.52, h: 0.4, d: 4.2, color: "#f2efe8" },
 ];
@@ -515,7 +516,16 @@ function streetPaintPlates(streets: StreetLine[], network: SidewalkNetwork): Str
  * ACROSS the bus's street, so a ride that starts at the stop sign can end at
  * the kerb, and both worlds get the same answer from the same shape of grid.
  */
-export function deriveTransit(streets: StreetLine[]): Transit | null {
+export interface TransitOptions {
+  /** False in a hamlet with no bus line: the cab works the main street the
+   *  stop sign already stands on instead of a crossing street off stage. */
+  bus?: boolean;
+}
+
+export function deriveTransit(
+  streets: StreetLine[],
+  { bus = true }: TransitOptions = {},
+): Transit | null {
   if (streets.length === 0) return null;
   let best = streets[0]!;
   let bestD = Infinity;
@@ -543,7 +553,9 @@ export function deriveTransit(streets: StreetLine[]): Transit | null {
     const l = Math.max(Math.hypot(s.x2 - s.x1, s.z2 - s.z1), 0.001);
     return Math.abs(((s.x2 - s.x1) / l) * bx + ((s.z2 - s.z1) / l) * bz) < 0.7;
   });
-  const curbSeg = crossing ?? streets[Math.floor(streets.length / 2) % streets.length]!;
+  const curbSeg = bus
+    ? (crossing ?? streets[Math.floor(streets.length / 2) % streets.length]!)
+    : best;
   const cl = Math.max(Math.hypot(curbSeg.x2 - curbSeg.x1, curbSeg.z2 - curbSeg.z1), 0.001);
   const cx = -(curbSeg.z2 - curbSeg.z1) / cl;
   const cz = (curbSeg.x2 - curbSeg.x1) / cl;

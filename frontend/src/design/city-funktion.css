@@ -318,11 +318,11 @@
   }
 }
 
-.city-canvas.is-pixel-overview .cf-plate {
+.city-canvas.is-overview-lod .cf-plate {
   padding: 1px 6px 2px;
 }
 
-.city-canvas.is-pixel-overview .cf-plate-under,
-.city-canvas.is-pixel-overview .cf-plate-height {
+.city-canvas.is-overview-lod .cf-plate-under,
+.city-canvas.is-overview-lod .cf-plate-height {
   display: none;
 }

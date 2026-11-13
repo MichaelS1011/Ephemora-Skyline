@@ -14,8 +14,11 @@ import { useStore } from "../stores/useStore";
 
 // A fitted 38° overview needs more eye distance than the old low-angle crop.
 // The city stays geometric through that complete view; further zoom uses cells.
+// The exit sits above the ladder's 4× rung (4.0) and below the 5× rung (5.0),
+// so no wheel notch can land in the hysteresis band and flip tiers by arrival
+// direction: 4× is always District, 5× is always Skyline/heat grid.
 const RELATIVE_ENTER = 4.8;
-const RELATIVE_EXIT = 3.8;
+const RELATIVE_EXIT = 4.1;
 const ABSOLUTE_FLOOR = 170; // small levels never collapse before this
 
 export function useLodFar(bounds: number): boolean {

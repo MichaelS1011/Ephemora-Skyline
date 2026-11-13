@@ -415,3 +415,30 @@ nothing is asked after the component unmounts. What is measured since: the rule
 (`resident-greeting.test.ts`, 5), the beat (3), the offer surfaces on the mounted
 `App` (`arrival-budget.test.tsx`, 27). What is still not measured on pixels: that
 an arm visibly goes up at the twentieth second.
+
+## 13 November 2026 — the city frames after the kerb and lighting pass
+
+The 21 October frames showed a city without the parked kerb row, the stop's
+bench and shelter, the lamp arms or the per-crown tree tint. The structure,
+security and narrow frames were therefore re-shot from the running production
+build at 1600 × 1000 (the narrow frame at 390 × 844), driven through the app's
+own controls: _Explore demo_, _Overview_, the `SECURITY` chip, and the same
+cursor parked in the header before each capture. The demo notice and the
+teaching boards are in the picture because the current build puts them there;
+the policy is still reduced motion, so the comparison is not a moving-car
+measurement.
+
+The security pair is the same moment, with no tolerance and no region mask:
+
+| the pair now               |                                                                             |
+| -------------------------- | --------------------------------------------------------------------------- |
+| pixels differing           | 17,182 of 1,600,000 = **1.07 %**                                            |
+| median colour sum on those | **344 → 287**                                                               |
+| byte-identical             | **98.93 %** of the frame                                                    |
+| named regions              | sky, grass, header, project panel and dock — **0 differing pixels** in each |
+| the diff                   | the mode chip and the city; nothing outside them                            |
+
+`backend/tests/beleg-06-frame-pixels.test.ts` reads the three numbers back out of
+the README sentence and re-measures these two PNGs, so the caption and the files
+cannot drift apart in silence. The narrow frame has no pixel claim; it is the
+layout check at 390 × 844 and carries the same current city.

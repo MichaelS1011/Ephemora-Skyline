@@ -118,6 +118,9 @@ describe("the aim floor — the level flights and the orbit pivot are one measur
 });
 
 describe("the three rulers of one world — today's table, pinned", () => {
+  // `farLodExit` follows the far-LOD exit factor, 4.1 since 0.4.8 (was 3.8):
+  // that is what keeps the wheel ladder's 4× rung below the exit and its 5×
+  // rung above the enter. The floor keeps the two small levels at 119.
   const LEVELS: ReadonlyArray<readonly [string, CityData, Record<string, number>]> = [
     [
       "small",
@@ -161,7 +164,7 @@ describe("the three rulers of one world — today's table, pinned", () => {
         fogFar: 926.7,
         collar: 365.20000000000005,
         maxDistance: 520,
-        farLodExit: 137.94,
+        farLodExit: 148.83,
         rampHazeStart: 32.35920000000001,
         rampHazeEnd: 69.03296000000002,
         rampAoEnd: 48.53880000000001,
@@ -177,7 +180,7 @@ describe("the three rulers of one world — today's table, pinned", () => {
         fogFar: 1420.598104881495,
         collar: 584.7102688362199,
         maxDistance: 584.7102688362199,
-        farLodExit: 346.47475539440893,
+        farLodExit: 373.8280255571254,
         rampHazeStart: 123.30633032169317,
         rampHazeEnd: 263.05350468627876,
         rampAoEnd: 184.95949548253975,

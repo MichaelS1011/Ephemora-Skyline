@@ -4,9 +4,9 @@ import { useStore } from "../stores/useStore";
 /**
  * The findings the comparison paired across scans, where developers look.
  *
- * `compareScans` matches a vanished fingerprint to the first finding of the
- * same rule in the same file, and it cannot prove those two are one finding
- * that moved — a fix and an unrelated hit pair up just as well. So this list
+ * `compareScans` pairs a vanished fingerprint with one finding of the same
+ * rule in the same file, one-to-one, and it cannot prove those two are one
+ * finding that moved — a fix and an unrelated hit pair up just as well. So this list
  * does not announce "moved": it names both lines and says in the first line
  * that the pairing is a lead, not a fix. A gold left border was the first cut;
  * it took the one focus colour as decoration, so this block keeps the panel's

@@ -152,6 +152,47 @@ describe("the findings tally", () => {
     expect(text).toContain("Show all languages");
   });
 
+  it("narrows to findings that are new since the earlier scan, and opens the way back", async () => {
+    const oldFinding = { ...finding("rule_old"), fingerprint: "fp-old" };
+    const newFinding = { ...finding("rule_new", "P0"), fingerprint: "fp-new" };
+    const data = city([file("a.ts", [oldFinding, newFinding])], { P0: 1, P1: 0, P2: 1 });
+    await show(<FindingsPanel />, data, {
+      verify: {
+        status: "ran",
+        beforeId: "scan-0",
+        report: {
+          before: "scan-0",
+          after: "scan-1",
+          checked: 1,
+          present: [],
+          gone: [],
+          moved: [],
+          newFindings: [
+            {
+              fingerprint: "fp-new",
+              path: "a.ts",
+              line: 3,
+              type: "rule_new",
+              ruleId: "rule_new",
+              severity: "P0",
+            },
+          ],
+          newBySeverity: { P0: 1, P1: 0, P2: 0 },
+          comparable: { ok: true, reasons: [] },
+          unknown: [],
+        },
+      },
+    });
+    expect(container.textContent).toContain("rule_old fired");
+    const chip = container.querySelector<HTMLButtonElement>("[data-new-chip]");
+    expect(chip?.textContent).toContain("New");
+    await act(async () => chip?.click());
+    expect(container.textContent).toContain("rule_new fired");
+    expect(container.textContent).not.toContain("rule_old fired");
+    await act(async () => chip?.click());
+    expect(container.textContent).toContain("rule_old fired");
+  });
+
   it("says how many rules the chip row left out, and shows them on demand", async () => {
     const rules = Array.from({ length: 10 }, (_, i) => `rule_${i}`);
     const data = city(

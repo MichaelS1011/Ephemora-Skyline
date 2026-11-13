@@ -8,9 +8,35 @@
  * visual change is even from the first notch to the last.
  */
 
-export const OVERVIEW_ZOOM_FACTORS = [0.8, 1, 1.25, 1.6, 2, 2.5, 3.2, 4, 5] as const;
+export const OVERVIEW_ZOOM_FACTORS = [
+  0.8, 0.9, 1, 1.12, 1.25, 1.4, 1.6, 1.8, 2, 2.25, 2.5, 2.8, 3.2, 3.6, 4, 5,
+] as const;
+
+/** How far one wheel delta moves the free camera, in world units per delta
+ *  unit per metre of reach. It used to be 0.012; at a 100 px trackpad event
+ *  that was a 5–23 m jump depending on height, which read as a cut rather
+ *  than a dolly. */
+export const WHEEL_DOLLY_RATE = 0.004;
+
+/** No single wheel event may move the camera farther than this. Momentum on a
+ *  trackpad can deliver a large delta in one event; the step has to stay a
+ *  step, not a flight. */
+export const WHEEL_DOLLY_MAX_STEP = 2.2;
 
 export type ZoomDirection = -1 | 1;
+
+/**
+ * One free-flight dolly step along the view direction.
+ *
+ * Positive is forward (wheel up / scroll in); negative is backward. The reach
+ * grows with eye height so the same gesture still crosses a tall overview,
+ * while the cap keeps a single event from becoming a jump.
+ */
+export function freeDollyStep(deltaY: number, eyeHeight: number): number {
+  const reach = Math.max(2, eyeHeight * 0.15 + 4);
+  const raw = -deltaY * WHEEL_DOLLY_RATE * reach;
+  return Math.max(-WHEEL_DOLLY_MAX_STEP, Math.min(WHEEL_DOLLY_MAX_STEP, raw));
+}
 
 /**
  * Wheel deltas grow downward, so scrolling up (negative delta) moves the

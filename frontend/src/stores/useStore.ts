@@ -384,6 +384,10 @@ interface AppState {
   languageFilter: string | null;
   setLanguageFilter: (language: string | null) => void;
 
+  /** Only findings the earlier scan did not hold — set by the "new" count. */
+  newFindingsOnly: boolean;
+  setNewFindingsOnly: (on: boolean) => void;
+
   /** What the far-zoom heat cells are colored by. */
   heatChannel: HeatChannel;
   setHeatChannel: (c: HeatChannel) => void;
@@ -1027,6 +1031,7 @@ export const useStore = create<AppState>((set, get) => {
         threatFilter: "all",
         ruleFilter: null,
         languageFilter: null,
+        newFindingsOnly: false,
         // A new city is a neutral stage: the previous repo's view mode must not
         // dim or re-lighten the fresh skyline before the user has chosen a lens.
         viewMode: "structure",
@@ -1432,6 +1437,12 @@ export const useStore = create<AppState>((set, get) => {
     languageFilter: null,
     setLanguageFilter: (language) => {
       set({ languageFilter: language });
+      reanchorTriage(set, get);
+    },
+
+    newFindingsOnly: false,
+    setNewFindingsOnly: (on) => {
+      set({ newFindingsOnly: on });
       reanchorTriage(set, get);
     },
 

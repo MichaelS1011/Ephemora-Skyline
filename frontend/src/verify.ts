@@ -2,21 +2,23 @@
  * The anchor for "what changed since I was last here".
  *
  * The server compares two scans it still holds in RAM or the run archive; this
- * module is the browser's side of that comparison. It remembers, per scan, the earlier scan
- * of the SAME folder shape that this browser showed — so the answer is about
- * this project's last visit, not about any scan that happened to run near it.
+ * module is the browser's side of that comparison. It remembers, per scan, the
+ * earlier scan of the SAME project that this browser showed — so the answer is
+ * about this project's last visit, not about any scan that happened to run
+ * near it.
  *
- * "Same folder" is a hash of the folder's relative paths, never a name or a
- * path: the browser never learns where the project lives, and two checkouts of
- * the same repository compare to each other, which is exactly what a person
- * wants after a pull. The hash is order-independent and capped, so a huge tree
- * costs the same as a small one.
+ * The project key is the review bucket: a configured project root when the
+ * person set one, otherwise the repository name plus its top-level folders.
+ * The full relative path list is deliberately NOT the key: adding one file
+ * used to break the tie to the last visit, which is the ordinary re-scan after
+ * a pull. `folderShape` stays for migrating tables written by older builds.
  *
  * What this cannot know: whether the earlier scan is still among the newest 20
  * completed runs. The UI asks and says "aged out" when the answer is a 404,
  * instead of pretending nothing changed.
  */
 import type { CityData } from "./city/types";
+import { bucketKeyFor, identityIsGuessed } from "./reviews";
 import { readStoredJson, type StoredRead } from "./storageRead";
 
 const KEY = "ephemora-skyline-verify-anchor:v1";
@@ -46,9 +48,17 @@ export function verifyAnchorsUnreadable(scanId: string): boolean {
 export interface VerifyAnchor {
   /** The scan this anchor belongs to. */
   scanId: string;
-  /** The folder-shaped hash, see `folderShape`. */
+  /** The folder-shaped hash, see `folderShape`. Kept for older tables. */
   shape: string;
-  /** The earlier scan of the same shape, if this browser has seen one. */
+  /**
+   * Stable project identity, the same bucket the review verdicts use. The full
+   * path list is NOT identity: adding one file used to break the tie to the
+   * last visit, which is the common case after a pull.
+   */
+  project?: string;
+  /** The identity rests on the folder name and top-level shape, not a root. */
+  projectGuessed?: boolean;
+  /** The earlier scan of the same project, if this browser has seen one. */
   previousId: string | null;
   /** When this scan was first shown in this browser. */
   at: number;
@@ -60,6 +70,13 @@ export interface VerifyAnchor {
   scannedAt?: string;
 }
 
+export type VerifyComparabilityReason =
+  | "different-project"
+  | "different-engines"
+  | "different-dependency-runner"
+  | "live-delta"
+  | "preview-sample";
+
 export interface VerifyReport {
   before: string;
   after: string;
@@ -67,6 +84,11 @@ export interface VerifyReport {
   present: VerifyHit[];
   gone: VerifyHit[];
   moved: { from: VerifyHit; to: VerifyHit }[];
+  /** Findings only the later scan holds. Absent in answers from older servers. */
+  newFindings?: VerifyHit[];
+  newBySeverity?: { P0: number; P1: number; P2: number };
+  /** Absent in answers from older servers; absent means "not stated". */
+  comparable?: { ok: boolean; reasons: VerifyComparabilityReason[] };
   unknown: string[];
 }
 
@@ -214,8 +236,8 @@ function write(entries: VerifyAnchor[]): void {
  * Note this scan and find the earlier one it should be compared against.
  *
  * Runs when a city arrives. A visit of the same scan keeps its anchor; a new
- * scan of the same folder shape points at the most recent earlier scan of that
- * shape and then becomes the new anchor.
+ * scan of the same project points at the most recent earlier scan of that
+ * project and then becomes the new anchor.
  */
 export function anchorFor(city: CityData | null): VerifyAnchor | null {
   if (!city?.analysisId) return null;
@@ -229,34 +251,71 @@ export function anchorFor(city: CityData | null): VerifyAnchor | null {
   const entries = stored.state === "read" ? stored.value : [];
   const existing = entries.find((e) => e.scanId === city.analysisId);
   if (existing) {
+    let changed = false;
     // An entry written before the payload carried a time is filled in on the
     // next visit of that scan: the heading may then date itself.
     if (!existing.scannedAt && city.createdAt) {
       existing.scannedAt = city.createdAt;
-      write(entries.map((e) => (e.scanId === existing.scanId ? existing : e)));
+      changed = true;
     }
+    // Tables from before the project identity carry only the path-list shape.
+    // Fill the stable key in on the next visit, without changing the scan's
+    // earlier counterpart.
+    if (!existing.project) {
+      const shape = folderShape(city);
+      let project = `shape:${shape}`;
+      let projectGuessed = true;
+      try {
+        const bucket = bucketKeyFor(city);
+        if (bucket) project = bucket;
+        projectGuessed = identityIsGuessed(city);
+      } catch {
+        /* shape fallback */
+      }
+      existing.project = project;
+      existing.projectGuessed = projectGuessed;
+      changed = true;
+    }
+    if (changed) write(entries.map((e) => (e.scanId === existing.scanId ? existing : e)));
     return existing;
   }
   const shape = folderShape(city);
+  // The review bucket is the project's identity — a configured root when the
+  // person set one, otherwise `owner/name` plus the top-level folder shape.
+  // The full path list was the wrong key: one added file changed it, so the
+  // most ordinary re-scan after a pull looked like a first visit.
+  let project = `shape:${shape}`;
+  let projectGuessed = true;
+  try {
+    const bucket = bucketKeyFor(city);
+    if (bucket) project = bucket;
+    projectGuessed = identityIsGuessed(city);
+  } catch {
+    /* a partial fixture: the shape fallback is still honest, and marked guessed */
+  }
+  const sameProject = (entry: VerifyAnchor): boolean =>
+    entry.project ? entry.project === project : entry.shape === shape;
   const previous = [...entries]
     .reverse()
-    .find((e) => e.shape === shape && e.scanId !== city.analysisId);
+    .find((e) => e.scanId !== city.analysisId && sameProject(e));
   const scannedAt = city.createdAt;
   const anchor: VerifyAnchor = {
     scanId: city.analysisId,
     shape,
+    project,
+    projectGuessed,
     previousId: previous?.scanId ?? null,
     at: Date.now(),
     ...(typeof scannedAt === "string" && scannedAt.length > 0 ? { scannedAt } : {}),
   };
-  // One anchor per shape: the newest scan is the one a comparison starts
+  // One anchor per project: the newest scan is the one a comparison starts
   // from. The record it replaces stays in a separate, tiny side table — the
   // earlier scan's own time is what "since the scan of 11 Oct" dates, and the
   // earlier scan is gone from the server before the next visit.
-  for (const replaced of entries.filter((e) => e.shape === shape)) {
+  for (const replaced of entries.filter(sameProject)) {
     rememberTime(replaced.scanId, replaced.scannedAt);
   }
-  const kept = entries.filter((e) => e.shape !== shape);
+  const kept = entries.filter((e) => !sameProject(e));
   write([...kept, anchor]);
   return anchor;
 }
