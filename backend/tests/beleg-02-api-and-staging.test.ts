@@ -42,8 +42,8 @@ describe("the API table (docs/API.md:7-33)", () => {
    * to prevent. 2026-10-12: the two staged-copy routes were named in the
    * privacy section but had no row here; they have one now.
    */
-  it("names twenty-four GET and POST routes, as many as the table has rows", () => {
-    expect(rows.length).toBe(24);
+  it("names twenty-five GET and POST routes, as many as the table has rows", () => {
+    expect(rows.length).toBe(25);
   });
 
   it("lists only routes the server actually registers", () => {

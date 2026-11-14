@@ -410,16 +410,25 @@ describe("the claims lane of 2026-10-14 (S1: no public number breaks)", () => {
       "0 of them",
     );
     expect(bullet!, "the sentence names the policy gate").toContain("npm run self-scan");
-    const consoleRows = rows.filter((f) => f.type === "CONSOLE_USAGE");
+    // Three accounted-for buckets: intentional rule fixtures, the two teaching
+    // exercises (docs/education), and CLI/test console lines. Teaching rows are
+    // lesson material — their planted flaws, including the EVAL_USAGE line, are
+    // what the exercises are for, so the eval-shaped guard scopes them out.
     const fixtureRows = rows.filter((f) => f.path.startsWith("backend/tests/fixtures/regeln/"));
+    const teachingRows = rows.filter((f) => f.path.startsWith("teaching/uebungen/"));
+    const consoleRows = rows.filter(
+      (f) => f.type === "CONSOLE_USAGE" && !f.path.startsWith("teaching/uebungen/"),
+    );
     expect(consoleRows, "the CLI/test console rows moved").toHaveLength(17);
     expect(fixtureRows, "the intentional rule fixtures moved").toHaveLength(22);
-    expect(consoleRows.length + fixtureRows.length, "an unexplained row entered the list").toBe(
-      rows.length,
-    );
+    expect(teachingRows, "the teaching exercise rows moved").toHaveLength(16);
     expect(
-      rows.some((f) => /eval/i.test(f.ruleId)),
-      "an eval-shaped finding still ships — re-describe the list",
+      consoleRows.length + fixtureRows.length + teachingRows.length,
+      "an unexplained row entered the list",
+    ).toBe(rows.length);
+    expect(
+      rows.some((f) => !f.path.startsWith("teaching/uebungen/") && /eval/i.test(f.ruleId)),
+      "an eval-shaped finding still ships outside the teaching exercises — re-describe the list",
     ).toBe(false);
   });
 

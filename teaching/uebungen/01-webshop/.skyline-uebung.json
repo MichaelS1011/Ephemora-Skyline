@@ -1,0 +1,89 @@
+{
+  "schema": "ephemora.exercise-key.v1",
+  "id": "01-webshop",
+  "title": {
+    "en": "Mini webshop (Node.js)",
+    "de": "Mini-Webshop (Node.js)"
+  },
+  "level": "sek2",
+  "items": [
+    {
+      "id": "w1",
+      "path": "src/db.js",
+      "type": "SQL_INJECTION",
+      "line": 24,
+      "lineTolerance": 6,
+      "points": 20,
+      "categoryHint": "Injektion",
+      "hint": {
+        "en": "Look at src/db.js: how is the query text assembled from what the customer typed in?",
+        "de": "Sieh dir src/db.js an: Wie entsteht der Abfrage-Text aus dem, was Kundinnen und Kunden eintippen?"
+      }
+    },
+    {
+      "id": "w2",
+      "path": "src/utils.js",
+      "type": "EVAL_USAGE",
+      "line": 7,
+      "lineTolerance": 6,
+      "points": 20,
+      "categoryHint": "Code-Ausführung",
+      "hint": {
+        "en": "In src/utils.js there is a helper that computes a formula. How does it turn text into a result?",
+        "de": "In src/utils.js rechnet ein Helfer eine Formel aus. Wie wird daraus Text zu einem Ergebnis?"
+      }
+    },
+    {
+      "id": "w3",
+      "path": "src/auth.js",
+      "type": "HARDCODED_SECRET",
+      "line": 7,
+      "lineTolerance": 6,
+      "points": 15,
+      "categoryHint": "Zugangsdaten",
+      "hint": {
+        "en": "src/auth.js holds something at the top that should not travel inside source code.",
+        "de": "Oben in src/auth.js steht etwas, das nicht im Quelltext mitreisen sollte."
+      }
+    },
+    {
+      "id": "w4",
+      "path": "src/auth.js",
+      "type": "EPHEMORA_NODE_WEAK_HASH",
+      "line": 16,
+      "lineTolerance": 6,
+      "points": 15,
+      "categoryHint": "Kryptografie",
+      "hint": {
+        "en": "Look again at src/auth.js: which algorithm does the password helper rely on, and is it still considered strong?",
+        "de": "Schau noch einmal in src/auth.js: Auf welchen Algorithmus setzt der Passwort-Helfer — und gilt er noch als stark?"
+      }
+    },
+    {
+      "id": "w5",
+      "path": "routes/download.js",
+      "type": "PATH_TRAVERSAL",
+      "line": 10,
+      "lineTolerance": 6,
+      "points": 15,
+      "categoryHint": "Dateizugriff",
+      "hint": {
+        "en": "In routes/download.js the customer names the file. What happens if the name is something like ../../etc/passwd?",
+        "de": "In routes/download.js nennt die Kundschaft die Datei. Was passiert, wenn der Name sowas wie ../../etc/passwd ist?"
+      }
+    },
+    {
+      "id": "w6",
+      "path": "routes/tools.js",
+      "type": "CMD_INJECTION",
+      "line": 10,
+      "lineTolerance": 6,
+      "points": 20,
+      "categoryHint": "Befehlsausführung",
+      "hint": {
+        "en": "routes/tools.js asks the operating system for help. Which part of the request ends up inside that request to the system?",
+        "de": "routes/tools.js bittet das Betriebssystem um Hilfe. Welcher Teil der Anfrage landet in diesem Auftrag ans System?"
+      }
+    }
+  ]
+}

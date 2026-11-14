@@ -1,0 +1,76 @@
+{
+  "schema": "ephemora.exercise-key.v1",
+  "id": "02-datenimport",
+  "title": {
+    "en": "Data import pipeline (Python)",
+    "de": "Datenimport-Pipeline (Python)"
+  },
+  "level": "sek2",
+  "items": [
+    {
+      "id": "d1",
+      "path": "loader.py",
+      "type": "SQL_INJECTION",
+      "line": 22,
+      "lineTolerance": 6,
+      "points": 20,
+      "categoryHint": "Injektion",
+      "hint": {
+        "en": "In loader.py one query is put together from text before it goes to the database. What exactly goes into the curly braces?",
+        "de": "In loader.py wird eine Abfrage aus Text zusammengesetzt, bevor sie zur Datenbank geht. Was genau landet in den geschweiften Klammern?"
+      }
+    },
+    {
+      "id": "d2",
+      "path": "loader.py",
+      "type": "UNSAFE_DESERIALIZATION",
+      "line": 35,
+      "lineTolerance": 6,
+      "points": 20,
+      "categoryHint": "Deserialisierung",
+      "hint": {
+        "en": "loader.py can restore a saved import state from a file. Which format is being trusted here — and who could have written that file?",
+        "de": "loader.py kann einen gespeicherten Import-Zustand aus einer Datei wiederherstellen. Welchem Format wird dabei vertraut — und wer könnte diese Datei geschrieben haben?"
+      }
+    },
+    {
+      "id": "d3",
+      "path": "api_client.py",
+      "type": "TLS_VERIFICATION_DISABLED",
+      "line": 17,
+      "lineTolerance": 6,
+      "points": 15,
+      "categoryHint": "Transportverschlüsselung",
+      "hint": {
+        "en": "api_client.py talks to another computer on the network. One keyword switch weakens the protective layer of that conversation.",
+        "de": "api_client.py redet mit einem anderen Rechner im Netz. Ein Schlüsselwort-Schalter schwächt die Schutzschicht dieses Gesprächs."
+      }
+    },
+    {
+      "id": "d4",
+      "path": "api_client.py",
+      "type": "HARDCODED_SECRET",
+      "line": 11,
+      "lineTolerance": 6,
+      "points": 15,
+      "categoryHint": "Zugangsdaten",
+      "hint": {
+        "en": "Look at the top of api_client.py: something is stored there that gives access somewhere.",
+        "de": "Schau oben in api_client.py nach: Dort steht etwas, das Zugang irgendwohin gibt."
+      }
+    },
+    {
+      "id": "d5",
+      "path": "api_client.py",
+      "type": "CMD_INJECTION",
+      "line": 24,
+      "lineTolerance": 6,
+      "points": 20,
+      "categoryHint": "Befehlsausführung",
+      "hint": {
+        "en": "api_client.py asks the operating system to pack an archive. The archive name does not come from the code alone.",
+        "de": "api_client.py bittet das Betriebssystem, ein Archiv zu packen. Der Archivname kommt nicht nur aus dem Code."
+      }
+    }
+  ]
+}

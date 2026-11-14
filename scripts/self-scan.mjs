@@ -40,7 +40,10 @@ const WRITE_FINDINGS = argValue("--write-findings");
 const SELF_SCAN_CONFIG = {
   profile: "standard",
   rulePacks: ["ephemora-core"],
-  excludePaths: ["backend/tests/fixtures/regeln"],
+  // The fixtures under backend/tests/fixtures/regeln teach the rules; teaching/
+  // teaches people. Both hold deliberate flaws that must not read as findings in
+  // the product code. Recorded as a standing exception in docs/SELF_SCAN.md.
+  excludePaths: ["backend/tests/fixtures/regeln", "teaching"],
   disabledFindingTypes: ["CONSOLE_USAGE"],
 };
 

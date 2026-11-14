@@ -1,0 +1,101 @@
+/* The classroom scoreboard card. Same dock voice as the blast-radius panel
+   (city-funktion.css): cyan rule, small type, nothing decorative. */
+
+.cf-challenge {
+  margin-top: 14px;
+  border-left: 2px solid rgba(55, 230, 255, 0.45);
+  padding-left: 9px;
+}
+
+.cf-challenge-heading {
+  margin: 0;
+  font-size: var(--fs-small);
+  color: #dbe6f5;
+  display: flex;
+  align-items: baseline;
+  gap: 7px;
+}
+
+.cf-challenge-level {
+  font-size: var(--fs-meta);
+  color: #cfe9f2;
+  background: rgba(55, 230, 255, 0.08);
+  border: 1px solid rgba(55, 230, 255, 0.42);
+  border-radius: 3px;
+  padding: 1px 6px;
+}
+
+.cf-challenge-score,
+.cf-challenge-points {
+  margin: 5px 0 0;
+  font-size: var(--fs-small);
+  color: #c6d2e6;
+}
+
+.cf-challenge-bar {
+  margin-top: 6px;
+  height: 4px;
+  background: rgba(55, 230, 255, 0.12);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.cf-challenge-bar-fill {
+  height: 100%;
+  background: rgba(55, 230, 255, 0.7);
+}
+
+.cf-challenge-list {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.cf-challenge-item {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  flex-wrap: wrap;
+  font-size: var(--fs-small);
+  color: #9aa7bd;
+}
+
+.cf-challenge-item[data-found] {
+  color: #dbe6f5;
+}
+
+.cf-challenge-mark {
+  color: #37e6ff;
+}
+
+.cf-challenge-item-id {
+  font-family: var(--font-mono, monospace);
+}
+
+.cf-challenge-item-points {
+  font-size: var(--fs-meta);
+  color: var(--meta-strong, #9aa7bd);
+}
+
+.cf-challenge-hint {
+  flex-basis: 100%;
+  padding-left: 17px;
+  font-size: var(--fs-meta);
+  color: #b9c4d8;
+}
+
+.cf-challenge-category {
+  margin-left: 6px;
+  font-family: var(--font-mono, monospace);
+  font-size: var(--fs-meta);
+  color: var(--meta-strong, #9aa7bd);
+}
+
+.cf-challenge-finished {
+  margin: 8px 0 0;
+  font-size: var(--fs-small);
+  color: #37e6ff;
+}

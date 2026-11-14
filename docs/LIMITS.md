@@ -1,17 +1,18 @@
 # What the tool cannot see
 
-The README lists this in six bullets. This is the same honesty with its working shown: where the 39 default-profile self-scan findings sit, what a machine without the optional engines reports, and which picture-language weaknesses stay open on purpose.
+The README lists this in six bullets. This is the same honesty with its working shown: where the 55 default-profile self-scan findings sit, what a machine without the optional engines reports, and which picture-language weaknesses stay open on purpose.
 
 ## The self-scan, distributed
 
-The README's accuracy bullet states the pair the delivered list counts: **39 findings**, **0 of them** on an `expect(...)` line. The distribution is the part worth reading before you judge the number.
+The README's accuracy bullet states the pair the delivered list counts: **55 findings**, **0 of them** on an `expect(...)` line. The distribution is the part worth reading before you judge the number.
 
 - **22** are the intentional rule fixtures in `backend/tests/fixtures/regeln/`: four credential literals, four path traversals, four server-side XSS lines, three SQL injections, three SSRF calls, two CORS configurations and two weak-randomness lines. Their job is to make the rule tests fire; the policy gate excludes that exact folder.
+- **16** are the two teaching exercises in `teaching/uebungen/`: the 11 planted flaws of the answer keys (six in the Node.js webshop, five in the Python importer — ten of them visible without the optional engines, the command injection in `api_client.py` needs `ruff`), four second-channel reports of the same lines from `ruff`, and one deliberate `CONSOLE_USAGE` line the worksheets use as a judgment item. Like the fixtures they teach rather than accuse; the policy gate excludes `teaching/` (see `docs/SELF_SCAN.md`), every normal scan still sees them.
 - **17** are `CONSOLE_USAGE` in the CLI scripts (16) and one frontend test. These are code hygiene in a command-line and test surface, not findings in shipped application code; the policy gate disables this one rule.
 - **0** are dependency advisories. The `minimatch` override to 11.0.4 removed the last moderate findings, and `npm audit` now prints 0/0/0/0/0.
 - **In `backend/src` and `frontend/src`: none beyond the fixture/test path above.**
 
-The list was produced with `node scripts/self-scan.mjs --default-profile --online --write-findings docs/self-scan-findings.ndjson` on 2026-11-03. A machine without the optional engines reports fewer, and it says which ones it skipped. The list ships as `docs/self-scan-findings.ndjson`, one finding per line, with path, line, rule, severity and CWE and no source text — so the total is a `wc -l` and the second number is the line each finding points at. `backend/tests/selbst23-two-numbers.test.ts` forms both from that file and fails if the README sentence drifts.
+The list was produced with `node scripts/self-scan.mjs --default-profile --online --write-findings docs/self-scan-findings.ndjson` on 2026-11-14, with `gitleaks`, `semgrep` and `ruff` on `PATH`. A machine without the optional engines reports fewer, and it says which ones it skipped — of the 11 teaching items, ten fire from the built-in channels alone (nine regex rules and the shipped rule pack running in-process); the Python `os.system` line needs one optional engine — the rule pack via `semgrep`, or `ruff`, which reports the same line. The list ships as `docs/self-scan-findings.ndjson`, one finding per line, with path, line, rule, severity and CWE and no source text — so the total is a `wc -l` and the second number is the line each finding points at. `backend/tests/selbst23-two-numbers.test.ts` forms both from that file and fails if the README sentence drifts.
 
 ## The rules cannot see whole classes
 

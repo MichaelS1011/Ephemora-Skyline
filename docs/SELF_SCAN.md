@@ -7,10 +7,15 @@ the tool at its own folder: **is this product clean by its own rules?**
 
 Baseline after the 0.4.4 rule work: **0 findings, 0 `CMD_INJECTION`** under
 the policy below. The **default profile** (no fixture exclusion, console on)
-still reports **39 findings** — 22 intentional rule fixtures and 17
+still reports **55 findings** — 22 intentional rule fixtures, 16 rows in
+`teaching/uebungen/` (the 11 planted flaws of the two exercises — 10 of them
+visible without the optional engines — plus 4 second-channel reports on the
+same lines and one deliberate `CONSOLE_USAGE` judgment item), and 17
 `CONSOLE_USAGE` lines in CLI/test code — because those are the product's
 default answer, not this gate's exclusion. The delivered default list is
-`docs/self-scan-findings.ndjson`.
+`docs/self-scan-findings.ndjson` (regenerated 2026-11-14 with `ruff` on
+`PATH`; a machine without the optional engines reports fewer, and it says
+which ones it skipped).
 
 ## What the gate runs
 
@@ -18,7 +23,7 @@ default answer, not this gate's exclusion. The delivered default list is
 - `SKYLINE_OFFLINE=1`: no rule pack or advisory database is fetched. Dependency
   freshness is covered by `node scripts/audit-gate.mjs` (`npm audit`), not by
   this source scan.
-- `excludePaths: ["backend/tests/fixtures/regeln"]` and
+- `excludePaths: ["backend/tests/fixtures/regeln", "teaching"]` and
   `disabledFindingTypes: ["CONSOLE_USAGE"]` for this gate only.
 - Sources are `git ls-files --cached --others --exclude-standard`, so ignored
   local scratch data cannot stall the scan.
@@ -46,6 +51,13 @@ globally.**
 
 Fixture total: 22 findings in `backend/tests/fixtures/regeln/`; they remain
 visible to normal users and are still asserted by the rule tests.
+
+Standing exception — `teaching/` (owner: education content; reason: the two
+exercises under `teaching/uebungen/` carry deliberately planted, fake-credential
+flaws to be found by students; like the fixtures they teach and must not be
+reported as findings in the product code; excluded from the gate only, visible
+to every normal scan — see `teaching/README.md`); reviewed with the fixture
+layout, in any case by **2027-05-01**.
 
 ## Acceptance rules
 

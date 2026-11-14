@@ -13,7 +13,7 @@
  */
 
 import type { Request, Response } from "express";
-import type { AnalysisResult } from "../../models/index.js";
+import type { AnalysisResult, OwaspBucket } from "../../models/index.js";
 import { findingFingerprint } from "../../services/security/finding-identity.js";
 
 /** Structural subset of the analysis store the handlers need */
@@ -32,6 +32,8 @@ interface HandoffLine {
   severity: string;
   provenance: string;
   cwe?: string;
+  /** OWASP Top 10 (2021) bucket, present whenever the finding carries one */
+  owasp?: OwaspBucket;
   refUrl?: string;
   explanation?: string;
   fix?: string;
@@ -63,6 +65,7 @@ export function buildHandoffLines(result: AnalysisResult): HandoffLine[] {
         severity: v.severity,
         provenance: v.provenance ?? "unknown",
         ...(v.cwe ? { cwe: v.cwe } : {}),
+        ...(v.owasp ? { owasp: v.owasp } : {}),
         ...(v.refUrl ? { refUrl: v.refUrl } : {}),
         ...(v.explanation ? { explanation: v.explanation } : {}),
         ...(v.fix ? { fix: v.fix } : {}),

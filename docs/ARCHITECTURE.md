@@ -47,6 +47,7 @@ backend/src/
 │       ├── job-progress.ts  # progress map, skeleton, failure marking
 │       ├── source.ts        # GET /api/result/:id/source/:fileId
 │       ├── result.ts        # GET /api/result/:id(/city|/sarif) — the stored result and its exports
+│       ├── challenge.ts     # GET /api/result/:id/challenge — classroom grading vs .skyline-uebung.json
 │       ├── tests.ts         # POST /api/tests/:id/run — the project's own tests
 │       ├── update-check.ts  # GET /api/update/check (the one self-request)
 │       ├── rule-packs.ts    # GET /api/rule-packs — the rule bundles the UI can offer

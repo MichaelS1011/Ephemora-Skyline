@@ -38,6 +38,7 @@ import { handleHealth } from "./routes/health.js";
 import { handleCitiesDefault, handleDemo } from "./routes/demo.js";
 import { handleStatus } from "./routes/status.js";
 import { handleResult, handleResultCity, handleResultSarif } from "./routes/result.js";
+import { handleResultChallenge } from "./routes/challenge.js";
 import { handleRulePacks } from "./routes/rule-packs.js";
 import { handleFootprint, handleFootprintPurge } from "./routes/footprint.js";
 import { bindHost, isLoopbackHost, portInUseMessage } from "./bind-address.js";
@@ -326,6 +327,12 @@ app.get("/api/result/:id/city", (req: Request, res: Response): void => {
 // GET /api/result/:id/sarif — SARIF export for InfoPanel + CI
 app.get("/api/result/:id/sarif", (req: Request, res: Response): void => {
   handleResultSarif(req, res, analysisStore);
+});
+
+// GET /api/result/:id/challenge — classroom mode: grade the scan against the
+// project's .skyline-uebung.json (see routes/challenge.ts).
+app.get("/api/result/:id/challenge", readLimiter, (req: Request, res: Response): void => {
+  void handleResultChallenge(req, res, analysisStore);
 });
 
 // GET /api/update/check — the one outbound question the app asks about itself

@@ -1,0 +1,34 @@
+{
+  "schema": "ephemora.exercise-key.v1",
+  "id": "webshop-basics",
+  "title": { "en": "Webshop basics", "de": "Webshop-Grundlagen" },
+  "level": "sek1",
+  "items": [
+    {
+      "id": "sql-concat",
+      "path": "src/db.js",
+      "type": "SQL_INJECTION",
+      "line": 12,
+      "lineTolerance": 6,
+      "points": 10,
+      "categoryHint": "injection",
+      "hint": {
+        "en": "Look closely at how the query string is assembled.",
+        "de": "Schau genau hin, wie der Query-String zusammengesetzt wird."
+      }
+    },
+    {
+      "id": "hardcoded-key",
+      "path": "src/config.js",
+      "type": "HARDCODED_SECRET",
+      "line": 4,
+      "lineTolerance": 0,
+      "points": 5,
+      "categoryHint": "secrets",
+      "hint": {
+        "en": "Where does the API key really come from?",
+        "de": "Woher kommt der API-Key wirklich?"
+      }
+    }
+  ]
+}

@@ -121,6 +121,18 @@ export type FindingCategory =
   | "hygiene"
   | "unclassified";
 
+/**
+ * OWASP Top 10 (2021) bucket a finding belongs to. The table that decides
+ * this lives in `services/security/finding-knowledge.ts`; the union lives
+ * here because the payload and the frontend both speak it. `unclassified`
+ * means the finding's CWE (and its category) say nothing the table knows —
+ * never a guess. Buckets A04 and A09 have no row of their own because the
+ * scanner cannot emit design or logging findings; A09 arrives only through
+ * the explicit CWE-532 row.
+ */
+export type OwaspBucket =
+  "A01" | "A02" | "A03" | "A04" | "A05" | "A06" | "A07" | "A08" | "A09" | "A10" | "unclassified";
+
 export interface SecurityIssue {
   type: string;
   severity: "P0" | "P1" | "P2";
@@ -149,6 +161,8 @@ export interface SecurityIssue {
   cwe?: string;
   /** What kind of mistake this is — the axis a user filters by */
   category?: FindingCategory;
+  /** OWASP Top 10 (2021) bucket, derived from the CWE — see finding-knowledge.ts */
+  owasp?: OwaspBucket;
   /** Authoritative documentation link (OWASP/CWE/semgrep/advisory) */
   refUrl?: string;
   /** Code frame around the flagged line — shows WHERE the problem lives */

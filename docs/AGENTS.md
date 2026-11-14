@@ -43,6 +43,11 @@ minted from it server-side in
 that hash. The agent works in the repository it already has; shipping the file's
 text would move the user's code into a second place without being asked to.
 
+The optional `owasp` field rides beside `cwe` when the bucket table in
+`backend/src/services/security/finding-knowledge.ts` derives one from the
+finding's CWE (`A01`–`A10`, OWASP Top 10 2021); a finding the table cannot
+classify simply omits the field — no guessed bucket.
+
 ## 2. Check your own work
 
 ```bash

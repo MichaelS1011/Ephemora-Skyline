@@ -4818,6 +4818,50 @@ export const DICT = {
     en: "{n} paths stayed out of the city: {excluded} you excluded yourself, {gitBudget} the git budget cut off.",
     de: "{n} Pfade blieben draußen: {excluded} hast du selbst ausgenommen, {gitBudget} hat das Git-Budget abgeschnitten.",
   },
+  /* ── Classroom mode (Unterrichtsmodus) ────────────────────────────────
+     The scoreboard card ChallengePanel prints for a scanned exercise
+     folder. The exercise title, level value, item ids and hints come from
+     the key file; only the frame words live here. */
+  "challenge.heading": {
+    en: "Exercise",
+    de: "Übung",
+  },
+  "challenge.level.sek1": {
+    en: "Lower secondary",
+    de: "Sekundarstufe I",
+  },
+  "challenge.level.sek2": {
+    en: "Upper secondary",
+    de: "Sekundarstufe II",
+  },
+  "challenge.level.uni": {
+    en: "University",
+    de: "Hochschule",
+  },
+  "challenge.score": {
+    en: "{found} of {total} planted issues found",
+    de: "{found} von {total} eingeschleusten Fehlern gefunden",
+  },
+  "challenge.points": {
+    en: "{earned} of {total} points",
+    de: "{earned} von {total} Punkten",
+  },
+  "challenge.progressAria": {
+    en: "Exercise progress",
+    de: "Übungsfortschritt",
+  },
+  "challenge.foundAria": {
+    en: "{id}: found, worth {points} points",
+    de: "{id}: gefunden, {points} Punkte",
+  },
+  "challenge.missingAria": {
+    en: "{id}: not found, worth {points} points. Hint: {hint}",
+    de: "{id}: nicht gefunden, {points} Punkte. Hinweis: {hint}",
+  },
+  "challenge.finished": {
+    en: "Every planted issue found — well done.",
+    de: "Alle eingeschleusten Fehler gefunden — gut gemacht.",
+  },
 } satisfies Record<string, { en: string; de: string }>;
 
 export type DictKey = keyof typeof DICT;

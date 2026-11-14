@@ -1,4 +1,4 @@
-import type { SecurityIssue } from "../../models/index.js";
+import type { FindingCategory, OwaspBucket, SecurityIssue } from "../../models/index.js";
 import { categoryOf } from "./categories.js";
 import { maskIssueFrames, maskSecretText } from "./redact.js";
 
@@ -447,6 +447,79 @@ export function buildSnippet(
 }
 
 /**
+ * The table behind the OWASP axis.
+ *
+ * Same philosophy as `categories.ts`, for a different audience: a teacher or
+ * auditor reads OWASP buckets, a developer reads categories. The bucket is
+ * derived from the CWE the finding already carries — one list to keep true,
+ * not a per-rule annotation that rots. Two decisions keep it honest:
+ *
+ * 1. A CWE row exists only where the OWASP Top 10 (2021) list itself names
+ *    that CWE, or where the category fallback below would file it wrong
+ *    (path traversal is access control, deserialization is integrity —
+ *    neither is "just injection").
+ * 2. Everything else falls back through the finding's category; a finding
+ *    whose CWE and category both say nothing lands in `unclassified`.
+ *    Buckets A04 (insecure design) and A06-without-CWE stay mostly empty
+ *    because the scanner cannot emit design findings — an empty bucket here
+ *    means "not seen", not "absent".
+ */
+
+export type { OwaspBucket };
+
+/** Explicit CWE number → bucket, per the OWASP Top 10 2021 CWE listings. */
+const CWE_TO_OWASP: Readonly<Record<number, OwaspBucket>> = {
+  22: "A01", // path traversal — access control, not injection
+  494: "A08", // download without integrity check
+  502: "A08", // deserialization — integrity, not injection
+  532: "A09", // sensitive data written to logs — a logging failure
+  798: "A07", // hard-coded credentials — the bucket's poster child
+  829: "A08", // functionality included from an untrusted sphere
+  918: "A10", // SSRF — OWASP promoted it to its own bucket in 2021
+  942: "A05", // permissive cross-domain policy — a misconfiguration
+};
+
+/** Where each category lands when no CWE row applies. */
+const CATEGORY_TO_OWASP: Readonly<Record<FindingCategory, OwaspBucket>> = {
+  injection: "A03",
+  secrets: "A07", // credentials that authenticate = authentication failures
+  crypto: "A02",
+  transport: "A02",
+  exposure: "A02", // 2021 folded sensitive-data exposure into cryptographic failures
+  dependencies: "A06",
+  permissions: "A01",
+  hygiene: "unclassified", // a dead import is not on the Top 10 — and should not be
+  unclassified: "unclassified",
+};
+
+/**
+ * Types that decide their bucket themselves, ahead of any CWE — the same
+ * exception mechanism as categories.ts. CONSOLE_USAGE is the case: its
+ * curated CWE-532 would otherwise file a `console.log` under logging
+ * failures, while a third-party rule genuinely citing CWE-532 for leaked
+ * secrets in logs still gets A09 through the row.
+ */
+const TYPE_TO_OWASP: Readonly<Record<string, OwaspBucket>> = {
+  CONSOLE_USAGE: "unclassified",
+};
+
+/**
+ * OWASP bucket of a finding. The caller usually has the category already
+ * (enrichIssues derives it one line earlier); without it, it is derived here.
+ * Unknown CWE and unknown category return "unclassified" — never a guess.
+ */
+export function owaspOf(type: string, cwe?: string, category?: FindingCategory): OwaspBucket {
+  const explicit = TYPE_TO_OWASP[type];
+  if (explicit) return explicit;
+  const match = cwe?.match(/(\d+)/);
+  if (match) {
+    const bucket = CWE_TO_OWASP[Number(match[1])];
+    if (bucket) return bucket;
+  }
+  return CATEGORY_TO_OWASP[category ?? categoryOf(type, cwe)];
+}
+
+/**
  * Attach knowledge + code frame to issues, in place. Cheap and idempotent —
  * called by every adapter/facade merge that has the file content at hand.
  */
@@ -471,6 +544,9 @@ export function enrichIssues(issues: SecurityIssue[], content?: string): void {
     // After the knowledge pass, because the category is derived from the CWE
     // this is the place that attaches.
     if (!issue.category) issue.category = categoryOf(issue.type, issue.cwe);
+    // One line later for the same reason: the OWASP bucket reads the CWE too,
+    // and the category this just derived.
+    if (!issue.owasp) issue.owasp = owaspOf(issue.type, issue.cwe, issue.category);
     if (content && issue.packageName && !issue.snippet) {
       const lines = content.split("\n");
       const needle = JSON.stringify(`node_modules/${issue.packageName}`);

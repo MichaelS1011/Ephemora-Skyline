@@ -32,6 +32,7 @@ import { PrefsNote } from "./components/PrefsNote";
 import { SceneBoundary, SurfaceBoundary, SurfaceFailed } from "./components/SurfaceBoundary";
 import { useGlassStage } from "./render/useGlassStage";
 import { FindingsPanel } from "./components/FindingsPanel";
+import { ChallengePanel } from "./components/ChallengePanel";
 import { HeatmapToggle } from "./components/HeatmapToggle";
 import { HelpTipProvider } from "./components/HelpTipProvider";
 import { useStore } from "./stores";
@@ -750,6 +751,9 @@ export default function App() {
                 <InfoPanel />
               </SurfaceBoundary>
               <FindingsPanel />
+              {/* Classroom mode: prints a scoreboard only when the scanned
+                  folder carries an exercise key; silent otherwise. */}
+              <ChallengePanel />
               <ScanSummary demo={apiStatus === "demo"} />
               <SecurityTour />
               <TriageAnnouncer />

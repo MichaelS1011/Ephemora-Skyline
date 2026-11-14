@@ -16,6 +16,7 @@ The local backend serves the app and its API from one address: `:4173` when star
 | `GET  /api/result/:id`                | full analysis result as JSON (rehydrated from the run archive on a RAM miss)  |
 | `GET  /api/result/:id/city`           | the city payload the renderer consumes                                        |
 | `GET  /api/result/:id/sarif`          | SARIF 2.1.0 export of the findings                                            |
+| `GET  /api/result/:id/challenge`      | classroom grading against the project's `.skyline-uebung.json` (see below)    |
 | `GET  /api/result/:id/source/:fileId` | the file a finding points at                                                  |
 | `GET  /api/result/:id/handoff`        | one finding per line, NDJSON, for a coding agent (`docs/AGENTS.md`)           |
 | `POST /api/verify`                    | did the findings of one scan survive a later one?                             |
@@ -31,6 +32,49 @@ The local backend serves the app and its API from one address: `:4173` when star
 | `POST /api/tests/:id/run`             | run one of that city's own test files                                         |
 | `GET  /api/tests/run/:runId`          | output of that run                                                            |
 | `GET  /api/update/check`              | the anonymous newest-release check                                            |
+
+## GET /api/result/:id/challenge — classroom mode
+
+When the scanned project's root holds a `.skyline-uebung.json` key (schema
+`ephemora.exercise-key.v1`: id, bilingual title, level, and an `items` list of
+`{id, path, type, line, lineTolerance, points, categoryHint, hint}`), this route
+grades the stored scan against it. The scoring itself is pure and lives in
+`backend/src/services/security/challenge.ts`, guarded by
+`backend/tests/uebung-scoring.test.ts`; the route reads the key from the scan's
+staged copy and answers
+`backend/tests/uebung-route.test.ts`.
+
+```json
+{
+  "exercise": { "id": "webshop-basics", "title": { "en": "…", "de": "…" }, "level": "sek1" },
+  "items": [
+    {
+      "id": "sql-concat",
+      "points": 10,
+      "categoryHint": "injection",
+      "hint": { "en": "…", "de": "…" },
+      "found": true
+    }
+  ],
+  "foundCount": 1,
+  "totalCount": 2,
+  "pointsEarned": 10,
+  "pointsTotal": 15,
+  "finished": false
+}
+```
+
+An item counts as found when the scan holds a finding on the item's path with
+the item's type, within `line ± lineTolerance` inclusive; several such findings
+still count once. A not-found item carries only `points`, `categoryHint` and the
+bilingual `hint` — its path, line and type are never sent, which the tests
+assert on the response body itself. Findings on the key file itself never score.
+
+Errors are JSON, never a stack trace: `404 {"error":"Analysis not found"}` for
+an unknown scan; `404 {"code":"no_exercise_key", …}` when the project has no key
+file or its staged copy has aged out (24 h TTL — scan the folder again); `422`
+with `code` `malformed_key` or `unsupported_schema` when the key is unreadable
+or from a future schema.
 
 ## What the guards are
 

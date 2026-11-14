@@ -1,0 +1,10 @@
+{
+  "name": "uebungen-01-webshop",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Uebung 1: Mini-Webshop zum Scannen. Bewusst ohne npm-Abhaengigkeiten, damit `node server.js` ohne Installation laeuft. Einigte Stellen sind absichtlich fehlerhaft — siehe ARBEITSBLATT.md.",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  }
+}

@@ -3,7 +3,7 @@ import { readFileSync, existsSync } from "fs";
 import path from "path";
 
 /**
- * SELBST-23 — the two numbers README.md:99 states about our own scan: "There is
+ * SELBST-23 — the two numbers README.md:103 states about our own scan: "There is
  * no accuracy number here, on purpose."
  *
  * The README sentence used to name 68 findings and 59 quoted test text for the
@@ -80,7 +80,17 @@ describe("the delivered self-scan list (docs/self-scan-findings.ndjson)", () => 
       expect(Number.isInteger(f.line) && f.line > 0, where).toBe(true);
       expect(f.severity, where).toMatch(/^P[0-3]$/);
       expect(
-        ["gitleaks", "semgrep", "osv", "ruff", "regex", "dependency", "history", "unknown"],
+        [
+          "gitleaks",
+          "semgrep",
+          "osv",
+          "ruff",
+          "regex",
+          "local-rules",
+          "dependency",
+          "history",
+          "unknown",
+        ],
         where,
       ).toContain(f.provenance);
       /* the promise of this channel: the pointed-at line is hashed, never shipped */
@@ -120,7 +130,7 @@ describe("the delivered self-scan list (docs/self-scan-findings.ndjson)", () => 
   });
 });
 
-describe("the two numbers README.md:116 claims (README.md accuracy bullet)", () => {
+describe("the two numbers README.md:120 claims (README.md accuracy bullet)", () => {
   const total = () => findingLines().length;
   const quoted = () => findings().filter(isQuotedTestText).length;
 
