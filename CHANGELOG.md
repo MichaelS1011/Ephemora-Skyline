@@ -9,6 +9,8 @@ came from a run on this machine, with the file and the check that produced it.
 
 ## [Unreleased]
 
+## [0.4.9] - 2026-11-15
+
 - **The scoreboard speaks the reader's language in its categories too.** The classroom card printed the key file's `categoryHint` raw, so the English UI showed "Befehlsausführung" and "Transportverschlüsselung". `challengeCategoryKey` (`frontend/src/findings/challengePanel.ts`) now names the eight categories the shipped answer keys carry — in their German and their English spelling — through the dictionary, and prints anything outside the table untouched: a teacher's own category is never renamed. Measured on the rendered card: EN shows "Injektion" → **Injection** and "Schwachstelle Nr. 7" stays **byte-identical**; **2,929 frontend cases pass across 240 frontend test files**; type-check and lint green.
 
 ## [0.4.8] - 2026-11-15

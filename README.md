@@ -21,13 +21,9 @@ Nothing is uploaded. No account, no login, no telemetry. It runs on your own mac
 
 ## What's new
 
-0.4.8 — 2026-11-15
+0.4.9 — 2026-11-15
 
-- **The city is now a classroom.** — Two graded folders ship with the repo: `teaching/uebungen/01-webshop` (Node/Express
-- **A re-scan now answers "what is new?", and refuses to answer when the scans are not comparable.** — Measured: **2,884 frontend / 968 backend cases pass; 238 frontend / 92 backend test files; type-check and lint green.**
-- **The wheel is a dolly, not a catapult.** — The overview ladder now has sixteen rungs instead of nine: one city notch moves **11–14 %** of the distance, the last step to 5× moves **25 %**, and the old ladder moved **25–28 %** per notch
-- **The README's city frames are current again.** — security and narrow pictures were re-shot from the running build at 1600 × 1000 and 390 × 844
-- **The kerb has cars, and a label at the frame edge keeps its last glyph.** — A wrapper level now paints up to 40 still cars at the kerb from one deterministic plan
+- **The scoreboard speaks the reader's language in its categories too.** — 7" stays **byte-identical**; **2,929 frontend cases pass across 240 frontend test files**; type-check and lint green
 
 More in [CHANGELOG.md](./CHANGELOG.md).
 

@@ -5,7 +5,7 @@ import { maskSecretText } from "../src/services/security/redact.js";
 /**
  * BELEG-02 — what a finding card quotes, and what it must not quote.
  *
- * README.md:69 promises "the line the rule matched with two lines either side
+ * README.md:65 promises "the line the rule matched with two lines either side
  * read out of your copy of the file"; docs/PRIVACY.md:15 promises "a finding stores
  * the line it was found on plus a two-line code frame" and names the token
  * shapes the erasure hides "GitHub, AWS, Slack, Google, Stripe, OpenAI, npm,
@@ -21,7 +21,7 @@ const FILE = [
   "line 5", //                            5
 ].join("\n");
 
-describe("the frame around the line the rule matched (README.md:69)", () => {
+describe("the frame around the line the rule matched (README.md:65)", () => {
   it("quotes two lines on either side of a finding in the middle of a file", () => {
     const frame = buildSnippet(FILE, 3)!;
     expect(frame.line).toBe("const query = db.find(a, b);");
@@ -60,7 +60,7 @@ describe("the frame around the line the rule matched (README.md:69)", () => {
   });
 
   it("hands back nothing when there is no file to read", () => {
-    // README.md:69: "on the demo it is the one line, because nothing was read"
+    // README.md:65: "on the demo it is the one line, because nothing was read"
     expect(buildSnippet(undefined, 4)).toBeUndefined();
   });
 
