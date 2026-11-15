@@ -21,13 +21,13 @@ Nothing is uploaded. No account, no login, no telemetry. It runs on your own mac
 
 ## What's new
 
-0.4.7 — 2026-11-08
+0.4.8 — 2026-11-15
 
-- **A finding now has a walkable import chain, and a resident has somewhere to sit.** — sits for 18–32 s
-- **The layer that measured zero is gone.** — `ParticleField` was dead code with an active reduced-motion guard; the 24 ambient street cars had measured 0 px under all three visibility patches while their instances still ran
-- **C and C++ are separate kinds, and their includes are edges.** — `.c` now draws as **C** with its own measured tone `#cb626d`; `.cpp`/`.cc`/`.cxx`/`.hpp`/`.hh`/`.hxx`/`.ipp`/`.tpp`/`.cu`/`.cuh`/`.ino` stay **C++**, and uppercase `.C`/`.H` follow the C++ spelling
-- **The city can be narrowed to one language.** — A header control appears only when the scan holds more than one language bucket; closed, it is an icon plus the active language's colour, so the arrival budget stays at its measured 171 words
-- **Safari no longer paints the app black.** — Helmet's default policy includes `upgrade-insecure-requests`; WebKit upgraded the loopback page's module requests to `https://127.0.0.1:4173/assets/...`, where no TLS listener exists
+- **The city is now a classroom.** — Two graded folders ship with the repo: `teaching/uebungen/01-webshop` (Node/Express
+- **A re-scan now answers "what is new?", and refuses to answer when the scans are not comparable.** — Measured: **2,884 frontend / 968 backend cases pass; 238 frontend / 92 backend test files; type-check and lint green.**
+- **The wheel is a dolly, not a catapult.** — The overview ladder now has sixteen rungs instead of nine: one city notch moves **11–14 %** of the distance, the last step to 5× moves **25 %**, and the old ladder moved **25–28 %** per notch
+- **The README's city frames are current again.** — security and narrow pictures were re-shot from the running build at 1600 × 1000 and 390 × 844
+- **The kerb has cars, and a label at the frame edge keeps its last glyph.** — A wrapper level now paints up to 40 still cars at the kerb from one deterministic plan
 
 More in [CHANGELOG.md](./CHANGELOG.md).
 
