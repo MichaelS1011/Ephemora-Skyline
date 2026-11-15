@@ -117,10 +117,48 @@ export function repoSlug(): string {
 let untrackedWork: Set<string> | null = null;
 export function isUntrackedWork(rel: string): boolean {
   if (!untrackedWork) {
+    // The list is EVERYTHING the index does not hold — deliberately without
+    // `--exclude-standard`. That flag honours `.git/info/exclude` too, and a
+    // machine-local exclude file is lane work exactly like a plain untracked
+    // file: a clone never carries it. With it, one scratch folder hidden in
+    // `info/exclude` read 728 admitted files at a desk and 726 in CI, and the
+    // published sentence could only be true in one of the two places. Only
+    // the directory names the shipped walk already prunes itself — the
+    // `SKIP_DIRS` set of `useLocalAnalysis.ts` — may drop out of the list,
+    // because their files are never looked up here.
+    const skipDirs = [
+      "node_modules",
+      "dist",
+      "build",
+      "out",
+      ".next",
+      ".nuxt",
+      "coverage",
+      ".turbo",
+      ".vscode",
+      ".idea",
+      "__pycache__",
+      ".venv",
+      "venv",
+      "target",
+      "vendor",
+      ".pytest_cache",
+      ".mypy_cache",
+      ".gradle",
+      "Pods",
+      "bin",
+      "obj",
+    ];
     const out = execFileSync(
       "git",
-      ["-c", "core.quotepath=false", "ls-files", "--others", "--exclude-standard"],
-      { cwd: REPO, encoding: "utf8" },
+      [
+        "-c",
+        "core.quotepath=false",
+        "ls-files",
+        "--others",
+        ...skipDirs.map((d) => `--exclude=${d}/`),
+      ],
+      { cwd: REPO, encoding: "utf8", maxBuffer: 64 * 1024 * 1024 },
     );
     untrackedWork = new Set(out.split("\n").filter(Boolean));
   }

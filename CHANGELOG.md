@@ -9,6 +9,8 @@ came from a run on this machine, with the file and the check that produced it.
 
 ## [Unreleased]
 
+- **The count guard counts the clone, not the desk.** `isUntrackedWork` (`backend/tests/helpers/claimsShared.ts`) listed lane work with `git ls-files --others --exclude-standard` — and that flag honours `.git/info/exclude`, a machine-local file no clone carries. One scratch folder hidden there read **728** admitted files at the desk while CI and any fresh clone measured **726**, so `backend/tests/claims-counts.test.ts` failed `Test (Node 20.19.0 / 22.12.0 / 24)` on every push since the folder landed. The list is now everything the index does not hold, minus only the names the shipped `SKIP_DIRS` already prunes, so desk, clone and CI agree. The README sentence names the honest pair: **counts 726 … then reads 690**. Measured: **95 backend files / 1,014 cases** and **240 frontend files / 2,929 cases** pass — README total updated to **3,943**; type-check and lint green.
+
 ## [0.4.9] - 2026-11-15
 
 - **The scoreboard speaks the reader's language in its categories too.** The classroom card printed the key file's `categoryHint` raw, so the English UI showed "Befehlsausführung" and "Transportverschlüsselung". `challengeCategoryKey` (`frontend/src/findings/challengePanel.ts`) now names the eight categories the shipped answer keys carry — in their German and their English spelling — through the dictionary, and prints anything outside the table untouched: a teacher's own category is never renamed. Measured on the rendered card: EN shows "Injektion" → **Injection** and "Schwachstelle Nr. 7" stays **byte-identical**; **2,929 frontend cases pass across 240 frontend test files**; type-check and lint green.
