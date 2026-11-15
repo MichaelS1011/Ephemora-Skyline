@@ -17,6 +17,8 @@
     "CONTRIBUTING.md",
     "CODE_OF_CONDUCT.md",
     "docs/*.md",
+    "docs/education",
+    "teaching",
     "LICENSE",
     "NOTICE"
   ],

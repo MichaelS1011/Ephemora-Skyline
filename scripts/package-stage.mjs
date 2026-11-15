@@ -13,7 +13,7 @@ import { pathToFileURL } from "node:url";
 
 const HERE = import.meta.dirname;
 const REPO = path.resolve(HERE, "..");
-const COPY_DIRS = ["backend/dist", "frontend/dist"];
+const COPY_DIRS = ["backend/dist", "frontend/dist", "teaching"];
 const COPY_FILES = ["README.md", "LICENSE", "NOTICE"];
 /**
  * The documents a reader needs after an install, and the ones the README links
@@ -86,6 +86,13 @@ export function stagePackage(out, { build = true } = {}) {
     for (const name of docsMd) {
       cpSync(path.join(docsDir, name), path.join(target, "docs", name));
     }
+  }
+  // `docs/education/` is the one `docs/` subfolder that is product, not
+  // workshop: the README links into it and an offline reader must be able to
+  // open the lesson plans, so the whole folder travels.
+  const eduDir = path.join(docsDir, "education");
+  if (existsSync(eduDir)) {
+    cpSync(eduDir, path.join(target, "docs", "education"), { recursive: true });
   }
   const census = countFiles(target);
   return {
