@@ -21,9 +21,9 @@ Nothing is uploaded. No account, no login, no telemetry. It runs on your own mac
 
 ## What's new
 
-0.4.9 — 2026-11-15
+0.4.10 — 2026-11-15
 
-- **The scoreboard speaks the reader's language in its categories too.** — 7" stays **byte-identical**; **2,929 frontend cases pass across 240 frontend test files**; type-check and lint green
+- **The count guard counts the clone, not the desk.** — One scratch folder hidden there read **728** admitted files at the desk while CI and any fresh clone measured **726**
 
 More in [CHANGELOG.md](./CHANGELOG.md).
 
