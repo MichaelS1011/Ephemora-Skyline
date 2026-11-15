@@ -4862,6 +4862,41 @@ export const DICT = {
     en: "Every planted issue found — well done.",
     de: "Alle eingeschleusten Fehler gefunden — gut gemacht.",
   },
+  /* Category chips: the key file's `categoryHint` is free text, so only the
+     categories the shipped keys use are named here — anything else prints
+     raw, exactly as the teacher wrote it. */
+  "challenge.category.injection": {
+    en: "Injection",
+    de: "Injektion",
+  },
+  "challenge.category.commandExecution": {
+    en: "Command execution",
+    de: "Befehlsausführung",
+  },
+  "challenge.category.codeExecution": {
+    en: "Code execution",
+    de: "Code-Ausführung",
+  },
+  "challenge.category.fileAccess": {
+    en: "File access",
+    de: "Dateizugriff",
+  },
+  "challenge.category.deserialization": {
+    en: "Deserialization",
+    de: "Deserialisierung",
+  },
+  "challenge.category.cryptography": {
+    en: "Cryptography",
+    de: "Kryptografie",
+  },
+  "challenge.category.transportEncryption": {
+    en: "Transport encryption",
+    de: "Transportverschlüsselung",
+  },
+  "challenge.category.credentials": {
+    en: "Credentials",
+    de: "Zugangsdaten",
+  },
 } satisfies Record<string, { en: string; de: string }>;
 
 export type DictKey = keyof typeof DICT;

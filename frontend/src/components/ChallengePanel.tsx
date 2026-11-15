@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { useStore } from "../stores/useStore";
 import { t, type DictKey } from "../i18n";
 import {
+  challengeCategoryKey,
   challengeFetchUrl,
   challengeProgressPercent,
   parseChallengeResponse,
@@ -101,34 +102,39 @@ export function ChallengePanel() {
         <div className="cf-challenge-bar-fill" style={{ width: `${percent}%` }} />
       </div>
       <ul className="cf-challenge-list">
-        {view.items.map((item) => (
-          <li
-            key={item.id}
-            className="cf-challenge-item"
-            data-found={item.found || undefined}
-            aria-label={
-              item.found
-                ? t(lang, "challenge.foundAria", { id: item.id, points: item.points })
-                : t(lang, "challenge.missingAria", {
-                    id: item.id,
-                    points: item.points,
-                    hint: item.hint[lang],
-                  })
-            }
-          >
-            <span aria-hidden="true" className="cf-challenge-mark">
-              {item.found ? "✓" : "·"}
-            </span>
-            <span className="cf-challenge-item-id">{item.id}</span>
-            <span className="cf-challenge-item-points">{item.points}</span>
-            {!item.found && (
-              <span className="cf-challenge-hint">
-                {item.hint[lang]}
-                <span className="cf-challenge-category">{item.categoryHint}</span>
+        {view.items.map((item) => {
+          const categoryKey = challengeCategoryKey(item.categoryHint);
+          return (
+            <li
+              key={item.id}
+              className="cf-challenge-item"
+              data-found={item.found || undefined}
+              aria-label={
+                item.found
+                  ? t(lang, "challenge.foundAria", { id: item.id, points: item.points })
+                  : t(lang, "challenge.missingAria", {
+                      id: item.id,
+                      points: item.points,
+                      hint: item.hint[lang],
+                    })
+              }
+            >
+              <span aria-hidden="true" className="cf-challenge-mark">
+                {item.found ? "✓" : "·"}
               </span>
-            )}
-          </li>
-        ))}
+              <span className="cf-challenge-item-id">{item.id}</span>
+              <span className="cf-challenge-item-points">{item.points}</span>
+              {!item.found && (
+                <span className="cf-challenge-hint">
+                  {item.hint[lang]}
+                  <span className="cf-challenge-category">
+                    {categoryKey ? t(lang, categoryKey) : item.categoryHint}
+                  </span>
+                </span>
+              )}
+            </li>
+          );
+        })}
       </ul>
       {view.finished && <p className="cf-challenge-finished">{t(lang, "challenge.finished")}</p>}
     </section>

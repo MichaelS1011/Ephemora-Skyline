@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  challengeCategoryKey,
   challengeFetchUrl,
   challengeProgressPercent,
   parseChallengeResponse,
@@ -211,5 +212,24 @@ describe("challengeFetchUrl", () => {
   it("builds the documented route and encodes the id", () => {
     expect(challengeFetchUrl("scan-1")).toBe("/api/result/scan-1/challenge");
     expect(challengeFetchUrl("a b/c")).toBe("/api/result/a%20b%2Fc/challenge");
+  });
+});
+
+describe("challengeCategoryKey", () => {
+  it("names the categories the shipped keys carry, in both spellings", () => {
+    expect(challengeCategoryKey("Injektion")).toBe("challenge.category.injection");
+    expect(challengeCategoryKey("injection")).toBe("challenge.category.injection");
+    expect(challengeCategoryKey("Zugangsdaten")).toBe("challenge.category.credentials");
+    expect(challengeCategoryKey("credentials")).toBe("challenge.category.credentials");
+    expect(challengeCategoryKey("Befehlsausführung")).toBe("challenge.category.commandExecution");
+    expect(challengeCategoryKey("Transportverschlüsselung")).toBe(
+      "challenge.category.transportEncryption",
+    );
+  });
+
+  it("trims and folds case, but renames nobody's own category", () => {
+    expect(challengeCategoryKey("  KRYPTOGRAPHIE ")).toBe("challenge.category.cryptography");
+    expect(challengeCategoryKey("Eigene Kategorie der Lehrkraft")).toBe(null);
+    expect(challengeCategoryKey("")).toBe(null);
   });
 });

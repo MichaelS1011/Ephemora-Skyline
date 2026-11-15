@@ -122,6 +122,35 @@ describe("the classroom card", () => {
     expect(text()).toContain("10 of 15 points");
   });
 
+  it("names a shipped category in the reader's language, and an own one untouched", async () => {
+    mockFetch({
+      ok: true,
+      body: {
+        ...BOARD,
+        items: [
+          {
+            id: "sql-concat",
+            points: 10,
+            categoryHint: "Injektion",
+            hint: { en: "Where does the query get built?", de: "Wo wird die Query gebaut?" },
+            found: false,
+          },
+          {
+            id: "odd-one",
+            points: 5,
+            categoryHint: "Schwachstelle Nr. 7",
+            hint: { en: "Look again", de: "Schau noch einmal hin" },
+            found: false,
+          },
+        ],
+      },
+    });
+    seed("en", "scan-1");
+    await show();
+    const chips = [...host.querySelectorAll(".cf-challenge-category")].map((n) => n.textContent);
+    expect(chips).toEqual(["Injection", "Schwachstelle Nr. 7"]);
+  });
+
   it("asks the documented route once per scan, not once per render", async () => {
     const fetchMock = mockFetch({ ok: true, body: BOARD });
     seed("en", "scan-1");

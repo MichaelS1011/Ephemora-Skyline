@@ -14,6 +14,8 @@
  * `tests/challenge-ui.test.tsx`.
  */
 
+import type { DictKey } from "../i18n";
+
 export interface BilingualText {
   en: string;
   de: string;
@@ -125,7 +127,44 @@ export function shouldFetchChallenge(
   return analysisId !== null && analysisId !== fetchedFor;
 }
 
-/** The documented route, built the way every other result call builds it. */
+/**
+ * The documented route, built the way every other result call builds it.
+ */
 export function challengeFetchUrl(analysisId: string): string {
   return `/api/result/${encodeURIComponent(analysisId)}/challenge`;
+}
+
+/**
+ * The categories the shipped answer keys name, in both spellings they arrive
+ * in: the German word the keys carry, and the plain-English word a key author
+ * may write. A value outside this table is not translated — `categoryHint` is
+ * free text the teacher chose, and a chip must not rename their category.
+ */
+const CATEGORY_ALIASES: Record<string, string> = {
+  injektion: "injection",
+  injection: "injection",
+  befehlsausführung: "commandExecution",
+  "command execution": "commandExecution",
+  "code-ausführung": "codeExecution",
+  "code execution": "codeExecution",
+  dateizugriff: "fileAccess",
+  "file access": "fileAccess",
+  deserialisierung: "deserialization",
+  deserialization: "deserialization",
+  kryptografie: "cryptography",
+  kryptographie: "cryptography",
+  cryptography: "cryptography",
+  transportverschlüsselung: "transportEncryption",
+  "transport encryption": "transportEncryption",
+  zugangsdaten: "credentials",
+  credentials: "credentials",
+};
+
+/**
+ * The dictionary key naming a category in both languages, or null — null
+ * means the panel prints the teacher's own word untouched.
+ */
+export function challengeCategoryKey(categoryHint: string): DictKey | null {
+  const slug = CATEGORY_ALIASES[categoryHint.trim().toLowerCase()];
+  return slug === undefined ? null : (`challenge.category.${slug}` as DictKey);
 }
