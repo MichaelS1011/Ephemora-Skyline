@@ -20,12 +20,15 @@ import type { Request, Response } from "express";
 import { promises as fs } from "fs";
 import os from "os";
 import path from "path";
+import { guardStillAnalyzing } from "./still-analyzing.js";
 
 /** The three verdicts the panel can set — the same words reviews.ts validates. */
 const REVIEW_STATUSES = new Set(["reviewed", "false-positive", "to-fix"]);
 
 /** The bucket id the frontend mints: `p-` plus 16 hex characters. */
 const PROJECT_KEY = /^p-[0-9a-f]{16}$/;
+/** Scan ids are `crypto.randomUUID()` — the shape a registration is keyed by. */
+const SCAN_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
 /** A verdict key: the finding's fingerprint, or the positional fallback. */
 const REVIEW_KEY = /^(fp:[0-9a-f]{8,64}|f-[0-9a-f]{12}#\d{1,6})$/;
@@ -71,6 +74,14 @@ export function sanitizeReviews(raw: unknown): VerdictMap {
  */
 export class VerdictStore {
   private projects = new Map<string, VerdictBucket>();
+  /**
+   * Which project bucket each scan's verdicts live in, keyed by scan id. This
+   * lives in the file next to the buckets themselves — not in RAM: the agent
+   * channel asks by scan id after a restart, when the browser that registered
+   * the mapping is long gone. An old file without this key simply has no
+   * registrations; that is an empty answer, not an unreadable store.
+   */
+  private scans = new Map<string, string>();
   /**
    * The load as ONE memoized promise, never a flag flipped before the await:
    * an early flag lets the next caller in the same tick past an empty map, and
@@ -120,6 +131,21 @@ export class VerdictStore {
         const at = typeof bucket?.at === "number" ? bucket.at : 0;
         this.projects.set(k, { at, reviews: sanitizeReviews(bucket?.reviews) });
       }
+      // Scan→project registrations ride along in the same file. An absent key
+      // (a file written before this field existed) simply carries none.
+      const scans = (parsed as { scans?: unknown }).scans;
+      if (scans && typeof scans === "object") {
+        for (const [scanId, project] of Object.entries(scans as Record<string, unknown>)) {
+          if (!SCAN_ID.test(scanId) || typeof project !== "string" || !PROJECT_KEY.test(project))
+            continue;
+          this.scans.set(scanId, project);
+          while (this.scans.size > MAX_SCAN_PROJECTS) {
+            const oldest = this.scans.keys().next().value;
+            if (oldest === undefined) break;
+            this.scans.delete(oldest);
+          }
+        }
+      }
       return true;
     } catch {
       console.error(
@@ -129,7 +155,7 @@ export class VerdictStore {
     }
   }
 
-  private persist(payload: string): void {
+  private persist(payload: string): Promise<void> {
     this.chain = this.chain
       .then(async () => {
         const file = verdictsFile();
@@ -142,12 +168,47 @@ export class VerdictStore {
       .catch((e) => {
         console.error(`verdicts: could not write ${verdictsFile()}`, e);
       });
+    // The caller awaits this promise: a save that answers 200 before the
+    // bytes reached the disk reopens the very loss window the whole file
+    // exists to close — "cleared/restarted and the verdicts were gone".
+    return this.chain;
   }
 
   /** The bucket's verdicts; `null` when the file is unreadable — not `{}`, which would lie. */
   async get(project: string): Promise<VerdictMap | null | undefined> {
     if (!(await this.ensureLoaded())) return null;
     return this.projects.get(project)?.reviews;
+  }
+
+  /**
+   * Which project bucket a scan belongs to, so an agent that only knows the
+   * scan id can still find the verdicts. Reads from the file, so it answers
+   * across a restart — the mapping no longer dies with the process that wrote
+   * it. `undefined` when the scan never registered a bucket.
+   */
+  async scanProject(scanId: string): Promise<string | undefined> {
+    if (!(await this.ensureLoaded())) return undefined;
+    return this.scans.get(scanId);
+  }
+
+  /** Record (and persist) which project bucket a scan's verdicts live in. */
+  async registerScan(scanId: string, project: string): Promise<void> {
+    if (!(await this.ensureLoaded())) return;
+    if (!SCAN_ID.test(scanId) || !PROJECT_KEY.test(project)) return;
+    this.scans.delete(scanId);
+    this.scans.set(scanId, project);
+    while (this.scans.size > MAX_SCAN_PROJECTS) {
+      const oldest = this.scans.keys().next().value;
+      if (oldest === undefined) break;
+      this.scans.delete(oldest);
+    }
+    await this.persist(
+      JSON.stringify({
+        version: 1,
+        projects: Object.fromEntries(this.projects),
+        scans: Object.fromEntries(this.scans),
+      }),
+    );
   }
 
   /** Replace one project's verdicts; returns what the disk will hold, `null` when the read failed. */
@@ -162,10 +223,11 @@ export class VerdictStore {
       if (oldest === undefined) break;
       this.projects.delete(oldest);
     }
-    this.persist(
+    await this.persist(
       JSON.stringify({
         version: 1,
         projects: Object.fromEntries(this.projects),
+        scans: Object.fromEntries(this.scans),
       }),
     );
     return clean;
@@ -186,29 +248,24 @@ export class VerdictStore {
     if (!(await this.ensureLoaded())) return null;
     const cleared = this.projects.size;
     this.projects.clear();
-    this.persist(JSON.stringify({ version: 1, projects: {} }));
+    this.scans.clear();
+    await this.persist(JSON.stringify({ version: 1, projects: {}, scans: {} }));
     return cleared;
   }
 }
 
 export const verdictStore = new VerdictStore();
 
-/**
- * Which project a scan's verdicts belong to, as the browser that triaged it
- * registered them. RAM-only, like the results themselves: a new scan registers
- * itself again. The registration is what lets an agent ask by scan id.
- */
-const scanProjects = new Map<string, string>();
 const MAX_SCAN_PROJECTS = 200;
 
-export function registerScanProject(scanId: string, project: string): void {
-  scanProjects.delete(scanId);
-  scanProjects.set(scanId, project);
-  while (scanProjects.size > MAX_SCAN_PROJECTS) {
-    const oldest = scanProjects.keys().next().value;
-    if (oldest === undefined) break;
-    scanProjects.delete(oldest);
-  }
+/**
+ * Record which project bucket a scan's verdicts belong to, so an agent that
+ * only knows the scan id can read them back. Persisted through the store —
+ * not held in this process's memory alone, which let a restart silently
+ * forget every mapping and answer a correct scan id with empty verdicts.
+ */
+export async function registerScanProject(scanId: string, project: string): Promise<void> {
+  await verdictStore.registerScan(scanId, project);
 }
 
 /** Structural subset of the analysis store the handlers need */
@@ -240,16 +297,18 @@ export async function handleGetVerdicts(
   store: ResultStore,
 ): Promise<void> {
   const id = resultId(req);
-  if (!id || store.get(id) === undefined) {
+  const scan = id ? store.get(id) : undefined;
+  if (!scan) {
     res.status(404).json({ error: "Analysis not found" });
     return;
   }
+  if (guardStillAnalyzing(scan, res)) return;
   const asked = readProjectQuery(req);
   if (asked !== undefined && !PROJECT_KEY.test(asked)) {
     res.status(400).json({ error: "Malformed project key" });
     return;
   }
-  const project = asked ?? scanProjects.get(id) ?? "";
+  const project = asked ?? (await verdictStore.scanProject(id)) ?? "";
   const stored = project ? await verdictStore.get(project) : undefined;
   if (stored === null) {
     res.status(503).json({ error: "The verdict file is unreadable", code: "verdicts_unreadable" });
@@ -272,10 +331,12 @@ export async function handlePutVerdicts(
   store: ResultStore,
 ): Promise<void> {
   const id = resultId(req);
-  if (!id || store.get(id) === undefined) {
+  const scan = id ? store.get(id) : undefined;
+  if (!scan) {
     res.status(404).json({ error: "Analysis not found" });
     return;
   }
+  if (guardStillAnalyzing(scan, res)) return;
   const body = req.body as { project?: unknown; reviews?: unknown } | undefined;
   const project = typeof body?.project === "string" ? body.project : "";
   if (!PROJECT_KEY.test(project)) {
@@ -287,7 +348,7 @@ export async function handlePutVerdicts(
     res.status(503).json({ error: "The verdict file is unreadable", code: "verdicts_unreadable" });
     return;
   }
-  registerScanProject(id, project);
+  await registerScanProject(id, project);
   res.json({ project, saved: Object.keys(saved).length });
 }
 
@@ -303,6 +364,5 @@ export async function handleResetVerdicts(_req: Request, res: Response): Promise
     res.status(503).json({ error: "The verdict file is unreadable", code: "verdicts_unreadable" });
     return;
   }
-  scanProjects.clear();
   res.json({ cleared });
 }

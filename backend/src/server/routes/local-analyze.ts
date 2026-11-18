@@ -101,21 +101,31 @@ export function getStagedDir(analysisId: string): string | null {
  * copy of the source on disk for the full TTL, and can still write a finished
  * result into the store behind the user's back.
  */
-const cancelledJobs = new Set<string>();
+const cancelledJobs = new Map<string, number>();
 /** Jobs whose runner is alive right now — only they may delete their own dir. */
 const runningJobs = new Set<string>();
+
+/** How long a cancellation keeps guarding. Far beyond any scan's life. */
+const CANCELLED_TTL_MS = 60 * 60 * 1000;
+const MAX_CANCELLED = 1000;
 
 export function isJobCancelled(analysisId: string): boolean {
   return cancelledJobs.has(analysisId);
 }
 
-function markCancelled(analysisId: string): void {
-  cancelledJobs.add(analysisId);
-  // Bounded: a long-lived server must not accumulate ids forever. The Set keeps
-  // insertion order, so the oldest cancellation is the one that goes.
-  if (cancelledJobs.size > 200) {
-    const oldest = cancelledJobs.values().next().value;
-    if (oldest !== undefined) cancelledJobs.delete(oldest);
+function markCancelled(analysisId: string, now: number = Date.now()): void {
+  cancelledJobs.set(analysisId, now);
+  // Bounded: a long-lived server must not accumulate ids forever. Age comes
+  // before count — a cancellation whose scan finished an hour ago guards
+  // nothing any more, and pruning by age means a burst of new cancellations
+  // can never evict a recent one the way a bare size cap could.
+  for (const [id, at] of cancelledJobs) {
+    if (now - at > CANCELLED_TTL_MS) cancelledJobs.delete(id);
+  }
+  while (cancelledJobs.size > MAX_CANCELLED) {
+    const oldest = cancelledJobs.keys().next().value;
+    if (oldest === undefined) break;
+    cancelledJobs.delete(oldest);
   }
 }
 
@@ -478,6 +488,8 @@ export async function handleLocalAnalyze(
   const cleaned: UploadedFile[] = [];
   /** Every path that left the scan on the way in, counted rather than dropped */
   const dropped = sanitizeDropped(body?.dropped);
+  // Paths already accepted this request — see the duplicate check in the loop.
+  const seenPaths = new Set<string>();
   let totalBytes = 0;
   let gitBytes = 0;
   const excludes = config.excludePaths;
@@ -498,15 +510,30 @@ export async function handleLocalAnalyze(
       dropped.unsafePath += 1;
       continue;
     }
+    // A duplicate path in one request is a malformed payload, not a re-upload:
+    // staging writes files in order, so the last copy silently wins and the
+    // scan reports whichever version happened to arrive last. Refusing beats
+    // reporting findings that depend on array order.
+    if (seenPaths.has(rel)) {
+      res.status(400).json({
+        error: `Duplicate path in upload: ${rel}`,
+        code: "duplicate_path",
+      });
+      return;
+    }
+    seenPaths.add(rel);
     const encoding = f.encoding === "base64" ? "base64" : undefined;
-    const byteLen = f.content.length; // chars ≈ bytes upper bound for UTF-8 code files
     if (isGitPath(rel)) {
       if (encoding !== "base64") continue; // binary git data must arrive exactly
-      if (byteLen > GIT_MAX_FILE_BYTES * 1.4 || gitBytes + byteLen > GIT_MAX_TOTAL_BYTES * 1.4) {
+      const gitByteLen = Buffer.byteLength(f.content, "utf-8");
+      if (
+        gitByteLen > GIT_MAX_FILE_BYTES * 1.4 ||
+        gitBytes + gitByteLen > GIT_MAX_TOTAL_BYTES * 1.4
+      ) {
         dropped.tooLarge += 1; // base64 inflates ~4/3 — cap on the encoded size with headroom
         continue;
       }
-      gitBytes += byteLen;
+      gitBytes += gitByteLen;
       cleaned.push({ path: rel, content: f.content, encoding });
       continue;
     }
@@ -516,6 +543,25 @@ export async function handleLocalAnalyze(
       dropped.excluded += 1;
       continue;
     }
+    // A base64-marked source file must arrive at the scanner as decoded text.
+    // The staging write below only decodes when the `encoding` field survives
+    // validation — and this branch used to drop it, so every base64 file was
+    // written to disk as literal base64 and scanned as gibberish: findings
+    // vanished without an error. Decode here, measure the decoded bytes (the
+    // encoded length is ~4/3 larger, so the old char-count check bounded the
+    // wrong thing in both directions), and push plain text.
+    let content = f.content;
+    if (encoding === "base64") {
+      // Buffer.from(..., "base64") never throws — it silently skips non-
+      // alphabet characters. Anything that is not recognisably base64 at all
+      // would scan as corrupt text, so it leaves as `unreadable` instead.
+      if (!/^[A-Za-z0-9+/\r\n]*={0,2}$/.test(f.content)) {
+        dropped.unreadable += 1;
+        continue;
+      }
+      content = Buffer.from(f.content, "base64").toString("utf-8");
+    }
+    const byteLen = Buffer.byteLength(content, "utf-8");
     if (byteLen > MAX_FILE_BYTES) {
       dropped.tooLarge += 1;
       continue; // pipeline skips oversized files anyway
@@ -530,7 +576,7 @@ export async function handleLocalAnalyze(
       });
       return;
     }
-    cleaned.push({ path: rel, content: f.content });
+    cleaned.push({ path: rel, content });
   }
   if (!cleaned.some((f) => !isGitPath(f.path))) {
     res.status(400).json({
@@ -584,8 +630,11 @@ export async function handleLocalAnalyze(
     }
   } catch (error) {
     await fs.rm(uploadDir, { recursive: true, force: true }).catch(() => {});
-    const message = error instanceof Error ? error.message : "Failed to stage uploaded files";
-    res.status(500).json({ error: message });
+    // Filesystem errors can carry absolute paths from the server's temp dir —
+    // the user cannot act on them and they describe this machine. They belong
+    // in the server log; the response stays generic.
+    console.error("local-analyze: staging failed:", error);
+    res.status(500).json({ error: "Failed to stage uploaded files" });
     return;
   }
   registerUploadDir(analysisId, uploadDir);

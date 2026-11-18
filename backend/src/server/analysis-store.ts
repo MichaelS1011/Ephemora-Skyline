@@ -15,6 +15,25 @@ import type { RunArchive } from "./run-archive.js";
  * the RAM cache, not the product's memory: the archive keeps the newest 20
  * completed runs, so a link survives a restart until newer scans push it out.
  */
+/**
+ * Parse a positive integer from an environment variable, falling back to a
+ * default when the value is missing or not a usable positive integer. Never
+ * returns NaN, 0 or a negative — any of which would silently disable or
+ * corrupt a store bound (see the constructor).
+ */
+function readPositiveInt(name: string, fallback: number): number {
+  const raw = process.env[name];
+  if (raw === undefined || raw.trim() === "") return fallback;
+  const parsed = Number(raw);
+  if (!Number.isSafeInteger(parsed) || parsed <= 0) {
+    console.warn(
+      `analysis-store: ${name}=${JSON.stringify(raw)} is not a positive integer — using ${fallback}`,
+    );
+    return fallback;
+  }
+  return parsed;
+}
+
 export class AnalysisStore {
   private map = new Map<string, AnalysisResult>();
   private stamps = new Map<string, number>();
@@ -25,8 +44,14 @@ export class AnalysisStore {
   readonly ttlMs: number;
 
   constructor(private readonly archive?: RunArchive) {
-    this.maxEntries = parseInt(process.env.ANALYSIS_MAX_ENTRIES || "20", 10);
-    this.ttlMs = parseInt(process.env.ANALYSIS_TTL_MS || String(24 * 60 * 60 * 1000), 10);
+    // A typo in these environment variables must not silently unbind the
+    // store: `parseInt("twenty", 10)` is NaN, every `> NaN` comparison is
+    // false, and the TTL and size cap then never fire — the two bounds whose
+    // whole job is to fire. Same shape for `0` or a negative: the eviction
+    // loop would empty the store on every write. An unusable value falls back
+    // to the default and says so on the console once.
+    this.maxEntries = readPositiveInt("ANALYSIS_MAX_ENTRIES", 20);
+    this.ttlMs = readPositiveInt("ANALYSIS_TTL_MS", 24 * 60 * 60 * 1000);
   }
 
   get(id: string, now: number = Date.now()): AnalysisResult | undefined {

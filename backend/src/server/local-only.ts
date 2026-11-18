@@ -154,13 +154,34 @@ export function localOnlyRoute(req: Request, res: Response, next: NextFunction):
  *
  * The sentence itself belongs to the page, which owns both languages; the
  * server's job is the status.
+ *
+ * The fourth parameter is the whole point of this signature, not decoration:
+ * Express decides what an error handler is by `fn.length === 4`. A three-
+ * parameter handler is mounted as ordinary middleware and never receives a
+ * thrown error — the body parser's 413 then fell through to Express's default
+ * error page, which answers `text/html` with a stack trace and absolute
+ * paths, and the JSON contract above was dead code. The mounted-app test in
+ * `tests/local-only-origin.test.ts` pins this; calling the handler directly
+ * cannot catch it.
  */
 export function uploadLimitAwareErrorHandler(logger: { error: (o: unknown, msg: string) => void }) {
-  return (err: unknown, _req: Request, res: Response): void => {
+  return (err: unknown, _req: Request, res: Response, _next: NextFunction): void => {
     const e = err as { type?: string; status?: number; statusCode?: number };
     const tooLarge = e?.type === "entity.too.large" || e?.status === 413 || e?.statusCode === 413;
     if (tooLarge) {
       res.status(413).json({ error: "Request body exceeds the upload this app accepts" });
+      return;
+    }
+    // The body parser's own rejections arrive as 4xx on the error — malformed
+    // JSON is a client mistake (`entity.parse.failed`, status 400), and
+    // answering it 500 blamed the server for the client's typo and taught the
+    // reader's retry logic to retry a request that can never succeed. A 4xx
+    // from the error object is the client's own status, passed through with a
+    // generic sentence; only what is genuinely ours stays a 500.
+    const status = e?.status ?? e?.statusCode;
+    if (typeof status === "number" && status >= 400 && status < 500) {
+      if (res.headersSent) return;
+      res.status(status).json({ error: "Request body could not be read" });
       return;
     }
     logger.error({ err }, "Unhandled error");

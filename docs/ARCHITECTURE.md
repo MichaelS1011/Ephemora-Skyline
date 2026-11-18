@@ -344,7 +344,8 @@ Ephemora-Skyline/
 ├── backend/src/
 │   ├── server/            # Express app, loopback bind, local-only guard
 │   │   └── routes/        # local-analyze, status, job-progress, source, demo,
-│   │                      # health, tests, agent (handoff + verify), update-check
+│   │                      # health, tests, agent (handoff + verify), update-check,
+│   │                      # still-analyzing (the shared 409 for unfinished scans)
 │   ├── services/
 │   │   ├── analyzer/      # pipeline: enumerate -> parse -> metrics -> aggregate
 │   │   └── security/      # scanner facade + adapters (regex, gitleaks, semgrep,

@@ -2667,6 +2667,14 @@ export const DICT = {
     en: "Names separated by commas, matched anywhere in the path — “src” also leaves out “frontend/src”",
     de: "Namen, durch Kommas getrennt, getroffen an jeder Stelle im Pfad — „src“ schließt auch „frontend/src“ aus",
   },
+  "cap.noExclude": {
+    en: "No exclude folder set — try adding e.g. generated, fixtures",
+    de: "Kein Ordner ausgeschlossen — z. B. generated, fixtures ergänzen",
+  },
+  "drop.counts": {
+    en: "{excluded} excluded, {pathTooLong} over {max} chars, {tooLarge} oversized",
+    de: "{excluded} ausgeschlossen, {pathTooLong} über {max} Zeichen, {tooLarge} zu groß",
+  },
   "drop.rejected": {
     en: "{n} files exceeded the {max}-character path limit and were not read",
     de: "{n} Dateien lagen über der Pfadgrenze von {max} Zeichen und wurden nicht gelesen",

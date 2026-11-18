@@ -481,3 +481,109 @@ describe("the store TTL is enforced on read, not renewed by it", () => {
     expect(s.get("new", 2001)).toBeDefined();
   });
 });
+
+/**
+ * The wire format marks binary payloads with `encoding: "base64"` — the
+ * staging write decodes them only when that flag survives validation. It used
+ * to drop the flag on the non-git branch, so a base64-marked source file was
+ * written to disk as literal base64: the scanner read gibberish, findings
+ * vanished, and nothing said so. The same carelessness in the other direction
+ * (`Buffer.from(..., "base64")` skips non-alphabet characters instead of
+ * throwing) would turn a corrupt payload into quietly corrupt scans.
+ */
+describe("the base64 contract on the upload", () => {
+  it("stages a base64-marked source file as decoded text", async () => {
+    const { orchestrator, calls } = stubOrchestrator();
+    const res = makeRes();
+    const source = "const secret = 'aws:' + key;\n";
+    await handleLocalAnalyze(
+      makeReq({
+        name: "decoded",
+        files: [
+          {
+            path: "src/index.ts",
+            content: Buffer.from(source).toString("base64"),
+            encoding: "base64",
+          },
+        ],
+      }),
+      res as never,
+      () => orchestrator,
+      new Map<string, AnalysisResult>(),
+    );
+    expect(res.statusCode).toBe(202);
+    await new Promise((r) => setTimeout(r, 150));
+    expect(calls).toHaveLength(1);
+    // Not the literal base64 the earlier code wrote — the text the scanner can read.
+    expect(calls[0]!.staged).toBe(source);
+  }, 15000);
+
+  it("drops a payload that is not recognisably base64 instead of scanning corrupt text", async () => {
+    const { orchestrator } = stubOrchestrator();
+    const res = makeRes();
+    await handleLocalAnalyze(
+      makeReq({
+        name: "corrupt",
+        files: [{ path: "src/a.ts", content: "not base64 at all !!! @@@", encoding: "base64" }],
+      }),
+      res as never,
+      () => orchestrator,
+      new Map<string, AnalysisResult>(),
+    );
+    expect(res.statusCode).toBe(400);
+    const body = res.body as { code: string; dropped: { unreadable: number } };
+    expect(body.code).toBe("no_source");
+    expect(body.dropped.unreadable).toBe(1);
+  });
+
+  it("refuses a duplicate path in one payload — last-copy-wins is a silent lie", async () => {
+    const { orchestrator } = stubOrchestrator();
+    const res = makeRes();
+    await handleLocalAnalyze(
+      makeReq({
+        name: "twice",
+        files: [
+          { path: "src/a.ts", content: "const a = 1;" },
+          { path: "src/a.ts", content: "const a = 2;" },
+        ],
+      }),
+      res as never,
+      () => orchestrator,
+      new Map<string, AnalysisResult>(),
+    );
+    expect(res.statusCode).toBe(400);
+    const body = res.body as { error: string; code: string };
+    expect(body.code).toBe("duplicate_path");
+    expect(body.error).toContain("src/a.ts");
+  });
+});
+
+/**
+ * `parseInt("twenty", 10)` is NaN, every `> NaN` comparison is false — and
+ * the two bounds whose whole job is to fire (the size cap and the TTL) never
+ * do. A typo in ANALYSIS_MAX_ENTRIES or ANALYSIS_TTL_MS used to silently
+ * unbind the store; now an unusable value falls back to the shipped default
+ * and says so once on the console.
+ */
+describe("a corrupt environment cannot unbind the analysis store", () => {
+  const bound = (name: string, bad: string, expected: number): void => {
+    it(`${name}="${bad}" falls back to ${expected} and warns`, () => {
+      const prev = process.env[name];
+      const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+      try {
+        process.env[name] = bad;
+        const s = new AnalysisStore();
+        expect(name === "ANALYSIS_MAX_ENTRIES" ? s.maxEntries : s.ttlMs).toBe(expected);
+        expect(warn).toHaveBeenCalledWith(expect.stringContaining(name));
+      } finally {
+        warn.mockRestore();
+        if (prev === undefined) delete process.env[name];
+        else process.env[name] = prev;
+      }
+    });
+  };
+  for (const bad of ["twenty", "0", "-3", "1.5"]) {
+    bound("ANALYSIS_MAX_ENTRIES", bad, 20);
+  }
+  bound("ANALYSIS_TTL_MS", "twenty", 24 * 60 * 60 * 1000);
+});

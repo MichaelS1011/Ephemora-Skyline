@@ -304,7 +304,16 @@ export default function App() {
           headers: { Accept: "application/json" },
         });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const data = (await res.json()) as CityData;
+        const data = (await res.json()) as CityData & { error?: string };
+        // A city with no file in it is not a city — an archived skeleton can
+        // rehydrate after its files aged out. The local-scan path refuses the
+        // same shape (polling.ts); a permalink must not render an empty world
+        // and call it loaded.
+        if (data.error || data.totalFiles === 0) {
+          setApiStatus("demo");
+          setPermalinkFailed(true);
+          return;
+        }
         setCityData(data);
         // AFTER setCityData — the store resets the review map there, and
         // setAnalysisId then loads this permalink's saved reviews on top.

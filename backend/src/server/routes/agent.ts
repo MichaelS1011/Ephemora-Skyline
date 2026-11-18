@@ -15,6 +15,7 @@
 import type { Request, Response } from "express";
 import type { AnalysisResult, OwaspBucket } from "../../models/index.js";
 import { findingFingerprint } from "../../services/security/finding-identity.js";
+import { guardStillAnalyzing } from "./still-analyzing.js";
 
 /** Structural subset of the analysis store the handlers need */
 type ResultStore = {
@@ -84,6 +85,10 @@ export function handleHandoff(req: Request, res: Response, store: ResultStore): 
     res.status(404).json({ error: "Analysis not found" });
     return;
   }
+  // The handoff packet claims to state what the scan found. While the scan is
+  // still running it found nothing yet — an empty packet would read as a clean
+  // project to the agent on the other end.
+  if (guardStillAnalyzing(result, res)) return;
   const body = buildHandoffLines(result)
     .map((l) => JSON.stringify(l))
     .join("\n");
@@ -365,6 +370,15 @@ export async function handleVerify(req: Request, res: Response, store: ResultSto
   const wanted = Array.isArray(body?.fingerprints)
     ? body.fingerprints.filter((f): f is string => typeof f === "string").slice(0, 2000)
     : undefined;
+  // An explicitly empty list is a client bug, not a request: the comparison
+  // below reads `[]` like "check none of them", answers "verified: 0 missing",
+  // and hands an agent a green stamp for a fix it never proved. The full diff
+  // belongs to the request that omits the field, never to one that sends [].
+  // A list of only non-strings is the same lie in different clothes.
+  if (wanted !== undefined && wanted.length === 0) {
+    res.status(400).json({ error: "fingerprints must contain at least one string" });
+    return;
+  }
   const before = store.get(beforeId);
   const after = store.get(afterId);
   if (!before || !after) {

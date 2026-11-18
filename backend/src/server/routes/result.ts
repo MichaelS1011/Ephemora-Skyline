@@ -2,6 +2,7 @@ import type { Request, Response } from "express";
 import type { AnalysisResult } from "../../models/index.js";
 import { mapResultToCityData } from "../../utils/cityMapper.js";
 import { resultToSarif } from "../../utils/sarif.js";
+import { guardStillAnalyzing } from "./still-analyzing.js";
 
 /** Structural subset of the analysis store the result reads need. */
 type ResultStore = { get(id: string): AnalysisResult | undefined };
@@ -36,6 +37,7 @@ export function handleResultCity(req: Request, res: Response, analysisStore: Res
     res.status(404).json({ error: "Analysis not found" });
     return;
   }
+  if (guardStillAnalyzing(result, res)) return;
   res.json(mapResultToCityData(result));
 }
 
@@ -47,6 +49,7 @@ export function handleResultSarif(req: Request, res: Response, analysisStore: Re
     res.status(404).json({ error: "Analysis not found" });
     return;
   }
+  if (guardStillAnalyzing(result, res)) return;
   res.setHeader("Content-Type", "application/sarif+json");
   res.json(resultToSarif(result));
 }

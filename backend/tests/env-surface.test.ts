@@ -44,6 +44,12 @@ const READ_INDIRECTLY = [
   // `process.env`. Same key, read one function down.
   "EPHEMORA_LLM_URL",
   "EPHEMORA_LLM_MODEL",
+  // `readPositiveInt(name, fallback)` in analysis-store.ts takes the key as a
+  // parameter and reads `process.env[name]` — the call sites still name both
+  // keys as literals, so the other direction ("no reader undocumented") sees
+  // them. Same key, read one function down.
+  "ANALYSIS_MAX_ENTRIES",
+  "ANALYSIS_TTL_MS",
 ];
 
 /** Reads that are the platform's contract rather than a user setting */

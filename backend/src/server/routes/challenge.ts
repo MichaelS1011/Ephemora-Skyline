@@ -30,6 +30,7 @@ import {
   type ChallengeFinding,
 } from "../../services/security/challenge.js";
 import { getStagedDir } from "./local-analyze.js";
+import { guardStillAnalyzing } from "./still-analyzing.js";
 
 /** Structural subset of the analysis store the handler needs */
 type ResultStore = {
@@ -65,6 +66,10 @@ export async function handleResultChallenge(
     res.status(404).json({ error: "Analysis not found" });
     return;
   }
+  // A scan that is still running has not scanned the exercise yet — serving
+  // its skeleton here would answer the challenge from an empty finding set
+  // and read as "every key wrong" to a class that did nothing wrong.
+  if (guardStillAnalyzing(result, res)) return;
 
   const stagedDir = getStagedDir(id);
   if (!stagedDir) {

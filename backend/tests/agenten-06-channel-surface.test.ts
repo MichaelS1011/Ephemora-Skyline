@@ -287,7 +287,16 @@ describe("the channel cannot write, and is guarded like the routes that can", ()
     expect(
       imported.filter((spec) => /^\.\.?\//.test(spec)),
       "the handlers reach the model and the identity module, nothing else of the backend",
-    ).toEqual(["../../models/index.js", "../../services/security/finding-identity.js"]);
+    ).toEqual([
+      "../../models/index.js",
+      "../../services/security/finding-identity.js",
+      // 2026-11-17: the still-analyzing guard was lifted out of the result
+      // routes into its own two-function module precisely so this channel
+      // could share the 409 without importing the result routes' mapper and
+      // SARIF graph. It writes nothing; the fs/process/socket assertions
+      // below still hold over the whole module graph this import pulls in.
+      "./still-analyzing.js",
+    ]);
     expect(
       imported.filter((spec) => !/^\.\.?\//.test(spec)),
       `agent.ts must reach nothing outside the backend: ${imported.join(", ")}`,

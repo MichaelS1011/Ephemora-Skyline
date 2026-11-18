@@ -1,6 +1,9 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "fs";
 import path from "path";
+import { once } from "node:events";
+import type { AddressInfo } from "node:net";
+import express from "express";
 import {
   corsOptionsFor,
   expectedOrigins,
@@ -210,41 +213,92 @@ describe("what a refused write says back", () => {
  * The shared error handler used to answer every error with `500 Internal server
  * error`, which made the wall look like a fault and left the page's own 413
  * sentence unreachable. Measured with a 212 MB body on the edge-state lane.
+ *
+ * Mounted as Express actually mounts it: an error middleware is only reached
+ * when the function declares all four parameters, and a hand-called three-
+ * argument fake could never notice the difference — the 413 answer was dead
+ * code for exactly that reason. So the test runs a real server on a real
+ * socket and reads the real response.
  */
 describe("the body limit answers as what it is", () => {
-  const fakeRes = () => {
-    const seen = { status: 0, body: null as unknown };
-    const res = {
-      headersSent: false,
-      status(code: number) {
-        seen.status = code;
-        return res;
-      },
-      json(body: unknown) {
-        seen.body = body;
-        return res;
-      },
-    };
-    return { seen, res };
-  };
-  const handler = uploadLimitAwareErrorHandler({ error: () => {} });
-
-  it("413 for the body parser's own error", () => {
-    const { seen, res } = fakeRes();
-    const err = Object.assign(new Error("request entity too large"), {
-      type: "entity.too.large",
-      status: 413,
+  const startApp = async (): Promise<{ base: string; close: () => Promise<void> }> => {
+    const app = express();
+    app.use(express.json({ limit: "1kb" }));
+    app.post("/echo", (req, res) => {
+      res.json({ ok: true, keys: Object.keys(req.body ?? {}) });
     });
-    handler(err, {} as never, res as never);
-    expect(seen.status).toBe(413);
-    expect((seen.body as { error: string }).error).toMatch(/exceeds/i);
+    app.use(uploadLimitAwareErrorHandler({ error: () => {} }));
+    const server = app.listen(0, "127.0.0.1");
+    await once(server, "listening");
+    const { port } = server.address() as AddressInfo;
+    return {
+      base: `http://127.0.0.1:${port}`,
+      close: () =>
+        new Promise<void>((resolve, reject) => {
+          server.close((err) => (err ? reject(err) : resolve()));
+        }),
+    };
+  };
+
+  it("413 as JSON for a body over the limit — not the default HTML error page", async () => {
+    const { base, close } = await startApp();
+    try {
+      const res = await fetch(`${base}/echo`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ blob: "x".repeat(4096) }),
+      });
+      expect(res.status).toBe(413);
+      expect(res.headers.get("content-type")).toMatch(/application\/json/);
+      const body = (await res.json()) as { error: string };
+      expect(body.error).toMatch(/exceeds/i);
+    } finally {
+      await close();
+    }
   });
 
-  it("still 500 for a real fault, and the sentence stays uninformative on purpose", () => {
-    const { seen, res } = fakeRes();
-    handler(new Error("connect ECONNREFUSED"), {} as never, res as never);
-    expect(seen.status).toBe(500);
-    expect(JSON.stringify(seen.body)).not.toContain("ECONNREFUSED");
+  it("400 as JSON for malformed JSON, and a normal body still passes", async () => {
+    const { base, close } = await startApp();
+    try {
+      const bad = await fetch(`${base}/echo`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: "{not json",
+      });
+      expect(bad.status).toBe(400);
+      expect(bad.headers.get("content-type")).toMatch(/application\/json/);
+      expect(typeof ((await bad.json()) as { error: unknown }).error).toBe("string");
+
+      const good = await fetch(`${base}/echo`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ a: 1 }),
+      });
+      expect(good.status).toBe(200);
+    } finally {
+      await close();
+    }
+  });
+
+  it("still 500 for a real fault, and the sentence stays uninformative on purpose", async () => {
+    const app = express();
+    app.get("/boom", () => {
+      throw new Error("connect ECONNREFUSED 10.0.0.1:5432");
+    });
+    app.use(uploadLimitAwareErrorHandler({ error: () => {} }));
+    const server = app.listen(0, "127.0.0.1");
+    await once(server, "listening");
+    try {
+      const { port } = server.address() as AddressInfo;
+      const res = await fetch(`http://127.0.0.1:${port}/boom`);
+      expect(res.status).toBe(500);
+      const text = await res.text();
+      expect(text).not.toContain("ECONNREFUSED");
+    } finally {
+      await new Promise<void>((resolve, reject) => {
+        server.close((err) => (err ? reject(err) : resolve()));
+      });
+    }
   });
 });
 

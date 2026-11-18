@@ -203,6 +203,30 @@ app.use("/api", readLimiter);
 
 // ── Routes ─────────────────────────────────────────────────────────────────
 
+/**
+ * Express never awaits a promise. When an async handler rejects, the socket
+ * just hangs and the client waits forever for an answer that already failed —
+ * and with `void handleX(...)` mounts the rejection is swallowed entirely.
+ * This wrapper answers every rejection with at least a generic 500, logs the
+ * real cause, and copes with handlers that had already begun to respond.
+ */
+function asyncRoute(
+  handler: (req: Request, res: Response) => Promise<unknown>,
+): (req: Request, res: Response) => void {
+  return (req, res) => {
+    void Promise.resolve(handler(req, res)).catch((error: unknown) => {
+      logger.error({ err: error, route: `${req.method} ${req.path}` }, "async route rejected");
+      if (!res.headersSent) {
+        try {
+          res.status(500).json({ error: "Internal server error" });
+        } catch {
+          res.destroy(); // nothing sendable any more — end the socket cleanly
+        }
+      }
+    });
+  };
+}
+
 // POST /api/export — write the city this server holds as a folder that runs
 // on another desk. A write to the machine, so it carries the origin guard.
 app.post("/api/export", localOnlyRoute, (req: Request, res: Response): void => {
@@ -225,23 +249,30 @@ app.post("/api/export", localOnlyRoute, (req: Request, res: Response): void => {
     res.json(result);
   } catch (err) {
     logger.error({ err }, "export failed");
-    res.status(500).json({ error: "The export could not be written", detail: String(err) });
+    // The raw error names paths on this machine — a write failure the user
+    // cannot act on. It stays in the log; the answer stays generic.
+    res.status(500).json({ error: "The export could not be written" });
   }
 });
 
 // GET /api/health
-app.get("/api/health", (_req: Request, res: Response): void => {
-  void handleHealth(_req, res, analysisStore, localModel);
-});
+app.get(
+  "/api/health",
+  asyncRoute((req, res) => handleHealth(req, res, analysisStore, localModel)),
+);
 
 // POST /api/explain-finding — one flagged line to a model on this machine.
 // The server, not the browser, picks what travels: the finding is read out of
 // the store by its fingerprint, so the request body carries no code at all, and
 // the address check runs before a socket is opened. Without EPHEMORA_LLM_URL the
 // route answers 501, and the card never offered the button in the first place.
-app.post("/api/explain-finding", localOnlyRoute, (req: Request, res: Response): void => {
-  void handleExplainFinding(req, res, { store: analysisStore, config: localModel });
-});
+app.post(
+  "/api/explain-finding",
+  localOnlyRoute,
+  asyncRoute((req, res) =>
+    handleExplainFinding(req, res, { store: analysisStore, config: localModel }),
+  ),
+);
 
 // GET /api/rule-classes — the curated class names, so a filter chip can say
 // "Eval on a string" for a finding whose payload carries no label (the demo
@@ -271,9 +302,7 @@ app.post(
   "/api/analyze-local",
   localOnlyRoute,
   localAnalyzeLimiter,
-  async (req: Request, res: Response): Promise<void> => {
-    await handleLocalAnalyze(req, res, createOrchestrator, analysisStore);
-  },
+  asyncRoute((req, res) => handleLocalAnalyze(req, res, createOrchestrator, analysisStore)),
 );
 
 // POST /api/analyze-local/:id/live — fold a content-hash delta into a finished
@@ -282,9 +311,7 @@ app.post(
   "/api/analyze-local/:id/live",
   localOnlyRoute,
   liveDeltaLimiter,
-  async (req: Request, res: Response): Promise<void> => {
-    await handleLiveDelta(req, res, createLiveOrchestrator, analysisStore);
-  },
+  asyncRoute((req, res) => handleLiveDelta(req, res, createLiveOrchestrator, analysisStore)),
 );
 
 // POST /api/analyze-local/:id/cancel — throw a running local scan away. The job
@@ -294,9 +321,7 @@ app.post(
 app.post(
   "/api/analyze-local/:id/cancel",
   localOnlyRoute,
-  async (req: Request, res: Response): Promise<void> => {
-    await handleCancelLocalAnalyze(req, res, analysisStore);
-  },
+  asyncRoute((req, res) => handleCancelLocalAnalyze(req, res, analysisStore)),
 );
 
 // POST /api/tests/:id/run — run the project's own tests from the staged copy
@@ -304,9 +329,7 @@ app.post(
   "/api/tests/:id/run",
   localOnlyRoute,
   testRunLimiter,
-  (req: Request, res: Response): void => {
-    void handleTestRun(req, res);
-  },
+  asyncRoute((req, res) => handleTestRun(req, res)),
 );
 
 // GET /api/tests/run/:runId — poll a test run
@@ -331,14 +354,18 @@ app.get("/api/result/:id/sarif", (req: Request, res: Response): void => {
 
 // GET /api/result/:id/challenge — classroom mode: grade the scan against the
 // project's .skyline-uebung.json (see routes/challenge.ts).
-app.get("/api/result/:id/challenge", readLimiter, (req: Request, res: Response): void => {
-  void handleResultChallenge(req, res, analysisStore);
-});
+app.get(
+  "/api/result/:id/challenge",
+  readLimiter,
+  asyncRoute((req, res) => handleResultChallenge(req, res, analysisStore)),
+);
 
 // GET /api/update/check — the one outbound question the app asks about itself
-app.get("/api/update/check", readLimiter, (req: Request, res: Response): void => {
-  void handleUpdateCheck(req, res);
-});
+app.get(
+  "/api/update/check",
+  readLimiter,
+  asyncRoute((req, res) => handleUpdateCheck(req, res)),
+);
 
 // GET /api/rule-packs — which rule bundles exist, where they came from, and
 // under what license (see routes/rule-packs.ts).
@@ -361,16 +388,12 @@ app.get(
   "/api/footprint",
   localOnlyRoute,
   readLimiter,
-  async (_req: Request, res: Response): Promise<void> => {
-    await handleFootprint(_req, res);
-  },
+  asyncRoute((req, res) => handleFootprint(req, res)),
 );
 app.post(
   "/api/footprint/purge",
   localOnlyRoute,
-  async (_req: Request, res: Response): Promise<void> => {
-    await handleFootprintPurge(_req, res);
-  },
+  asyncRoute((req, res) => handleFootprintPurge(req, res)),
 );
 
 // GET /api/result/:id/handoff — newline-delimited JSON, one finding per line,
@@ -383,26 +406,36 @@ app.get("/api/result/:id/handoff", readLimiter, (req: Request, res: Response): v
 // The verdicts the human set for a project, stored machine-local so a re-scan
 // and a restart find them. GET is a read (an agent's only door); PUT and the
 // reset are writes and carry the same origin guard as the routes that run code.
-app.get("/api/result/:id/verdicts", readLimiter, (req: Request, res: Response): void => {
-  void handleGetVerdicts(req, res, analysisStore);
-});
-app.put("/api/result/:id/verdicts", localOnlyRoute, (req: Request, res: Response): void => {
-  void handlePutVerdicts(req, res, analysisStore);
-});
-app.post("/api/verdicts/reset", localOnlyRoute, (req: Request, res: Response): void => {
-  void handleResetVerdicts(req, res);
-});
+app.get(
+  "/api/result/:id/verdicts",
+  readLimiter,
+  asyncRoute((req, res) => handleGetVerdicts(req, res, analysisStore)),
+);
+app.put(
+  "/api/result/:id/verdicts",
+  localOnlyRoute,
+  asyncRoute((req, res) => handlePutVerdicts(req, res, analysisStore)),
+);
+app.post(
+  "/api/verdicts/reset",
+  localOnlyRoute,
+  asyncRoute((req, res) => handleResetVerdicts(req, res)),
+);
 
 // POST /api/verify — did the findings of one scan survive a later one? A read of
 // two RAM results, but a POST with a body, so it carries the same guard as the
 // other routes that accept instructions from a page.
-app.post("/api/verify", localOnlyRoute, (req: Request, res: Response): void => {
-  void handleVerify(req, res, analysisStore);
-});
+app.post(
+  "/api/verify",
+  localOnlyRoute,
+  asyncRoute((req, res) => handleVerify(req, res, analysisStore)),
+);
 
-app.get("/api/result/:id/source/:fileId", readLimiter, (req: Request, res: Response): void => {
-  void handleSource(req, res, analysisStore);
-});
+app.get(
+  "/api/result/:id/source/:fileId",
+  readLimiter,
+  asyncRoute((req, res) => handleSource(req, res, analysisStore)),
+);
 
 // GET /api/status/:id — poll analysis progress
 app.get("/api/status/:id", (req: Request, res: Response): void => {

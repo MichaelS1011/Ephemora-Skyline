@@ -763,7 +763,7 @@ export function useLocalAnalysis() {
     setErrorDetail(
       excludes.length > 0
         ? `${t(l, "cap.excludeLabel")}: ${excludes.join(", ")}`
-        : `no exclude folder set — ${t(l, "cap.excludePlaceholder")}`,
+        : t(l, "cap.noExclude"),
     );
     setState("error");
   }, []);
@@ -775,7 +775,12 @@ export function useLocalAnalysis() {
       onlyTooLarge(plan.dropped) ? noSourceTooLargeLine(l, plan.dropped.tooLarge) : noSourceLine(l),
     );
     setErrorDetail(
-      `${plan.dropped.excluded} excluded, ${plan.dropped.pathTooLong} over ${MAX_PATH_LEN} chars, ${plan.dropped.tooLarge} oversized`,
+      t(l, "drop.counts", {
+        excluded: plan.dropped.excluded,
+        pathTooLong: plan.dropped.pathTooLong,
+        max: MAX_PATH_LEN,
+        tooLarge: plan.dropped.tooLarge,
+      }),
     );
     setState("error");
   }, []);
