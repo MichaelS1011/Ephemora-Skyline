@@ -21,9 +21,9 @@ Nothing is uploaded. No account, no login, no telemetry. It runs on your own mac
 
 ## What's new
 
-0.4.10 — 2026-11-15
+0.4.11 — 2026-11-18
 
-- **The count guard counts the clone, not the desk.** — One scratch folder hidden there read **728** admitted files at the desk while CI and any fresh clone measured **726**
+- **An unfinished scan answers 409, and the error paths tell the truth.** — One shared guard (`backend/src/server/routes/still-analyzing.ts`) now answers city, sarif, challenge, handoff and both verdict views with **409 `still_analyzing`** and `Retry-After: 5`
 
 More in [CHANGELOG.md](./CHANGELOG.md).
 
