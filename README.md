@@ -21,9 +21,9 @@ Nothing is uploaded. No account, no login, no telemetry. It runs on your own mac
 
 ## What's new
 
-0.4.11 — 2026-11-18
+0.4.12 — 2026-11-19
 
-- **An unfinished scan answers 409, and the error paths tell the truth.** — One shared guard (`backend/src/server/routes/still-analyzing.ts`) now answers city, sarif, challenge, handoff and both verdict views with **409 `still_analyzing`** and `Retry-After: 5`
+- **A finished scan stays finished, and a running one stays running.** — A permalink opened during a running scan now waits for the real result instead of the demo city, and a live rescan survives 15 consecutive 500s where a single one used to abandon it
 
 More in [CHANGELOG.md](./CHANGELOG.md).
 
