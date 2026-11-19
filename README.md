@@ -21,9 +21,9 @@ Nothing is uploaded. No account, no login, no telemetry. It runs on your own mac
 
 ## What's new
 
-0.4.12 — 2026-11-19
+0.4.11 — 2026-11-18
 
-- **Results you can trust: what is finished stays finished, what is running stays running.** Opening a saved link no longer paints the demo city while your scan is minutes from done — it waits for the real result and shows it. A finished city survives a flaky network or a hiccupping proxy instead of vanishing on one failed request. A live "check again" rides out fifteen transient server errors before it honestly says stop — before, the very first one abandoned your scan. Rate limits and caps now answer with a countdown and the real limit, in your language, not the server's raw English. And the analysis itself got sharper: two different secrets on one line no longer hide each other, a finding on a deleted file gets its own building instead of disappearing, and one mis-clicked "false positive" can no longer silence its neighbours on the same path.
+- **An unfinished scan answers 409, and the error paths tell the truth.** — One shared guard (`backend/src/server/routes/still-analyzing.ts`) now answers city, sarif, challenge, handoff and both verdict views with **409 `still_analyzing`** and `Retry-After: 5`
 
 More in [CHANGELOG.md](./CHANGELOG.md).
 
