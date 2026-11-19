@@ -46,8 +46,13 @@ export function dedupIssues(issues: SecurityIssue[]): SecurityIssue[] {
         (i as unknown as { provenance?: string }).provenance === "gitleaks-fallback");
     if (fallbackSecret && gitleaksLines.has(`${i.line}`)) continue;
     const lt = `${i.historyCommit ?? "working"}:${i.line}:${i.type}`;
-    if (seenLineType.has(lt) && ruleId !== "HARDCODED_SECRET") {
-      // same line+type from another scanner — keep the first (better) one
+    if (seenLineType.has(lt) && i.type !== "HARDCODED_SECRET") {
+      // same line+type from another scanner — keep the first (better) one.
+      // The exception is on TYPE, not ruleId: "HARDCODED_SECRET" is the type
+      // secrets carry, never a ruleId (ruleIds are github-pat, sg:…, regex:…),
+      // so comparing it against ruleId left it dead and collapsed two real
+      // secrets on one line into a single finding. Two different credentials
+      // share a line all the time (`KEY=… SECRET=…`) — each stays visible.
       continue;
     }
     seen.add(k);

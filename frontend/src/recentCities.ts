@@ -57,7 +57,14 @@ export function recentCitiesRead(): StoredRead<RecentCity[]> {
             !!e &&
             typeof (e as RecentCity).id === "string" &&
             typeof (e as RecentCity).folder === "string" &&
-            typeof (e as RecentCity).openedAt === "number",
+            // Number.isFinite, not typeof: it also rejects the NaN that
+            // typeof admits, and it demands the two numbers the entry screen
+            // prints. A half-entry the writer would never write must not be
+            // read back — Landing calls `c.files.toLocaleString` unguarded
+            // and an entry without `files` white-screens the whole app.
+            Number.isFinite((e as RecentCity).openedAt) &&
+            Number.isFinite((e as RecentCity).findings) &&
+            Number.isFinite((e as RecentCity).files),
         )
       : undefined,
   );

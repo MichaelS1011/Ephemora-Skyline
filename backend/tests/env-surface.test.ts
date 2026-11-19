@@ -44,6 +44,7 @@ const READ_INDIRECTLY = [
   // `process.env`. Same key, read one function down.
   "EPHEMORA_LLM_URL",
   "EPHEMORA_LLM_MODEL",
+  "EPHEMORA_LLM_TIMEOUT_MS",
   // `readPositiveInt(name, fallback)` in analysis-store.ts takes the key as a
   // parameter and reads `process.env[name]` — the call sites still name both
   // keys as literals, so the other direction ("no reader undocumented") sees
@@ -67,9 +68,19 @@ describe("the environment example", () => {
   });
 
   it("leaves no reader undocumented", () => {
-    const readDirectly = [...SRC.matchAll(/process\.env[.[]"?'’]*([A-Z][A-Z0-9_]+)/g)].map(
-      (m) => m[1]!,
-    );
+    // The old pattern `[.[]"?'’]*` was a character class, not an alternation:
+    // after `process.env` it demanded `.`, `[`, `"`, `?` and a quote in that
+    // order — a sequence no line of code contains — so the loop found zero
+    // readers and this test passed while four real settings were missing from
+    // the file. Now: dot access (with the optional-chain form too) and the
+    // quoted bracket form. Dynamic `process.env[name]` stays out on purpose —
+    // its key is a variable, and its literal call sites are pinned through
+    // READ_INDIRECTLY below.
+    const readDirectly = [
+      ...SRC.matchAll(
+        /process\.env\s*(?:\?\.|\.)\s*["']?([A-Z][A-Z0-9_]+)|process\.env\s*\[\s*["']([A-Z][A-Z0-9_]+)["']\]/g,
+      ),
+    ].map((m) => (m[1] ?? m[2])!);
     const missing = [
       ...new Set([...readDirectly, ...READ_INDIRECTLY.filter((k) => SRC.includes(`"${k}"`))]),
     ].filter(

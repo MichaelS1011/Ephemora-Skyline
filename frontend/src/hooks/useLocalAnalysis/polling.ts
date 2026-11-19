@@ -34,11 +34,46 @@ export async function fetchCityData(
   id: string,
   run: number,
 ): Promise<void> {
+  // The poll loop above is tolerant — 429 budgeted, transient errors continue.
+  // Its final city GET used to be the one unguarded fetch left in the flow: a
+  // single proxy blip or 500 at the finish line failed a fully completed scan
+  // and threw its whole payload away. Two more asks with a short backoff; a
+  // `409 still_analyzing` (routes/still-analyzing.ts) is waited out within
+  // this budget too — the scan is alive, the failure copy must not claim
+  // otherwise. 404 stays instant: an id the server has never seen will not
+  // answer on the third try.
+  const CITY_RETRIES = 2;
+  const deadline = Date.now() + 2 * 60_000;
   try {
-    const res = await fetch(`/api/result/${encodeURIComponent(id)}/city`, {
-      signal: deps.abortRef.current?.signal,
-    });
-    if (deps.runRef.current !== run) return;
+    let res: Response | undefined;
+    for (let attempt = 0; ; attempt += 1) {
+      try {
+        res = await fetch(`/api/result/${encodeURIComponent(id)}/city`, {
+          signal: deps.abortRef.current?.signal,
+        });
+      } catch (err) {
+        // A rejected fetch — WiFi hiccup, server restart mid-request — is the
+        // same blip as a 500, answered the same way: ask again shortly. A run
+        // that moved on (runRef) or a deliberate abort ends the conversation.
+        if (deps.runRef.current !== run) return;
+        if (err instanceof Error && err.name === "AbortError") throw err;
+        const backoff = 500 * (attempt + 1);
+        if (attempt >= CITY_RETRIES || Date.now() + backoff > deadline) throw err;
+        await new Promise((r) => setTimeout(r, backoff));
+        if (deps.runRef.current !== run) return;
+        continue;
+      }
+      if (deps.runRef.current !== run) return;
+      if (res.ok || res.status === 404) break;
+      const retryAfter = Number(res.headers.get("Retry-After"));
+      const waitMs =
+        res.status === 409 && Number.isFinite(retryAfter) && retryAfter > 0
+          ? Math.min(30, retryAfter) * 1000
+          : 500 * (attempt + 1);
+      if (attempt >= CITY_RETRIES || Date.now() + waitMs > deadline) break;
+      await new Promise((r) => setTimeout(r, waitMs));
+      if (deps.runRef.current !== run) return;
+    }
     if (!res.ok) {
       // A link the server does not know is not a broken folder — it says so.
       deps.setErrorMessage(

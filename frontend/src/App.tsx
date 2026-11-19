@@ -55,6 +55,21 @@ const POSE_SETTLE_MS = 700;
  * mount-point digit does. */
 const _CANVAS_FOV_TIE = WORLD_FOV_DEG === 52;
 
+/**
+ * Read a `409 still_analyzing` refusal (routes/still-analyzing.ts) and say
+ * how long to wait before asking again — or `null` when the 409 is some other
+ * truth the permalink cannot wait out. `Retry-After` is honoured when the
+ * server sends it; clamped to 1–30 s so a missing or absurd header can neither
+ * spin the loop nor park the user.
+ */
+async function stillAnalyzingWaitMs(res: Response): Promise<number | null> {
+  const body = (await res.json().catch(() => null)) as { code?: unknown } | null;
+  if (!body || body.code !== "still_analyzing") return null;
+  const header = Number(res.headers.get("Retry-After"));
+  const seconds = Number.isFinite(header) && header > 0 ? header : 5;
+  return Math.min(30, Math.max(1, seconds)) * 1000;
+}
+
 const samePose = (a: CameraPose, b: CameraPose): boolean =>
   Math.abs(a.x - b.x) < 0.05 &&
   Math.abs(a.y - b.y) < 0.05 &&
@@ -296,15 +311,44 @@ export default function App() {
 
   // ── City loading: only ?city=<id> permalinks auto-load. A fresh visit
   // lands on the empty world (the Landing hero), never a prebuilt city. ────
+  const loadSeq = useRef(0);
   const loadCity = useCallback(
     async (cityId: string): Promise<void> => {
+      // The token the rest of this app's fetches all carry (runRef in
+      // useLocalAnalysis, requestRef in TimeMachine): Back/Forward can fire
+      // two loads, and the older response that resolves late must not put
+      // its city under the newer address — nor clear the loading screen the
+      // newer fetch raised.
+      const seq = ++loadSeq.current;
       setIsLoading(true);
       try {
-        const res = await fetch(`/api/result/${encodeURIComponent(cityId)}/city`, {
-          headers: { Accept: "application/json" },
-        });
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const data = (await res.json()) as CityData & { error?: string };
+        // `409 still_analyzing` (routes/still-analyzing.ts) is the server's
+        // "come back when it is done": the scan is alive and the permalink is
+        // not dead — it was opened mid-scan. The old code threw on any
+        // !ok and told the user this city "may never have existed". Now: ask
+        // again every Retry-After seconds, behind the loading screen (which
+        // is exactly what this wait is), until the archive has the finished
+        // city. Re-asking the city route rather than /api/status keeps the
+        // answer atomic — no window where status says complete and the
+        // derived view still refuses. The budget bounds a wedged scan: after
+        // it, the honest failure below runs instead of an eternal spinner.
+        const deadline = Date.now() + 5 * 60_000;
+        let data: (CityData & { error?: string }) | undefined;
+        for (;;) {
+          const res = await fetch(`/api/result/${encodeURIComponent(cityId)}/city`, {
+            headers: { Accept: "application/json" },
+          });
+          if (loadSeq.current !== seq) return;
+          if (res.ok) {
+            data = (await res.json()) as CityData & { error?: string };
+            if (loadSeq.current !== seq) return;
+            break;
+          }
+          const waitMs = res.status === 409 ? await stillAnalyzingWaitMs(res) : null;
+          if (waitMs === null || Date.now() >= deadline) throw new Error(`HTTP ${res.status}`);
+          await new Promise((r) => setTimeout(r, waitMs));
+          if (loadSeq.current !== seq) return;
+        }
         // A city with no file in it is not a city — an archived skeleton can
         // rehydrate after its files aged out. The local-scan path refuses the
         // same shape (polling.ts); a permalink must not render an empty world
@@ -321,13 +365,16 @@ export default function App() {
         setAnalysisId(cityId);
         setApiStatus("live");
       } catch {
+        if (loadSeq.current !== seq) return;
         // The id resolved to nothing. Say what is true rather than guessing:
         // it may never have existed (a mistyped or stale link) or its scan may
-        // have been pushed out of the last 20 completed runs.
+        // have been pushed out of the last 20 completed runs. A scan still
+        // running past the budget above lands here too — the wait was fair,
+        // the patience is spent.
         setApiStatus("demo");
         setPermalinkFailed(true);
       } finally {
-        setIsLoading(false);
+        if (loadSeq.current === seq) setIsLoading(false);
       }
     },
     // No `lang` here on purpose: see the permalinkFailed note above. A display

@@ -72,6 +72,12 @@ beforeAll(async () => {
   app.put("/api/result/:id/verdicts", (req, res) => {
     void handlePutVerdicts(req, res, { get: (id) => (id === SCAN_ID ? analyzing : undefined) });
   });
+  // verify takes its ids from the body, not the path — both before and after
+  // resolve through this same store, so an analyzing id on either side reaches
+  // the guard the fix added.
+  app.post("/api/verify", (req, res) => {
+    void handleVerify(req, res, store);
+  });
   server = app.listen(0, "127.0.0.1");
   await once(server, "listening");
   base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
@@ -100,6 +106,12 @@ describe("a scan that is not finished answers 409 instead of an empty truth", ()
       method: "PUT",
       url: `/api/result/${SCAN_ID}/verdicts`,
       body: { project: PROJECT_KEY, reviews: {} },
+    },
+    {
+      name: "verify",
+      method: "POST",
+      url: `/api/verify`,
+      body: { before: SCAN_ID, after: SCAN_ID, fingerprints: ["abc123"] },
     },
   ];
 

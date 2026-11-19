@@ -2581,6 +2581,10 @@ export const DICT = {
     en: "The city data could not be loaded",
     de: "Die Stadtdaten konnten nicht geladen werden",
   },
+  "scan.duplicatePath": {
+    en: "The folder held the same file path twice",
+    de: "Derselbe Dateipfad lag zweimal im Ordner",
+  },
   "scan.noSource": {
     en: "No analyzable source files in this folder (supported: {exts})",
     de: "In diesem Ordner liegen keine analysierbaren Quelldateien (unterstützt: {exts})",

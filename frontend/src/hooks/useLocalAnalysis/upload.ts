@@ -254,6 +254,12 @@ export async function uploadAndAnalyze(
         deps.setErrorMessage(
           `${deps.capLine(l, data.found ?? files.length, data.max ?? deps.maxFiles)} — ${t(l, "cap.hint")}`,
         );
+      } else if (data.code === "duplicate_path") {
+        // The server refused to fold two files into one path
+        // (local-analyze.ts). Only a third-party caller reaches this — the
+        // pickers here enumerate unique rels — but then the raw server
+        // sentence belongs in the detail, not the headline.
+        deps.setErrorMessage(t(l, "scan.duplicatePath"));
       } else if (data.code === "no_source") {
         deps.setErrorMessage(deps.noSourceLine(l));
       } else if (res.status === 413) {

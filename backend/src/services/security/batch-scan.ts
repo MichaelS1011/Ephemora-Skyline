@@ -185,6 +185,71 @@ export async function runRepositoryBatch(
     fa.vulnerabilities = merged;
   }
 
+  /**
+   * Orphan sweep. The loop above walks the files the scan analyzed, so a batch
+   * answer for any other path had no home and vanished without a trace: the
+   * credential in a file the repository DELETED — which is the entire point of
+   * the gitHistory pass — leaks in git-ignored files, and manifest CVEs the
+   * batch osv found outside the analyzed set. scanner.ts's `mergeByFile` has
+   * always built a synthetic building for exactly this case (CVEs on manifest
+   * files the city would otherwise not show); the batch path was the one place
+   * that silently threw those findings away. Same remedy, same shape: each
+   * orphan path gets its own building so the finding is visible and triageable
+   * — and counted — instead of gone. Semgrep is not swept: it only ever sees
+   * the content read from the analyzed files, so it cannot report an orphan.
+   */
+  const covered = new Set(fileAnalyses.map((fa) => fa.path));
+  const orphans = new Map<string, SecurityIssue[]>();
+  for (const found of [secretsByFile, ruffByFile, osvByFile]) {
+    if (!found) continue;
+    for (const [rel, issues] of found) {
+      if (covered.has(rel)) continue;
+      const list = orphans.get(rel);
+      if (list) list.push(...issues);
+      else orphans.set(rel, [...issues]);
+    }
+  }
+  for (const [rel, issues] of orphans) {
+    const allowed = ctx.filterForPath(issues, rel);
+    if (allowed.length === 0) continue;
+    // History findings describe files the working tree deleted — reading the
+    // content is a best effort, not a precondition.
+    let content: string | undefined;
+    try {
+      content = await fs.readFile(path.join(clonePath, rel), "utf-8");
+    } catch {
+      /* deleted or unreadable — the adapter's own evidence has to carry it */
+    }
+    for (const iss of allowed) {
+      if (
+        !iss.code &&
+        iss.provenance?.startsWith("gitleaks") &&
+        iss.provenance !== "gitleaks-history"
+      ) {
+        const raw = content?.split("\n")[iss.line - 1]?.trim();
+        const masked = raw ? maskSecretText(raw, iss.secretValue ?? []) : undefined;
+        if (masked) iss.code = masked.slice(0, 120);
+      }
+    }
+    enrichIssues(allowed, content);
+    const merged = dedupIssues(allowed);
+    if (merged.length === 0) continue;
+    merged.sort(compareBySeverityThenLine);
+    fileAnalyses.push({
+      path: rel,
+      language: "Config",
+      lines: { total: 1, code: 1, comments: 0, blank: 0 },
+      complexity: { cyclomatic: 1 },
+      functions: [],
+      classes: [],
+      imports: [],
+      exports: [],
+      vulnerabilities: merged,
+    });
+    covered.add(rel);
+    mergedCount += merged.length;
+  }
+
   return {
     mergedCount,
     gitleaksRan: secretsByFile !== null,

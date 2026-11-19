@@ -21,9 +21,9 @@ Nothing is uploaded. No account, no login, no telemetry. It runs on your own mac
 
 ## What's new
 
-0.4.11 — 2026-11-18
+0.4.12 — 2026-11-19
 
-- **An unfinished scan answers 409, and the error paths tell the truth.** — One shared guard (`backend/src/server/routes/still-analyzing.ts`) now answers city, sarif, challenge, handoff and both verdict views with **409 `still_analyzing`** and `Retry-After: 5`
+- **Results you can trust: what is finished stays finished, what is running stays running.** Opening a saved link no longer paints the demo city while your scan is minutes from done — it waits for the real result and shows it. A finished city survives a flaky network or a hiccupping proxy instead of vanishing on one failed request. A live "check again" rides out fifteen transient server errors before it honestly says stop — before, the very first one abandoned your scan. Rate limits and caps now answer with a countdown and the real limit, in your language, not the server's raw English. And the analysis itself got sharper: two different secrets on one line no longer hide each other, a finding on a deleted file gets its own building instead of disappearing, and one mis-clicked "false positive" can no longer silence its neighbours on the same path.
 
 More in [CHANGELOG.md](./CHANGELOG.md).
 
@@ -126,7 +126,7 @@ The backend binds to `127.0.0.1` by default, and the fifteen routes that carry t
 
 The entry screen renders this same list from the same declaration the backend obeys, and a test fails if the two ever name different hosts. `SKYLINE_OFFLINE=1` switches off the update check, the OSV and dependency checks, and Semgrep unless a local rule pack is on disk; it also closes pip-audit, the Docker pull and any `npm ci` the runner would attempt. With it set, nothing above is reached.
 
-Limits are numbers too: local analysis is capped at **10,000 files / 150 MB / 2 MB per file**, a larger folder opens as a preview sample of up to 2,000 files with the full count named, and your own `.gitignore` sets paths aside before the cap applies. Over this checkout, the browser reader's own decision counts **728** files the project calls source and admits them to the read, and the scan's own single decision, `isScanCandidate`, then reads **692** of those. Two sets, two names, and `backend/tests/claims-counts.test.ts` calls both shipped functions over this tree and fails, printing both numbers, the moment this sentence drifts.
+Limits are numbers too: local analysis is capped at **10,000 files / 150 MB / 2 MB per file**, a larger folder opens as a preview sample of up to 2,000 files with the full count named, and your own `.gitignore` sets paths aside before the cap applies. Over this checkout, the browser reader's own decision counts **731** files the project calls source and admits them to the read, and the scan's own single decision, `isScanCandidate`, then reads **695** of those. Two sets, two names, and `backend/tests/claims-counts.test.ts` calls both shipped functions over this tree and fails, printing both numbers, the moment this sentence drifts.
 
 **Telemetry: none.** The only request the app makes for itself is the anonymous release check above — no code, no path, no machine identity, once an hour, and one click in a city's More menu ends it permanently. Maintainers read adoption through [GitHub's traffic and clone statistics](https://docs.github.com/en/rest/metrics/traffic) (`GH_TOKEN=*** node scripts/clone-stats.mjs`), which count clones without identifying anyone; those endpoints need a token with write access to this repository and report 14 days. The UI typeface ships inside the app, and a test fails if the entry document ever references a third-party host. More in [`docs/PRIVACY.md`](./docs/PRIVACY.md); reporting a vulnerability follows [SECURITY.md](./SECURITY.md).
 
@@ -180,11 +180,11 @@ First look in one screen — what you see, what you can do, what you cannot: [`d
 ```bash
 npm run lint                  # ESLint, zero warnings
 npm run type-check            # tsc --noEmit, both packages
-npm run test                  # Vitest — 336 test files: 240 frontend, 96 backend (2026-11-17)
+npm run test                  # Vitest — 339 test files: 243 frontend, 96 backend (2026-11-19)
 npm run build                 # production build, both packages
 node scripts/audit-gate.mjs   # dependency audit
 ```
 
-3,962 cases measured 2026-11-17 — 2,929 frontend, 1,033 backend. The audit gate fails on every high or critical finding **except** those accepted in `scripts/audit-gate.mjs` by name with a dated re-check. Measured 2026-11-03, `npm audit` on this lockfile prints **0 findings** — 0 low, 0 moderate, 0 high, 0 critical — and `node scripts/audit-gate.mjs` exits 0. The `minimatch` override to 11.0.4 removed the last moderate advisories in the development chain, and the gate's waiver list is empty. The self-scan that keeps this repository clean under its own rules is `npm run self-scan`; its policy and exceptions are in [docs/SELF_SCAN.md](./docs/SELF_SCAN.md). Gates, conventions and the PR checklist: **[CONTRIBUTING.md](./CONTRIBUTING.md)**. Small, reviewable changes land fastest. Interface strings need an English and a German entry, and anything that changes the 3D render needs a real-GPU screenshot — headless CI cannot judge a WebGL scene.
+3,985 cases measured 2026-11-19 — 2,945 frontend, 1,040 backend. The audit gate fails on every high or critical finding **except** those accepted in `scripts/audit-gate.mjs` by name with a dated re-check. Measured 2026-11-03, `npm audit` on this lockfile prints **0 findings** — 0 low, 0 moderate, 0 high, 0 critical — and `node scripts/audit-gate.mjs` exits 0. The `minimatch` override to 11.0.4 removed the last moderate advisories in the development chain, and the gate's waiver list is empty. The self-scan that keeps this repository clean under its own rules is `npm run self-scan`; its policy and exceptions are in [docs/SELF_SCAN.md](./docs/SELF_SCAN.md). Gates, conventions and the PR checklist: **[CONTRIBUTING.md](./CONTRIBUTING.md)**. Small, reviewable changes land fastest. Interface strings need an English and a German entry, and anything that changes the 3D render needs a real-GPU screenshot — headless CI cannot judge a WebGL scene.
 
 Skyline is the piece of this work meant to be read and argued with, not the piece meant to earn. What changed since the last line of the story, each entry measured before it was written, is in [CHANGELOG.md](./CHANGELOG.md).

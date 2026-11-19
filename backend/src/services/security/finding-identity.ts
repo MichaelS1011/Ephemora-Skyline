@@ -55,8 +55,13 @@ export function findingFingerprint(i: FingerprintInput): string {
   const path = normalizeIdentityPath(i.path);
   const parts =
     i.provenance === "gitleaks-history"
-      ? // no current line to hash — the commit is the only stable place to point
-        ["commit", rule, path, i.historyCommit ?? ""]
+      ? // The commit is the only stable file state to point at — but the line
+        // INSIDE that immutable blob is stable too, so it and the masked line
+        // belong in the key. Without them two different secrets in the same
+        // file, commit and rule shared one fingerprint, and marking one a
+        // false positive silenced the other. Commits never change, so unlike
+        // a working-tree line this cannot make verdicts drift.
+        ["commit", rule, path, i.historyCommit ?? "", String(i.line), normalizeLine(i.code)]
       : ["line", rule, path, String(i.line), normalizeLine(i.code)];
   return createHash("sha256").update(parts.join(SEP)).digest("hex").slice(0, 16);
 }

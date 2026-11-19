@@ -259,3 +259,50 @@ describe("file ids come from the path", () => {
     expect(fileIdForPath("src/a.ts")).not.toBe(fileIdForPath("src/b.ts"));
   });
 });
+
+/**
+ * A history finding points into an immutable commit — but the file inside that
+ * commit can hold several secrets, and the panel files verdicts by fingerprint.
+ * The history branch used to hash commit+rule+path only, so two credentials in
+ * one deleted file shared one identity and a single "false positive" verdict
+ * silenced both. Commits never change, so the line and the masked line inside
+ * one are as stable as anything else here — they belong in the key.
+ */
+describe("gitleaks-history fingerprints", () => {
+  const base = {
+    type: "HARDCODED_SECRET",
+    provenance: "gitleaks-history",
+    ruleId: "aws-secret-key",
+    path: "scripts/gone.js",
+    historyCommit: "deadbeef",
+  };
+
+  it("two secrets on different lines of one deleted file stay two findings", () => {
+    const a = findingFingerprint({ ...base, line: 7, code: "AWS_SECRET=•••1" });
+    const b = findingFingerprint({ ...base, line: 42, code: "AWS_SECRET=•••2" });
+    expect(a).not.toBe(b);
+  });
+
+  it("two different secrets sharing one line stay two findings too", () => {
+    const a = findingFingerprint({ ...base, line: 7, code: "KEY=•••1 TOKEN=•••2" });
+    const b = findingFingerprint({ ...base, line: 7, code: "KEY=•••1 TOKEN=•••9" });
+    expect(a).not.toBe(b);
+  });
+
+  it("re-scanning the same commit mints the same fingerprint — verdicts stay put", () => {
+    const first = findingFingerprint({ ...base, line: 7, code: "  AWS_SECRET=•••7  " });
+    const again = findingFingerprint({ ...base, line: 7, code: "AWS_SECRET=•••7" });
+    expect(first).toBe(again);
+  });
+
+  it("another commit of the same path is another finding", () => {
+    const a = findingFingerprint({ ...base, line: 7, code: "AWS_SECRET=•••7" });
+    const b = findingFingerprint({
+      ...base,
+      historyCommit: "cafe1234",
+      line: 7,
+      code: "AWS_SECRET=•••7",
+    });
+    expect(a).not.toBe(b);
+  });
+});

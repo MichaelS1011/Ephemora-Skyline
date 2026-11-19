@@ -464,6 +464,23 @@ describe("the word is on the already-existing surface, in both languages", () =>
     const text = await mountLanding("en");
     expect(text).not.toContain(tEn("landing.recentUnreadable"));
   });
+
+  it("recent cities: a half-entry the writer would never write is dropped, not rendered", () => {
+    // The filter guards Landing's `c.files.toLocaleString`: an entry without
+    // `files` passed the old typeof-checks and white-screened the whole app,
+    // no error boundary in the way. And Number.isFinite means a null/NaN
+    // openedAt leaves with it.
+    localStorage.setItem(
+      RECENT_KEY,
+      JSON.stringify([
+        { id: "half", folder: "halb", openedAt: 1730000000000 },
+        { id: "nullish", folder: "n", openedAt: null, findings: 1, files: 2 },
+        { id: "strnum", folder: "s", openedAt: 1730000000000, findings: "3", files: 2 },
+        ENTRY,
+      ]),
+    );
+    expect(recentCities()).toEqual([ENTRY]);
+  });
 });
 
 /* ── the four sites of task #8, each with its word on the surface it already

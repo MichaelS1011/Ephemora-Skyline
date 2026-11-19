@@ -388,5 +388,12 @@ export async function handleVerify(req: Request, res: Response, store: ResultSto
     });
     return;
   }
+  // Every derived route answers 409 still_analyzing (routes/still-analyzing.ts)
+  // — verify was the one that did not, and it is the route whose answer is a
+  // verdict. A scan still running sits in the store as a skeleton with no
+  // findings yet; comparing against it reads every before-finding as fixed,
+  // handing a coding agent a green stamp for work nobody did. Either side
+  // still analyzing is the server saying "wait", not "verified".
+  if (guardStillAnalyzing(before, res) || guardStillAnalyzing(after, res)) return;
   res.json(compareScans(before, after, wanted));
 }

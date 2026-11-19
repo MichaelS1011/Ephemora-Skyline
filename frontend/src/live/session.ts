@@ -540,23 +540,61 @@ export async function fullRescanLive(): Promise<void> {
         dropped: payload.dropped,
       }),
     });
-    const started = (await res.json().catch(() => ({}))) as { id?: string; error?: string };
+    const started = (await res.json().catch(() => ({}))) as {
+      id?: string;
+      error?: string;
+      code?: string;
+      found?: number;
+      max?: number;
+      retryAfterSeconds?: number;
+    };
     if (!res.ok || typeof started.id !== "string") {
+      // The first upload path (upload.ts) branches on the server's structured
+      // refusals — a 429 gets a countdown, too_many_files gets the cap line.
+      // The rescan POST discarded all of it into one raw English fragment, so
+      // the same wall said two different things to the same user. Same
+      // sentences now; the server's wording stays the fallback.
+      const l = useStore.getState().prefs.lang;
+      if (res.status === 429 || started.code === "rate_limited") {
+        const header = Number(res.headers.get("RateLimit-Reset"));
+        const seconds =
+          started.retryAfterSeconds ??
+          (Number.isFinite(header) && header > 0 ? header : Math.ceil(15 * 60));
+        throw new Error(`${t(l, "limit.hit", { s: seconds })} — ${t(l, "cap.hint")}`);
+      }
+      if (started.code === "too_many_files") {
+        throw new Error(
+          `${t(l, "cap.filesFound", {
+            found: String(started.found ?? payload.files.length),
+            max: String(started.max ?? 0),
+          })} — ${t(l, "cap.hint")}`,
+        );
+      }
       throw new Error(started.error ?? `HTTP ${res.status}`);
     }
     const id = started.id;
     const deadline = Date.now() + FULL_SCAN_TIMEOUT_MS;
+    // One hiccup on the status fetch used to throw the whole rescan away:
+    // the UI flipped to failure while the server kept scanning, orphaning the
+    // job. The main poller (useLocalAnalysis/polling.ts) budgets transient
+    // errors — this loop now does the same. Only an explicit verdict
+    // (complete/failed), the deadline, or 15 consecutive seconds of silence
+    // say stop.
+    let transientErrors = 0;
     for (;;) {
       if (s.stopped) return;
       if (Date.now() > deadline) throw new Error("full scan timed out");
       await delay(1000);
-      const statusRes = await fetch(`/api/status/${encodeURIComponent(id)}`);
-      if (!statusRes.ok) throw new Error(`HTTP ${statusRes.status}`);
-      const status = (await statusRes.json()) as {
-        status?: string;
-        progress?: number;
-        error?: string;
-      };
+      let status: { status?: string; progress?: number; error?: string };
+      try {
+        const statusRes = await fetch(`/api/status/${encodeURIComponent(id)}`);
+        if (!statusRes.ok) throw new Error(`HTTP ${statusRes.status}`);
+        status = (await statusRes.json()) as typeof status;
+      } catch (err) {
+        if (++transientErrors > 15) throw err;
+        continue;
+      }
+      transientErrors = 0;
       const progress = Math.round(status.progress ?? 0);
       useStore.getState().setAnalysisProgress(progress);
       live()({ progress });

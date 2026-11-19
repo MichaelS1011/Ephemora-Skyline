@@ -79,4 +79,86 @@ describe("scanRepositoryBatch merge contract", () => {
     },
     MERGE_CONTRACT_BUDGET_MS,
   );
+
+  it(
+    "gives an orphan path its own building instead of dropping the finding",
+    async () => {
+      // The merge loop walks the analyzed files, so before the orphan sweep a
+      // gitleaks answer for any OTHER path was silently gone — including the
+      // deleted file the gitHistory pass exists to inspect, and ignored files
+      // on disk that the analysis never picked up. Two orphans, two answers:
+      // one file still on disk (its line can be read and masked), one deleted
+      // (only the adapter's own evidence remains).
+      const dir = await fs.mkdtemp(path.join(os.tmpdir(), "ephemora-skyline-orphan-"));
+      await fs.writeFile(path.join(dir, "legacy.env"), "AWS_ACCESS_KEY_ID=AKIA1234567890ABCDEF\n");
+
+      const onDisk: SecurityIssue = {
+        type: "HARDCODED_SECRET",
+        severity: "P0",
+        score: 10,
+        line: 1,
+        code: "",
+        message: "Hardcoded secret detected (aws-access-key) — gitleaks",
+        provenance: "gitleaks",
+        ruleId: "aws-access-key",
+      } as SecurityIssue;
+      const deleted: SecurityIssue = {
+        type: "HARDCODED_SECRET",
+        severity: "P0",
+        score: 10,
+        line: 7,
+        code: "AWS_SECRET_ACCESS_KEY=••••",
+        message: "Secret in deleted file (aws-secret-key) — gitleaks history",
+        provenance: "gitleaks-history",
+        ruleId: "aws-secret-key",
+        historyCommit: "deadbeef",
+      } as SecurityIssue;
+
+      const scanner = stubAdapters(new SecurityScanner(), {
+        gitleaks: {
+          scanRepository: async () =>
+            new Map([
+              ["legacy.env", [onDisk]],
+              ["scripts/gone.js", [deleted]],
+            ]),
+        },
+        semgrep: null,
+        ruff: {},
+        osv: {},
+      });
+
+      const fileAnalyses: FileAnalysis[] = [
+        {
+          path: "app.ts",
+          language: "TypeScript",
+          lines: { total: 1, code: 1, comments: 0, blank: 0 },
+          complexity: { cyclomatic: 1 },
+          functions: [],
+          classes: [],
+          imports: [],
+          exports: [],
+          vulnerabilities: [],
+        } as FileAnalysis,
+      ];
+
+      const res = await scanner.scanRepositoryBatch(dir, fileAnalyses);
+      expect(res.gitleaksRan).toBe(true);
+      expect(res.mergedCount).toBe(2);
+
+      const legacy = fileAnalyses.find((f) => f.path === "legacy.env");
+      expect(legacy, "orphan on disk must become a building").toBeDefined();
+      expect(legacy!.vulnerabilities).toHaveLength(1);
+      // content was on disk → the code line was read and put through masking
+      expect(legacy!.vulnerabilities[0]!.code).toBeTruthy();
+      expect(legacy!.vulnerabilities[0]!.explanation).toBeDefined();
+
+      const gone = fileAnalyses.find((f) => f.path === "scripts/gone.js");
+      expect(gone, "finding in a DELETED file must not vanish").toBeDefined();
+      expect(gone!.vulnerabilities).toHaveLength(1);
+      expect(gone!.vulnerabilities[0]!.historyCommit).toBe("deadbeef");
+
+      await fs.rm(dir, { recursive: true, force: true });
+    },
+    MERGE_CONTRACT_BUDGET_MS,
+  );
 });

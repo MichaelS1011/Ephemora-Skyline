@@ -63,6 +63,30 @@ describe("dedupIssues (cross-provenance merge contract)", () => {
     const sqli = issue({ line: 3, type: "SQL_INJECTION" });
     expect(dedupIssues([xss, sqli])).toHaveLength(2);
   });
+
+  it("keeps two different secrets on one line", () => {
+    // `KEY=… SECRET=…` on one config line is two real credentials, and the
+    // comment above dedupIssues has always promised they stay separate. The
+    // exception that was supposed to keep them compared `ruleId` against
+    // "HARDCODED_SECRET" — a value only ever carried as `type` — so the line
+    // collapsed to one finding and a credential vanished from reports,
+    // verdicts and exports without a trace.
+    const pat = issue({
+      code: "pat",
+      line: 12,
+      type: "HARDCODED_SECRET",
+      provenance: "gitleaks",
+      ruleId: "github-pat",
+    });
+    const aws = issue({
+      code: "aws",
+      line: 12,
+      type: "HARDCODED_SECRET",
+      provenance: "semgrep",
+      ruleId: "sg-hardcoded-aws",
+    });
+    expect(dedupIssues([pat, aws])).toHaveLength(2);
+  });
 });
 
 /**
