@@ -16,6 +16,8 @@ export interface PublishStageDeps {
   stageRef: Ref<string | null>;
   waitingRef: Ref<boolean>;
   budgetWaitRef: Ref<number>;
+  /** Set by the poller when the server has moved nothing for a long while. */
+  stalledRef: Ref<boolean>;
   elapsedRef: Ref<number>;
   setAnalysisStage: (s: string) => void;
 }
@@ -37,6 +39,9 @@ export function publishStage(deps: PublishStageDeps): void {
   const parts = [base, t(l, "scan.elapsed", { s: deps.elapsedRef.current })];
   if (deps.budgetWaitRef.current > 0) {
     parts.push(`${t(l, "limit.waiting")} · ${deps.budgetWaitRef.current} s`);
+  }
+  if (deps.stalledRef.current) {
+    parts.push(t(l, "scan.stalling"));
   }
   deps.setAnalysisStage(parts.join(" · "));
 }

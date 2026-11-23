@@ -14,10 +14,15 @@
  */
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+
+// Der 3D-Graph wird einmal sequenziell geladen, bevor ein Fall die Uhr anhält —
+// sonst können zwei gleichzeitige import()s in Node an three.cjs vorbeikommen.
+beforeAll(warmThree);
 import { boardCopy } from "../src/city/teachBoards";
 import { reviewKeyFor } from "../src/reviews";
 import { city, dir, file, finding } from "./helpers/cityFixture";
+import { settleLazy, warmThree } from "./helpers/lazyChunk";
 import { useStore } from "../src/stores/useStore";
 import { TeachBoardsReading } from "../src/components/TeachBoardsReading";
 
@@ -56,8 +61,18 @@ const FINDING = ALL.find((b) => b.id === "finding")!.text.title;
 let host: HTMLDivElement;
 let root: Root;
 
-function render(): string {
-  act(() => root.render(<TeachBoardsReading />));
+async function render(): Promise<string> {
+  await act(async () => {
+    root.render(<TeachBoardsReading />);
+  });
+  // Der Component holt `boardCopy` jetzt per dynamischem import() — die
+  // Spiegelworte stehen erst nach der Modulauslösung im Baum. Ohne Board gibt
+  // es nichts zu erwarten: dann ist die leere Antwort das Ergebnis, nicht das
+  // Warten darauf.
+  await settleLazy(
+    () =>
+      (host.textContent ?? "").trim().length > 0 || useStore.getState().taughtBoards.length === 0,
+  );
   return host.textContent ?? "";
 }
 
@@ -83,8 +98,8 @@ afterEach(() => {
 });
 
 describe("the boards are spoken", () => {
-  it("carries every word of every standing board", () => {
-    const spoken = render();
+  it("carries every word of every standing board", async () => {
+    const spoken = await render();
     for (const board of ALL) {
       expect(spoken, `${board.id}: title missing`).toContain(board.text.title);
       for (const line of board.text.lines) {
@@ -93,21 +108,21 @@ describe("the boards are spoken", () => {
     }
   });
 
-  it("keeps the order the picture carries", () => {
-    const spoken = render();
+  it("keeps the order the picture carries", async () => {
+    const spoken = await render();
     expect(spoken.indexOf(FILE)).toBeLessThan(spoken.indexOf(FINDING));
     expect(spoken.indexOf(FINDING)).toBeLessThan(spoken.indexOf(HONESTY));
   });
 
-  it("stays silent about a board that found no ground", () => {
+  it("stays silent about a board that found no ground", async () => {
     // The real-project case: `planBoardPlacements` paints two of three.
     act(() => useStore.setState({ taughtBoards: ["file", "finding"] }));
-    const spoken = render();
+    const spoken = await render();
     expect(spoken).toContain(FILE);
     expect(spoken, "the mirror named a board nobody can see").not.toContain(HONESTY);
   });
 
-  it("says exactly what the plates would say after the reader's verdict", () => {
+  it("says exactly what the plates would say after the reader's verdict", async () => {
     const target = CITY.tree.detailFiles?.[0];
     const firstFinding = target?.findings?.[0];
     if (!target || !firstFinding) throw new Error("the fixture lost its file or its finding");
@@ -116,7 +131,7 @@ describe("the boards are spoken", () => {
     // The same rule the plates and the mirror both use, applied independently
     // here: if the two channels ever disagree about a verdict, this fails.
     const expected = boardCopy(CITY, "en", (f, i, fnd) => reviewKeyFor(f, i, fnd) === key);
-    const spoken = render();
+    const spoken = await render();
     for (const board of expected) {
       expect(spoken, `${board.id}: title drifted`).toContain(board.text.title);
       for (const line of board.text.lines) {
@@ -126,14 +141,14 @@ describe("the boards are spoken", () => {
     expect(spoken).not.toContain(ALL.find((b) => b.id === "finding")!.text.lines[1]);
   });
 
-  it("renders nothing while no board stands", () => {
+  it("renders nothing while no board stands", async () => {
     act(() => useStore.setState({ taughtBoards: [] }));
-    render();
+    await render();
     expect(host.innerHTML).toBe("");
   });
 
-  it("is hidden by the app's own pattern, not by a private style", () => {
-    render();
+  it("is hidden by the app's own pattern, not by a private style", async () => {
+    await render();
     const region = host.querySelector("[data-teach-boards-reading]");
     expect(region).not.toBeNull();
     expect(region!.getAttribute("class")).toContain("sr-only");

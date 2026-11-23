@@ -2590,6 +2590,16 @@ export const DICT = {
     de: "In diesem Ordner liegen keine analysierbaren Quelldateien (unterstützt: {exts})",
   },
   /**
+   * The stall nudge: the poller has seen no progress and no stage change for
+   * ten minutes, but the job is still alive. Said as words on the stage line
+   * — a frozen bar reads as a hung tab, and a colour would be a second-class
+   * signal next to the rest of the line.
+   */
+  "scan.stalling": {
+    en: "still working, no progress for a while — large folders can take their time",
+    de: "arbeitet weiter, seit einer Weile kein Fortschritt — große Ordner brauchen manchmal lange",
+  },
+  /**
    * The folder held source files, but every one was past the per-file wall —
    * that is a fact about the files, not "no source here". Said with the count
    * that left and the 2 MB limit, so a single 3 MB file is never described as

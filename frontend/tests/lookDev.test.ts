@@ -453,7 +453,11 @@ describe("lookDev: the ramp never reaches the heat cells", () => {
 });
 
 describe("lookDev: one sky in both quality paths", () => {
-  const app = readFileSync(path.resolve(import.meta.dirname, "../src/App.tsx"), "utf-8");
+  // §Batch 2 — the composer block lives in the lazy WorldCanvas module now.
+  const app = readFileSync(
+    path.resolve(import.meta.dirname, "../src/components/WorldCanvas.tsx"),
+    "utf-8",
+  );
   const composer = app.slice(app.indexOf("<EffectComposer"), app.indexOf("</EffectComposer>"));
 
   it("tone maps the composer path, or the atmosphere changes with the setting", () => {

@@ -8,7 +8,7 @@ import { BrandWordmark } from "./Landing";
 import { AnalyzePanel } from "./AnalyzePanel";
 import { XrayRaw } from "./XrayRaw";
 import { openSearch } from "./SearchBar";
-import { PHASE_0_MS } from "./CityTree";
+import { PHASE_0_MS } from "../city/buildTiming";
 import { t, formatCount, type DictKey, type Lang } from "../i18n";
 import { allFiles, getDirLayout } from "../city/layout";
 import { heightAxisKey } from "../city/heightAxis";

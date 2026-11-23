@@ -21,7 +21,11 @@
  */
 import { act, createElement } from "react";
 import { createRoot, type Root } from "react-dom/client";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+
+// Der 3D-Graph wird einmal sequenziell geladen, bevor ein Fall die Uhr anhält —
+// sonst können zwei gleichzeitige import()s in Node an three.cjs vorbeikommen.
+beforeAll(warmThree);
 
 vi.mock("@react-three/fiber", async () => {
   const { createElement: h } = await import("react");
@@ -44,6 +48,7 @@ vi.mock("postprocessing", () => ({ ToneMappingMode: { ACES_FILMIC: 1 } }));
 vi.mock("../src/components/CityScene", () => ({ CityScene: () => null }));
 
 import { city, dir, file, finding } from "./helpers/cityFixture";
+import { settleLazy, warmThree } from "./helpers/lazyChunk";
 import { useStore } from "../src/stores/useStore";
 import App from "../src/App";
 
@@ -64,11 +69,25 @@ const SENTENCE = "The graphics stopped drawing this city.";
 let host: HTMLDivElement | undefined;
 let root: Root | undefined;
 
-function arrive(): void {
+async function arrive(): Promise<void> {
   host = document.createElement("div");
   document.body.append(host);
   root = createRoot(host);
-  act(() => root!.render(createElement(App)));
+  // WorldCanvas kommt jetzt lazy (`lazy(() => import(...))`) — die Suspense-
+  // Auflösung braucht einen Tick, sonst sieht canvasUp() nur das leere Suspense.
+  // Vitest löst dynamische import() über Timer auf, die unter den Fake-Timern
+  // des Grace-Fensters einfrieren: für den Mount kurz echte Uhren erlauben.
+  vi.useRealTimers();
+  await act(async () => {
+    root!.render(createElement(App));
+  });
+  // Warten, bis die lazy geladene Welt tatsächlich im Baum steht: die
+  // Modulauslösung von `import("./components/WorldCanvas")` ist asynchron
+  // und braucht je nach Last mehrere Ticks — ein einzelner setTimeout(0)
+  // genügt nicht. Kurz echte Uhren laufen lassen, dann zurück zu den
+  // Fake-Timern für das Grace-Fenster.
+  await settleLazy(() => host!.querySelector("[data-canvas]") !== null);
+  vi.useFakeTimers();
 }
 
 const sentenceUp = (): boolean => (host!.textContent ?? "").includes(SENTENCE);
@@ -117,8 +136,8 @@ afterEach(() => {
 });
 
 describe("the reader-driven rebuild after a lost graphics context", () => {
-  it("raises the sentence when the context is lost", () => {
-    arrive();
+  it("raises the sentence when the context is lost", async () => {
+    await arrive();
     expect(canvasUp()).toBe(true);
     expect(sentenceUp()).toBe(false);
     act(() => useStore.getState().onContextLost());
@@ -126,8 +145,8 @@ describe("the reader-driven rebuild after a lost graphics context", () => {
     expect(canvasUp()).toBe(false);
   });
 
-  it("puts the canvas back and keeps it after the grace window closes", () => {
-    arrive();
+  it("puts the canvas back and keeps it after the grace window closes", async () => {
+    await arrive();
     act(() => useStore.getState().onContextLost());
     expect(sentenceUp()).toBe(true);
     const btn = retryButton();
@@ -146,8 +165,8 @@ describe("the reader-driven rebuild after a lost graphics context", () => {
     expect(canvasUp(), "the rebuilt canvas must survive its own grace window").toBe(true);
   });
 
-  it("tells a NEW loss on the rebuilt canvas — the fix must not silence the story", () => {
-    arrive();
+  it("tells a NEW loss on the rebuilt canvas — the fix must not silence the story", async () => {
+    await arrive();
     act(() => useStore.getState().onContextLost());
     act(() => retryButton()!.click());
     act(() => {

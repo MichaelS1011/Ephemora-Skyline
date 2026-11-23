@@ -1195,3 +1195,19 @@
 .access-system-note {
   color: var(--meta-strong);
 }
+
+/* Touch floors (WCAG 2.5.5 / Apple HIG): the 32 px chip row above is right for
+   a mouse and wrong for a thumb — on a phone the workspace chips, the search
+   door and the panel close are the controls people actually hit. A coarse
+   pointer gets the 44 px floor; desktop layout never sees this block. */
+@media (pointer: coarse) {
+  .workspace-search-toggle,
+  .workspace-severities button {
+    min-height: 44px;
+    min-width: 44px;
+  }
+  .panel-close {
+    width: 44px;
+    height: 44px;
+  }
+}

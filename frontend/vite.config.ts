@@ -55,9 +55,32 @@ export default defineConfig({
             {
               name: "react-vendor",
               test: /node_modules\/(react|react-dom|scheduler|react-reconciler)\//,
+              priority: 10,
             },
-            { name: "three-core", test: /node_modules\/three\// },
-            { name: "r3f", test: /node_modules\/(@react-three)\// },
+            // entriesAware is REQUIRED: without it, Rolldown treats a group
+            // chunk as one shared initial chunk and modulepreloads three-core
+            // + r3f into index.html for EVERY page — even though only the
+            // lazily imported 3D chunks actually use them (verified against
+            // dist/index.html). With entriesAware the groups split by the
+            // chunks that really import them and the start screen stays 3D-free.
+            { name: "three-core", test: /node_modules\/three\//, entriesAware: true, priority: 5 },
+            {
+              name: "r3f",
+              test: /node_modules\/(@react-three)\//,
+              entriesAware: true,
+              priority: 5,
+            },
+            // zustand MUST have its own HIGH-PRIORITY chunk: @react-three/fiber
+            // depends on zustand, and group matching is recursive — at equal
+            // priority the r3f group wins and parks zustand inside the r3f
+            // chunk, which (with entriesAware off) made the r3f chunk and
+            // three-core behind it static entry dependencies, undoing the lazy
+            // 3D split for every start-screen visit.
+            {
+              name: "state-vendor",
+              test: /node_modules\/(zustand|use-sync-external-store)\//,
+              priority: 10,
+            },
           ],
         },
       },

@@ -20,7 +20,10 @@
 import type { CityData } from "./types";
 import { findFileById, getDirLayout } from "./layout";
 import { findVoxelForLine } from "./voxels";
-import { WORLD_FOV_DEG } from "./worldFraming";
+// The three-free constants module: waypoint.ts is read by HUD-side logic on
+// the start screen's critical path, and the framing module computes with
+// three.js.
+import { WORLD_FOV_DEG } from "./worldConstants";
 
 /** A world point a flight can land on and an edge sign can point at. */
 export interface WorldTarget {

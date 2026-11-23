@@ -11,6 +11,13 @@ import type { AnalysisState } from "../useLocalAnalysis";
 
 const POLL_INTERVAL_MS = 2000;
 const POLL_TIMEOUT_MS = 20 * 60 * 1000;
+/**
+ * A run that moves nothing for this long gets a word, not just a frozen bar:
+ * the stage line gains `scan.stalling` — text, in both languages, never a
+ * colour — until the server moves again. Half the give-up window, so the
+ * reader learns "still working" well before they learn "timed out".
+ */
+const STALL_NUDGE_MS = 10 * 60 * 1000;
 
 type Ref<T> = { current: T };
 
@@ -121,6 +128,8 @@ export interface PollStatusDeps {
   runRef: Ref<number>;
   pollTimerRef: Ref<ReturnType<typeof setInterval> | null>;
   budgetWaitRef: Ref<number>;
+  /** Flipped by the tick when the server moves nothing for STALL_NUDGE_MS. */
+  stalledRef: Ref<boolean>;
   stopPolling: () => void;
   setBudgetWaitSec: (n: number) => void;
   publishStage: () => void;
@@ -142,8 +151,15 @@ export function pollStatus(deps: PollStatusDeps, id: string, run: number): void 
   let inFlight = false;
   /** while the read budget is closed, ticks count down instead of fetching */
   let budgetUntil = 0;
+  /** the last progress/stage the server reported, and when it last moved */
+  let lastProgress = -1;
+  let lastStage = "";
+  let lastMoveAt = Date.now();
   deps.stopPolling();
-  deps.pollTimerRef.current = setInterval(() => {
+  // A fresh poll is a fresh word: any stall hint from a previous run dies here,
+  // not only when the first answer happens to move the bar.
+  deps.stalledRef.current = false;
+  const tick = (): void => {
     if (deps.runRef.current !== run) {
       deps.stopPolling();
       return;
@@ -211,6 +227,18 @@ export function pollStatus(deps: PollStatusDeps, id: string, run: number): void 
           stage?: string;
           error?: string;
         };
+        const moved =
+          (typeof data.progress === "number" && data.progress !== lastProgress) ||
+          (typeof data.stage === "string" && data.stage && data.stage !== lastStage);
+        if (moved) {
+          if (typeof data.progress === "number") lastProgress = data.progress;
+          if (typeof data.stage === "string" && data.stage) lastStage = data.stage;
+          lastMoveAt = Date.now();
+          if (deps.stalledRef.current) {
+            deps.stalledRef.current = false;
+            deps.publishStage();
+          }
+        }
         if (typeof data.progress === "number") {
           deps.setAnalysisProgress(Math.min(100, Math.max(0, data.progress)));
         }
@@ -224,6 +252,11 @@ export function pollStatus(deps: PollStatusDeps, id: string, run: number): void 
           deps.setErrorMessage(t(deps.langRef.current, "scan.serverFailed"));
           deps.setErrorDetail(data.error ?? "the scan failed on the server");
           deps.setState("error");
+        } else if (!deps.stalledRef.current && Date.now() - lastMoveAt >= STALL_NUDGE_MS) {
+          // Same frozen bar for ten minutes reads as a hung tab — say it in
+          // words instead of leaving the reader to guess (never colour-only).
+          deps.stalledRef.current = true;
+          deps.publishStage();
         }
       } catch (err) {
         if (err instanceof Error && err.name === "AbortError") return;
@@ -232,5 +265,10 @@ export function pollStatus(deps: PollStatusDeps, id: string, run: number): void 
         inFlight = false;
       }
     })();
-  }, POLL_INTERVAL_MS);
+  };
+  deps.pollTimerRef.current = setInterval(tick, POLL_INTERVAL_MS);
+  // The first answer should not wait a whole interval: right after a submit
+  // the job is often already queued, and the bar used to sit untouched for
+  // two full seconds before the first fetch told it anything.
+  tick();
 }

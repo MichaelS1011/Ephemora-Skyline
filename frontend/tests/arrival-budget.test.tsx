@@ -27,7 +27,11 @@
  */
 import { act, createElement } from "react";
 import { createRoot, type Root } from "react-dom/client";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+
+// Der 3D-Graph wird einmal sequenziell geladen, bevor ein Fall die Uhr anhält —
+// sonst können zwei gleichzeitige import()s in Node an three.cjs vorbeikommen.
+beforeAll(warmThree);
 
 // The world is not what this file measures. A stubbed canvas keeps App's own
 // in-city branch on screen; the scene boundaries log their fallback, which
@@ -57,6 +61,7 @@ vi.mock("postprocessing", () => ({ ToneMappingMode: { ACES_FILMIC: 1 } }));
 vi.mock("../src/components/CityScene", () => ({ CityScene: () => null }));
 
 import { city, dir, file, finding } from "./helpers/cityFixture";
+import { settleLazy, warmThree } from "./helpers/lazyChunk";
 import { useStore } from "../src/stores/useStore";
 import App from "../src/App";
 import censusJson from "./fixtures/arrival-census.json";
@@ -350,7 +355,7 @@ describe("what the budget hides", () => {
     expect(host!.querySelector(".search-control")).not.toBeNull();
   });
 
-  it("gives the figure's vitrine back on request, from inside the city", () => {
+  it("gives the figure's vitrine back on request, from inside the city", async () => {
     // §04.11 — restyling a resident the reader already named. The card keeps its
     // one verb, so the way to the jacket is this menu, and the panel is the same
     // component the start page opens — not a second, smaller one.
@@ -358,6 +363,11 @@ describe("what the budget hides", () => {
     expect(host!.querySelector(".ephe-preview-panel")).toBeNull();
     openMore();
     expect(clickByName(/Look|Aussehen/), "the control says what it brings back").toBe(true);
+    // Die Vitrine ist lazy — ihre Modulauslösung friert unter den Fake-Timern
+    // ein, für den Öffnungsnachweis kurz echte Uhren laufen lassen.
+    vi.useRealTimers();
+    await settleLazy(() => host!.querySelector(".ephe-preview-panel") !== null);
+    vi.useFakeTimers();
     expect(host!.querySelector(".ephe-preview-panel")).not.toBeNull();
     expect(host!.querySelectorAll(".ephe-variant")).toHaveLength(3);
   });

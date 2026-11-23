@@ -199,3 +199,17 @@
   outline: 2px solid var(--focus-ring);
   outline-offset: 1px;
 }
+
+/* Touch floor: the close and the two time-machine verbs measured 30 px —
+   under the 44 px a thumb needs. Coarse pointers only; the desktop strip
+   keeps its quiet rhythm. */
+@media (pointer: coarse) {
+  .tm-close {
+    width: 44px;
+    height: 44px;
+  }
+  .tm-return,
+  .tm-diff button {
+    min-height: 44px;
+  }
+}

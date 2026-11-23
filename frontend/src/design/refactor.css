@@ -235,3 +235,11 @@
   opacity: 0.4;
   cursor: default;
 }
+
+/* Touch floor: the 26 px parts picker is a select, and a 26 px select is a
+   miss on a phone. Only coarse pointers pay for the taller control. */
+@media (pointer: coarse) {
+  .rs-parts select {
+    min-height: 44px;
+  }
+}

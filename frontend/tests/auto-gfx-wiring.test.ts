@@ -31,10 +31,13 @@ describe("manual switch beats the governor", () => {
   it("App reads manual OR auto for the quality path, and the governor lives in the Canvas", () => {
     const app = src("App.tsx");
     expect(app).toMatch(/s\.prefs\.gfxLite \|\| s\.autoGfxLite/);
-    expect(app).toMatch(/<GfxGovernor \/>/);
+    // §Batch 2 — the Canvas moved to its own lazy module; the governor lives
+    // inside it, so the nesting check reads WorldCanvas now.
+    const world = src("components/WorldCanvas.tsx");
+    expect(world).toMatch(/<GfxGovernor \/>/);
     // inside the Canvas — the governor needs useFrame
-    expect(app.indexOf("<GfxGovernor />")).toBeGreaterThan(app.indexOf("<CityScene />"));
-    expect(app.indexOf("<GfxGovernor />")).toBeLessThan(app.indexOf("</Canvas>"));
+    expect(world.indexOf("<GfxGovernor />")).toBeGreaterThan(world.indexOf("<CityScene />"));
+    expect(world.indexOf("<GfxGovernor />")).toBeLessThan(world.indexOf("</Canvas>"));
   });
 
   it("the governor yields during construction and after a tab switch", () => {

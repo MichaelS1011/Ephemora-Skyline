@@ -1976,3 +1976,36 @@
   row-gap: 2px;
   border-radius: 12px;
 }
+
+/* Touch floors (WCAG 2.5.5 / Apple HIG): the start screen's small controls —
+   the replay and vitrine doors, the progress skip, the vitrine's own close,
+   variants and marks, the summary strip's three verbs and the coach's more —
+   all measured 26–30 px, a size a mouse forgives and a thumb does not. Coarse
+   pointers get the 44 px floor; the desktop screen never sees this block. The
+   `start-v2` prefix mirrors the base rules' own specificity. */
+@media (pointer: coarse) {
+  .landing-shell.start-v2 .start-replay,
+  .landing-shell.start-v2 .start-ephe-open,
+  .landing-shell.start-v2 .start-progress-skip {
+    min-height: 44px;
+  }
+  .ephe-preview-close {
+    min-height: 44px;
+    min-width: 44px;
+  }
+  .ephe-variant,
+  .ephe-mark {
+    min-height: 44px;
+    min-width: 44px;
+  }
+  .start-summary-guide-go,
+  .start-summary-strip-guide,
+  .start-summary-close,
+  .start-coach-more-action {
+    min-height: 44px;
+  }
+  .start-summary-close {
+    width: 44px;
+    height: 44px;
+  }
+}

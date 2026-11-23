@@ -25,7 +25,11 @@
  */
 import { act, createElement } from "react";
 import { createRoot, type Root } from "react-dom/client";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+
+// Der 3D-Graph wird einmal sequenziell geladen, bevor ein Fall die Uhr anhält —
+// sonst können zwei gleichzeitige import()s in Node an three.cjs vorbeikommen.
+beforeAll(warmThree);
 
 vi.mock("@react-three/fiber", async () => {
   const { createElement: h } = await import("react");
@@ -48,6 +52,7 @@ vi.mock("postprocessing", () => ({ ToneMappingMode: { ACES_FILMIC: 1 } }));
 vi.mock("../src/components/CityScene", () => ({ CityScene: () => null }));
 
 import { useStore } from "../src/stores/useStore";
+import { settleLazy, warmThree } from "./helpers/lazyChunk";
 import App from "../src/App";
 import type { CityData, CityDir } from "../src/city/types";
 
@@ -146,6 +151,11 @@ async function arrive(): Promise<void> {
   await act(async () => {
     await vi.advanceTimersByTimeAsync(50);
   });
+  // WorldCanvas ist lazy — seine Modulauslösung braucht echte Uhrenticks,
+  // die unter den Fake-Timern des Tests einfrieren. Kurz echte Uhren.
+  vi.useRealTimers();
+  await settleLazy(() => host!.querySelector("[data-canvas]") !== null);
+  vi.useFakeTimers();
   expect(useStore.getState().cityData?.analysisId, "the permalink brought the city in").toBe(
     "switch-1",
   );

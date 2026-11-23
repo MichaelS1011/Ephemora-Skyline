@@ -55,8 +55,11 @@ import "../design/city-funktion.css";
  * changes drill depth — never the amount on screen.
  */
 
-/** Phase 0 of the construction cinematic: empty terrain while the Ephe's move in. */
-export const PHASE_0_MS = 1600;
+// Defined in `city/buildTiming.ts` — the HUD reads the same number and must
+// not import this 3D module for it. Re-exported so the cinematic's consumers
+// keep their one import.
+export { PHASE_0_MS } from "../city/buildTiming";
+import { PHASE_0_MS } from "../city/buildTiming";
 
 /** Chip chrome in screen px: the inline `padding: "2px 6px"` (2 × 6) plus the 1 px border each side. */
 const CHIP_CHROME_PX = 14;

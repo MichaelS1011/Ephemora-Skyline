@@ -20,9 +20,9 @@ import { ShareImageCard } from "./ShareImageCard";
 import { captureCityImage, type CityImage } from "../share/image";
 import { CREDIT_TEXT } from "../share/capture";
 import { getDirLayout } from "../city/layout";
-import { surfaceForLayout } from "../city/worldSurface";
+
 import { defaultOverviewPath } from "../city/overview";
-import { shareHeroShot } from "../share/heroShot";
+
 import { PostcardChallenges } from "./PostcardChallenges";
 import { markPostcardCaptured } from "../city/postcardChallenges";
 import "../design/share.css";
@@ -70,6 +70,9 @@ export function ShareStudio() {
   const imageUrlRef = useRef<string | null>(null);
   const imageJobRef = useRef(0);
   const panelRef = useRef<HTMLDivElement>(null);
+  // Bumped whenever the studio closes while the record button waits on the
+  // hero-shot chunk — a take must not start for a studio nobody is looking at.
+  const startToken = useRef(0);
 
   const clearImage = (): void => {
     imageJobRef.current += 1;
@@ -104,6 +107,10 @@ export function ShareStudio() {
   }, [open]);
 
   useEffect(() => {
+    if (!open) startToken.current += 1;
+  }, [open]);
+
+  useEffect(() => {
     if ((capture.result || imageResult) && panelRef.current) panelRef.current.scrollTop = 0;
   }, [capture.result, imageResult]);
 
@@ -115,12 +122,21 @@ export function ShareStudio() {
   const recording = capture.phase === "recording";
   const seconds = Math.round(capture.elapsedMs / 1000);
 
-  const start = (): void => {
+  const start = async (): Promise<void> => {
     if (length.mode.kind === "build" && !canBuild) return;
+    const token = ++startToken.current;
     // The build replay resets to the project level, so its hook and reveal
     // must frame that level; a free take keeps the level the reader is in.
     const path = length.mode.kind === "build" ? defaultOverviewPath(cityData) : focusPath;
     const layout = getDirLayout(cityData, path);
+    // Both modules live where three.js lives, and the studio is open long
+    // before the reader presses record: pulling them on click keeps the 3D off
+    // the start screen and pays the chunk fetch once, behind a click.
+    const [{ shareHeroShot }, { surfaceForLayout }] = await Promise.all([
+      import("../share/heroShot"),
+      import("../city/worldSurface"),
+    ]);
+    if (startToken.current !== token) return;
     const hero = shareHeroShot(layout, surfaceForLayout(layout, path.length > 0), preset.aspect);
     capture.start({
       city: cityData,

@@ -116,7 +116,9 @@ describe("the 3D exemption is retired — the far-zoom chip sits on the floor", 
     expect(m, `CityTree.tsx must ship const ${name}`).not.toBeNull();
     return Number(m?.[1]);
   };
-  const appSrc = readFileSync(path.join(SRC, "App.tsx"), "utf-8");
+  // §Batch 2 — the Canvas lives in the lazy WorldCanvas module now; that is
+  // where the fov digits are declared.
+  const appSrc = readFileSync(path.join(SRC, "components/WorldCanvas.tsx"), "utf-8");
   const fov = Number(appSrc.match(/camera=\{\{[^}]*\bfov:\s*([\d.]+)/)?.[1]);
   expect(fov, "the Canvas must declare its fov where this guard can read it").toBe(52);
   const globals = readFileSync(path.join(SRC, "design/globals.css"), "utf-8");

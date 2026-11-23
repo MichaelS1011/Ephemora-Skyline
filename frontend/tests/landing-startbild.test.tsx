@@ -3,9 +3,14 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+
+// Der 3D-Graph wird einmal sequenziell geladen, bevor ein Fall die Uhr anhält —
+// sonst können zwei gleichzeitige import()s in Node an three.cjs vorbeikommen.
+beforeAll(warmThree);
 import { useStore } from "../src/stores/useStore";
 import { t, type Lang } from "../src/i18n";
+import { settleLazy, warmThree } from "./helpers/lazyChunk";
 import { Landing } from "../src/components/Landing";
 import { ArrivalProgress } from "../src/components/ArrivalProgress";
 
@@ -97,6 +102,9 @@ describe("the start picture carries its explanation (#27)", () => {
     await act(async () => {
       open?.click();
     });
+    // Die Vitrine ist lazy — ihr Modul braucht echte Ticks, bis der
+    // Suspense-Baum steht (dasselbe Muster wie lost-context-rebuild).
+    await settleLazy(() => host.querySelector('[role="dialog"]') !== null);
     expect(host.querySelector('[role="dialog"]')).not.toBeNull();
     expect(useStore.getState().showEpheVitrine).toBe(true);
   });

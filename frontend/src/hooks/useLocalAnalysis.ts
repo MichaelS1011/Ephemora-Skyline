@@ -427,9 +427,11 @@ const bytesLine = (lang: Lang, files: number, bytes: number): string =>
 
 /** Nothing readable in the folder — said as a count and the list it accepts. */
 const noSourceLine = (lang: Lang): string =>
-  t(lang, "scan.noSource", {
-    exts: [...SUPPORTED_EXTENSIONS].map((e) => e.slice(1)).join(", ") + ", .env",
-  });
+  // One format for every entry: the set already spells its extensions with
+  // the dot, and the accepted `.env` is special-cased only because it is not
+  // source — it joins the list in the same shape, not as ", .env" bolted onto
+  // a dotless run.
+  t(lang, "scan.noSource", { exts: [...SUPPORTED_EXTENSIONS, ".env"].join(", ") });
 
 /**
  * True when the per-file size wall is the ONLY reason nothing was read. A
@@ -504,6 +506,8 @@ export function useLocalAnalysis() {
   const stageRef = useRef<string | null>(null);
   const elapsedRef = useRef(0);
   const budgetWaitRef = useRef(0);
+  /** true while the poller has seen no progress and no stage for STALL_NUDGE_MS */
+  const stalledRef = useRef(false);
   /** true once the upload is home and the wait belongs to the scanner */
   const waitingRef = useRef(false);
   /**
@@ -584,6 +588,7 @@ export function useLocalAnalysis() {
       stageRef,
       waitingRef,
       budgetWaitRef,
+      stalledRef,
       elapsedRef,
       setAnalysisStage,
     });
@@ -660,6 +665,7 @@ export function useLocalAnalysis() {
           runRef,
           pollTimerRef,
           budgetWaitRef,
+          stalledRef,
           stopPolling,
           setBudgetWaitSec,
           publishStage,

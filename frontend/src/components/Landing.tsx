@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useState, type ReactNode } from "react";
+import { Fragment, lazy, Suspense, useEffect, useState, type ReactNode } from "react";
 import { useStore } from "../stores/useStore";
 import { useLocalAnalysis } from "../hooks/useLocalAnalysis";
 import { ProfileChips } from "./ProfileChips";
@@ -20,7 +20,9 @@ import { honouredNames } from "../epheNames";
 import { readStoredJson } from "../storageRead";
 import { resetBackendVerdicts } from "../reviews";
 import { ScanExcludes } from "./ScanExcludes";
-import { EphePreview } from "./EphePreview";
+/** The vitrine is a three.js showcase behind a click; the start screen must
+ * not download the 3D packages for a door most visitors walk past. */
+const EphePreview = lazy(() => import("./EphePreview").then((m) => ({ default: m.EphePreview })));
 import { ArrivalProgress } from "./ArrivalProgress";
 import "../design/start.css";
 
@@ -1366,7 +1368,11 @@ export function Landing() {
           <CityIllustration lang={lang} onOpenPreview={() => setPreviewOpen(true)} />
         </div>
       </div>
-      {previewOpen && <EphePreview lang={lang} onClose={() => setPreviewOpen(false)} />}
+      {previewOpen && (
+        <Suspense fallback={null}>
+          <EphePreview lang={lang} onClose={() => setPreviewOpen(false)} />
+        </Suspense>
+      )}
       <RecentCities lang={lang} />
       <footer className="landing-footer">
         <span>{t(lang, "landing.footer1")}</span>

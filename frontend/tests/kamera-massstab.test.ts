@@ -83,7 +83,12 @@ function rulers(stadt: CityData) {
   };
 }
 
-const appSrc = readFileSync(resolve(import.meta.dirname, "../src/App.tsx"), "utf-8");
+// §Batch 2 — the Canvas with its fov literal moved to the lazy WorldCanvas
+// module; the digits the guards insist on are declared there now.
+const appSrc = readFileSync(
+  resolve(import.meta.dirname, "../src/components/WorldCanvas.tsx"),
+  "utf-8",
+);
 const cityTreeSrc = readFileSync(
   resolve(import.meta.dirname, "../src/components/CityTree.tsx"),
   "utf-8",

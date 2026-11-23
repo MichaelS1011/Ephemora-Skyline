@@ -152,3 +152,12 @@
   outline: 2px solid var(--focus-ring);
   outline-offset: 1px;
 }
+
+/* Touch floor: the two postcard verbs sit alone under the card — at 28 px
+   they were mouse controls handed to thumbs. Coarse pointers get 44 px. */
+@media (pointer: coarse) {
+  .postcard-fly,
+  .postcard-clear {
+    min-height: 44px;
+  }
+}

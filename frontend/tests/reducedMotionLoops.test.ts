@@ -51,6 +51,12 @@ const KNOWN_OTHERS: Record<string, string> = {
   // reduce query must not take the controls away. The camera that follows it
   // honours the query in CameraRig, like every other camera move.
   "DriveCar.tsx": "moves only through the reader's keys; the camera honours the query",
+  // §Batch 2 — the lazy Canvas module. Its loop is VisitCamera's: an instant
+  // `camera.position.set` restoring the pose a shared link asked for, and the
+  // settle-sample that writes `?cam=` once the reader stops moving. Nothing
+  // here tweens on its own, so there is no motion for the query to stop —
+  // every scripted camera move still goes through CameraRig, which honours it.
+  "WorldCanvas.tsx": "instant pose restore and permalink settle; animates nothing",
 };
 
 const framesIn = (name: string): string => {

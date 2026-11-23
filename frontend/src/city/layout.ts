@@ -33,7 +33,9 @@ import {
   type VoronoiSite,
 } from "./voronoi";
 import { generateVoxelLayout, type VoxelLayout } from "./voxels";
-import { WORLD_PIVOT_Y } from "./worldFraming";
+// From the three-free constants module: layout.ts sits on the start screen's
+// critical path, and the framing module computes its fits with three.js.
+import { WORLD_PIVOT_Y } from "./worldConstants";
 
 // ── Placement types ────────────────────────────────────────────────────────
 

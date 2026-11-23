@@ -46,8 +46,11 @@ function probeCity(): CityData {
   });
 }
 
-const APP_SOURCE = readFileSync(resolve(process.cwd(), "src/App.tsx"), "utf8");
-const fovLiteral = (): number => Number(/fov:\s*(\d+)/.exec(APP_SOURCE)?.[1]);
+const CANVAS_SOURCE = readFileSync(
+  resolve(process.cwd(), "src/components/WorldCanvas.tsx"),
+  "utf8",
+);
+const fovLiteral = (): number => Number(/fov:\s*(\d+)/.exec(CANVAS_SOURCE)?.[1]);
 
 let host: HTMLDivElement;
 let root: Root;
@@ -99,9 +102,10 @@ afterEach(() => {
 
 describe("the waypoint and the flight read one address", () => {
   it("has exactly one FOV number in the app and in the cone test", () => {
-    expect(fovLiteral(), "App.tsx setzt eine fov-Zahl, und die muss die Kegelzahl sein").toBe(
-      CAMERA_FOV_DEG,
-    );
+    expect(
+      fovLiteral(),
+      "WorldCanvas.tsx setzt eine fov-Zahl, und die muss die Kegelzahl sein",
+    ).toBe(CAMERA_FOV_DEG);
   });
 
   it("lands the camera exactly where the edge sign points", () => {
@@ -335,7 +339,7 @@ describe("the counter-proof", () => {
     expect(CAMERA_FOV_DEG, "und der Kegel testet genau diese 52").toBe(52);
     // Gegenprobe ohne Eingriff in die App: dieselbe Lesestelle an einem
     // verbogenen Quelltext. Waere die Abfrage blind, waere dieser Fall gruen.
-    const bent = APP_SOURCE.replace(/fov:\s*52/, "fov: 51");
+    const bent = CANVAS_SOURCE.replace(/fov:\s*52/, "fov: 51");
     expect(/fov:\s*(\d+)/.exec(bent)?.[1], "die Sonde sieht eine verschobene Zahl").toBe("51");
     expect(Number(/fov:\s*(\d+)/.exec(bent)?.[1]) === CAMERA_FOV_DEG).toBe(false);
   });
