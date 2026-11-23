@@ -1,5 +1,15 @@
 # Ephemora Skyline
 
+**Your codebase as a city you can walk through: a folder is a district, a file is a tower, and every finding a scanner made burns on a roof.**
+
+Most repositories now hold more code than anyone has read. Skyline reads a folder on your machine and turns it into a 3D city in the browser. Taller towers are more tangled files. Red beacons are security findings, yellow lasers are copy-paste between files, red rings are circular imports. Click a tower and you get the file, the line, the rule that fired and the steps to fix it.
+
+Nothing is uploaded. No account, no login, no telemetry: the scanner and the city both run on your machine, the server binds to `127.0.0.1`, and **your source is never uploaded and never sent to a third party**. English and German. Desktop browser; the 3D city is not built for phones.
+
+<a href="docs/assets/demo-city.mp4"><img src="docs/assets/demo-city-loop.gif" alt="A codebase as a 3D city: folders are districts, files are towers, and red beacons sit on the files a scanner flagged" width="100%"></a>
+
+<sub>**[27-second clip](docs/assets/demo-city.mp4)** — one take: the city building itself, then the tour flying finding to finding. No sound, no cuts, no sped-up frames, every pixel drawn by the app on a laptop.</sub>
+
 <p align="left">
   <a href="https://github.com/MichaelS1011/Ephemora-Skyline/blob/main/LICENSE"><img alt="Licence: Apache License 2.0 — you may read it, run it, change it, ship it; the name is not part of what it grants" src="https://img.shields.io/badge/license-Apache--2.0-blue?style=flat"></a>
   <img alt="The five gates CI runs on every push to main and on every pull request: lint, the type check, the test suite, the build, the dependency audit" src="https://img.shields.io/badge/gates-lint%20%C2%B7%20types%20%C2%B7%20tests%20%C2%B7%20build%20%C2%B7%20audit-2c2c29?style=flat&logo=githubactions&logocolor=white">
@@ -11,40 +21,31 @@
   <img alt="Dependencies are checked for advisories weekly by Dependabot, and the audit gate fails on any high or critical finding that was not explicitly accepted" src="https://img.shields.io/badge/deps-Dependabot%20weekly-4078c0?style=flat&logo=dependabot&logocolor=white">
 </p>
 
-<a href="docs/assets/demo-city.mp4"><img src="docs/assets/demo-city-loop.gif" alt="The demo city rising: the front-end district mid-build, its blue file towers climbing, the streets and the other districts already standing" width="100%"></a>
+## Start in one line
 
-<sub>**[Watch the 27-second clip](docs/assets/demo-city.mp4)** — one visit, filmed as it happens: the entry screen, the demo opened, the city building itself, the tour flying finding to finding. No sound, no cuts, no sped-up frames, every pixel drawn by the app on a laptop.</sub>
-
-**Skyline turns a folder of code into a 3D city you can look around in.** A folder is a district. A file is a building. A taller building means more tangled code inside it, and a red light on top means a security finding. Click a building and you get the file, the line, the rule that fired and the steps to fix it.
-
-Nothing is uploaded. No account, no login, no telemetry. It runs on your own machine and opens in your browser — **your source is never uploaded and never sent to a third party**. English and German. Desktop web app; phones are not supported and not planned.
-
-## What's new
-
-0.4.12 — 2026-11-19
-
-- **A finished scan stays finished, and a running one stays running.** — A permalink opened during a running scan now waits for the real result instead of the demo city, and a live rescan survives 15 consecutive 500s where a single one used to abandon it
-
-More in [CHANGELOG.md](./CHANGELOG.md).
-
-## Run it
-
-Needs **Node 20.19+ or 22.12+** (Node 21 is unsupported) and **npm >= 10**. Four commands.
+Needs **Node 20.19+ or 22.12+** (Node 21 is unsupported) and **npm >= 10**. Paste this line, wait for the build, and open **http://127.0.0.1:4173**:
 
 ```bash
-git clone https://github.com/MichaelS1011/Ephemora-Skyline.git   # Apache-2.0: a mirror or a fork is fine
-cd Ephemora-Skyline
-npm install
-npm start              # builds once, then app + API on :4173, and opens the browser
+git clone --depth 1 https://github.com/MichaelS1011/Ephemora-Skyline.git && cd Ephemora-Skyline && npm install && npm start
 ```
 
-Open **http://127.0.0.1:4173** and press **Choose project folder**. Or press **Explore demo** first — that city is sample files with sample findings, and no scanner ran on it. `npm run dev` is the coding loop (Vite on :3010, API on :4000). Every screen, switch and shortcut is walked through in [`docs/GETTING_STARTED.md`](./docs/GETTING_STARTED.md). No clone, no build, one shorter way: since v0.3.0 every release ships its built package as the asset `ephemora-skyline-<version>.tgz` on [the releases page](https://github.com/MichaelS1011/Ephemora-Skyline/releases) — download it, run `npm install ./ephemora-skyline-<version>.tgz` in an empty folder, then start `node_modules/.bin/ephemora-skyline` (`--port <n>` and `--no-open` work as flags). `npm run pack:check` walks exactly this path before a release is cut; on 0.4.6 it printed: 280 files, 3.62 MB unpacked, 1.14 MB packed, health ok, app served, version 0.4.6 matching the package.
+Press **Explore demo** first if you only want to look: that city is sample files with sample findings, and no scanner ran on it. Press **Choose project folder** to scan your own. `npm run dev` is the coding loop (Vite on :3010, API on :4000); every screen, switch and shortcut is walked through in [`docs/GETTING_STARTED.md`](./docs/GETTING_STARTED.md).
 
-Optional: `gitleaks`, `semgrep`, `osv-scanner` and `ruff` on your `PATH`. Without them the city says which checks did not run, instead of pretending.
+No clone, no build: every release since v0.3.0 carries the compiled app as `ephemora-skyline-<version>.tgz` on [the releases page](https://github.com/MichaelS1011/Ephemora-Skyline/releases). Download the newest one into an empty folder, then:
 
-## For schools and universities
+```bash
+npm install ./ephemora-skyline-<version>.tgz && node_modules/.bin/ephemora-skyline
+```
 
-The same tool works as a classroom instrument. Put an answer key named `.skyline-uebung.json` into the project and a scoreboard card appears under the findings: the scan is graded against the key — a finding counts when path, rule and line (± a tolerance you set) match, and items nobody found reveal nothing about where they hide. Two finished exercises ship in [`teaching/uebungen/`](./teaching/uebungen/): a Node.js webshop and a Python data importer, each with planted flaws, a German worksheet and its key ([`teaching/README.md`](./teaching/README.md)); take the key file out for the blind version. The lesson plans — 45 and 90 minutes, a university lab that runs verdicts through `/api/verify`, and ten exam questions with model answers — are in [`docs/education/SCHULE_UNI_GUIDE.md`](./docs/education/SCHULE_UNI_GUIDE.md) ([English version](./docs/education/SCHOOL_UNI_GUIDE.md)). For the administrator who has to approve it, [`docs/education/IT_ADMIN_DATENSCHUTZ.md`](./docs/education/IT_ADMIN_DATENSCHUTZ.md) states in German and English what runs where and what may reach the network: the server binds to 127.0.0.1, there is no telemetry, and `SKYLINE_OFFLINE=1` closes the remaining outbound checks — offline install from the release `.tgz` included. Scoring and the no-peek behaviour are tested: `backend/tests/uebung-scoring.test.ts`, `frontend/tests/challengePanel.test.ts`.
+`--port <n>` and `--no-open` work as flags. `npm run pack:check` walks exactly this path — install, health, version — before a release is cut.
+
+Optional on your `PATH`: `gitleaks`, `semgrep`, `osv-scanner` and `ruff`. Without them the city says which checks did not run, instead of pretending.
+
+## What it is for
+
+- **Code your agent wrote.** A repository that grew faster than anyone could review it: the shape in one screen, then a walk to the files that carry the risk. It is also the answer to "what did the agent actually build?" — a picture instead of a diff.
+- **Triage, not a dashboard.** Every red light is a rule that matched, on a line from your own copy. You judge it, the verdict survives the next scan, and a coding agent can be pointed at the same finding.
+- **Teaching.** The same scan grades a class exercise against an answer key, offline — see [For schools and universities](#for-schools-and-universities).
 
 ## What the city means
 
@@ -68,8 +69,8 @@ The same tool works as a classroom instrument. Put an answer key named `.skyline
 - **Get pointed back.** When a finding you still have to judge sits off-screen, a small pill shows at the screen edge with a word — `left`, `right`, `behind` — and the distance. Press it, the camera flies there.
 - **Judge, not just read.** Every finding carries its file, its line, the matched line with two lines either side from your own copy, the rule behind it and a fingerprint. Your verdict survives the next scan, and a coding agent can be pointed at the same finding.
 - **Hold `X` over a tower** and it shows the raw numbers behind its shape. Press `/` or Cmd/Ctrl+K to search. One control hides every panel and gives the city the whole window; `Esc` brings them back.
-- **Share it if you want.** The built-in studio renders MP4/H.264 1080p video and PNG locally. You get the file — no suggested caption, no platform row. SARIF 2.1.0 carries the scan id and the fingerprints.
-- **Ask whether a newer version exists.** One row in the ••• menu queries the published releases once and answers in words, in all four cases: a newer version with a link, "you are on the newest published version", "nothing published to compare with yet" — an answer this repository can no longer give: measured 2026-11-05, `gh release list` shows nine tagged releases, and every release since v0.3.0 carries its built package as the asset `ephemora-skyline-<version>.tgz` — or "could not check" when your machine says no. The hourly background check is on from the first run; one click in a city's More menu turns it off and it stays off.
+- **Post it.** The built-in studio renders a postcard (PNG) or a clip in 16:9, 1:1 or 9:16 — MP4/H.264 1080p, written on your machine. You get the file: no suggested caption, no platform row. SARIF 2.1.0 carries the scan id and the fingerprints.
+- **Check for updates.** One row in the ••• menu asks the published releases once and answers in words: a newer version with a link, you are on the newest published version, nothing published to compare with yet, or could not check. The hourly background check starts on first run, and one click in the same menu turns it off permanently.
 - **See what changed since your last scan.** The project card compares with the earlier scan of the same project: new, no longer detected, at another line, unchanged. A scan made with a different project, scanner set or sample is called not comparable instead of being given a number.
 - **Come back to it.** Reload, and the district, the selection and the camera are where you left them.
 
@@ -166,6 +167,18 @@ Shot from this repository's build, on the sample city the app ships with — the
 | The video alone, with the mark `by Ephemora Skyline` burned in.                                                                                                         | Export, view switches, and the surfaces you open when you want them.                                                                                | Interface, categories and fix recipes are bilingual; the scanner's own message stays as written.                                                           | Panels stay inside the viewport.                                            |
 
 The clip at the top is the same visit, filmed end to end. The clip plays 27.2 s at 1600 × 1000 and 30 fps, 2,595 KB, one video stream and no audio track. The moving picture beside it is 7 seconds of that build, 70 frames at 640 × 400 and 10 fps, 3,227 KB.
+
+## For schools and universities
+
+The same tool works as a classroom instrument. Put an answer key named `.skyline-uebung.json` into the project and a scoreboard card appears under the findings: the scan is graded against the key — a finding counts when path, rule and line (± a tolerance you set) match, and items nobody found reveal nothing about where they hide. Two finished exercises ship in [`teaching/uebungen/`](./teaching/uebungen/): a Node.js webshop and a Python data importer, each with planted flaws, a German worksheet and its key ([`teaching/README.md`](./teaching/README.md)); take the key file out for the blind version. The lesson plans — 45 and 90 minutes, a university lab that runs verdicts through `/api/verify`, and ten exam questions with model answers — are in [`docs/education/SCHULE_UNI_GUIDE.md`](./docs/education/SCHULE_UNI_GUIDE.md) ([English version](./docs/education/SCHOOL_UNI_GUIDE.md)). For the administrator who has to approve it, [`docs/education/IT_ADMIN_DATENSCHUTZ.md`](./docs/education/IT_ADMIN_DATENSCHUTZ.md) states in German and English what runs where and what may reach the network: the server binds to 127.0.0.1, there is no telemetry, and `SKYLINE_OFFLINE=1` closes the remaining outbound checks — offline install from the release `.tgz` included. Scoring and the no-peek behaviour are tested: `backend/tests/uebung-scoring.test.ts`, `frontend/tests/challengePanel.test.ts`.
+
+## What's new
+
+0.4.12 — 2026-11-19
+
+- **A finished scan stays finished, and a running one stays running.** — A permalink opened during a running scan now waits for the real result instead of the demo city, and a live rescan survives 15 consecutive 500s where a single one used to abandon it
+
+More in [CHANGELOG.md](./CHANGELOG.md).
 
 ## Documentation
 

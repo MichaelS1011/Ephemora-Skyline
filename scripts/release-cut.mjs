@@ -16,7 +16,7 @@
  * CHANGELOG's Unreleased section holds no line — no notes, no release.
  */
 import { execFileSync } from "node:child_process";
-import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { copyFileSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
 
 const REPO = path.resolve(import.meta.dirname, "..");
@@ -333,7 +333,14 @@ const url = run("gh", [
   "--notes-file",
   notesFile,
 ]).trim();
-run("gh", ["release", "upload", `v${next}`, tarball]);
+// Two names, one file. The versioned name is the record; the version-less one
+// is the address a README can carry without going stale on the next bump, so
+// `releases/latest/download/ephemora-skyline.tgz` always resolves. Copying
+// rather than renaming keeps the checksum line in the notes pointing at a file
+// that exists under the name it was measured under.
+const alias = path.join(stage, "ephemora-skyline.tgz");
+copyFileSync(tarball, alias);
+run("gh", ["release", "upload", `v${next}`, tarball, alias]);
 
 // ── 8. the identity of what was published ──────────────────────────────────
 console.log(

@@ -45,7 +45,7 @@ describe("the test files the changelog and the readme cite", () => {
   });
 
   /**
-   * README.md:57 promises the counted runs ended with "no test skipped". A cited
+   * README.md:201 promises the counted runs ended with "no test skipped". A cited
    * file is the evidence for a public claim, so a skip in it would quietly retire
    * that claim.
    */

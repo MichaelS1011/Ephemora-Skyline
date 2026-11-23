@@ -38,7 +38,7 @@ function installedCopies(name: string): string[] {
     .map((dir) => json<{ version: string }>(`${dir}/${name}/package.json`).version);
 }
 
-describe("the runtime the documents ask for (README.md:32, docs/GETTING_STARTED.md:22-27)", () => {
+describe("the runtime the documents ask for (README.md:26, docs/GETTING_STARTED.md:22-27)", () => {
   const engines = json<{ engines: { node: string; npm: string } }>("package.json").engines;
 
   it("matches the Node versions required by the installed Vite runtime", () => {
@@ -48,7 +48,7 @@ describe("the runtime the documents ask for (README.md:32, docs/GETTING_STARTED.
   });
 
   it("asks for npm 10 or newer", () => {
-    // README.md:32 "and **npm >= 10**", GETTING_STARTED.md:25 "≥ 10.0.0"
+    // README.md:26 "and **npm >= 10**", GETTING_STARTED.md:25 "≥ 10.0.0"
     expect(engines.npm).toBe(">=10.0.0");
   });
 
@@ -64,12 +64,12 @@ describe("the runtime the documents ask for (README.md:32, docs/GETTING_STARTED.
 });
 
 describe("the versions the badges and the stack tables name", () => {
-  it("runs React 19 (README.md:9)", () => {
+  it("runs React 19 (README.md:19)", () => {
     expect(minor(resolvedVersion("react"))).toBe("19.2");
     expect(resolvedVersion("react").startsWith("19.")).toBe(true);
   });
 
-  it("runs three.js revision 186 (README.md:10)", () => {
+  it("runs three.js revision 186 (README.md:20)", () => {
     // the badge reads r186; three versions the revision as 0.<revision>.<patch>
     expect(minor(resolvedVersion("three"))).toBe("0.186");
     expect(resolvedVersion("@types/three").startsWith("0.186.")).toBe(true);
@@ -116,13 +116,13 @@ describe("TypeScript: the one number the documents may not disagree about", () =
     expect(installedCopies("typescript")).toEqual([installed]);
   });
 
-  it("is the 5.9 line the README badge shows (README.md:8)", () => {
+  it("is the 5.9 line the README badge shows (README.md:18)", () => {
     expect(minor(installed)).toBe("5.9");
   });
 
   /**
    * docs/ARCHITECTURE.md:175 says "TypeScript 5.8 — typing". The repository
-   * resolves a 5.9 compiler (see the test above), and README.md:8 badges 5.9.
+   * resolves a 5.9 compiler (see the test above), and README.md:18 badges 5.9.
    * This test is deliberately not a copy of either sentence: it reads the minor
    * out of the architecture table and compares it with the compiler on disk.
    * While the two differ the test stays red and the finding is reported.
@@ -145,7 +145,7 @@ describe("TypeScript: the one number the documents may not disagree about", () =
   });
 });
 
-describe("the gates the README tells a reader to run (README.md:110-122)", () => {
+describe("the gates the README tells a reader to run (README.md:191-199)", () => {
   const root = json<{ scripts: Record<string, string> }>("package.json");
   const gateCommands = ["lint", "type-check", "test", "build"];
 
@@ -164,7 +164,7 @@ describe("the gates the README tells a reader to run (README.md:110-122)", () =>
   });
 
   it("ships no advisory waiver now that Tailwind 4 dropped the braces path", () => {
-    // README.md:188 says the audit gate accepts high findings only when an
+    // README.md:201 says the audit gate accepts high findings only when an
     // entry names them. The braces entry went away with Tailwind 4: the lockfile
     // no longer resolves braces at all, so neither the waiver nor the override
     // that pinned it has a subject.
@@ -183,7 +183,7 @@ describe("the names and cadences a reader can check", () => {
     expect(json<{ name: string }>("package.json").name).toBe("ephemora-skyline");
   });
 
-  // README.md:11 "Dependencies are checked for advisories weekly by Dependabot"
+  // README.md:21 "Dependencies are checked for advisories weekly by Dependabot"
   it("asks Dependabot weekly, as the badge claims", () => {
     const workflow = read(".github/dependabot.yml");
     const intervals = [...workflow.matchAll(/interval:\s*"?"?(\w+)/g)].map((m) => m[1]!);
@@ -191,7 +191,7 @@ describe("the names and cadences a reader can check", () => {
     expect(new Set(intervals)).toEqual(new Set(["weekly"]));
   });
 
-  it("keeps the two workspaces the README's install line promises (README.md:102)", () => {
+  it("keeps the two workspaces the README's install line promises (README.md:32)", () => {
     expect(json<{ workspaces: string[] }>("package.json").workspaces).toEqual([
       "frontend",
       "backend",
