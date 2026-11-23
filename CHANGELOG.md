@@ -9,6 +9,8 @@ came from a run on this machine, with the file and the check that produced it.
 
 ## [Unreleased]
 
+## [0.4.13] - 2026-11-23
+
 - **The city arrives after you ask for it, not before you open the page.** The 3D world, the ephe vitrine, the teaching boards and the share-shot were all packed into the entry chunk, so first paint shipped the whole three.js chain to readers who never rotate a building. The canvas moved to its own component (`frontend/src/components/WorldCanvas.tsx`) behind `React.lazy` + `Suspense`, the vitrine and the board copy followed, and the vite split groups pin `react`/`zustand` at priority 10 and `three`/`@react-three` at `entriesAware` priority 5 so nothing parks a hot vendor in the lazy chunk again. Measured on this tree's `dist`: the eagerly loaded chain fell from **~511 KB gzip to ~244 KB gzip** — the entry itself is **125.65 KB gzip**, the three.js core is lazy chunks (89–101 KB gzip each) that load only when the city is on screen. On touch screens, every control the scanner gives you now meets the 44 px wall — `@media (pointer: coarse)` floors in the five stylesheets, WCAG 2.5.5 size, never colour-only meaning. And the analyzing wait speaks: the status poll asks for its first answer immediately instead of idling out a two-second interval, and a run that moves nothing for ten minutes says so in words on the stage line (`scan.stalling`, en+de) — not with a colour, and never after a silent twenty-minute timeout. Pinned by `frontend/tests/world-canvas-lazy.test.tsx` (7 cases) and `frontend/tests/stall-nudge.test.ts` (4 cases). Measured on this tree: **96 backend files / 1,040 cases** and **245 frontend files / 2,956 cases** pass — **341 files / 3,996 cases** (2026-11-19); type-check, lint, build green.
 
 ## [0.4.12] - 2026-11-19

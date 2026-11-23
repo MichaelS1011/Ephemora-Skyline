@@ -174,9 +174,9 @@ The same tool works as a classroom instrument. Put an answer key named `.skyline
 
 ## What's new
 
-0.4.12 — 2026-11-19
+0.4.13 — 2026-11-23
 
-- **A finished scan stays finished, and a running one stays running.** — A permalink opened during a running scan now waits for the real result instead of the demo city, and a live rescan survives 15 consecutive 500s where a single one used to abandon it
+- **The city arrives after you ask for it, not before you open the page.** — The 3D world, the ephe vitrine, the teaching boards and the share-shot were all packed into the entry chunk, so first paint shipped the whole three.js chain to readers who never rotate a building
 
 More in [CHANGELOG.md](./CHANGELOG.md).
 
