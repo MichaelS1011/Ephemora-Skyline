@@ -188,7 +188,7 @@ export function ForgeApp({ onExit }: { onExit: () => void }) {
           ? { key: "export.download", vars: { count: result.fileCount } }
           : { key: "export.directory", vars: { count: result.fileCount } },
       );
-    } catch (err) {
+    } catch {
       setExportStatus({ key: "export.failed" });
     }
   };
