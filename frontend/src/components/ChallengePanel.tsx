@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useStore } from "../stores/useStore";
-import { isHostedDemo, localApiFetch } from "../demo/hosted";
+import { HOSTED_DEMO_ID, isHostedDemo, localApiFetch } from "../demo/hosted";
 import { t, type DictKey } from "../i18n";
 import {
   challengeCategoryKey,
@@ -47,7 +47,11 @@ export function ChallengePanel() {
   useEffect(() => {
     // A hosted page has no backend: the card stays absent instead of asking
     // an address that answers 404 (§ demo/hosted.ts).
-    if (isHostedDemo()) return;
+    // A demo city has no stored scan the backend could grade against an answer
+    // key: its `analysisId` is the demo's own id, which the analysis store never
+    // holds. Asking `/api/result/demo-001/challenge` only produces a 404 in the
+    // console — stay silent here just as the hosted page does (§ demo/hosted.ts).
+    if (isHostedDemo() || analysisId === HOSTED_DEMO_ID) return;
     if (!shouldFetchChallenge(analysisId, fetchedForRef.current)) return;
     let cancelled = false;
     fetchedForRef.current = analysisId;

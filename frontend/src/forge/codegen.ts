@@ -139,24 +139,31 @@ export async function writeProject(
   const picker = (window as unknown as { showDirectoryPicker?: () => Promise<DirectoryHandle> })
     .showDirectoryPicker;
   if (picker && !dir) {
-    const handle = await picker.call(window);
-    for (const file of files) {
-      const parts = file.path.split("/");
-      let current = handle;
-      for (const part of parts.slice(0, -1)) {
-        current = await current.getDirectoryHandle(part, { create: true });
+    try {
+      const handle = await picker.call(window);
+      for (const file of files) {
+        const parts = file.path.split("/");
+        let current = handle;
+        for (const part of parts.slice(0, -1)) {
+          current = await current.getDirectoryHandle(part, { create: true });
+        }
+        const writable = await (
+          await current.getFileHandle(parts.at(-1)!, { create: true })
+        ).createWritable();
+        await writable.write(file.content);
+        await writable.close();
       }
-      const writable = await (
-        await current.getFileHandle(parts.at(-1)!, { create: true })
-      ).createWritable();
-      await writable.write(file.content);
-      await writable.close();
+      return {
+        kind: "directory",
+        fileCount: files.length,
+        fileName: forgeText(lang, "export.folder"),
+      };
+    } catch {
+      // The picker can exist yet refuse: the reader cancels the folder dialog,
+      // or an embedding browser denies File System Access. The reader still
+      // expects their project — fall through to the one-ZIP download rather
+      // than reporting a failed export with nothing to show for the click.
     }
-    return {
-      kind: "directory",
-      fileCount: files.length,
-      fileName: forgeText(lang, "export.folder"),
-    };
   }
   const fileName = "ephemora-forge-app.zip";
   const blob = new Blob([createZip(files).buffer], { type: "application/zip" });

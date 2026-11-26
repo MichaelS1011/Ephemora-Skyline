@@ -116,6 +116,32 @@ describe("FORGE project ZIP fallback", () => {
     expect(blobs[0]!.type).toBe("application/zip");
   });
 
+  it("falls back to the ZIP when the picker exists but refuses", async () => {
+    // A reader who cancels the folder dialog — or an embedding browser that
+    // denies File System Access — must still get their project, not a failed
+    // export (§ frontend/src/forge/codegen.ts).
+    vi.useFakeTimers();
+    const picker = vi.fn(async () => {
+      throw new DOMException("The user aborted a request.", "AbortError");
+    });
+    Object.defineProperty(window, "showDirectoryPicker", {
+      configurable: true,
+      value: picker,
+    });
+    try {
+      const result = await writeProject(files);
+      expect(picker).toHaveBeenCalledTimes(1);
+      expect(result.kind).toBe("download");
+      expect(downloads).toEqual(["ephemora-forge-app.zip"]);
+      expect(blobs).toHaveLength(1);
+    } finally {
+      Reflect.deleteProperty(window, "showDirectoryPicker");
+      // Drain the revoke timer so it does not leak into the next test's count.
+      await vi.advanceTimersByTimeAsync(1000);
+      vi.useRealTimers();
+    }
+  });
+
   it("keeps the ZIP URL alive until the browser has started the download", async () => {
     vi.useFakeTimers();
     try {

@@ -447,7 +447,8 @@ app.get("/api/status/:id", (req: Request, res: Response): void => {
 // directory comes from `EPHEMORA_WEB_DIR` (a package install names it) or sits
 // where the workspace build leaves it; a dev checkout has no build and keeps
 // using Vite on its own port.
-const webDir = process.env.EPHEMORA_WEB_DIR ?? defaultFrontendDir(import.meta.url);
+const webDirRaw = process.env.EPHEMORA_WEB_DIR ?? defaultFrontendDir(import.meta.url);
+const webDir = typeof webDirRaw === "string" ? path.resolve(webDirRaw) : webDirRaw;
 serveFrontend(app, webDir);
 
 app.use(notFoundHandler());

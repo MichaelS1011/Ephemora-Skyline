@@ -112,6 +112,16 @@ describe("the classroom card", () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
+  it("does not ask the backend to grade the demo city", async () => {
+    // The local `Explore demo` city carries id demo-001 but has no stored scan.
+    // Asking for its challenge only produces a 404 in the console (§ hosted.ts).
+    const fetchMock = mockFetch({ ok: true, body: BOARD });
+    seed("en", "demo-001");
+    await show();
+    expect(host.querySelector(".cf-challenge")).toBeNull();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
   it("prints the exercise the key promised", async () => {
     mockFetch({ ok: true, body: BOARD });
     seed("en", "scan-1");
