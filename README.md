@@ -2,9 +2,9 @@
 
 **Your codebase as a city you can walk through: a folder is a district, a file is a tower, and every finding a scanner made burns on a roof.**
 
-Most repositories now hold more code than anyone has read. Skyline reads a folder on your machine and turns it into a 3D city in the browser. Taller towers are more tangled files. Red beacons are security findings, yellow lasers are copy-paste between files, red rings are circular imports. Click a tower and you get the file, the line, the rule that fired and the steps to fix it.
+Skyline reads a folder on your machine and turns it into a 3D city in the browser. Taller towers are more tangled files. Red beacons are security findings, yellow lasers are copy-paste between files, red rings are circular imports. Click a tower and you get the file, the line, the rule that fired and the steps to fix it.
 
-Nothing is uploaded. No account, no login, no telemetry: the scanner and the city both run on your machine, the server binds to `127.0.0.1`, and **your source is never uploaded and never sent to a third party**. English and German. Desktop browser; the 3D city is not built for phones.
+Nothing is uploaded. No account, no login, no telemetry: scanner and city run on your machine, the server binds to `127.0.0.1`, and **your source is never uploaded and never sent to a third party**. English and German. Desktop browser; the 3D city is not built for phones.
 
 <a href="docs/assets/demo-city.mp4"><img src="docs/assets/demo-city-loop.gif" alt="A codebase as a 3D city: folders are districts, files are towers, and red beacons sit on the files a scanner flagged" width="100%"></a>
 
@@ -29,9 +29,9 @@ Needs **Node 20.19+ or 22.12+** (Node 21 is unsupported) and **npm >= 10**. Past
 git clone --depth 1 https://github.com/MichaelS1011/Ephemora-Skyline.git && cd Ephemora-Skyline && npm install && npm start
 ```
 
-Press **Explore demo** first if you only want to look: that city is sample files with sample findings, and no scanner ran on it. Press **Choose project folder** to scan your own. `npm run dev` is the coding loop (Vite on :3010, API on :4000); every screen, switch and shortcut is walked through in [`docs/GETTING_STARTED.md`](./docs/GETTING_STARTED.md).
+Press **Explore demo** to look: sample files, sample findings, no scanner ran. Press **Choose project folder** to scan your own. `npm run dev` is the coding loop (Vite :3010, API :4000); every screen and shortcut: [`docs/GETTING_STARTED.md`](./docs/GETTING_STARTED.md).
 
-No clone, no build: every release since v0.3.0 carries the compiled app as `ephemora-skyline-<version>.tgz` on [the releases page](https://github.com/MichaelS1011/Ephemora-Skyline/releases). Download the newest one into an empty folder, then:
+No clone, no build: every release since v0.3.0 carries the compiled app as `ephemora-skyline-<version>.tgz` on [the releases page](https://github.com/MichaelS1011/Ephemora-Skyline/releases). Unpack the newest into an empty folder:
 
 ```bash
 npm install ./ephemora-skyline-<version>.tgz && node_modules/.bin/ephemora-skyline
@@ -43,8 +43,8 @@ Optional on your `PATH`: `gitleaks`, `semgrep`, `osv-scanner` and `ruff`. Withou
 
 ## What it is for
 
-- **Code your agent wrote.** A repository that grew faster than anyone could review it: the shape in one screen, then a walk to the files that carry the risk. It is also the answer to "what did the agent actually build?" — a picture instead of a diff.
-- **Triage, not a dashboard.** Every red light is a rule that matched, on a line from your own copy. You judge it, the verdict survives the next scan, and a coding agent can be pointed at the same finding.
+- **Code your agent wrote.** A repo that grew faster than anyone could review it: the shape in one screen, then a walk to the risky files — a picture instead of a diff.
+- **Triage, not a dashboard.** Every red light is a rule that matched, on a line from your own copy. You judge it; the verdict survives the next scan.
 - **Teaching.** The same scan grades a class exercise against an answer key, offline — see [For schools and universities](#for-schools-and-universities).
 
 ## What the city means
@@ -62,23 +62,23 @@ Optional on your `PATH`: `gitleaks`, `semgrep`, `osv-scanner` and `ruff`. Withou
 ## What you can do
 
 - **Walk it.** One block per top-level folder from above, ten folders or ten thousand. Click a block to open it as its own district.
-- **Read the names from far away.** A district label keeps a fixed legible size however far the camera is, and never paints over its neighbour. A folder name too long for its plate is cut there and read in full by a screen reader.
-- **See which files are too big.** A file past 500 lines, 50 branches, or carrying one line past 300 characters gets a note on its own card with the measured number and what splitting buys. Those notes are deliberately **not** findings — an early self-scan that counted them answered 122 findings, the lecture burying the queue the city exists for.
+- **Read the names from far away.** District labels keep a fixed legible size and never paint over their neighbour; long names are cut and read in full by a screen reader.
+- **See which files are too big.** Past 500 lines, 50 branches or a 300-character line, a file gets a note with the measured number and what splitting buys — deliberately **not** findings, so they do not bury the real queue.
 - **Take the Security Tour.** The camera flies finding to finding, worst first, and explains each one in plain words with a fix suggestion.
 - **Ask a resident.** Press `C` and a resident you call walks you to the highest finding that still needs your verdict.
-- **Get pointed back.** When a finding you still have to judge sits off-screen, a small pill shows at the screen edge with a word — `left`, `right`, `behind` — and the distance. Press it, the camera flies there.
-- **Judge, not just read.** Every finding carries its file, its line, the matched line with two lines either side from your own copy, the rule behind it and a fingerprint. Your verdict survives the next scan, and a coding agent can be pointed at the same finding.
-- **Hold `X` over a tower** and it shows the raw numbers behind its shape. Press `/` or Cmd/Ctrl+K to search. One control hides every panel and gives the city the whole window; `Esc` brings them back.
-- **Post it.** The built-in studio renders a postcard (PNG) or a clip in 16:9, 1:1 or 9:16 — MP4/H.264 1080p, written on your machine. You get the file: no suggested caption, no platform row. SARIF 2.1.0 carries the scan id and the fingerprints.
-- **Check for updates.** One row in the ••• menu asks the published releases once and answers in words: a newer version with a link, you are on the newest published version, nothing published to compare with yet, or could not check. The hourly background check starts on first run, and one click in the same menu turns it off permanently.
+- **Get pointed back.** Off-screen findings show a pill at the edge — `left`, `right`, `behind` — with the distance; press it and the camera flies there.
+- **Judge, not just read.** Every finding carries its file, its line, the matched line with two lines either side from your own copy, the rule behind it and a fingerprint. Your verdict survives the next scan.
+- **Hold `X` over a tower** for its raw numbers. `/` or Cmd/Ctrl+K searches; one control hides every panel, `Esc` brings them back.
+- **Post it.** The studio renders a PNG postcard or a 16:9, 1:1 or 9:16 clip — MP4/H.264 1080p, written on your machine, no caption or platform row. SARIF 2.1.0 carries scan id and fingerprints.
+- **Check for updates.** One row in the ••• menu asks the published releases once and answers in words: newer with a link, newest, nothing published yet, or could not check. An hourly check starts on first run; one click in the same menu turns it off permanently.
 - **See what changed since your last scan.** The project card compares with the earlier scan of the same project: new, no longer detected, at another line, unchanged. A scan made with a different project, scanner set or sample is called not comparable instead of being given a number.
 - **Come back to it.** Reload, and the district, the selection and the camera are where you left them.
 
 ## Four questions, four cities
 
 Other projects draw cities from code too, and we like them. They answer
-questions Skyline does not, so here is the honest map — stars, licences and
-last movement checked 2026-11-01.
+questions Skyline does not, so here is the honest map — stars, licences
+and last movement checked 2026-11-01.
 
 | You want to know                      | Go with                                                                       | What it does                                          |
 | ------------------------------------- | ----------------------------------------------------------------------------- | ----------------------------------------------------- |
@@ -88,17 +88,17 @@ last movement checked 2026-11-01.
 | what your files hold, on your machine | **Skyline**                                                                   | the code itself, with the risky lines lit             |
 
 One difference decides the rest: Skyline reads file contents, not the commit
-graph. That is why it needs no GitHub token, no account and no hosted service —
-it binds to `127.0.0.1`, and your source never leaves the desk it sits on.
-The other three are better at being seen: a film, a shareable profile, a large
-metric set. A city of your own files, unread by anyone else, is a quieter thing.
+graph — no GitHub token, no account, no hosted service; it binds to `127.0.0.1`,
+and your source never leaves the desk it sits on. The other three are better
+at being seen: a film, a shareable profile, a large metric set. A city of your
+own files, unread by anyone else, is a quieter thing.
 
 ## What it will not tell you
 
 Read this before the list above means anything.
 
 - **A finding is a rule that matched, not an exploit proven.** Every card names the scanner and the line, so you can check it. The check is the product; the red light is only the pointer.
-- **There is no accuracy number here, on purpose.** Precision and recall need an annotated corpus this repository does not have, so the honest scan to show is its own: the default profile over this checkout reported **55 findings**, and **0 of them** landed on an `expect(...)` line. All 55 are deliberate test or teaching surface — 22 rule fixtures in `backend/tests/fixtures/regeln/`, 16 rows from the two exercises in `teaching/uebungen/` (the 11 planted flaws — 10 visible without the optional engines — plus 4 second-channel reports of the same lines and one judgment item), and 17 `CONSOLE_USAGE` hits (16 CLI scripts and one frontend test). The policy gate, `npm run self-scan`, excludes the fixture and teaching folders and that one rule and answers **0**; the list ships as [`docs/self-scan-findings.ndjson`](./docs/self-scan-findings.ndjson), and where all 55 sit is in [`docs/LIMITS.md`](./docs/LIMITS.md).
+- **There is no accuracy number here, on purpose.** Precision and recall need an annotated corpus this repository does not have, so the honest scan to show is its own: the default profile over this checkout reported **55 findings**, and **0 of them** landed on an `expect(...)` line. All 55 are deliberate test or teaching surface — 22 rule fixtures in `backend/tests/fixtures/regeln/`, 16 rows from the two exercises in `teaching/uebungen/` (the 11 planted flaws, 10 visible without the optional engines, plus 4 second-channel reports and one judgment item), and 17 `CONSOLE_USAGE` hits outside the exercises (16 CLI scripts and one frontend test; 18 including one inside an exercise). The policy gate, `npm run self-scan`, excludes the fixture and teaching folders and that one rule and answers **0**; the list ships as [`docs/self-scan-findings.ndjson`](./docs/self-scan-findings.ndjson), and where all 55 sit is in [`docs/LIMITS.md`](./docs/LIMITS.md).
 - **It does not run your code to analyse it.** No execution, no fuzzing, no reachability proof. The one route that executes something is named on screen: **Run test file** runs your own project's test file with your user rights, not in a sandbox, so it can use the network — only after you press it.
 - **It does not write to your project.** The explanation layer has a voice and no pen.
 - **A city outlives the process, not a backup.** The newest 20 completed runs are kept on disk (`~/.ephemora-skyline/runs`, owner-only), so a `?city=` link survives a restart until 20 newer scans replace it. Export SARIF or PNG for a lasting record.
@@ -106,13 +106,13 @@ Read this before the list above means anything.
 
 ## It says so when it cannot read
 
-Every stored setting answers one of three things: read, absent, **unreadable**. Bytes that refuse to parse are parked under their own key and survive the next save, and the screen says the difference in words instead of showing an empty state. This covers the verdict file on disk (while it reads badly no write and no reset touches it), the rule packs, the excluded folders, the list of cities you opened, your preferences, the names you gave residents, the saved look of the figure, this browser's verdicts, the record of earlier scans, the chosen scan profile and the entry screen's count of saved names — fourteen sentences, English and German.
+Every stored setting answers one of three things: read, absent, **unreadable**. Bytes that refuse to parse are parked under their own key and survive the next save, and the screen says the difference in words instead of showing an empty state. This covers the verdict file on disk (while it reads badly no write or reset touches it), the rule packs, the excluded folders, the opened cities, your preferences, resident names, the figure's look, this browser's verdicts, earlier scans, the scan profile and the saved-name count — fourteen sentences, English and German.
 
 Colour never carries a meaning alone: severity chips have a shape and a word, an alarm plot gets a wedge _and_ a count, and the colour-blind palette reaches every surface that paints a severity. Gold means one thing only: where your keyboard is. Guarded in `frontend/tests/arrival-budget.test.tsx` (four standing surfaces) and `frontend/tests/waypoint.test.tsx`.
 
 ## Privacy
 
-The backend binds to `127.0.0.1` by default, and the fifteen routes that carry the origin guard refuse a request a foreign web page sent, checked by `Origin` and `Sec-Fetch-Site`. Ten of them can do something beyond answering a question: start a scan, fold a live delta into one, cancel one, run a folder's own tests, purge staged copies, verify a scan against a later one, write a project's verdicts, delete every stored verdict, export a city, ask a model on this machine about one flagged line. The five reads of the local program: the demo, the city-mapped demo, the rule-pack list, the rule-class names, the disk footprint. When you pick a folder, the browser reads it and posts the contents over loopback — code crosses the loopback interface and stops there. What does leave the machine are lookups the scanners make for their own rule and advisory data, and those carry names, never code:
+The backend binds to `127.0.0.1` by default, and the fifteen routes that carry the origin guard refuse a request a foreign web page sent, checked by `Origin` and `Sec-Fetch-Site`. Ten of them can do something beyond answering a question: start a scan, fold a live delta into one, cancel one, run a folder's tests, purge staged copies, verify a scan, write a project's verdicts, delete every stored verdict, export a city, ask a local model about one flagged line. The five reads of the local program: the demo, the city-mapped demo, rule packs, rule classes, disk footprint. Picking a folder reads it and posts the contents over loopback — code stops there. What leaves the machine are scanner lookups for rule and advisory data, carrying names, never code:
 
 | Host                   | Made by                             | Leaves the machine                                          | When                                                                                                |
 | ---------------------- | ----------------------------------- | ----------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
@@ -125,11 +125,11 @@ The backend binds to `127.0.0.1` by default, and the fifteen routes that carry t
 | `registry-1.docker.io` | the Semgrep Docker fallback         | nothing but an image pull (`semgrep/semgrep:1.162.0`)       | Semgrep selected, no binary on `PATH`, Docker present                                               |
 | `registry.npmjs.org`   | `npm ci` in the in-city test runner | whatever your own project's tests install                   | only when you press **Run test file** on a building                                                 |
 
-The entry screen renders this same list from the same declaration the backend obeys, and a test fails if the two ever name different hosts. `SKYLINE_OFFLINE=1` switches off the update check, the OSV and dependency checks, and Semgrep unless a local rule pack is on disk; it also closes pip-audit, the Docker pull and any `npm ci` the runner would attempt. With it set, nothing above is reached.
+The entry screen renders this list from the same declaration the backend obeys, and a test fails if the two ever name different hosts. `SKYLINE_OFFLINE=1` switches off the update check, OSV and dependency checks, Semgrep (unless a local pack exists), pip-audit, the Docker pull and any `npm ci` — with it set, nothing above is reached.
 
-Limits are numbers too: local analysis is capped at **10,000 files / 150 MB / 2 MB per file**, a larger folder opens as a preview sample of up to 2,000 files with the full count named, and your own `.gitignore` sets paths aside before the cap applies. Over this checkout, the browser reader's own decision counts **787** files the project calls source and admits them to the read, and the scan's own single decision, `isScanCandidate`, then reads **751** of those. Two sets, two names, and `backend/tests/claims-counts.test.ts` calls both shipped functions over this tree and fails, printing both numbers, the moment this sentence drifts.
+Limits are numbers too: local analysis is capped at **10,000 files / 150 MB / 2 MB per file**, a larger folder opens as a preview sample of up to 2,000 files with the full count named, and your own `.gitignore` sets paths aside before the cap applies. Over this checkout, the browser reader's own decision counts **787** files the project calls source, and the scan's `isScanCandidate` then reads **751** of those; `backend/tests/claims-counts.test.ts` calls both shipped functions and fails, printing both numbers, the moment this sentence drifts.
 
-**Telemetry: none.** The only request the app makes for itself is the anonymous release check above — no code, no path, no machine identity, once an hour, and one click in a city's More menu ends it permanently. Maintainers read adoption through [GitHub's traffic and clone statistics](https://docs.github.com/en/rest/metrics/traffic) (`GH_TOKEN=*** node scripts/clone-stats.mjs`), which count clones without identifying anyone; those endpoints need a token with write access to this repository and report 14 days. The UI typeface ships inside the app, and a test fails if the entry document ever references a third-party host. More in [`docs/PRIVACY.md`](./docs/PRIVACY.md); reporting a vulnerability follows [SECURITY.md](./SECURITY.md).
+**Telemetry: none.** The only request the app makes for itself is the anonymous release check above — no code, no path, no machine identity, once an hour, and one click in a city's More menu ends it permanently. Maintainers read adoption through [GitHub's traffic and clone statistics](https://docs.github.com/en/rest/metrics/traffic) (`GH_TOKEN=*** node scripts/clone-stats.mjs`), which count clones without identifying anyone (token with write access, 14 days). The UI typeface ships inside the app; a test fails if the entry document references a third-party host. More in [`docs/PRIVACY.md`](./docs/PRIVACY.md); vulnerabilities: [SECURITY.md](./SECURITY.md).
 
 ## What it checks
 
@@ -140,11 +140,11 @@ Limits are numbers too: local analysis is capped at **10,000 files / 150 MB / 2 
 | **Deep**     | Standard plus a secret scan of the git history                                                              |
 | **Custom**   | The same checks, chosen by you: categories, engines and rule pack                                           |
 
-Findings fall into nine switchable categories — injection and execution, secrets, cryptography, transport and certificates, data exposure, dependencies and supply chain, permissions and destructive actions, code hygiene, and a bucket for rules whose CWE the taxonomy does not know. Your own patterns work too: up to 25 regular expressions, each validated against a ReDoS canary before it runs. Where the Semgrep rules come from: [`docs/SCANNERS.md`](./docs/SCANNERS.md).
+Findings fall into nine switchable categories — injection and execution, secrets, cryptography, transport and certificates, data exposure, dependencies and supply chain, permissions and destructive actions, code hygiene, and a bucket for rules whose CWE the taxonomy does not know. Your own patterns work too: up to 25 regular expressions, each validated against a ReDoS canary before it runs. Rules: [`docs/SCANNERS.md`](./docs/SCANNERS.md).
 
 ## Screens
 
-Shot from this repository's build, on the sample city the app ships with — the one place a picture can be honest, because nobody's code is in it. The structure, security and narrow frames were re-shot on 2026-11-13 after the kerb, stop and lighting pass; the remaining frames are from 2026-10-21.
+Shot from this repository's build, on the sample city the app ships with — the one place a picture can be honest, because nobody's code is in it. Structure, security and narrow frames were re-shot on 2026-11-13; the remaining frames are from 2026-10-21.
 
 | Entry screen                                                                                                                                                        | Scan settings                                                                                                                                                            |
 | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
@@ -168,7 +168,7 @@ Shot from this repository's build, on the sample city the app ships with — the
 
 The clip at the top is the same visit, filmed end to end. The clip plays 27.2 s at 1600 × 1000 and 30 fps, 2,595 KB, one video stream and no audio track. The moving picture beside it is 7 seconds of that build, 70 frames at 640 × 400 and 10 fps, 3,227 KB.
 
-Two fresh frames were shot on 2026-11-26 from this same build — the city with its real towers and Forge in the Test step with the shop running — plus two 30-second walks recorded in a real browser and cut with `scripts/capture-demos.mjs`: [the city](docs/assets/captures/skyline.mp4) (1,684 KB) and [Forge](docs/assets/captures/forge.mp4) (458 KB). Both walks are 1280 × 720, 30 fps, one video stream and no audio track; the stills below are frames from them, not a re-enactment.
+Two fresh frames were shot on 2026-11-26 from this same build — the city with its real towers and Forge in the Test step with the shop running — plus two 30-second walks recorded in a real browser and cut with `scripts/capture-demos.mjs`: [the city](docs/assets/captures/skyline.mp4) (1,684 KB) and [Forge](docs/assets/captures/forge.mp4) (458 KB). Both walks are 1280 × 720, 25 fps, one video stream and no audio track; the stills below are frames from them, not a re-enactment.
 
 | The city, freshly shot                                                                                                     | Forge, freshly shot                                                                                                                                  |
 | -------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -177,7 +177,7 @@ Two fresh frames were shot on 2026-11-26 from this same build — the city with 
 
 ## For schools and universities
 
-The same tool works as a classroom instrument. Put an answer key named `.skyline-uebung.json` into the project and a scoreboard card appears under the findings: the scan is graded against the key — a finding counts when path, rule and line (± a tolerance you set) match, and items nobody found reveal nothing about where they hide. Two finished exercises ship in [`teaching/uebungen/`](./teaching/uebungen/): a Node.js webshop and a Python data importer, each with planted flaws, a German worksheet and its key ([`teaching/README.md`](./teaching/README.md)); take the key file out for the blind version. The lesson plans — 45 and 90 minutes, a university lab that runs verdicts through `/api/verify`, and ten exam questions with model answers — are in [`docs/education/SCHULE_UNI_GUIDE.md`](./docs/education/SCHULE_UNI_GUIDE.md) ([English version](./docs/education/SCHOOL_UNI_GUIDE.md)). For the administrator who has to approve it, [`docs/education/IT_ADMIN_DATENSCHUTZ.md`](./docs/education/IT_ADMIN_DATENSCHUTZ.md) states in German and English what runs where and what may reach the network: the server binds to 127.0.0.1, there is no telemetry, and `SKYLINE_OFFLINE=1` closes the remaining outbound checks — offline install from the release `.tgz` included. Scoring and the no-peek behaviour are tested: `backend/tests/uebung-scoring.test.ts`, `frontend/tests/challengePanel.test.ts`.
+Put an answer key named `.skyline-uebung.json` into a project and a scoreboard grades the scan against it — a finding counts when path, rule and line (± a tolerance) match; missing items reveal nothing. Two exercises ship in [`teaching/uebungen/`](./teaching/uebungen/): a Node.js webshop and a Python importer, each with planted flaws, a German worksheet and a key ([`teaching/README.md`](./teaching/README.md)); remove the key for the blind version. Lesson plans (45/90 minutes, a lab through `/api/verify`, ten exam questions) are in [`SCHULE_UNI_GUIDE.md`](./docs/education/SCHULE_UNI_GUIDE.md) ([English](./docs/education/SCHOOL_UNI_GUIDE.md)). For the administrator: [`IT_ADMIN_DATENSCHUTZ.md`](./docs/education/IT_ADMIN_DATENSCHUTZ.md) states in German and English what runs where — 127.0.0.1, no telemetry, `SKYLINE_OFFLINE=1` closes outbound checks, offline `.tgz` install. Scoring and no-peek: `backend/tests/uebung-scoring.test.ts`, `frontend/tests/challengePanel.test.ts`.
 
 ## What's new
 
@@ -193,7 +193,7 @@ First look in one screen — what you see, what you can do, what you cannot: [`d
 
 ## Contributing
 
-**Apache License 2.0** — full text in [LICENSE](./LICENSE), attribution and the bundled components' licences in [NOTICE](./NOTICE). You may read it, run it, change it, ship it and sell work built on it; the name `Ephemora Skyline` is not part of what it grants (§6), and there is no warranty (§7, §8). How contributors treat each other in issues and pull requests is written in [CODE_OF_CONDUCT.md](./CODE_OF_CONDUCT.md).
+**Apache License 2.0** — full text in [LICENSE](./LICENSE), bundled components' licences in [NOTICE](./NOTICE). Read, run, change, ship and sell work built on it; the name `Ephemora Skyline` is not granted (§6), no warranty (§7, §8). Conduct: [CODE_OF_CONDUCT.md](./CODE_OF_CONDUCT.md).
 
 `.github/workflows/ci.yml` runs five gates on every push to `main` and on every pull request: lint, the type check, the test suite, the build, the dependency audit. No status badge sits above this text — a badge would need a service to answer to — so the commands are here for you to run:
 
@@ -205,6 +205,6 @@ npm run build                 # production build, both packages
 node scripts/audit-gate.mjs   # dependency audit
 ```
 
-4,004 cases measured 2026-11-23 — 2,960 frontend, 1,044 backend. The audit gate fails on every high or critical finding **except** those accepted in `scripts/audit-gate.mjs` by name with a dated re-check. Measured 2026-11-03, `npm audit` on this lockfile prints **0 findings** — 0 low, 0 moderate, 0 high, 0 critical — and `node scripts/audit-gate.mjs` exits 0. The `minimatch` override to 11.0.4 removed the last moderate advisories in the development chain, and the gate's waiver list is empty. The self-scan that keeps this repository clean under its own rules is `npm run self-scan`; its policy and exceptions are in [docs/SELF_SCAN.md](./docs/SELF_SCAN.md). Gates, conventions and the PR checklist: **[CONTRIBUTING.md](./CONTRIBUTING.md)**. Small, reviewable changes land fastest. Interface strings need an English and a German entry, and anything that changes the 3D render needs a real-GPU screenshot — headless CI cannot judge a WebGL scene.
+4,162 cases measured 2026-11-26 — 3,111 frontend, 1,051 backend. The audit gate fails on every high/critical finding except those accepted in `scripts/audit-gate.mjs` by name with a dated re-check; the waiver list is empty. Measured 2026-11-26, `npm audit` prints **0 findings**, `node scripts/audit-gate.mjs` exits 0; the `minimatch` override resolves to 11.0.4. Self-scan: `npm run self-scan` (policy: [docs/SELF_SCAN.md](./docs/SELF_SCAN.md)). Gates, conventions, PR checklist: **[CONTRIBUTING.md](./CONTRIBUTING.md)**. Interface strings need an English and a German entry; 3D-render changes need a real-GPU screenshot — headless CI cannot judge WebGL.
 
 Skyline is the piece of this work meant to be read and argued with, not the piece meant to earn. What changed since the last line of the story, each entry measured before it was written, is in [CHANGELOG.md](./CHANGELOG.md).
