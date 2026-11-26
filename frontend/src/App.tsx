@@ -1,4 +1,12 @@
 import { useState, useEffect, useMemo, useRef, useCallback, lazy, Suspense } from "react";
+import { ModeSelect } from "./forge/ui/ModeSelect";
+import { useForgeStore } from "./forge/store";
+import { forgeText } from "./forge/i18n";
+
+const ForgeApp = lazy(() =>
+  import("./forge/ForgeApp").then((module) => ({ default: module.ForgeApp })),
+);
+
 import { ModeBar } from "./components/ModeBar";
 import { Landing } from "./components/Landing";
 import { InfoPanel } from "./components/InfoPanel";
@@ -34,6 +42,7 @@ import { getDirLayout } from "./city/layout";
 import { useLodLevel } from "./hooks/useLodLevel";
 import type { CityData } from "./city/types";
 import { currentVisit } from "./urlState";
+import { fetchHostedCity, isHostedDemo } from "./demo/hosted";
 
 /**
  * The whole 3D world lives in `components/WorldCanvas.tsx` and arrives as a
@@ -84,6 +93,7 @@ export default function App() {
   // expensive path; only the manual one is ever persisted.
   const gfxLite = useStore((s) => s.prefs.gfxLite || s.autoGfxLite);
   const lang = useStore((s) => s.prefs.lang);
+  const forgeMode = useForgeStore((s) => s.mode);
   // The overview's LOD tier. The bounds are the current level's own half
   // extent, so the same threshold means the same thing in a district as in the
   // root city. The LOD hook owns the hysteresis, so the flat hulls, the light
@@ -194,22 +204,33 @@ export default function App() {
         // answer atomic — no window where status says complete and the
         // derived view still refuses. The budget bounds a wedged scan: after
         // it, the honest failure below runs instead of an eternal spinner.
-        const deadline = Date.now() + 5 * 60_000;
         let data: (CityData & { error?: string }) | undefined;
-        for (;;) {
-          const res = await fetch(`/api/result/${encodeURIComponent(cityId)}/city`, {
-            headers: { Accept: "application/json" },
-          });
+        if (isHostedDemo()) {
+          const loaded = await fetchHostedCity(cityId, import.meta.env.BASE_URL);
           if (loadSeq.current !== seq) return;
-          if (res.ok) {
-            data = (await res.json()) as CityData & { error?: string };
-            if (loadSeq.current !== seq) return;
-            break;
+          if (loaded.kind === "unsupported") {
+            setApiStatus("demo");
+            setPermalinkFailed(true);
+            return;
           }
-          const waitMs = res.status === 409 ? await stillAnalyzingWaitMs(res) : null;
-          if (waitMs === null || Date.now() >= deadline) throw new Error(`HTTP ${res.status}`);
-          await new Promise((r) => setTimeout(r, waitMs));
-          if (loadSeq.current !== seq) return;
+          data = loaded.data;
+        } else {
+          const deadline = Date.now() + 5 * 60_000;
+          for (;;) {
+            const res = await fetch(`/api/result/${encodeURIComponent(cityId)}/city`, {
+              headers: { Accept: "application/json" },
+            });
+            if (loadSeq.current !== seq) return;
+            if (res.ok) {
+              data = (await res.json()) as CityData & { error?: string };
+              if (loadSeq.current !== seq) return;
+              break;
+            }
+            const waitMs = res.status === 409 ? await stillAnalyzingWaitMs(res) : null;
+            if (waitMs === null || Date.now() >= deadline) throw new Error(`HTTP ${res.status}`);
+            await new Promise((r) => setTimeout(r, waitMs));
+            if (loadSeq.current !== seq) return;
+          }
         }
         // A city with no file in it is not a city — an archived skeleton can
         // rehydrate after its files aged out. The local-scan path refuses the
@@ -225,7 +246,7 @@ export default function App() {
         // setAnalysisId then loads this permalink's saved reviews on top.
         // Also registers the permalink city for SARIF export.
         setAnalysisId(cityId);
-        setApiStatus("live");
+        setApiStatus(isHostedDemo() ? "demo" : "live");
       } catch {
         if (loadSeq.current !== seq) return;
         // The id resolved to nothing. Say what is true rather than guessing:
@@ -296,6 +317,7 @@ export default function App() {
   // ── Keyboard navigation ──────────────────────────────────────────────────
   const handleKeyDown = useCallback(
     (e: KeyboardEvent) => {
+      if (useForgeStore.getState().mode === "build") return;
       const target = e.target as HTMLElement;
       const isInput =
         target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable;
@@ -495,13 +517,25 @@ export default function App() {
   const buildPhase = useStore((s) => s.buildPhase);
   const hasLiveBand = liveStatus !== "off" && !!cityData && liveAnalysisId === cityData.analysisId;
 
+  // BUILD is a separate scene. Returning here keeps the EXPLORE scene, its
+  // keyboard handler and its store untouched while the Forge is open.
+  if (forgeMode === "build" && !isHostedDemo()) {
+    return (
+      <Suspense
+        fallback={<div className="forge-mode-select">{forgeText(lang, "mode.loading")}</div>}
+      >
+        <ForgeApp onExit={() => useForgeStore.getState().setMode("select")} />
+      </Suspense>
+    );
+  }
+
   return (
     <div
       className={`app-shell ${selectedUnit ? "has-selection" : ""} ${cityOnly ? "is-city-only" : ""} ${hasLiveBand ? "has-live-band" : ""}`}
     >
       {/* The watch loop outlives the Landing: it is started from the store,
           not from the scan hook that unmounts when the city arrives. */}
-      <LiveBridge />
+      {!isHostedDemo() && <LiveBridge />}
       {/* WCAG 2.4.1: the first tab stop is this skip link, not the 3D stage.
           sr-only hides it visually without dropping it from the tab order
           (display:none would); focus:not-sr-only pins it to the top-left with
@@ -580,7 +614,9 @@ export default function App() {
                 width: "calc(100% - 32px)",
               }}
             >
-              <span>{t(lang, "app.permalinkError")}</span>
+              <span>
+                {t(lang, isHostedDemo() ? "app.hostedPermalinkError" : "app.permalinkError")}
+              </span>
               <button
                 onClick={() => setPermalinkFailed(false)}
                 aria-label={t(lang, "app.dismissAria")}
@@ -597,7 +633,7 @@ export default function App() {
               focus-visible:outline-hidden beats the global ring — the next tab
               stop draws it where the content actually is. */}
           <div id="main-content" tabIndex={-1} className="focus-visible:outline-hidden">
-            <Landing />
+            {forgeMode === "select" && !isHostedDemo() ? <ModeSelect /> : <Landing />}
           </div>
         </>
       )}

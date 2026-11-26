@@ -138,7 +138,7 @@ export default [
     // datetime should go through the same doors; `toLocaleDateString` and
     // `toLocaleTimeString` stay available, they carry no count.
     files: ["frontend/src/**/*.ts", "frontend/src/**/*.tsx"],
-    ignores: ["frontend/src/i18n.ts", "frontend/src/i18n/**"],
+    ignores: ["frontend/src/i18n.ts", "frontend/src/i18n/**", "frontend/src/forge/i18n.ts"],
     languageOptions: { parser },
     rules: {
       "no-restricted-syntax": [

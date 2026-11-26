@@ -3,6 +3,7 @@ import { allFiles } from "../city/layout";
 import { formatCount, t, type DictKey, type Lang } from "../i18n";
 import { useStore } from "../stores/useStore";
 import type { VerifyComparabilityReason } from "../verify";
+import { HOSTED_DEMO_ID, isHostedDemo } from "../demo/hosted";
 
 /** A sample path shown beside the count, so the reader knows which earlier visit. */
 function samplePath(city: NonNullable<ReturnType<typeof useStore.getState>["cityData"]>): string {
@@ -55,6 +56,7 @@ export function SinceLastScan({
   const verify = useStore((s) => s.verify);
   const runVerify = useStore((s) => s.runVerify);
   const cityData = useStore((s) => s.cityData);
+  const hosted = isHostedDemo();
   const setShowFindings = useStore((s) => s.setShowFindings);
   const setNewFindingsOnly = useStore((s) => s.setNewFindingsOnly);
   const [showMoved, setShowMoved] = useState(false);
@@ -63,13 +65,14 @@ export function SinceLastScan({
   // "idle" at the moment the reader looks; this component is on screen exactly
   // when the question matters.
   useEffect(() => {
+    if (hosted || cityData?.analysisId === HOSTED_DEMO_ID) return;
     if (previousScan) void runVerify({ silent: true });
-  }, [previousScan, runVerify]);
-  if (!cityData) return null;
+  }, [previousScan, runVerify, hosted, cityData?.analysisId]);
+  if (hosted || !cityData) return null;
 
   // The demo city is sample data with a fixed id; a comparison against a real
   // scan with the same file list would be about two different things.
-  if (cityData.analysisId === "demo-001") return null;
+  if (cityData.analysisId === HOSTED_DEMO_ID) return null;
 
   const report = verify.status === "ran" ? verify.report : null;
   const newFindings = report?.newFindings ?? [];

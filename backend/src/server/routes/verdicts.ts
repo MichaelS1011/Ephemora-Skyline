@@ -155,23 +155,32 @@ export class VerdictStore {
     }
   }
 
-  private persist(payload: string): Promise<void> {
-    this.chain = this.chain
-      .then(async () => {
-        const file = verdictsFile();
+  private async persist(payload: string): Promise<void> {
+    const write = this.chain.then(async () => {
+      const file = verdictsFile();
+      const tmp = `${file}.tmp`;
+      try {
         await fs.mkdir(path.dirname(file), { recursive: true, mode: 0o700 }).catch(() => {});
         await fs.chmod(path.dirname(file), 0o700).catch(() => {});
-        const tmp = `${file}.tmp`;
         await fs.writeFile(tmp, payload, { mode: 0o600 });
         await fs.rename(tmp, file);
-      })
-      .catch((e) => {
-        console.error(`verdicts: could not write ${verdictsFile()}`, e);
-      });
-    // The caller awaits this promise: a save that answers 200 before the
-    // bytes reached the disk reopens the very loss window the whole file
-    // exists to close — "cleared/restarted and the verdicts were gone".
-    return this.chain;
+      } catch (e) {
+        await fs.rm(tmp, { force: true }).catch(() => {});
+        throw e;
+      }
+    });
+    // Keep the queue usable after a failed write; each caller still sees its own rejection.
+    this.chain = write.catch(() => {});
+    try {
+      await write;
+    } catch (e) {
+      // RAM now describes bytes that were not committed. The next request must read the disk.
+      this.projects.clear();
+      this.scans.clear();
+      this.load = null;
+      console.error(`verdicts: could not write ${verdictsFile()}`, e);
+      throw e;
+    }
   }
 
   /** The bucket's verdicts; `null` when the file is unreadable — not `{}`, which would lie. */
@@ -343,12 +352,22 @@ export async function handlePutVerdicts(
     res.status(400).json({ error: "A project bucket key is required", code: "bad_project" });
     return;
   }
-  const saved = await verdictStore.set(project, body?.reviews);
-  if (saved === null) {
-    res.status(503).json({ error: "The verdict file is unreadable", code: "verdicts_unreadable" });
+  let saved: VerdictMap | null;
+  try {
+    saved = await verdictStore.set(project, body?.reviews);
+    if (saved === null) {
+      res
+        .status(503)
+        .json({ error: "The verdict file is unreadable", code: "verdicts_unreadable" });
+      return;
+    }
+    await registerScanProject(id, project);
+  } catch {
+    res
+      .status(503)
+      .json({ error: "The verdict file could not be written", code: "verdicts_write_failed" });
     return;
   }
-  await registerScanProject(id, project);
   res.json({ project, saved: Object.keys(saved).length });
 }
 
@@ -359,7 +378,15 @@ export async function handlePutVerdicts(
  * courtesy, this store is the door.
  */
 export async function handleResetVerdicts(_req: Request, res: Response): Promise<void> {
-  const cleared = await verdictStore.clear();
+  let cleared: number | null;
+  try {
+    cleared = await verdictStore.clear();
+  } catch {
+    res
+      .status(503)
+      .json({ error: "The verdict file could not be written", code: "verdicts_write_failed" });
+    return;
+  }
   if (cleared === null) {
     res.status(503).json({ error: "The verdict file is unreadable", code: "verdicts_unreadable" });
     return;

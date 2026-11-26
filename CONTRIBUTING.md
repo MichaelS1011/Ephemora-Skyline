@@ -39,6 +39,18 @@ You do not need the 3D city, a GPU screenshot or a scanner to make a first contr
 
 Whichever you pick, the gates below are the ones your pull request has to pass — CI runs the same five, and the template lists them as a checklist.
 
+## The hosted demo
+
+`https://` Pages builds the start screen with one flag, and the flag is the whole difference from a local install:
+
+```bash
+npm run build --workspace backend      # the demo city is the backend's own code
+node scripts/demo-city.mjs --check     # the committed bake still matches
+VITE_HOSTED_DEMO=1 npm run build --workspace frontend -- --base=/<repo-name>/
+```
+
+The page reads `frontend/public/demo/city.json` instead of `GET /api/cities/default`, hides the folder picker and points the in-city entry at the release — a hosted page has no backend, so it must not offer a scan it cannot perform. `frontend/src/demo/hosted.ts` is the only module that reads the flag, `backend/tests/demo-city-baked.test.ts` keeps the bake equal to `getDemoResult()` + `mapResultToCityData()`, and `frontend/tests/hosted-demo.test.ts` pins the picker behind the flag. Change the demo dataset and regenerate the bake in the same commit; `.github/workflows/pages.yml` runs the `--check` before it deploys.
+
 ## Before you open a PR — the five gates
 
 These are exactly what CI enforces: the steps in `.github/workflows/ci.yml`, which triggers on pushes to `main` and on pull requests against it. Run them clean first:
@@ -46,7 +58,7 @@ These are exactly what CI enforces: the steps in `.github/workflows/ci.yml`, whi
 ```bash
 npm run lint          # ESLint, zero warnings
 npm run type-check    # tsc --noEmit across both packages
-npm run test          # Vitest — 341 test files: 245 frontend, 96 backend (2026-11-19)
+npm run test          # Vitest — 343 test files: 246 frontend, 97 backend (2026-11-23)
 npm run build         # production build, both packages
 ```
 

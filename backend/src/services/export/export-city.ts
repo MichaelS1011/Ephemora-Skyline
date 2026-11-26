@@ -209,7 +209,14 @@ function isFileHere(at) {
 }
 
 const server = createServer((req, res) => {
-  const url = new URL(req.url || "/", "http://localhost");
+  let url;
+  try {
+    url = new URL(req.url || "/", "http://localhost");
+  } catch {
+    res.writeHead(400, { "content-type": "application/json; charset=utf-8" });
+    res.end(JSON.stringify({ error: "Bad request: the URL is invalid." }));
+    return;
+  }
   if (url.pathname === \`/api/result/\${encodeURIComponent(id)}/city\`) {
     res.writeHead(200, { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" });
     res.end(payload);

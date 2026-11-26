@@ -14,6 +14,7 @@ import type { VoxelSectionSpec } from "../city/voxels";
 import type { CityFile, CityFinding } from "../city/types";
 import { formatCount, t } from "../i18n";
 import { findingKey } from "../reviews";
+import { isHostedDemo, localApiFetch } from "../demo/hosted";
 import { useTestRunner } from "../hooks/useTestRunner";
 import {
   findingContextRanges,
@@ -243,6 +244,7 @@ export function SourceBlock({
   scrollToLine?: number | null;
 }) {
   const lang = useStore((s) => s.prefs.lang);
+  const hosted = isHostedDemo();
   const [open, setOpen] = useState(false);
   const [status, setStatus] = useState<SourceStatus>("idle");
   const [lines, setLines] = useState<string[] | null>(null);
@@ -254,20 +256,20 @@ export function SourceBlock({
   const load = useCallback(async (): Promise<void> => {
     // One fetch per file — the component is keyed by file.id, so `lines`
     // being non-null means this file's source is already here.
-    if (!analysisId || status === "loading" || lines) return;
+    if (hosted || !analysisId || status === "loading" || lines) return;
     setStatus("loading");
     try {
-      const res = await fetch(
-        `/api/result/${encodeURIComponent(analysisId)}/source/${encodeURIComponent(file.id)}`,
+      const res = await localApiFetch(
+        () => `/api/result/${encodeURIComponent(analysisId)}/source/${encodeURIComponent(file.id)}`,
       );
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      if (!res?.ok) throw new Error(`HTTP ${res?.status ?? "unavailable"}`);
       const payload = (await res.json()) as Partial<SourcePayload>;
       setLines(Array.isArray(payload.lines) ? payload.lines.map(String) : []);
       setStatus("ready");
     } catch {
       setStatus("error");
     }
-  }, [analysisId, status, lines, file.id]);
+  }, [hosted, analysisId, status, lines, file.id]);
 
   // Auto-load exactly once per file while idle — shouldAutoLoad keeps
   // loading/error/ready from re-fetching (no fetch loop; a failed auto-load
@@ -293,6 +295,8 @@ export function SourceBlock({
     const delta = rowRect.top - containerRect.top - containerRect.height / 2 + rowRect.height / 2;
     container.scrollTo({ top: container.scrollTop + delta, behavior: "smooth" });
   }, [scrollToLine, status]);
+
+  if (hosted) return null;
 
   const unavailable = (
     <div
@@ -503,7 +507,7 @@ export function RunTestsButton({
 
   const isTestFile = /\.[cm]?[jt]sx?$/i.test(filePath) && TEST_FILE.test(filePath);
   const busy = testRun.status === "installing" || testRun.status === "running";
-  if (!isTestFile) return null;
+  if (isHostedDemo() || !isTestFile) return null;
 
   return (
     <>

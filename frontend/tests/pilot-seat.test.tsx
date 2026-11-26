@@ -263,6 +263,21 @@ describe("the rig's own obligations", () => {
     expect(enter).toContain(".focus()");
   });
 
+  it("gives the keys to the world when the car was taken by mouse", () => {
+    const effect = rig.slice(
+      rig.indexOf("// Leaving the seat ends the flight"),
+      rig.indexOf("}, [cameraMode]);"),
+    );
+    const driveStart = effect.indexOf('if (cameraMode === "drive")');
+    const pilotStart = effect.indexOf('if (cameraMode === "pilot")');
+    expect(driveStart).toBeGreaterThanOrEqual(0);
+    expect(pilotStart).toBeGreaterThan(driveStart);
+    const driveEntry = effect.slice(driveStart, pilotStart);
+    expect(driveEntry).toContain('querySelector<HTMLElement>(".city-canvas")');
+    expect(driveEntry).toContain(".focus()");
+    expect(driveEntry).toContain("return;");
+  });
+
   it("writes the flight numbers on a beat, not per frame", () => {
     expect(rig).toMatch(/readoutAt\.current >= 0\.5/);
   });

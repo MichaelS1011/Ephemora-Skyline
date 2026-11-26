@@ -17,6 +17,7 @@ import {
   type NeighbourTower,
 } from "../city/neighbourTowns";
 import type { CityData } from "../city/types";
+import { isHostedDemo, localApiFetch } from "../demo/hosted";
 
 /**
  * The towns next door, drawn.
@@ -55,10 +56,10 @@ interface PlacedTower {
 /** One neighbour city, or nothing when its scan has left the store. */
 async function fetchTown(id: string, colorblind: boolean): Promise<Town | null> {
   try {
-    const res = await fetch(`/api/result/${encodeURIComponent(id)}/city`, {
+    const res = await localApiFetch(() => `/api/result/${encodeURIComponent(id)}/city`, {
       headers: { Accept: "application/json" },
     });
-    if (!res.ok) return null;
+    if (!res?.ok) return null;
     const city = (await res.json()) as CityData;
     const towers = townTowers(city, colorblind);
     return towers.length > 0 ? { id, towers } : null;
@@ -71,12 +72,13 @@ export function NeighbourTowns() {
   const cityData = useStore((s) => s.cityData);
   const analysisId = useStore((s) => s.analysisId);
   const colorblind = useStore((s) => s.prefs.colorblind);
+  const hosted = isHostedDemo();
   const meshRef = useRef<THREE.InstancedMesh>(null);
   const padRef = useRef<THREE.InstancedMesh>(null);
 
   const ids = useMemo(
-    () => (cityData ? selectNeighbourIds(recentCities(), analysisId ?? null) : []),
-    [cityData, analysisId],
+    () => (cityData && !hosted ? selectNeighbourIds(recentCities(), analysisId ?? null) : []),
+    [cityData, analysisId, hosted],
   );
 
   const [towns, setTowns] = useState<Town[]>([]);

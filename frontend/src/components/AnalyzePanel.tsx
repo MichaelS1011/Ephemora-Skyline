@@ -3,6 +3,7 @@ import { useLocalAnalysis } from "../hooks/useLocalAnalysis";
 import { ProfileChips } from "./ProfileChips";
 import { ScanExcludes } from "./ScanExcludes";
 import { useStore } from "../stores/useStore";
+import { isHostedDemo, RELEASES_URL } from "../demo/hosted";
 import { progressLine } from "../config/scanStages";
 import { formatDecimal, t } from "../i18n";
 
@@ -52,6 +53,10 @@ function ProgressBar({ progress, stage }: { progress: number; stage: string }) {
  */
 export function AnalyzePanel({ className = "" }: { className?: string }) {
   const lang = useStore((s) => s.prefs.lang);
+  // A hosted page cannot scan — this entry leads to the release instead
+  // (§ demo/hosted.ts). A picker that posts a folder into a 404 is the one
+  // thing the hosted demo must not offer.
+  const hosted = isHostedDemo();
   const [isOpen, setIsOpen] = useState(false);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const popoverRef = useRef<HTMLDivElement>(null);
@@ -120,15 +125,21 @@ export function AnalyzePanel({ className = "" }: { className?: string }) {
     <div className={`analyze-control relative ${className}`}>
       <button
         ref={triggerRef}
-        onClick={() => setIsOpen((v) => !v)}
-        aria-expanded={isOpen}
-        aria-controls="analyze-panel"
-        aria-label={
-          isAnalyzing
-            ? t(lang, "analyze.toggleAriaAnalyzing", { progress: analysisProgress })
-            : t(lang, "analyze.toggleAria")
+        onClick={
+          hosted
+            ? () => window.open(RELEASES_URL, "_blank", "noopener,noreferrer")
+            : () => setIsOpen((v) => !v)
         }
-        title={t(lang, "analyze.toggleTitle")}
+        aria-expanded={hosted ? undefined : isOpen}
+        aria-controls={hosted ? undefined : "analyze-panel"}
+        aria-label={
+          hosted
+            ? t(lang, "landing.hostedNoteLink")
+            : isAnalyzing
+              ? t(lang, "analyze.toggleAriaAnalyzing", { progress: analysisProgress })
+              : t(lang, "analyze.toggleAria")
+        }
+        title={hosted ? t(lang, "landing.hostedNoteLink") : t(lang, "analyze.toggleTitle")}
         className="analyze-trigger"
       >
         {/* The percentage stands once on the plate — on the bar, with the
@@ -139,7 +150,9 @@ export function AnalyzePanel({ className = "" }: { className?: string }) {
           ? `${isOpen ? "▲" : "▼"} ${t(lang, "analyze.analyzing")}`
           : isOpen
             ? t(lang, "analyze.close")
-            : t(lang, "analyze.open")}
+            : hosted
+              ? t(lang, "landing.hostedNoteLink")
+              : t(lang, "analyze.open")}
       </button>
 
       {isOpen && (
@@ -170,7 +183,9 @@ export function AnalyzePanel({ className = "" }: { className?: string }) {
           <ScanExcludes lang={lang} />
 
           <button
-            onClick={pickFolder}
+            onClick={
+              hosted ? () => window.open(RELEASES_URL, "_blank", "noopener,noreferrer") : pickFolder
+            }
             disabled={isAnalyzing}
             aria-busy={isAnalyzing}
             aria-label={isAnalyzing ? t(lang, "analyze.pickAriaBusy") : t(lang, "analyze.pickAria")}
@@ -199,6 +214,8 @@ export function AnalyzePanel({ className = "" }: { className?: string }) {
                 <span className="inline-block w-2 h-2 rounded-full bg-[#e8503c] animate-pulse" />
                 {t(lang, "analyze.analyzing")}
               </span>
+            ) : hosted ? (
+              t(lang, "landing.hostedNoteLink")
             ) : (
               t(lang, "landing.primary")
             )}

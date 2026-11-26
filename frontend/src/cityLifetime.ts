@@ -8,6 +8,7 @@
  * instead of reciting a default.
  */
 import { formatCount, t, type Lang } from "./i18n";
+import { isHostedDemo, localApiFetch } from "./demo/hosted";
 
 export interface RunArchiveBounds {
   maxEntries: number;
@@ -16,8 +17,8 @@ export interface RunArchiveBounds {
 /** Ask the server; a server that does not answer is reported, not guessed at. */
 export async function readRunArchiveBounds(): Promise<RunArchiveBounds | null> {
   try {
-    const res = await fetch("/api/health");
-    if (!res.ok) return null;
+    const res = await localApiFetch(() => "/api/health");
+    if (!res?.ok) return null;
     const body = (await res.json()) as { runArchive?: Partial<RunArchiveBounds> };
     const { maxEntries } = body.runArchive ?? {};
     return typeof maxEntries === "number" && Number.isInteger(maxEntries) && maxEntries > 0
@@ -29,6 +30,7 @@ export async function readRunArchiveBounds(): Promise<RunArchiveBounds | null> {
 }
 
 export async function cityLinkNotice(lang: Lang): Promise<string> {
+  if (isHostedDemo()) return t(lang, "actions.linkCopiedHosted");
   const bounds = await readRunArchiveBounds();
   if (!bounds) return t(lang, "actions.linkCopiedUnknown");
   return t(lang, "actions.linkCopied", { max: formatCount(lang, bounds.maxEntries) });

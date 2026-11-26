@@ -26,6 +26,7 @@ import { tx } from "../share/fallbackCopy";
 import { useCompactChrome } from "../hooks/useCompactChrome";
 import { severityTotal } from "../city/facts";
 import { systemAdoption } from "../prefs";
+import { isHostedDemo, localApiFetch, localApiHref, RELEASES_URL } from "../demo/hosted";
 
 interface ActionButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   label: string;
@@ -149,6 +150,7 @@ export function ActionBar() {
   const requestResidentCall = useStore((s) => s.requestResidentCall);
   const { runTests } = useTestRunner();
   const standalone = useOrigin((s) => s.origin) === "file";
+  const hosted = isHostedDemo();
   const [menuOpen, setMenuOpen] = useState(false);
   const [feedback, setFeedback] = useState<{ message: string; error?: boolean } | null>(null);
   const moreRef = useRef<HTMLDivElement>(null);
@@ -191,7 +193,7 @@ export function ActionBar() {
       ? (menuRef.current?.querySelector("#access-group") ?? menuRef.current)
       : menuRef.current;
     menuSpotAccessRef.current = false;
-    scope?.querySelector<HTMLButtonElement>("button:not([disabled])")?.focus();
+    scope?.querySelector<HTMLElement>('button:not([disabled]), a[role="menuitem"]')?.focus();
     const onPointerDown = (event: PointerEvent): void => {
       if (!moreRef.current?.contains(event.target as Node)) setMenuOpen(false);
     };
@@ -274,7 +276,8 @@ export function ActionBar() {
   /** The two kinds of "cannot run tests now" split by what they mean: while a
    *  run is on its way the label says so in words, anything else (no scan, no
    *  folder behind the demo) is a step that leads nowhere and is struck. */
-  const testsBlocked = !testing && (standalone || !analysisId || !cityOnDisk(cityData));
+  const testsUnavailable = hosted || standalone || !analysisId || !cityOnDisk(cityData);
+  const testsBlocked = !testing && testsUnavailable;
   /**
    * The seat in the tow-plane. Until this row existed the aircraft could only
    * be taken by a key nobody lists on screen — the seat was in the shortcut
@@ -332,9 +335,11 @@ export function ActionBar() {
     event.preventDefault();
     event.stopPropagation();
     const items = Array.from(
-      menuRef.current?.querySelectorAll<HTMLButtonElement>("button:not([disabled])") ?? [],
+      menuRef.current?.querySelectorAll<HTMLElement>(
+        'button:not([disabled]), a[role="menuitem"]',
+      ) ?? [],
     );
-    const current = items.indexOf(document.activeElement as HTMLButtonElement);
+    const current = items.indexOf(document.activeElement as HTMLElement);
     const next =
       event.key === "Home"
         ? 0
@@ -363,10 +368,12 @@ export function ActionBar() {
    */
   const downloadReport = (endpoint: "sarif" | "handoff", ext: "sarif" | "ndjson"): void => {
     closeMenu();
-    if (!analysisId) return;
+    if (!analysisId || hosted) return;
+    const href = localApiHref(() => `/api/result/${encodeURIComponent(analysisId)}/${endpoint}`);
+    if (!href) return;
     const name = `ephemora-${analysisId}.${ext}`;
     const a = document.createElement("a");
-    a.href = `/api/result/${encodeURIComponent(analysisId)}/${endpoint}`;
+    a.href = href;
     a.download = name;
     a.click();
     setFeedback({ message: t(lang, "actions.exportReportStarted", { name }) });
@@ -665,6 +672,26 @@ export function ActionBar() {
                 color: "#f2efe8",
               }}
             >
+              {hosted && (
+                <p className="mx-3 mb-2 mt-1 text-xs leading-relaxed text-[var(--meta-strong)]">
+                  {t(lang, "actions.hostedBackendNote")}{" "}
+                  <a
+                    href={RELEASES_URL}
+                    target="_blank"
+                    rel="noreferrer"
+                    role="menuitem"
+                    onClick={closeMenu}
+                    onKeyDown={(event) => {
+                      if (event.key !== " ") return;
+                      event.preventDefault();
+                      event.currentTarget.click();
+                    }}
+                    className="underline decoration-dotted underline-offset-2"
+                  >
+                    {t(lang, "landing.hostedNoteLink")} ↗
+                  </a>
+                </p>
+              )}
               {triageActive && (
                 <>
                   <button
@@ -707,32 +734,34 @@ export function ActionBar() {
                   </button>
                 </>
               )}
-              <button
-                role="menuitem"
-                type="button"
-                // a carried file has no staged copy to run: the button is struck
-                // with the reason, not offered and then refused
-                disabled={testing || standalone || !analysisId || !cityOnDisk(cityData)}
-                onClick={() => {
-                  closeMenu();
-                  setFeedback(null);
-                  void runTests();
-                }}
-                className="flex min-h-10 w-full items-center gap-3 rounded-lg px-3 text-left hover:bg-white/5"
-                style={struck(testsBlocked)}
-                title={
-                  standalone
-                    ? t(lang, "actions.runTestsExported")
-                    : !analysisId
-                      ? t(lang, "actions.runTestsNoScanTitle")
-                      : !cityOnDisk(cityData)
-                        ? t(lang, "actions.runTestsNoFolderTitle")
-                        : t(lang, "actions.runTestsTitle")
-                }
-              >
-                <span aria-hidden="true">▷</span>
-                {testing ? t(lang, "actions.testsRunning") : t(lang, "actions.runTests")}
-              </button>
+              {!hosted && (
+                <button
+                  role="menuitem"
+                  type="button"
+                  // a carried file has no staged copy to run: the button is struck
+                  // with the reason, not offered and then refused
+                  disabled={testing || testsUnavailable}
+                  onClick={() => {
+                    closeMenu();
+                    setFeedback(null);
+                    void runTests();
+                  }}
+                  className="flex min-h-10 w-full items-center gap-3 rounded-lg px-3 text-left hover:bg-white/5"
+                  style={struck(testsBlocked)}
+                  title={
+                    standalone
+                      ? t(lang, "actions.runTestsExported")
+                      : !analysisId
+                        ? t(lang, "actions.runTestsNoScanTitle")
+                        : !cityOnDisk(cityData)
+                          ? t(lang, "actions.runTestsNoFolderTitle")
+                          : t(lang, "actions.runTestsTitle")
+                  }
+                >
+                  <span aria-hidden="true">▷</span>
+                  {testing ? t(lang, "actions.testsRunning") : t(lang, "actions.runTests")}
+                </button>
+              )}
               <button
                 role="menuitem"
                 type="button"
@@ -772,57 +801,63 @@ export function ActionBar() {
                 <span aria-hidden="true">●</span>
                 {tx(lang, "menu.item")}
               </button>
-              <button
-                role="menuitem"
-                type="button"
-                disabled={!analysisId}
-                onClick={() => {
-                  closeMenu();
-                  openTimeMachine();
-                }}
-                className="flex min-h-10 w-full items-center gap-3 rounded-lg px-3 text-left hover:bg-white/5"
-                style={struck(!analysisId)}
-                title={!analysisId ? timeMachineText(lang, { key: "menuNoScan" }) : undefined}
-              >
-                <span aria-hidden="true">◷</span>
-                {timeMachineText(lang, { key: "menu" })}
-              </button>
+              {!hosted && (
+                <button
+                  role="menuitem"
+                  type="button"
+                  disabled={!analysisId}
+                  onClick={() => {
+                    closeMenu();
+                    openTimeMachine();
+                  }}
+                  className="flex min-h-10 w-full items-center gap-3 rounded-lg px-3 text-left hover:bg-white/5"
+                  style={struck(!analysisId)}
+                  title={!analysisId ? timeMachineText(lang, { key: "menuNoScan" }) : undefined}
+                >
+                  <span aria-hidden="true">◷</span>
+                  {timeMachineText(lang, { key: "menu" })}
+                </button>
+              )}
               {/* The two report exports. They live here, next to the picture,
                   because both describe the whole city — the SARIF link in the
                   file panel is easy to miss for anyone who has not opened a
                   building yet. */}
-              <button
-                role="menuitem"
-                type="button"
-                aria-disabled={!analysisId}
-                title={
-                  analysisId
-                    ? t(lang, "actions.exportSarifTitle")
-                    : t(lang, "actions.exportNoScanTitle")
-                }
-                onClick={() => downloadReport("sarif", "sarif")}
-                className="flex min-h-10 w-full items-center gap-3 rounded-lg px-3 text-left hover:bg-white/5"
-                style={struck(!analysisId)}
-              >
-                <span aria-hidden="true">↓</span>
-                {t(lang, "actions.exportSarif")}
-              </button>
-              <button
-                role="menuitem"
-                type="button"
-                aria-disabled={!analysisId}
-                title={
-                  analysisId
-                    ? t(lang, "actions.exportHandoffTitle")
-                    : t(lang, "actions.exportNoScanTitle")
-                }
-                onClick={() => downloadReport("handoff", "ndjson")}
-                className="flex min-h-10 w-full items-center gap-3 rounded-lg px-3 text-left hover:bg-white/5"
-                style={struck(!analysisId)}
-              >
-                <span aria-hidden="true">↓</span>
-                {t(lang, "actions.exportHandoff")}
-              </button>
+              {!hosted && (
+                <>
+                  <button
+                    role="menuitem"
+                    type="button"
+                    aria-disabled={!analysisId}
+                    title={
+                      analysisId
+                        ? t(lang, "actions.exportSarifTitle")
+                        : t(lang, "actions.exportNoScanTitle")
+                    }
+                    onClick={() => downloadReport("sarif", "sarif")}
+                    className="flex min-h-10 w-full items-center gap-3 rounded-lg px-3 text-left hover:bg-white/5"
+                    style={struck(!analysisId)}
+                  >
+                    <span aria-hidden="true">↓</span>
+                    {t(lang, "actions.exportSarif")}
+                  </button>
+                  <button
+                    role="menuitem"
+                    type="button"
+                    aria-disabled={!analysisId}
+                    title={
+                      analysisId
+                        ? t(lang, "actions.exportHandoffTitle")
+                        : t(lang, "actions.exportNoScanTitle")
+                    }
+                    onClick={() => downloadReport("handoff", "ndjson")}
+                    className="flex min-h-10 w-full items-center gap-3 rounded-lg px-3 text-left hover:bg-white/5"
+                    style={struck(!analysisId)}
+                  >
+                    <span aria-hidden="true">↓</span>
+                    {t(lang, "actions.exportHandoff")}
+                  </button>
+                </>
+              )}
               {/* One step further than folding a surface: every instrument
                   leaves, and the city keeps the frame. The header and this
                   dock are gone a moment later, so the exit is the small
@@ -1010,75 +1045,79 @@ export function ActionBar() {
                   </span>
                 </button>
               </div>
-              <button
-                role="menuitem"
-                type="button"
-                onClick={async () => {
-                  // A carried file has no backend and, by design, no network.
-                  // Measured before this guard: the click answered "up to date ()"
-                  // — the 503 from the file's own server parsed as a version
-                  // check that found no newer release. Saying "no connection"
-                  // is the true answer.
-                  if (standalone) {
-                    closeMenu();
-                    setFeedback({ message: t(lang, "update.unavailable"), error: true });
-                    return;
-                  }
-                  try {
-                    const r = await fetch("/api/update/check");
-                    if (!r.ok) {
+              {!hosted && (
+                <button
+                  role="menuitem"
+                  type="button"
+                  onClick={async () => {
+                    // A carried file has no backend and, by design, no network.
+                    // Measured before this guard: the click answered "up to date ()"
+                    // — the 503 from the file's own server parsed as a version
+                    // check that found no newer release. Saying "no connection"
+                    // is the true answer.
+                    if (standalone) {
+                      closeMenu();
                       setFeedback({ message: t(lang, "update.unavailable"), error: true });
                       return;
                     }
-                    const d = (await r.json()) as {
-                      updateAvailable?: boolean;
-                      latest?: string | null;
-                      current?: string;
-                      offline?: boolean;
-                    };
-                    setFeedback({
-                      message: d.updateAvailable
-                        ? t(lang, "update.available", { version: d.latest ?? "" })
-                        : d.offline
-                          ? t(lang, "update.unavailable")
-                          : // `latest: null` is not "you are current" — it is the
-                            // absence of anything to compare against (no release
-                            // published, or the registry answer was not usable).
-                            d.latest == null
-                            ? t(lang, "update.nonePublished")
-                            : t(lang, "update.upToDate", { version: d.current ?? "" }),
-                      error: !!d.offline,
-                    });
-                  } catch {
-                    setFeedback({ message: t(lang, "update.unavailable"), error: true });
-                  }
-                }}
-                className="flex min-h-10 w-full items-center gap-3 rounded-lg px-3 text-left hover:bg-white/5"
-              >
-                <span aria-hidden="true">↻</span>
-                {t(lang, "update.check")}
-              </button>
+                    try {
+                      const r = await localApiFetch(() => "/api/update/check");
+                      if (!r?.ok) {
+                        setFeedback({ message: t(lang, "update.unavailable"), error: true });
+                        return;
+                      }
+                      const d = (await r.json()) as {
+                        updateAvailable?: boolean;
+                        latest?: string | null;
+                        current?: string;
+                        offline?: boolean;
+                      };
+                      setFeedback({
+                        message: d.updateAvailable
+                          ? t(lang, "update.available", { version: d.latest ?? "" })
+                          : d.offline
+                            ? t(lang, "update.unavailable")
+                            : // `latest: null` is not "you are current" — it is the
+                              // absence of anything to compare against (no release
+                              // published, or the registry answer was not usable).
+                              d.latest == null
+                              ? t(lang, "update.nonePublished")
+                              : t(lang, "update.upToDate", { version: d.current ?? "" }),
+                        error: !!d.offline,
+                      });
+                    } catch {
+                      setFeedback({ message: t(lang, "update.unavailable"), error: true });
+                    }
+                  }}
+                  className="flex min-h-10 w-full items-center gap-3 rounded-lg px-3 text-left hover:bg-white/5"
+                >
+                  <span aria-hidden="true">↻</span>
+                  {t(lang, "update.check")}
+                </button>
+              )}
               {/* The passive note under the city is a standing request, and the
                   store has carried its switch since Lane STAAT closed the state
                   side (`toggleUpdateCheck`, read by `Landing.tsx:563`). Until
                   here the row was missing: the only way to decline it was to
                   leave the city. */}
-              <button
-                role="menuitemcheckbox"
-                type="button"
-                aria-checked={updateCheck}
-                onClick={() => {
-                  const next = toggleUpdateCheck();
-                  setFeedback({
-                    message: t(lang, next ? "actions.updateCheckOn" : "actions.updateCheckOff"),
-                    error: false,
-                  });
-                }}
-                className="flex min-h-10 w-full items-center gap-3 rounded-lg px-3 text-left hover:bg-white/5"
-              >
-                <span aria-hidden="true">{updateCheck ? "◉" : "○"}</span>
-                {t(lang, "actions.updateCheck")}
-              </button>
+              {!hosted && (
+                <button
+                  role="menuitemcheckbox"
+                  type="button"
+                  aria-checked={updateCheck}
+                  onClick={() => {
+                    const next = toggleUpdateCheck();
+                    setFeedback({
+                      message: t(lang, next ? "actions.updateCheckOn" : "actions.updateCheckOff"),
+                      error: false,
+                    });
+                  }}
+                  className="flex min-h-10 w-full items-center gap-3 rounded-lg px-3 text-left hover:bg-white/5"
+                >
+                  <span aria-hidden="true">{updateCheck ? "◉" : "○"}</span>
+                  {t(lang, "actions.updateCheck")}
+                </button>
+              )}
               <button
                 role="menuitem"
                 type="button"

@@ -57,7 +57,10 @@ export function editorDeepLink(opts: {
     opts.line !== undefined && opts.line > 0
       ? `:${opts.line}${opts.column ? `:${opts.column}` : ""}`
       : "";
-  return `${scheme}/${absolute}${pos}`;
+  // Keep path separators and the Windows drive colon, but protect characters
+  // that would otherwise start a query or fragment before the editor sees them.
+  const encoded = encodeURI(absolute).replace(/[?#]/g, (char) => encodeURIComponent(char));
+  return `${scheme}/${encoded}${pos}`;
 }
 
 /** Open the link without losing the 3D canvas context (same tab, new focus). */

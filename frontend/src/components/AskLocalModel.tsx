@@ -4,6 +4,7 @@ import { useLocalModel } from "../city/localModel";
 import { useOrigin } from "../stores/useOrigin";
 import { useStore } from "../stores/useStore";
 import type { CityFinding } from "../city/types";
+import { isHostedDemo, localApiFetch } from "../demo/hosted";
 
 /**
  * "Ask the local model" — one sentence about one line, from a model on the desk.
@@ -54,6 +55,13 @@ const reasonKey: Record<ExplainReason, DictKey> = {
 let inFlight = false;
 
 export function AskLocalModel({ finding }: { finding: CityFinding }) {
+  // Do not mount the health consumer at all on a static page. A late render
+  // guard would still let useLocalModel fetch /api/health on arrival.
+  if (isHostedDemo()) return null;
+  return <AskLocalModelContent finding={finding} />;
+}
+
+function AskLocalModelContent({ finding }: { finding: CityFinding }) {
   // The scan this finding belongs to — the same value the handoff and the
   // verdict writes use, read from the store rather than threaded through three
   // components that would only pass it on.
@@ -91,7 +99,7 @@ export function AskLocalModel({ finding }: { finding: CityFinding }) {
     : t(lang, "panel.askModelThinkingUnnamed");
 
   const ask = useCallback(async () => {
-    if (!analysisId || !finding.fingerprint || inFlight) return;
+    if (isHostedDemo() || !analysisId || !finding.fingerprint || inFlight) return;
     inFlight = true;
     holds.current = true;
     setState({ kind: "running" });
@@ -99,12 +107,16 @@ export function AskLocalModel({ finding }: { finding: CityFinding }) {
     const controller = new AbortController();
     abort.current = controller;
     try {
-      const res = await fetch("/api/explain-finding", {
+      const res = await localApiFetch(() => "/api/explain-finding", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ analysisId, fingerprint: finding.fingerprint, lang }),
         signal: controller.signal,
       });
+      if (!res) {
+        setState({ kind: "failed", key: reasonKey.unreachable });
+        return;
+      }
       const body = (await res.json().catch(() => null)) as {
         ok?: boolean;
         text?: string;

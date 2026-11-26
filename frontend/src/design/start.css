@@ -728,6 +728,20 @@
   line-height: 1.65;
   color: #959b90;
 }
+/* The hosted page's one sentence: what this page is, and what it is not.
+   Paid for with a rule on the left, so it reads as a notice and not as the
+   privacy line directly under it. */
+.landing-shell.start-v2 .landing-hosted-note {
+  margin-top: 14px;
+  padding: 8px 0 8px 12px;
+  border-left: 2px solid rgba(232, 80, 60, 0.6);
+  max-width: 62ch;
+}
+.landing-shell.start-v2 .landing-hosted-note a {
+  color: #f2efe8;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
 .landing-shell.start-v2 .landing-network {
   margin-top: 4px;
   max-width: none;

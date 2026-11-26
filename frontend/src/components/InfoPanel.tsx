@@ -13,6 +13,7 @@ import {
 import { coverageLine, isUncheckedClean, verdictBasis } from "../city/provenance";
 import { OpenInIde } from "./OpenInIde";
 import { findingKey, loadReviewsForCityRead, reviewKeyFor } from "../reviews";
+import { isHostedDemo } from "../demo/hosted";
 import { formatCount, formatDate, formatDecimal, t, type Lang } from "../i18n";
 import { PanelAdvice } from "./PanelAdvice";
 import { focusBelongsToFile, lineSegmentFor } from "../findings/panelLogic";
@@ -50,6 +51,7 @@ function churnAgeNote(lang: Lang, days: number | undefined, createdAt: string | 
 
 export function InfoPanel() {
   const lang = useStore((s) => s.prefs.lang);
+  const hosted = isHostedDemo();
   const colorblind = useStore((s) => s.prefs.colorblind);
   const cityData = useStore((s) => s.cityData);
   const selectedUnit = useStore((s) => s.selectedUnit);
@@ -647,7 +649,7 @@ export function InfoPanel() {
             repoKey={`${cityData.repo.owner}/${cityData.repo.name}`}
           />
         )}
-        {analysisId && (
+        {!hosted && analysisId && (
           <a
             href={`/api/result/${encodeURIComponent(analysisId)}/sarif`}
             download={`ephemora-${analysisId}.sarif`}
@@ -671,7 +673,7 @@ export function InfoPanel() {
       </div>
 
       <div className="mt-4">
-        <RunTestsButton filePath={file.path} analysisOnDisk={cityOnDisk(cityData)} />
+        <RunTestsButton filePath={file.path} analysisOnDisk={!hosted && cityOnDisk(cityData)} />
         <TestResultsBlock filePath={file.path} />
 
         {/* Honest-building structure — sections + voxel legend (only when the
@@ -698,7 +700,7 @@ export function InfoPanel() {
           file={file}
           // The demo city has no staged copy behind its id: asking for source
           // answers 404. No id means no button that can only fail.
-          analysisId={cityOnDisk(cityData) ? analysisId : null}
+          analysisId={!hosted && cityOnDisk(cityData) ? analysisId : null}
           key={file.id}
           autoLoad={focusedLine !== null || hasFindings}
           scrollToLine={sourceLine ?? focusedLine ?? firstLiveFindingLine}

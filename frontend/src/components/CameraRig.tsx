@@ -532,6 +532,11 @@ export function CameraRig() {
   // the camera for an orbit, a new city arriving — because a mode that left
   // without handing the aircraft back froze the show's plane in mid-sky.
   useEffect(() => {
+    if (cameraMode === "drive") {
+      // The car answers the same arrows, so its seat owns the canvas focus too.
+      document.querySelector<HTMLElement>(".city-canvas")?.focus();
+      return;
+    }
     if (cameraMode === "pilot") {
       // The seat belongs to the world. Whoever took it with the mouse left
       // their focus on a dock button, and that button answers ArrowUp by

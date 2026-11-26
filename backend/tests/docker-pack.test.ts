@@ -278,6 +278,23 @@ describe("an exported city answers a request it cannot parse", () => {
     expect(JSON.parse(after.body).analysisId).toBe("walk-1");
   }, 60_000);
 
+  it("answers an invalid request target with 400 and keeps the process alive", async () => {
+    const server = await runExportedServer();
+
+    const malformed = await request(server.port, "//[").catch((err: Error) => err);
+    expect(malformed, `malformed target got no answer: ${String(malformed)}`).not.toBeInstanceOf(
+      Error,
+    );
+    expect((malformed as Answer).status).toBe(400);
+
+    await waitForExit(server.child, 1500);
+    expect(server.child.exitCode, `server died:\n${server.stderr()}`).toBeNull();
+
+    const city = await request(server.port, `/api/result/${encodeURIComponent("walk-1")}/city`);
+    expect(city.status, city.body).toBe(200);
+    expect(JSON.parse(city.body).analysisId).toBe("walk-1");
+  }, 60_000);
+
   it("still refuses what only looks like a path inside the app", async () => {
     // The traversal guard is the other half of this handler; a decode that is
     // allowed to fail must not become a decode that is skipped.
@@ -593,6 +610,7 @@ function spawnServe(outDir: string, env: Record<string, string>): Spawned {
   // states it itself. One inherited from the test runner would decide a case by
   // accident, so it is dropped here and set per case.
   delete inherited.PORT;
+  delete inherited.NODE_USE_ENV_PROXY;
   const child = spawn(process.execPath, [path.join(outDir, "serve.mjs")], {
     cwd: outDir,
     env: { ...inherited, EPHEMORA_NO_OPEN: "1", ...env },

@@ -41,8 +41,8 @@ const KEYS: DictKey[] = [
 
 describe("the footprint block", () => {
   it("reads the footprint and offers both removals", () => {
-    expect(landing).toContain('fetch("/api/footprint")');
-    expect(landing).toContain('fetch("/api/footprint/purge", { method: "POST" })');
+    expect(landing).toContain('localApiFetch(() => "/api/footprint")');
+    expect(landing).toContain('localApiFetch(() => "/api/footprint/purge", { method: "POST" })');
     expect(landing).toContain('k.startsWith("ephemora-skyline-reviews:")');
     expect(landing).toContain('k.startsWith("ephemora-skyline-ephe-names:")');
     expect(landing).toMatch(/localStorage\.removeItem\(k\)/);

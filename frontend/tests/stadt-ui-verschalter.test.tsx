@@ -145,7 +145,9 @@ describe("der Versionshinweis hat seinen Schalter im Menü", () => {
   });
 
   it("is read by the landing it controls", () => {
-    expect(src("components/Landing.tsx")).toContain("if (!prefs.updateCheck) return;");
+    // The same line also stops the ask where it cannot be answered: a hosted
+    // page has no backend, so it offers the release link instead (§ demo/hosted).
+    expect(src("components/Landing.tsx")).toContain("if (!prefs.updateCheck || hosted) return;");
     expect(src("stores/useStore.ts")).toContain('setPref("updateCheck", next)');
   });
 });

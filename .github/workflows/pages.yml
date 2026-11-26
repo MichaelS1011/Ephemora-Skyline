@@ -1,0 +1,106 @@
+name: Demo (GitHub Pages)
+
+# The hosted demo is the same city the app draws, baked by the backend's own
+# two functions (`scripts/demo-city.mjs`) and served as a static page.
+#
+# WHAT THIS PAGE CANNOT DO. It has no backend, so it cannot scan. The build
+# sets VITE_HOSTED_DEMO=1, which reads the baked city instead of
+# `GET /api/cities/default`, hides the folder picker, and points the in-city
+# entry at the release page. `frontend/tests/hosted-demo.test.ts` pins those
+# three facts; the build below fails rather than publish a page that offers a
+# scan it cannot perform.
+#
+# WHY `--check` COMES FIRST. The bake is a committed file. A backend change
+# that moves a tower must regenerate it, and this step says so in one line
+# instead of shipping a city that disagrees with the release.
+on:
+  push:
+    branches: [main]
+    paths:
+      - "frontend/**"
+      - "backend/**"
+      - "scripts/**"
+      - "package.json"
+      - "package-lock.json"
+      - "turbo.json"
+      - "tsconfig.base.json"
+      - ".github/workflows/ci.yml"
+      - ".github/workflows/pages.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build the hosted demo
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Typecheck
+        run: npm run type-check
+
+      - name: Test
+        run: npm test
+
+      - name: Dependency audit
+        run: node scripts/audit-gate.mjs
+
+      - name: Build the backend (the demo city is its own code)
+        run: npm run build --workspace backend
+
+      - name: The baked demo is current
+        run: node scripts/demo-city.mjs --check
+
+      # The base path is the repository name, so a fork publishes to its own
+      # Pages URL instead of a path it does not own.
+      - name: Build the page under this repository's path
+        run: |
+          BASE="/${GITHUB_REPOSITORY#*/}/"
+          VITE_HOSTED_DEMO=1 npm run build --workspace frontend -- --base="$BASE"
+
+      # No grep for a missing scan path: the picker's module is still imported
+      # (the same app code ships), so the string is in the bundle by design.
+      # What must hold is that nothing reaches for it — the flag in
+      # `src/demo/hosted.ts` decides that, and `hosted-demo.test.ts` pins it.
+      - name: Upload the page
+        uses: actions/upload-pages-artifact@v4
+        with:
+          path: frontend/dist
+          if-no-files-found: error
+          retention-days: 1
+
+  deploy:
+    name: Deploy to Pages
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy
+        id: deployment
+        uses: actions/deploy-pages@v4

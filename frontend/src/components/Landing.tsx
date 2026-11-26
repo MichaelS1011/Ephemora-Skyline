@@ -20,6 +20,7 @@ import { honouredNames } from "../epheNames";
 import { readStoredJson } from "../storageRead";
 import { resetBackendVerdicts } from "../reviews";
 import { ScanExcludes } from "./ScanExcludes";
+import { demoCityPath, isHostedDemo, localApiFetch, RELEASES_URL } from "../demo/hosted";
 /** The vitrine is a three.js showcase behind a click; the start screen must
  * not download the 3D packages for a door most visitors walk past. */
 const EphePreview = lazy(() => import("./EphePreview").then((m) => ({ default: m.EphePreview })));
@@ -585,6 +586,8 @@ function RecentCities({ lang }: { lang: Lang }) {
 }
 
 export function Landing() {
+  // A hosted page has no backend to ask and no folder to scan (§ demo/hosted.ts).
+  const hosted = isHostedDemo();
   const cityData = useStore((s) => s.cityData);
   const isLoading = useStore((s) => s.isLoading);
   const setCityData = useStore((s) => s.setCityData);
@@ -611,8 +614,10 @@ export function Landing() {
   // introduction whatever the storage says about it.
   // §19.05: the decision itself is `arrivalBeat` — the same function the
   // headless case set drives, so this line cannot drift from its tests.
+  // The introduction teaches "pick the folder with your code" — the one action a
+  // hosted page does not have. So that page opens on the claim and the demo.
   const [arrival, setArrival] = useState<ArrivalStage>(() =>
-    arrivalBeat({ firstRun, stage: readArrivalStageRead() }),
+    hosted ? "done" : arrivalBeat({ firstRun, stage: readArrivalStageRead() }),
   );
   const goTo = (stage: ArrivalStage): void => {
     rememberArrivalStage(stage);
@@ -655,11 +660,12 @@ export function Landing() {
   // server is not read as a finished run.
   const [resumeId, setResumeId] = useState<string | null>(null);
   useEffect(() => {
+    if (hosted) return;
     const id = readPendingRun();
     if (!id) return;
     let abandoned = false;
-    fetch(`/api/status/${encodeURIComponent(id)}`)
-      .then((r) => (r.status === 404 ? "gone" : r.ok ? r.json() : "unknown"))
+    localApiFetch(() => `/api/status/${encodeURIComponent(id)}`)
+      .then((r) => (r ? (r.status === 404 ? "gone" : r.ok ? r.json() : "unknown") : "unknown"))
       .then((d) => {
         if (abandoned) return;
         if (d === "gone") clearPendingRun(id);
@@ -680,25 +686,31 @@ export function Landing() {
   // to the actions. The run archive keeps the newest 20 completed cities, so the
   // offer is no longer a 24 h guess; if 20 newer scans pushed it out, the click
   // lands on the honest dead-link notice instead of a silent empty screen.
-  const [lastCity] = useState<RecentCity | null>(() => recentCities()[0] ?? null);
+  const [lastCity] = useState<RecentCity | null>(() =>
+    hosted ? null : (recentCities()[0] ?? null),
+  );
   const prefs = useStore((s) => s.prefs);
   // Passive update note: the BACKEND queries public GitHub releases (cached,
   // anonymous) — the client sends nothing about itself. Dismissal is per
   // version, so the next release notes come through again.
   const [update, setUpdate] = useState<{ latest: string; url: string | null } | null>(null);
   useEffect(() => {
-    if (!prefs.updateCheck) return;
-    fetch("/api/update/check")
-      .then((r) => r.json())
-      .then((d: { updateAvailable?: boolean; latest?: string; releaseUrl?: string | null }) => {
-        if (
-          d.updateAvailable &&
-          d.latest &&
-          d.latest !== localStorage.getItem("ephemora-skyline-update-dismissed")
-        ) {
-          setUpdate({ latest: d.latest, url: d.releaseUrl ?? null });
-        }
-      })
+    // A hosted page has no backend to ask; the release link on it is the offer.
+    if (!prefs.updateCheck || hosted) return;
+    localApiFetch(() => "/api/update/check")
+      .then((r) => (r ? r.json() : null))
+      .then(
+        (d: { updateAvailable?: boolean; latest?: string; releaseUrl?: string | null } | null) => {
+          if (!d) return;
+          if (
+            d.updateAvailable &&
+            d.latest &&
+            d.latest !== localStorage.getItem("ephemora-skyline-update-dismissed")
+          ) {
+            setUpdate({ latest: d.latest, url: d.releaseUrl ?? null });
+          }
+        },
+      )
       .catch(() => {}); // offline: no note, no noise
   }, [prefs.updateCheck]);
   interface Footprint {
@@ -748,8 +760,8 @@ export function Landing() {
   const [lookUnreadable, setLookUnreadable] = useState(false);
   const readFootprint = async (): Promise<void> => {
     try {
-      const res = await fetch("/api/footprint");
-      if (!res.ok) throw new Error(String(res.status));
+      const res = await localApiFetch(() => "/api/footprint");
+      if (!res?.ok) throw new Error(res ? String(res.status) : "backend unavailable");
       setFoot((await res.json()) as Footprint);
       const names = countStoredNames();
       setNameCount(names.names);
@@ -764,7 +776,8 @@ export function Landing() {
     }
   };
   useEffect(() => {
-    void readFootprint();
+    // The footprint is the local program's staging folder. A hosted page has none.
+    if (!hosted) void readFootprint();
   }, []);
   const bytesOf = (n: number): string =>
     n >= 1024 * 1024
@@ -773,8 +786,8 @@ export function Landing() {
   const purgeFootprint = async (): Promise<void> => {
     setFootNote("");
     try {
-      const res = await fetch("/api/footprint/purge", { method: "POST" });
-      if (!res.ok) throw new Error(String(res.status));
+      const res = await localApiFetch(() => "/api/footprint/purge", { method: "POST" });
+      if (!res?.ok) throw new Error(res ? String(res.status) : "backend unavailable");
       const d = (await res.json()) as { removed: number; bytesFreed: number };
       setFootNote(
         tsCount(lang, "landing.footprintPurged", "landing.footprintPurgedOne", d.removed, {
@@ -893,7 +906,9 @@ export function Landing() {
     setDemoLoading(true);
     setDemoError("");
     try {
-      const res = await fetch("/api/cities/default");
+      const res = await fetch(
+        hosted ? demoCityPath(import.meta.env.BASE_URL) : "/api/cities/default",
+      );
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = (await res.json()) as CityData;
       setCityData(data);
@@ -903,7 +918,7 @@ export function Landing() {
       // verdicts are keyed by project, not by this id.
       setAnalysisId(data.analysisId ?? null);
     } catch {
-      setDemoError(t(lang, "landing.demoError"));
+      setDemoError(t(lang, hosted ? "landing.hostedDemoError" : "landing.demoError"));
     } finally {
       setDemoLoading(false);
     }
@@ -919,7 +934,11 @@ export function Landing() {
   return (
     <main className="landing-shell start-v2">
       <header className="landing-header">
-        <a href="/" className="landing-brand" aria-label={t(lang, "landing.homeAria")}>
+        <a
+          href={import.meta.env.BASE_URL}
+          className="landing-brand"
+          aria-label={t(lang, "landing.homeAria")}
+        >
           <BrandWordmark />
           <span>Skyline</span>
         </a>
@@ -930,14 +949,17 @@ export function Landing() {
               Shown only while the sequence is off screen, so there is never a
               second way into a guide that is already being shown, and pressing
               it is the only thing that opens it. */}
-          {arrival === "done" && (
+          {!hosted && arrival === "done" && (
             <button type="button" className="start-replay" onClick={() => goTo("welcome")}>
               {t(lang, "landing.replayIntro")}
             </button>
           )}
-          <span className="local-badge" title={t(lang, "landing.localBadgeNote")}>
+          <span
+            className="local-badge"
+            title={t(lang, hosted ? "landing.hostedBadgeNote" : "landing.localBadgeNote")}
+          >
             <span aria-hidden="true" />
-            {t(lang, "landing.localBadge")}
+            {t(lang, hosted ? "landing.hostedBadge" : "landing.localBadge")}
           </span>
           <LangSwitch lang={lang} onPick={(next) => setPref("lang", next)} />
         </div>
@@ -1020,33 +1042,35 @@ export function Landing() {
             </h1>
             <p className="landing-description">{t(lang, "landing.description")}</p>
             <div className="landing-actions">
-              <button
-                onClick={pickFolder}
-                disabled={isAnalyzing || demoLoading}
-                aria-busy={isAnalyzing}
-                aria-describedby={error ? "landing-error" : "local-note"}
-                className="primary-button"
-              >
-                <svg
-                  width="19"
-                  height="19"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="1.7"
-                  aria-hidden="true"
+              {!hosted && (
+                <button
+                  onClick={pickFolder}
+                  disabled={isAnalyzing || demoLoading}
+                  aria-busy={isAnalyzing}
+                  aria-describedby={error ? "landing-error" : "local-note"}
+                  className="primary-button"
                 >
-                  <path d="M3 7V5a1 1 0 0 1 1-1h5l2 3h9a1 1 0 0 1 1 1v11H3Z" />
-                  <path d="M3 10h18" />
-                </svg>
-                {isPicking
-                  ? t(lang, "picker.waiting")
-                  : isCollecting
-                    ? t(lang, "landing.primaryCollecting")
-                    : isAnalyzing
-                      ? t(lang, "landing.primaryAnalyzing")
-                      : t(lang, "landing.primary")}
-              </button>
+                  <svg
+                    width="19"
+                    height="19"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.7"
+                    aria-hidden="true"
+                  >
+                    <path d="M3 7V5a1 1 0 0 1 1-1h5l2 3h9a1 1 0 0 1 1 1v11H3Z" />
+                    <path d="M3 10h18" />
+                  </svg>
+                  {isPicking
+                    ? t(lang, "picker.waiting")
+                    : isCollecting
+                      ? t(lang, "landing.primaryCollecting")
+                      : isAnalyzing
+                        ? t(lang, "landing.primaryAnalyzing")
+                        : t(lang, "landing.primary")}
+                </button>
+              )}
               <button
                 onClick={loadDemo}
                 disabled={demoLoading || isAnalyzing}
@@ -1067,11 +1091,19 @@ export function Landing() {
                 {demoLoading ? t(lang, "landing.secondaryLoading") : t(lang, "landing.secondary")}
               </button>
             </div>
+            {hosted && (
+              <p className="landing-privacy landing-hosted-note">
+                {t(lang, "landing.hostedNote")}{" "}
+                <a href={RELEASES_URL} target="_blank" rel="noreferrer">
+                  {t(lang, "landing.hostedNoteLink")}
+                </a>
+              </p>
+            )}
             {/* One offer line, one way back into a city: what finished in the
               reader's absence comes first (§03.09), the last opened city second
               (§03.10). Both are the same shape on purpose — see `.landing-resume`
               in start.css. */}
-            {(resumeId || lastCity) && (
+            {!hosted && (resumeId || lastCity) && (
               <div className="landing-resume">
                 {resumeId ? (
                   <>
@@ -1121,163 +1153,175 @@ export function Landing() {
                 </div>
               </div>
             )}
-            <div className="landing-assure">
-              <p id="local-note" className="landing-privacy">
-                {t(lang, "landing.privacy")}
-              </p>
-              <details className="landing-network">
-                <summary>{t(lang, "landing.networkToggle")}</summary>
-                <p className="landing-network-lead">{t(lang, "landing.networkLead")}</p>
-                <ul className="landing-network-list">
-                  {OUTBOUND_CALLS.map((call) => {
-                    const copy = lang === "de" ? call.de : call;
-                    return (
-                      <li key={`${call.host}|${call.by}`}>
-                        <code className="font-jetbrains">{call.host}</code> — {copy.what}
-                        <span className="landing-network-meta">
-                          {t(lang, "landing.networkMadeBy")}: {copy.by} ·{" "}
-                          {t(lang, "landing.networkWhen")}: {copy.when}
-                        </span>
-                      </li>
-                    );
-                  })}
-                </ul>
-                <p className="landing-network-lead">
-                  <code className="font-jetbrains">SKYLINE_OFFLINE=1</code>{" "}
-                  {t(lang, "landing.networkOfflineSuffix")}
+            {!hosted && (
+              <div className="landing-assure">
+                <p id="local-note" className="landing-privacy">
+                  {t(lang, "landing.privacy")}
                 </p>
-                <div className="landing-footprint">
-                  <p className="landing-network-lead">{t(lang, "landing.footprintLead")}</p>
-                  {footError && (
-                    <p className="landing-network-meta" role="status">
-                      {t(lang, "landing.footprintError")}
-                    </p>
-                  )}
-                  {foot && (
-                    <>
-                      <p className="landing-network-meta">
-                        {t(lang, "landing.footprintPath")}{" "}
-                        <code className="font-jetbrains">{foot.root}</code>
-                      </p>
-                      <p role="status" className="landing-footprint-count">
-                        {foot.copies === 0
-                          ? t(lang, "landing.footprintNone")
-                          : tsCount(
-                              lang,
-                              "landing.footprintCopies",
-                              "landing.footprintCopiesOne",
-                              foot.copies,
-                              {
-                                n: foot.copies,
-                                bytes:
-                                  bytesOf(foot.bytes) +
-                                  (foot.approx ? " " + t(lang, "landing.footprintApprox") : ""),
-                                h: foot.ttlHours,
-                              },
-                            )}
-                        {foot.stale > 0 && (
-                          <span className="landing-footprint-stale">
-                            {" · "}
-                            {t(lang, "landing.footprintStale", { n: foot.stale })}
+                <details className="landing-network">
+                  <summary>{t(lang, "landing.networkToggle")}</summary>
+                  <p className="landing-network-lead">{t(lang, "landing.networkLead")}</p>
+                  <ul className="landing-network-list">
+                    {OUTBOUND_CALLS.map((call) => {
+                      const copy = lang === "de" ? call.de : call;
+                      return (
+                        <li key={`${call.host}|${call.by}`}>
+                          <code className="font-jetbrains">{call.host}</code> — {copy.what}
+                          <span className="landing-network-meta">
+                            {t(lang, "landing.networkMadeBy")}: {copy.by} ·{" "}
+                            {t(lang, "landing.networkWhen")}: {copy.when}
                           </span>
-                        )}
-                      </p>
-                    </>
-                  )}
-                  {(nameCount > 0 || !namesUnreadable) && (
-                    <p role="status" className="landing-footprint-count">
-                      {nameCount === 0
-                        ? t(lang, "landing.footprintNamesNone")
-                        : t(
-                            lang,
-                            nameCount === 1
-                              ? "landing.footprintNamesOne"
-                              : "landing.footprintNames",
-                            { n: formatCount(lang, nameCount) },
-                          )}
-                    </p>
-                  )}
-                  {/* The third state of the line above, drawn as the look line's
+                        </li>
+                      );
+                    })}
+                  </ul>
+                  <p className="landing-network-lead">
+                    <code className="font-jetbrains">SKYLINE_OFFLINE=1</code>{" "}
+                    {t(lang, "landing.networkOfflineSuffix")}
+                  </p>
+                  {!hosted && (
+                    <div className="landing-footprint">
+                      <p className="landing-network-lead">{t(lang, "landing.footprintLead")}</p>
+                      {footError && (
+                        <p className="landing-network-meta" role="status">
+                          {t(lang, "landing.footprintError")}
+                        </p>
+                      )}
+                      {foot && (
+                        <>
+                          <p className="landing-network-meta">
+                            {t(lang, "landing.footprintPath")}{" "}
+                            <code className="font-jetbrains">{foot.root}</code>
+                          </p>
+                          <p role="status" className="landing-footprint-count">
+                            {foot.copies === 0
+                              ? t(lang, "landing.footprintNone")
+                              : tsCount(
+                                  lang,
+                                  "landing.footprintCopies",
+                                  "landing.footprintCopiesOne",
+                                  foot.copies,
+                                  {
+                                    n: foot.copies,
+                                    bytes:
+                                      bytesOf(foot.bytes) +
+                                      (foot.approx ? " " + t(lang, "landing.footprintApprox") : ""),
+                                    h: foot.ttlHours,
+                                  },
+                                )}
+                            {foot.stale > 0 && (
+                              <span className="landing-footprint-stale">
+                                {" · "}
+                                {t(lang, "landing.footprintStale", { n: foot.stale })}
+                              </span>
+                            )}
+                          </p>
+                        </>
+                      )}
+                      {(nameCount > 0 || !namesUnreadable) && (
+                        <p role="status" className="landing-footprint-count">
+                          {nameCount === 0
+                            ? t(lang, "landing.footprintNamesNone")
+                            : t(
+                                lang,
+                                nameCount === 1
+                                  ? "landing.footprintNamesOne"
+                                  : "landing.footprintNames",
+                                { n: formatCount(lang, nameCount) },
+                              )}
+                        </p>
+                      )}
+                      {/* The third state of the line above, drawn as the look line's
                     sibling below draws its own: a bucket that refuses to
                     parse is NOT "no resident names saved yet" — the resident
                     card already speaks over these bytes, and one bucket must
                     not say two contradictory sentences. The number counts
                     only the readable part; the word names the rest. Words
                     and glyph, never colour alone. */}
-                  {namesUnreadable && (
-                    <p className="landing-network-meta" role="alert" data-names-unreadable="true">
-                      ⚠ {t(lang, "landing.footprintNamesUnreadable")}
-                    </p>
-                  )}
-                  {/* §04.09 — the third thing this browser keeps. One small object,
+                      {namesUnreadable && (
+                        <p
+                          className="landing-network-meta"
+                          role="alert"
+                          data-names-unreadable="true"
+                        >
+                          ⚠ {t(lang, "landing.footprintNamesUnreadable")}
+                        </p>
+                      )}
+                      {/* §04.09 — the third thing this browser keeps. One small object,
                     but a disclosure that lists two of three is a promise with a
                     hole in it, which is the reason this line exists. */}
-                  <p role="status" className="landing-footprint-count">
-                    {t(lang, lookSaved ? "landing.footprintLook" : "landing.footprintLookNone")}
-                  </p>
-                  {/* A key that exists and cannot be read is the one state the
+                      <p role="status" className="landing-footprint-count">
+                        {t(lang, lookSaved ? "landing.footprintLook" : "landing.footprintLookNone")}
+                      </p>
+                      {/* A key that exists and cannot be read is the one state the
                     line above cannot tell apart — the figure wears the
                     shipped look, which is NOT the same as never having
                     chosen. Words and glyph, never colour alone. */}
-                  {lookUnreadable && (
-                    <p className="landing-network-meta" role="alert" data-look-unreadable="true">
-                      ⚠ {t(lang, "landing.lookUnreadable")}
-                    </p>
-                  )}
-                  <div className="landing-footprint-actions">
-                    <button
-                      type="button"
-                      className="btn-ghost"
-                      onClick={() => void readFootprint()}
-                    >
-                      {t(lang, "landing.footprintRefresh")}
-                    </button>
-                    <button
-                      type="button"
-                      className="btn-ghost"
-                      onClick={() => void purgeFootprint()}
-                      disabled={!foot || foot.stale === 0}
-                    >
-                      {t(lang, "landing.footprintPurge")}
-                    </button>
-                    <button
-                      type="button"
-                      className="btn-ghost"
-                      onClick={() => void resetVerdicts()}
-                    >
-                      {t(lang, "landing.footprintReset")}
-                    </button>
-                    {/* Auftrag #22: the door opens whenever ANYTHING of this
+                      {lookUnreadable && (
+                        <p
+                          className="landing-network-meta"
+                          role="alert"
+                          data-look-unreadable="true"
+                        >
+                          ⚠ {t(lang, "landing.lookUnreadable")}
+                        </p>
+                      )}
+                      <div className="landing-footprint-actions">
+                        <button
+                          type="button"
+                          className="btn-ghost"
+                          onClick={() => void readFootprint()}
+                        >
+                          {t(lang, "landing.footprintRefresh")}
+                        </button>
+                        <button
+                          type="button"
+                          className="btn-ghost"
+                          onClick={() => void purgeFootprint()}
+                          disabled={!foot || foot.stale === 0}
+                        >
+                          {t(lang, "landing.footprintPurge")}
+                        </button>
+                        <button
+                          type="button"
+                          className="btn-ghost"
+                          onClick={() => void resetVerdicts()}
+                        >
+                          {t(lang, "landing.footprintReset")}
+                        </button>
+                        {/* Auftrag #22: the door opens whenever ANYTHING of this
                       class is there — readable names, or bytes that refuse to
                       read. A corrupt bucket counted zero and kept the one
                       button that could clear it shut, over exactly the bytes
                       an owner most needs to sweep. */}
-                    <button
-                      type="button"
-                      className="btn-ghost"
-                      onClick={resetNames}
-                      disabled={nameCount === 0 && !namesUnreadable}
-                    >
-                      {t(lang, "landing.footprintResetNames")}
-                    </button>
-                    <button
-                      type="button"
-                      className="btn-ghost"
-                      onClick={resetLook}
-                      disabled={!lookSaved}
-                    >
-                      {t(lang, "landing.footprintResetLook")}
-                    </button>
-                  </div>
-                  {footNote && (
-                    <p className="landing-network-meta" role="status">
-                      {footNote}
-                    </p>
+                        <button
+                          type="button"
+                          className="btn-ghost"
+                          onClick={resetNames}
+                          disabled={nameCount === 0 && !namesUnreadable}
+                        >
+                          {t(lang, "landing.footprintResetNames")}
+                        </button>
+                        <button
+                          type="button"
+                          className="btn-ghost"
+                          onClick={resetLook}
+                          disabled={!lookSaved}
+                        >
+                          {t(lang, "landing.footprintResetLook")}
+                        </button>
+                      </div>
+                      {footNote && (
+                        <p className="landing-network-meta" role="status">
+                          {footNote}
+                        </p>
+                      )}
+                    </div>
                   )}
-                </div>
-              </details>
-            </div>
-            {!error && footError && (
+                </details>
+              </div>
+            )}
+            {!hosted && !error && footError && (
               // R1-15: with the backend dead this page stayed fully optimistic —
               // even "RECENTLY OPENED … Open again →" — and the only trace was
               // two console 502s, although the footprint read above already
@@ -1335,7 +1379,7 @@ export function Landing() {
                 {notice || t(lang, "scan.cancelled")}
               </p>
             )}
-            {!isAnalyzing && (
+            {!hosted && !isAnalyzing && (
               <details className="scan-settings">
                 <summary>
                   <span>
@@ -1373,7 +1417,7 @@ export function Landing() {
           <EphePreview lang={lang} onClose={() => setPreviewOpen(false)} />
         </Suspense>
       )}
-      <RecentCities lang={lang} />
+      {!hosted && <RecentCities lang={lang} />}
       <footer className="landing-footer">
         <span>{t(lang, "landing.footer1")}</span>
       </footer>

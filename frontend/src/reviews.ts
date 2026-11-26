@@ -1,6 +1,7 @@
 import type { ReviewStatus } from "./city/types";
 import { getWorkspaceRoot } from "./editor/deepLink";
 import { readStoredJson, type StoredRead } from "./storageRead";
+import { localApiFetch } from "./demo/hosted";
 
 /**
  * Per-finding review states, persisted local-first in localStorage keyed by
@@ -282,9 +283,11 @@ export async function fetchBackendReviews(
 ): Promise<VerdictRead> {
   if (!analysisId || !project) return { state: "absent" };
   try {
-    const res = await fetch(`${verdictsRoute(analysisId)}?project=${encodeURIComponent(project)}`, {
-      headers: { Accept: "application/json" },
-    });
+    const res = await localApiFetch(
+      () => `${verdictsRoute(analysisId)}?project=${encodeURIComponent(project)}`,
+      { headers: { Accept: "application/json" } },
+    );
+    if (!res) return { state: "absent" };
     if (res.status === 503) {
       // Only the code the store itself names is read as a broken file: a 503
       // from something else in front of it is a server that is not answering,
@@ -337,7 +340,7 @@ export function pushBackendReviews(
   const body = JSON.stringify({ project, reviews });
   verdictWriteChain = verdictWriteChain
     .then(() =>
-      fetch(verdictsRoute(analysisId), {
+      localApiFetch(() => verdictsRoute(analysisId), {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body,
@@ -363,8 +366,8 @@ export function pushBackendReviews(
 export async function resetBackendVerdicts(): Promise<boolean> {
   if (machineCopyUnreadable) return false;
   try {
-    const res = await fetch("/api/verdicts/reset", { method: "POST" });
-    return res.ok;
+    const res = await localApiFetch(() => "/api/verdicts/reset", { method: "POST" });
+    return res?.ok === true;
   } catch {
     return false;
   }

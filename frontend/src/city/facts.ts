@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { isHostedDemo } from "../demo/hosted";
 import type { Severity } from "./types";
 
 /**
@@ -64,6 +65,9 @@ let announced: Promise<Record<string, { class: string; classDe?: string }>> | nu
 const EMPTY_CLASSES: Record<string, { class: string; classDe?: string }> = {};
 
 function loadRuleClasses(): Promise<Record<string, { class: string; classDe?: string }>> {
+  // A hosted page has no backend to ask; the chips fall back to the labels the
+  // city itself carries, which is what this table is for (§ demo/hosted.ts).
+  if (isHostedDemo()) return Promise.resolve(EMPTY_CLASSES);
   announced ??= fetch("/api/rule-classes", { headers: { Accept: "application/json" } })
     .then((res) =>
       res.ok

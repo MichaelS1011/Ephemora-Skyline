@@ -1,4 +1,13 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 import { useStore } from "../stores/useStore";
 import { allFiles } from "../city/layout";
 import { ruleClassLabel, severityTotal, useRuleClassNames } from "../city/facts";
@@ -6,6 +15,7 @@ import { MovedSinceLastScan } from "./MovedSinceLastScan";
 import { severityColor, languageColor } from "../city/palette";
 import type { CityFile, CityFinding, ReviewStatus, Severity } from "../city/types";
 import { findingKey, reviewKeyFor } from "../reviews";
+import { isHostedDemo } from "../demo/hosted";
 import { t, type DictKey } from "../i18n";
 import { FindingMessage } from "./FindingCard";
 
@@ -54,8 +64,31 @@ function ruleIdOf(finding: CityFinding): string {
   return finding.ruleId ?? finding.type;
 }
 
-/** Findings grouped by file, with severity + rule filters combined (AND). */
+type RuleClassNames = ReturnType<typeof useRuleClassNames>;
+const RuleClassNamesContext = createContext<RuleClassNames | undefined>(undefined);
+
+/** Hosted mode keeps the findings but never mounts the backend-backed hook. */
 export function FindingsPanel() {
+  return isHostedDemo() ? (
+    <RuleClassNamesContext.Provider value={{}}>
+      <FindingsPanelContent />
+    </RuleClassNamesContext.Provider>
+  ) : (
+    <RuleClassNamesLoader>
+      <FindingsPanelContent />
+    </RuleClassNamesLoader>
+  );
+}
+
+function RuleClassNamesLoader({ children }: { children: ReactNode }) {
+  const ruleClasses = useRuleClassNames();
+  return (
+    <RuleClassNamesContext.Provider value={ruleClasses}>{children}</RuleClassNamesContext.Provider>
+  );
+}
+
+/** Findings grouped by file, with severity + rule filters combined (AND). */
+function FindingsPanelContent() {
   const lang = useStore((s) => s.prefs.lang);
   const colorblind = useStore((s) => s.prefs.colorblind);
   const orphanedReviews = useStore((s) => s.orphanedReviews);
@@ -150,7 +183,7 @@ export function FindingsPanel() {
     () => (cityData ? allFiles(cityData).flatMap((h) => h.file.findings) : []),
     [cityData],
   );
-  const ruleClasses = useRuleClassNames();
+  const ruleClasses = useContext(RuleClassNamesContext) ?? {};
   const allFindingsLabel = useCallback(
     (rule: string) => ruleClassLabel(everyFinding, rule, lang, ruleClasses),
     [everyFinding, lang, ruleClasses],

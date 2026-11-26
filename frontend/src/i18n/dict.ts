@@ -44,6 +44,10 @@ export const DICT = {
     en: "Local by design",
     de: "Lokal, mit Absicht",
   },
+  "landing.hostedBadge": {
+    en: "Hosted demo",
+    de: "Gehostete Demo",
+  },
   /**
    * The badge is a claim, so it carries its own evidence: what the scan sends
    * out, what it never sends, and the switch that stops the rest.
@@ -68,6 +72,10 @@ export const DICT = {
   "landing.localBadgeNote": {
     en: "Source code is never uploaded. Two things reach out by themselves: the app asks GitHub once an hour for the newest release tag, and the scanners fetch their own rule and advisory data (semgrep.dev, api.osv.dev, npm) while a scan runs. SKYLINE_OFFLINE=1 stops every one of them, and the release check is one click off in a city's More menu.",
     de: "Quellcode wird nie hochgeladen. Zwei Dinge gehen von selbst hinaus: die App fragt einmal pro Stunde bei GitHub nach der neuesten Version, und die Scanner holen beim Scan ihre eigenen Regel- und Sicherheitsdaten (semgrep.dev, api.osv.dev, npm). SKYLINE_OFFLINE=1 schaltet sie alle ab, der Versionshinweis ist ein Klick im Mehr-Menü einer Stadt.",
+  },
+  "landing.hostedBadgeNote": {
+    en: "This static page ships a sample city. It does not scan folders or contact a backend.",
+    de: "Diese statische Seite liefert eine Beispielstadt. Sie scannt keine Ordner und kontaktiert kein Backend.",
   },
   "landing.langAria": {
     en: "Change display language",
@@ -323,6 +331,18 @@ export const DICT = {
     de: "Dein Quellcode bleibt auf diesem Rechner. Kein Konto nötig.",
   },
   /**
+   * The hosted page has no backend, so it says what it is instead of offering
+   * a folder picker that could not scan. The link is the way to the product.
+   */
+  "landing.hostedNote": {
+    en: "This page is a hosted sample: the city is baked into it and nothing was scanned in your browser. To scan your own folder, run the release on your machine.",
+    de: "Diese Seite ist eine gehostete Probe: Die Stadt ist eingebacken, in deinem Browser wurde nichts gescannt. Um deinen eigenen Ordner zu scannen, starte das Release auf deinem Rechner.",
+  },
+  "landing.hostedNoteLink": {
+    en: "Get the release",
+    de: "Release holen",
+  },
+  /**
    * The strongest claim on the entry screen, so the check is offered next to
    * it rather than only in the repository.
    */
@@ -491,9 +511,17 @@ export const DICT = {
     en: "The demo couldn't load. Check that the local server is running, then try again.",
     de: "Die Demo konnte nicht geladen werden. Prüfe, ob der lokale Server läuft, und versuche es erneut.",
   },
+  "landing.hostedDemoError": {
+    en: "The baked demo couldn't load. Reload the page to try again.",
+    de: "Die eingebackene Demo konnte nicht geladen werden. Lade die Seite neu und versuche es erneut.",
+  },
   "app.permalinkError": {
     en: "The local server has no city under this link. It may have been pushed out by newer scans — open the folder again to rebuild the city.",
     de: "Der lokale Server kennt keine Stadt unter diesem Link. Möglicherweise wurde sie von neueren Scans verdrängt — Ordner erneut öffnen, um die Stadt neu zu bauen.",
+  },
+  "app.hostedPermalinkError": {
+    en: "This hosted page contains only the demo city. Open the demo or install the local app to visit your own scans.",
+    de: "Diese gehostete Seite enthält nur die Demo-Stadt. Öffne die Demo oder installiere die lokale App, um deine eigenen Scans zu besuchen.",
   },
   "landing.progressCollecting": {
     en: "Reading your folder · {count} files",
@@ -1370,6 +1398,14 @@ export const DICT = {
   "actions.linkCopiedUnknown": {
     en: "City link copied. It opens on this machine only — the server did not answer, so how many completed scans it keeps is unknown.",
     de: "Stadt-Link kopiert. Er öffnet nur auf diesem Rechner — der Server antwortete nicht, also ist unbekannt, wie viele abgeschlossene Scans er behält.",
+  },
+  "actions.linkCopiedHosted": {
+    en: "Demo link copied. It opens this baked demo on the hosted page; it is not a link to a local scan.",
+    de: "Demo-Link kopiert. Er öffnet diese eingebackene Demo auf der gehosteten Seite; es ist kein Link zu einem lokalen Scan.",
+  },
+  "actions.hostedBackendNote": {
+    en: "Scanning, tests, reports and update checks need the local app.",
+    de: "Scans, Tests, Berichte und Update-Prüfungen brauchen die lokale App.",
   },
   "actions.linkCopyFailed": {
     en: "The link could not be copied. Copy the address from your browser instead.",

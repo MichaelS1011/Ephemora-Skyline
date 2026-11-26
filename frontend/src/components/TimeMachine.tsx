@@ -14,6 +14,7 @@ import type { CityData } from "../city/types";
 import { timeMachineText } from "./timeMachineCopy";
 import type { Lang } from "../i18n";
 import { OPEN_TIME_MACHINE_EVENT } from "./timeMachineBus";
+import { isHostedDemo, localApiFetch } from "../demo/hosted";
 import "../design/timeMachine.css";
 
 type EraState =
@@ -41,6 +42,11 @@ export interface TimeMachineProps {
 }
 
 export function TimeMachine({ currentId, onOpenCity }: TimeMachineProps) {
+  if (isHostedDemo()) return null;
+  return <TimeMachineContent currentId={currentId} onOpenCity={onOpenCity} />;
+}
+
+function TimeMachineContent({ currentId, onOpenCity }: TimeMachineProps) {
   const lang = useStore((s) => s.prefs.lang);
   const currentCity = useStore((s) => s.cityData);
   const [open, setOpen] = useState(false);
@@ -79,10 +85,14 @@ export function TimeMachine({ currentId, onOpenCity }: TimeMachineProps) {
     setEras((prev) => ({ ...prev, [selectedId]: { state: "loading" } }));
     void (async () => {
       try {
-        const response = await fetch(`/api/result/${encodeURIComponent(selectedId)}/city`, {
-          headers: { Accept: "application/json" },
-          signal: controller.signal,
-        });
+        const response = await localApiFetch(
+          () => `/api/result/${encodeURIComponent(selectedId)}/city`,
+          {
+            headers: { Accept: "application/json" },
+            signal: controller.signal,
+          },
+        );
+        if (!response) throw new Error("backend unavailable");
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
         const city = (await response.json()) as CityData;
         if (job !== requestRef.current) return;

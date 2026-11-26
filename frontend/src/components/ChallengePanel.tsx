@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useStore } from "../stores/useStore";
+import { isHostedDemo, localApiFetch } from "../demo/hosted";
 import { t, type DictKey } from "../i18n";
 import {
   challengeCategoryKey,
@@ -44,6 +45,9 @@ export function ChallengePanel() {
   // One request per stored scan. A re-scan mints a new id and re-asks; a
   // folder that is no exercise answers 404 and the card stays absent.
   useEffect(() => {
+    // A hosted page has no backend: the card stays absent instead of asking
+    // an address that answers 404 (§ demo/hosted.ts).
+    if (isHostedDemo()) return;
     if (!shouldFetchChallenge(analysisId, fetchedForRef.current)) return;
     let cancelled = false;
     fetchedForRef.current = analysisId;
@@ -51,10 +55,10 @@ export function ChallengePanel() {
     void (async () => {
       if (analysisId === null) return;
       try {
-        const res = await fetch(challengeFetchUrl(analysisId), {
+        const res = await localApiFetch(() => challengeFetchUrl(analysisId), {
           headers: { Accept: "application/json" },
         });
-        if (!res.ok) return;
+        if (!res?.ok) return;
         const parsed = parseChallengeResponse(await res.json());
         if (!cancelled) setView(parsed);
       } catch {

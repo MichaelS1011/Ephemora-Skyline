@@ -16,6 +16,19 @@ import { DEMO_FIXTURE_CODE_LINES, DEMO_IMPORT_FIXTURES } from "./demoFixtures.js
  * demo must never arrive carrying an analyzer's claims.
  */
 
+/**
+ * When the demo dataset was frozen.
+ *
+ * The city is synthetic and seeded, so every other number is stable; the two
+ * timestamps were not, and that made the demo different on every call. That
+ * cost nothing while the demo only ever existed in a live backend, and it
+ * breaks the moment the same city is baked into a file for a hosted page
+ * (`scripts/demo-city.mjs`): the bake could never be checked for staleness.
+ * A fixed date is also the honest reading — nothing was scanned, and the
+ * dataset is this old.
+ */
+export const DEMO_SCANNED_AT = "2026-11-23T00:00:00.000Z";
+
 // mulberry32 — tiny seeded PRNG
 function makeRng(seed: number): () => number {
   let a = seed >>> 0;
@@ -387,7 +400,7 @@ export function getDemoResult(): AnalysisResult {
       name: "demo-city",
       branch: "main",
       cloneUrl: "",
-      analyzedAt: new Date().toISOString(),
+      analyzedAt: DEMO_SCANNED_AT,
     },
     files,
     directories,
@@ -415,7 +428,7 @@ export function getDemoResult(): AnalysisResult {
         coverage: false,
       },
     },
-    createdAt: new Date().toISOString(),
+    createdAt: DEMO_SCANNED_AT,
     status: "complete",
   };
 }

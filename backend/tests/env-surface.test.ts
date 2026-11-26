@@ -104,13 +104,31 @@ describe("the environment example", () => {
     }
   });
 
-  it("tells the truth about the frontend reading nothing", () => {
+  it("tells the truth about the frontend's build-time reads", () => {
     const frontend = read("frontend/src/findings/fixes.ts");
     expect(frontend).toContain("process.env.API_KEY"); // example text, not a read
-    const live = [...readdirSync(path.join(REPO, "frontend/src"), { recursive: true })]
+    const files = [...readdirSync(path.join(REPO, "frontend/src"), { recursive: true })]
       .filter((f) => String(f).endsWith(".ts") || String(f).endsWith(".tsx"))
-      .map((f) => read(path.join("frontend/src", String(f))))
-      .join("\n");
-    expect(live.match(/import\.meta\.env\.[A-Z0-9_]+/g) ?? []).toEqual([]);
+      .map((f) => String(f));
+    const live = files.map((f) => read(path.join("frontend/src", f))).join("\n");
+    /**
+     * The frontend reads no runtime setting: `.env.example` is the backend's
+     * file and none of it reaches a browser. Two constants are build-time, not
+     * settings — Vite's own `BASE_URL` (the directory the page is served from,
+     * which is how the hosted demo finds its bake under `/repo-name/`) and the
+     * hosted-demo flag the Pages workflow sets. Both are named here, so a third
+     * read cannot appear without this list growing.
+     */
+    const BUILD_TIME = ["BASE_URL", "VITE_HOSTED_DEMO"];
+    const reads = (live.match(/import\.meta\.env\.[A-Z0-9_]+/g) ?? []).map((m) =>
+      m.split(".").pop()!,
+    );
+    expect([...new Set(reads)].sort()).toEqual([...BUILD_TIME].sort());
+    // One module decides what a hosted page may offer; the flag may not be
+    // re-read somewhere the hosted gate would not cover.
+    const providers = files.filter((f) =>
+      read(path.join("frontend/src", f)).includes("import.meta.env.VITE_HOSTED_DEMO"),
+    );
+    expect(providers).toEqual(["demo/hosted.ts"]);
   });
 });
